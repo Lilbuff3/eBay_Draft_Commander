@@ -1,0 +1,354 @@
+/* eBay Draft Commander - Mobile Web Control Styles */
+
+:root {
+    --bg-primary: #1a1a2e;
+    --bg-secondary: #16213e;
+    --bg-card: #0f0f23;
+    --text-primary: #ffffff;
+    --text-secondary: #888888;
+    --accent-cyan: #00d9ff;
+    --accent-gold: #ffd700;
+    --success: #00ff00;
+    --warning: #ffa500;
+    --error: #ff6b6b;
+    --border-radius: 12px;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.app {
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 15px;
+    padding-bottom: 80px;
+}
+
+/* Header */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0 20px;
+}
+
+.header h1 {
+    font-size: 1.4rem;
+    color: var(--accent-cyan);
+}
+
+.refresh-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: background 0.2s;
+}
+
+.refresh-btn:active {
+    background: var(--bg-secondary);
+}
+
+/* Cards */
+.card {
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    margin-bottom: 15px;
+}
+
+/* Status Card */
+.status-card {
+    text-align: center;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.status-icon {
+    font-size: 2rem;
+}
+
+.status-text {
+    font-size: 1.3rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-text.processing { color: var(--accent-gold); }
+.status-text.paused { color: var(--warning); }
+.status-text.ready { color: var(--accent-cyan); }
+.status-text.idle { color: var(--text-secondary); }
+.status-text.error { color: var(--error); }
+
+/* Progress Bar */
+.progress-container {
+    margin-bottom: 15px;
+}
+
+.progress-bar {
+    height: 12px;
+    background: var(--bg-card);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-cyan), var(--accent-gold));
+    border-radius: 6px;
+    transition: width 0.3s ease;
+    width: 0%;
+}
+
+.progress-text {
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+}
+
+.progress-percent {
+    color: var(--accent-cyan);
+}
+
+.current-job {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    min-height: 20px;
+}
+
+.current-job .job-name {
+    color: var(--accent-gold);
+    font-weight: 500;
+}
+
+/* Control Buttons */
+.controls {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.btn {
+    border: none;
+    border-radius: var(--border-radius);
+    padding: 15px 20px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.1s, opacity 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn:active {
+    transform: scale(0.95);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #00d9ff, #0099cc);
+    color: #000;
+}
+
+.btn-warning {
+    background: linear-gradient(135deg, #ffa500, #cc8400);
+    color: #000;
+}
+
+.btn-secondary {
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border: 1px solid var(--bg-secondary);
+}
+
+/* Stats Card */
+.stats-card {
+    display: flex;
+    justify-content: space-around;
+    text-align: center;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--accent-cyan);
+}
+
+.stat-value.stat-success {
+    color: var(--success);
+}
+
+.stat-value.stat-error {
+    color: var(--error);
+}
+
+.stat-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+/* Jobs Card */
+.jobs-card h2 {
+    font-size: 1.1rem;
+    margin-bottom: 15px;
+    color: var(--accent-gold);
+}
+
+.jobs-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.job-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    background: var(--bg-card);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    gap: 12px;
+}
+
+.job-icon {
+    font-size: 1.3rem;
+    flex-shrink: 0;
+}
+
+.job-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.job-name {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.job-detail {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 3px;
+}
+
+.job-detail.error {
+    color: var(--error);
+}
+
+.job-price {
+    font-weight: 600;
+    color: var(--success);
+    flex-shrink: 0;
+}
+
+.loading {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 30px;
+}
+
+.empty-state {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 30px;
+}
+
+/* Footer */
+.footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--bg-secondary);
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    border-top: 1px solid var(--bg-card);
+}
+
+/* Animations */
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.processing .status-icon {
+    animation: pulse 1.5s infinite;
+}
+
+/* Scrollbar */
+.jobs-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.jobs-list::-webkit-scrollbar-track {
+    background: var(--bg-card);
+    border-radius: 3px;
+}
+
+.jobs-list::-webkit-scrollbar-thumb {
+    background: var(--bg-secondary);
+    border-radius: 3px;
+}
+
+/* Toast Notifications */
+.toast {
+    position: fixed;
+    bottom: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    z-index: 1000;
+    border: 1px solid var(--accent-cyan);
+}
+
+.toast.show {
+    opacity: 1;
+}
+
+.toast.error {
+    border-color: var(--error);
+}

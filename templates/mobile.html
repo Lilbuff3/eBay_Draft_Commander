@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>eBay Draft Commander</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <h1>📦 Draft Commander</h1>
+            <button class="refresh-btn" onclick="refresh()" title="Refresh">🔄</button>
+        </header>
+
+        <!-- Status Card -->
+        <div class="card status-card">
+            <div class="status-indicator">
+                <span class="status-icon" id="status-icon">⏳</span>
+                <span class="status-text" id="status-text">Loading...</span>
+            </div>
+            
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <div class="progress-text">
+                    <span id="progress-current">0</span>/<span id="progress-total">0</span>
+                    <span class="progress-percent">(<span id="progress-percent">0</span>%)</span>
+                </div>
+            </div>
+            
+            <div class="current-job" id="current-job">
+                <!-- Current job info appears here -->
+            </div>
+        </div>
+
+        <!-- Control Buttons -->
+        <div class="controls">
+            <button class="btn btn-primary" id="btn-start" onclick="startQueue()">
+                ▶️ Start
+            </button>
+            <button class="btn btn-warning" id="btn-pause" onclick="togglePause()">
+                ⏸️ Pause
+            </button>
+            <button class="btn btn-secondary" onclick="retryFailed()">
+                🔄 Retry
+            </button>
+            <button class="btn btn-secondary" onclick="clearCompleted()">
+                🗑️ Clear
+            </button>
+        </div>
+
+        <!-- Stats -->
+        <div class="card stats-card">
+            <div class="stat">
+                <span class="stat-value" id="stat-pending">0</span>
+                <span class="stat-label">Pending</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value stat-success" id="stat-completed">0</span>
+                <span class="stat-label">Done</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value stat-error" id="stat-failed">0</span>
+                <span class="stat-label">Failed</span>
+            </div>
+        </div>
+
+        <!-- Jobs List -->
+        <div class="card jobs-card">
+            <h2>📋 Queue</h2>
+            <div class="jobs-list" id="jobs-list">
+                <div class="loading">Loading jobs...</div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <span>eBay Draft Commander Pro</span>
+            <span id="last-update">--:--:--</span>
+        </footer>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

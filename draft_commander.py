@@ -23,6 +23,18 @@ from create_from_folder import create_listing_from_folder, create_listing_struct
 from queue_manager import QueueManager, QueueJob, JobStatus
 from queue_logger import get_logger, new_session
 from report_generator import generate_batch_report, generate_summary_text
+from settings_manager import SettingsManager, get_settings_manager
+from settings_dialog import SettingsDialog
+from web_server import WebControlServer
+from template_manager import get_template_manager
+from template_dialog import TemplateDialog, SaveTemplateDialog
+from photo_editor_dialog import PhotoEditorDialog
+from price_research import get_price_researcher
+from price_chart_widget import PriceChartDialog
+from preview_generator import PreviewGenerator
+from preview_dialog import PreviewDialog
+from inventory_sync import get_inventory_sync
+from inventory_dialog import InventorySyncDialog
 
 
 class DraftCommanderApp:
@@ -62,8 +74,16 @@ class DraftCommanderApp:
         # Logger
         self.logger = get_logger()
         
+        # Settings Manager
+        self.settings_manager = get_settings_manager()
+        
+        # Web Control Server
+        self.web_server = WebControlServer(self.queue_manager)
+        self.web_server.start()
+        
         # Setup UI
         self.setup_styles()
+        self.create_menu()
         self.create_widgets()
         
         # Initialize APIs in background
@@ -149,6 +169,50 @@ class DraftCommanderApp:
         style.configure('TButton', font=('Segoe UI', 10))
         style.configure('Action.TButton', font=('Segoe UI', 11, 'bold'))
         style.configure('TEntry', font=('Segoe UI', 10))
+    
+    def create_menu(self):
+        """Create menu bar"""
+        menubar = tk.Menu(self.root)
+        self.root.config(menu=menubar)
+        
+        # Options menu
+        options_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Options", menu=options_menu)
+        options_menu.add_command(label="⚙️ Settings", command=self.open_settings)
+        options_menu.add_separator()
+        options_menu.add_command(label="📂 Open Inbox Folder", 
+                                command=lambda: os.startfile(self.inbox_path))
+        options_menu.add_command(label="📂 Open Posted Folder",
+                                command=lambda: os.startfile(self.posted_path))
+        
+        # Mobile Control menu
+        mobile_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="📱 Mobile", menu=mobile_menu)
+        mobile_menu.add_command(label="🌐 Open Web Interface", 
+                               command=lambda: webbrowser.open(self.web_server.get_url()))
+        mobile_menu.add_command(label="📷 Show QR Code",
+                               command=self.show_qr_code)
+        mobile_menu.add_separator()
+        mobile_menu.add_command(label=f"URL: {self.web_server.get_url()}",
+                               state='disabled')
+        
+        # Tools menu (new features)
+        tools_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="🛠️ Tools", menu=tools_menu)
+        tools_menu.add_command(label="📋 Listing Templates", command=self.open_templates)
+        tools_menu.add_command(label="🖼️ Photo Editor", command=self.open_photo_editor)
+        tools_menu.add_command(label="📊 Price Research", command=self.open_price_research)
+        tools_menu.add_command(label="👁️ Preview Listing", command=self.open_preview)
+        tools_menu.add_separator()
+        tools_menu.add_command(label="📦 Inventory Sync", command=self.open_inventory_sync)
+        
+        # Help menu
+        help_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Help", menu=help_menu)
+        help_menu.add_command(label="🌐 eBay Seller Hub",
+                             command=lambda: webbrowser.open('https://www.ebay.com/sh/landing'))
+        help_menu.add_command(label="📖 eBay API Docs",
+                             command=lambda: webbrowser.open('https://developer.ebay.com/docs'))
         
     def create_widgets(self):
         """Create all UI widgets"""
@@ -182,9 +246,16 @@ class DraftCommanderApp:
         ttk.Button(control_frame, text="🌐 Open eBay", 
                    command=lambda: webbrowser.open('https://www.ebay.com/sl/sell')).pack(side=tk.LEFT, padx=5)
         
-        # Item count
+        # Item count and web URL
         self.item_count_label = ttk.Label(control_frame, text="Queue: 0 pending")
         self.item_count_label.pack(side=tk.RIGHT, padx=10)
+        
+        # Web control URL
+        web_url = self.web_server.get_url()
+        self.web_label = ttk.Label(control_frame, text=f"📱 {web_url}", 
+                                   foreground='#00d9ff', cursor='hand2')
+        self.web_label.pack(side=tk.RIGHT, padx=10)
+        self.web_label.bind('<Button-1>', lambda e: webbrowser.open(web_url))
         
         # Control buttons - Row 2 (Queue Management)
         queue_frame = ttk.Frame(main_frame)
@@ -198,6 +269,8 @@ class DraftCommanderApp:
                    command=self.export_report).pack(side=tk.LEFT, padx=5)
         ttk.Button(queue_frame, text="📂 Open Inbox", 
                    command=lambda: os.startfile(self.inbox_path)).pack(side=tk.LEFT, padx=5)
+        ttk.Button(queue_frame, text="⚙️ Settings",
+                   command=self.open_settings).pack(side=tk.LEFT, padx=5)
         
         # Progress Bar
         progress_frame = ttk.Frame(main_frame)
@@ -348,6 +421,184 @@ class DraftCommanderApp:
                    command=self.open_ebay_listing, style='Action.TButton').pack(side=tk.LEFT, padx=5)
         ttk.Button(action_frame, text="✅ Mark as Posted", 
                    command=self.mark_posted, style='Action.TButton').pack(side=tk.LEFT, padx=5)
+    
+    # =========================================================================
+    # Settings Methods
+    # =========================================================================
+    
+    def open_settings(self):
+        """Open the Settings dialog"""
+        dialog = SettingsDialog(self.root, self.settings_manager)
+        self.root.wait_window(dialog)
+        
+        if dialog.result:
+            # Settings were saved, reload configuration
+            self.reload_settings()
+            self.status_label.configure(text="⚙️ Settings updated", foreground='#00ff00')
+    
+    def reload_settings(self):
+        """Reload settings and reinitialize API clients"""
+        # Reload settings from file
+        self.settings_manager.load()
+        
+        # Reinitialize API clients with new settings
+        self.status_label.configure(text="🔄 Reloading APIs...", foreground='#ffd700')
+        self.initialize_apis()
+    
+    def show_qr_code(self):
+        """Show QR code window for mobile access"""
+        try:
+            import qrcode
+            from PIL import ImageTk
+            
+            # Generate QR code
+            url = self.web_server.get_url()
+            qr = qrcode.QRCode(version=1, box_size=10, border=2)
+            qr.add_data(url)
+            qr.make(fit=True)
+            qr_img = qr.make_image(fill_color="black", back_color="white")
+            
+            # Create popup window
+            popup = tk.Toplevel(self.root)
+            popup.title("📱 Scan to Connect")
+            popup.configure(bg='#1a1a2e')
+            popup.resizable(False, False)
+            
+            # Convert PIL image to Tkinter
+            photo = ImageTk.PhotoImage(qr_img)
+            
+            # QR code label
+            qr_label = tk.Label(popup, image=photo, bg='white')
+            qr_label.image = photo  # Keep reference
+            qr_label.pack(padx=20, pady=20)
+            
+            # URL label
+            url_label = ttk.Label(popup, text=url, foreground='#00d9ff',
+                                 font=('Segoe UI', 12))
+            url_label.pack(pady=(0, 10))
+            
+            # Instructions
+            ttk.Label(popup, text="Scan with your phone camera to open",
+                     foreground='#888', font=('Segoe UI', 10)).pack(pady=(0, 15))
+            
+            # Center on parent
+            popup.update_idletasks()
+            x = self.root.winfo_x() + (self.root.winfo_width() - popup.winfo_width()) // 2
+            y = self.root.winfo_y() + (self.root.winfo_height() - popup.winfo_height()) // 2
+            popup.geometry(f"+{x}+{y}")
+            
+        except ImportError:
+            messagebox.showinfo("QR Code", 
+                               f"Scan not available. Open this URL on your phone:\n\n{self.web_server.get_url()}")
+    
+    # =========================================================================
+    # Tools Menu Handlers
+    # =========================================================================
+    
+    def open_templates(self):
+        """Open listing templates dialog"""
+        dialog = TemplateDialog(self.root, get_template_manager())
+        self.root.wait_window(dialog)
+        
+        if dialog.result:
+            # Apply template to current item
+            template_data = dialog.result
+            self.status_label.configure(text=f"📋 Template applied", foreground='#00ff00')
+            
+            # If we have a current item, apply template values
+            if hasattr(self, 'condition_combo') and template_data.get('condition'):
+                self.condition_combo.set(template_data['condition'])
+            if hasattr(self, 'price_entry') and template_data.get('default_price'):
+                self.price_entry.delete(0, tk.END)
+                self.price_entry.insert(0, template_data['default_price'])
+    
+    def open_photo_editor(self):
+        """Open photo editor for current item"""
+        if not self.current_item:
+            messagebox.showwarning("No Item", "Please select an item first")
+            return
+        
+        # Get images from current folder
+        folder = self.current_item.get('folder')
+        if not folder:
+            messagebox.showwarning("No Folder", "No folder path for current item")
+            return
+        
+        folder_path = Path(folder)
+        image_paths = []
+        for ext in ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']:
+            image_paths.extend(folder_path.glob(ext))
+        
+        if not image_paths:
+            messagebox.showwarning("No Images", "No images found in item folder")
+            return
+        
+        dialog = PhotoEditorDialog(self.root, [str(p) for p in image_paths])
+        self.root.wait_window(dialog)
+        
+        if dialog.result:
+            self.status_label.configure(text="🖼️ Photos edited", foreground='#00ff00')
+    
+    def open_price_research(self):
+        """Open price research for current item"""
+        # Get search query
+        if self.current_item and self.current_item.get('title'):
+            query = self.current_item['title'][:50]
+        else:
+            query = simpledialog.askstring("Price Research", 
+                                          "Enter search keywords:",
+                                          parent=self.root)
+        
+        if not query:
+            return
+        
+        self.status_label.configure(text="📊 Researching prices...", foreground='#ffd700')
+        self.root.update()
+        
+        try:
+            researcher = get_price_researcher()
+            results = researcher.research(query)
+            
+            dialog = PriceChartDialog(self.root, results)
+            self.root.wait_window(dialog)
+            
+            self.status_label.configure(text="Ready", foreground='white')
+            
+        except Exception as e:
+            messagebox.showerror("Research Error", str(e))
+            self.status_label.configure(text="Ready", foreground='white')
+    
+    def open_preview(self):
+        """Open listing preview for current item"""
+        if not self.current_item:
+            messagebox.showwarning("No Item", "Please select an item to preview")
+            return
+        
+        # Build listing data from current item
+        listing_data = {
+            'title': self.current_item.get('title', 'Untitled'),
+            'price': self.current_item.get('price', '29.99'),
+            'condition': self.current_item.get('condition', 'USED_GOOD'),
+            'description': self.current_item.get('description', 'No description'),
+            'item_specifics': self.current_item.get('item_specifics', {}),
+            'shipping_info': 'Free shipping, ships within 1 business day',
+        }
+        
+        # Get images
+        image_paths = []
+        folder = self.current_item.get('folder')
+        if folder:
+            folder_path = Path(folder)
+            for ext in ['*.jpg', '*.jpeg', '*.png']:
+                image_paths.extend([str(p) for p in folder_path.glob(ext)])
+        
+        dialog = PreviewDialog(self.root, listing_data, image_paths[:8])
+        self.root.wait_window(dialog)
+    
+    def open_inventory_sync(self):
+        """Open inventory sync dialog"""
+        dialog = InventorySyncDialog(self.root, get_inventory_sync())
+        self.root.wait_window(dialog)
         
     def initialize_apis(self):
         """Initialize API clients in background"""
