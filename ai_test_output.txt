@@ -1,0 +1,58 @@
+C:\Users\adam\Desktop\eBay_Draft_Commander\ai_analyzer.py:9: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai
+Testing AI Analyzer...
+✅ AI Analyzer initialized (Google AI Studio)
+
+Found 3 item folders in inbox
+📸 Analyzing 3 images from cletop_cleaner...
+{
+  "identification": {
+    "brand": "NTTAT",
+    "model": "CLETOP REEL TYPE A",
+    "mpn": null,
+    "serial_number": null,
+    "product_type": "Optical Fiber Connector Cleaner"
+  },
+  "condition": {
+    "state": "Used - Good",
+    "wear_level": "light",
+    "accessories_visible": [],
+    "notes": "Item is in good used condition with light wear. Please see photos for details."
+  },
+  "specifications": {
+    "color": "Teal",
+    "dimensions": null,
+    "other_specs": {
+      "US Patent No.": "5117528"
+    }
+  },
+  "origin": {
+    "country_of_manufacture": "Japan",
+    "certifications": []
+  },
+  "listing": {
+    "suggested_title": "NTTAT CLETOP REEL TYPE A Optical Fiber Connector Cleaner Japan",
+    "description": "<h2>Product Overview</h2>\n<p>This is a NTTAT CLETOP REEL TYPE A Optical Fiber Connector Cleaner. It is used for cleaning optical fiber connectors and is made in Japan. A must-have tool for maintaining fiber optic networks.</p>\n\n<h2>Condition</h2>\n<p><b>Used - Good</b>: This item is in good used condition with light wear. Please refer to the photos for a detailed view of its condition.</p>\n\n<h2>Key Features</h2>\n<ul>\n<li>Optical Fiber Connector Cleaner</li>\n<li>NTTAT Brand</li>\n<li>CLETOP REEL TYPE A Model</li>\n<li>Made in Japan</li>\n</ul>\n\n<h2>Included in Sale</h2>\n<ul>\n<li>NTTAT CLETOP REEL TYPE A Optical Fiber Connector Cleaner</li>\n</ul>\n\n<h2>Shipping & Handling</h2>\n<p>We ship fast from a US-based warehouse. Your item will be professionally packed to ensure safe arrival.</p>",
+    "suggested_price": "24.99",
+    "price_reasoning": "Based on comparable sales and condition."
+  },
+  "category_keywords": [
+    "fiber optic cleaner",
+    "connector cleaner",
+    "telecommunications",
+    "network maintenance"
+  ],
+  "image_paths": [
+    "C:\\Users\\adam\\Desktop\\eBay_Draft_Commander\\inbox\\cletop_cleaner\\uploaded_image_0_1768552023131.jpg",
+    "C:\\Users\\adam\\Desktop\\eBay_Draft_Commander\\inbox\\cletop_cleaner\\uploaded_image_1_1768552023131.jpg",
+    "C:\\Users\\adam\\Desktop\\eBay_Draft_Commander\\inbox\\cletop_cleaner\\uploaded_image_2_1768552023131.jpg"
+  ],
+  "image_count": 3
+}

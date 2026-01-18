@@ -1,0 +1,60 @@
+C:\Users\adam\Desktop\eBay_Draft_Commander\ai_analyzer.py:9: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai
+
+======================================================================
+🏪 Creating Listing from: svbony_scope
+======================================================================
+   📷 Found 5 images
+
+📊 Analyzing images with AI...
+✅ AI Analyzer initialized (Google AI Studio)
+   Title: SVBONY SV28 Spotting Scope - 25-75x70mm Zoom w/ Ph...
+   📂 Category: 31715 - Spotting Scopes
+   Brand: Unbranded
+   Maximum Magnification: 2x
+
+   📤 Uploading 5 images to eBay Picture Services...
+📡 Reachability Test: https://apim.ebay.com/commerce/media/v1_beta/image/create_image_from_file
+   Status: 415
+   ✅ Endpoint is REACHABLE (Correctly rejected JSON)
+
+Processing 5 images from C:\Users\adam\Desktop\eBay_Draft_Commander\inbox\svbony_scope...
+📷 Uploading uploaded_image_0_1768701169672.jpg to https://apim.ebay.com/commerce/media/v1_beta/image/create_image_from_file
+   Status: 201
+   ✅ SUCCESS: https://i.ebayimg.com/00/s/NzcxWDEwMjQ=/z/fx8AAeSwbHlpbJT~/$_1.JPG?set_id=8800005007
+📷 Uploading uploaded_image_1_1768701169672.jpg to https://apim.ebay.com/commerce/media/v1_beta/image/create_image_from_file
+   Status: 201
+   ✅ SUCCESS: https://i.ebayimg.com/00/s/MTAyNFg3NzE=/z/Nh8AAeSwNEhpbJT~/$_1.JPG?set_id=8800005007
+📷 Uploading uploaded_image_2_1768701169672.jpg to https://apim.ebay.com/commerce/media/v1_beta/image/create_image_from_file
+   Status: 201
+   ✅ SUCCESS: https://i.ebayimg.com/00/s/NzcxWDEwMjQ=/z/MuMAAeSwbK5pbJUA/$_1.JPG?set_id=8800005007
+📷 Uploading uploaded_image_3_1768701169672.jpg to https://apim.ebay.com/commerce/media/v1_beta/image/create_image_from_file
+   Status: 201
+   ✅ SUCCESS: https://i.ebayimg.com/00/s/MTAyNFg3NzE=/z/WucAAeSwxCxpbJUB/$_1.JPG?set_id=8800005007
+📷 Uploading uploaded_image_4_1768701169672.jpg to https://apim.ebay.com/commerce/media/v1_beta/image/create_image_from_file
+   Status: 201
+   ✅ SUCCESS: https://i.ebayimg.com/00/s/MTAyNFg3NzE=/z/v64AAeSw7GZpbJUB/$_1.JPG?set_id=8800005007
+   ✅ Uploaded 5 images successfully
+
+   📦 SKU: DC-65DE11E2
+
+   Creating inventory item...
+   ✅ Done!
+   Creating offer...
+   ✅ Offer ID: 106194228011
+   Publishing...
+
+🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉
+
+✅ LISTING PUBLISHED!
+
+   Listing ID: 206006957806
+   URL: https://www.ebay.com/itm/206006957806
+🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉

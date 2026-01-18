@@ -6,22 +6,42 @@ import os
 import base64
 import json
 from pathlib import Path
-from google import genai
-from google.genai import types
+import google.generativeai as genai
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 class AIAnalyzer:
     """Analyzes product images using Gemini AI"""
     
     def __init__(self):
         """Initialize the Gemini client"""
-        # Use Vertex AI with user's project (gen-lang-client has Gemini enabled)
-        self.client = genai.Client(
-            vertexai=True,
-            project="gen-lang-client-0656287706",
-            location="us-central1",
-        )
-        self.model = "gemini-2.5-flash"
-        print("✅ AI Analyzer initialized (Vertex AI)")
+        env_path = Path(__file__).parent / ".env"
+        api_key = None
+        
+        # Load API key custom
+        if env_path.exists():
+            with open(env_path, 'r') as f:
+                for line in f:
+                    if line.strip().startswith('GOOGLE_API_KEY='):
+                        api_key = line.split('=')[1].strip()
+                        break
+        
+        if not api_key:
+            # Fallback for dev/testing or system env
+            api_key = os.getenv('GOOGLE_API_KEY')
+            
+        if not api_key:
+            print("⚠️ GOOGLE_API_KEY not found in .env")
+            self.model = None
+            return
+
+        genai.configure(api_key=api_key)
+        
+        # Use the latest Flash model
+        self.model = genai.GenerativeModel('gemini-2.0-flash-exp') 
+        # Fallback to 1.5 flash if 2.0 experimental not available or desired:
+        # self.model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        print("✅ AI Analyzer initialized (Google AI Studio)")
 
 
     
@@ -72,85 +92,110 @@ class AIAnalyzer:
             return {"error": "Could not encode any images"}
         
         # Build the prompt
-        prompt = """Analyze these product photos for an eBay listing. Extract ALL visible information.
+        prompt = """Analyze these product photos for a high-end eBay listing.
+        
+ROLE: You are an expert e-commerce copywriter. Your goal is to write a persuasive, professional, and SEO-optimized listing that converts views into sales.
 
-Return your analysis as a JSON object with this EXACT structure:
+OUTPUT FORMAT: Return a JSON object with this EXACT structure:
 {
     "identification": {
-        "brand": "exact brand name from label or your best identification",
-        "model": "model number/name",
+        "brand": "exact brand name from label",
+        "model": "exact model number",
         "mpn": "manufacturer part number if visible",
         "serial_number": "if visible, otherwise null",
-        "product_type": "what kind of item this is"
+        "product_type": "specific item type"
     },
     "condition": {
         "state": "New|New - Open Box|Used - Like New|Used - Good|Used - Acceptable|For Parts",
         "wear_level": "none|minimal|light|moderate|heavy",
-        "packaging": "sealed|open box|no packaging",
         "accessories_visible": ["list", "any", "accessories"],
-        "notes": "any condition notes"
+        "notes": "brief condition summary used for condition description field"
     },
     "specifications": {
         "color": "main color",
-        "material": "if determinable",
-        "voltage": "if visible on label",
         "dimensions": "if determinable",
-        "weight": "if determinable",
-        "other_specs": {"key": "value pairs for any other visible specs"}
+        "other_specs": {"key": "value"}
     },
     "origin": {
-        "country_of_manufacture": "if visible (e.g., Made in Japan)",
-        "certifications": ["UL", "CE", "etc if visible"]
+        "country_of_manufacture": "if visible",
+        "certifications": ["UL", "CE", "etc"]
     },
     "listing": {
-        "suggested_title": "optimized 80-character eBay title",
-        "description": "professional 2-3 paragraph description",
+        "suggested_title": "Optimized 80-char Title: Brand Model Keywords (No filler words)",
+        "description": "HTML_STRING",
         "suggested_price": "XX.XX",
-        "price_reasoning": "brief explanation of price suggestion"
+        "price_reasoning": "brief logic"
     },
-    "category_keywords": ["keywords", "to", "search", "for", "category"]
+    "category_keywords": ["keyword1", "keyword2"]
 }
 
-Be precise with brand names and part numbers - read them exactly from labels.
-If something is not visible, use null or make an educated guess with a note.
-The title MUST be 80 characters or less and include brand, model, and key features."""
+INSTRUCTIONS FOR 'description' FIELD (HTML_STRING):
+1. Use valid HTML tags: <h2>, <ul>, <li>, <b>, <br>, <p>.
+2. Do NOT use <html>, <head>, or <body> tags.
+3. Structure the description exactly like this:
+   <h2>Product Overview</h2>
+   <p>[Persuasive summary of the item: what it is, why it's great, and accurate identification]</p>
+   
+   <h2>Condition</h2>
+   <p><b>[State]</b>: [Detailed observation of wear, scratches, or lack thereof. Be honest but professional.]</p>
+   
+   <h2>Key Features</h2>
+   <ul>
+     <li>[Feature 1]</li>
+     <li>[Feature 2]</li>
+     <li>...</li>
+   </ul>
+   
+   <h2>Included in Sale</h2>
+   <ul>
+     <li>[Item itself]</li>
+     <li>[Accessory 1 (if visible)]</li>
+     <li>[Power cord (if visible)]</li>
+     <li>...</li>
+   </ul>
+   
+   <h2>Shipping & Handling</h2>
+   <p>We ship within 24 hours of payment (Mon-Fri) from a US-based warehouse. Your item will be professionally packed to ensure safe arrival. Buy with confidence!</p>
 
-        # Build the request
-        prompt_part = types.Part.from_text(text=prompt)
+4. TONE: Professional, confident, and "Top Rated Seller" quality.
+5. ACCURACY: Do not hallucinate accessories not shown in photos."""
+
+        # Safety settings to avoid blocking product descriptions
+        safety_settings = {
+            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+        }
         
-        image_parts = []
+        generation_config = {
+            "temperature": 0.3,
+            "top_p": 0.95,
+            "max_output_tokens": 4000,
+            "response_mime_type": "application/json",
+        }
+        
+        # Prepare content parts
+        parts = [prompt]
+        
         for img_b64 in encoded_images:
-            # Determine mime type (assume JPEG for simplicity)
-            image_parts.append(
-                types.Part.from_bytes(
-                    data=base64.b64decode(img_b64),
-                    mime_type="image/jpeg",
-                )
-            )
-        
-        contents = [
-            types.Content(
-                role="user",
-                parts=[prompt_part] + image_parts
-            ),
-        ]
-        
-        config = types.GenerateContentConfig(
-            temperature=0.3,  # Lower temperature for more consistent extraction
-            top_p=0.95,
-            max_output_tokens=4000,
-            response_mime_type="application/json",  # Request JSON response
-        )
-        
+            parts.append({
+                "mime_type": "image/jpeg",
+                "data": base64.b64decode(img_b64)
+            })
+            
         try:
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=contents,
-                config=config,
+            if not self.model:
+                 return {"error": "AI Model not initialized (Check API Key)"}
+
+            response = self.model.generate_content(
+                parts,
+                generation_config=generation_config,
+                safety_settings=safety_settings
             )
             
             # Parse the JSON response
-            response_text = response.candidates[0].content.parts[0].text
+            response_text = response.text
             
             # Clean up the response if needed
             if response_text.startswith('```'):
@@ -159,6 +204,13 @@ The title MUST be 80 characters or less and include brand, model, and key featur
                     response_text = response_text[4:]
             
             data = json.loads(response_text.strip())
+            
+            if isinstance(data, list):
+                if data:
+                    data = data[0]
+                else:
+                    return {"error": "AI returned an empty list"}
+            
             data['image_paths'] = image_paths
             data['image_count'] = len(image_paths)
             

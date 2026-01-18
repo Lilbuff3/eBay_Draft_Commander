@@ -1,0 +1,82 @@
+C:\Users\adam\Desktop\eBay_Draft_Commander\ai_analyzer.py:9: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai
+Running User Test for: C:\Users\adam\Desktop\eBay_Draft_Commander\inbox\user_test_item
+
+======================================================================
+🏪 Creating Listing from: user_test_item
+======================================================================
+   📷 Found 13 images
+
+📊 Analyzing images with AI...
+✅ AI Analyzer initialized (Google AI Studio)
+   Title: NTTAT CLETOP Reel Type A Optical Fiber Connector C...
+   📂 Category: 181951 - Optical Fiber Inspection
+   Brand: Unbranded
+   MPN: Does Not Apply
+
+   📤 Uploading 13 images to eBay Picture Services...
+📡 Reachability Test: https://apim.ebay.com/commerce/media/v1_beta/image/create_image_from_file
+   Status: 415
+   ✅ Endpoint is REACHABLE (Correctly rejected JSON)
+
+Processing 12 images from C:\Users\adam\Desktop\eBay_Draft_Commander\inbox\user_test_item...
+📷 Uploading uploaded_image_0_1768552023131.jpg to https://apim.ebay.com/commerce/media/v1_beta/image/create_image_from_file
+   Status: 201
+   ✅ SUCCESS: https://i.ebayimg.com/00/s/MTAyNFg3NzE=/z/QvUAAeSwzkVpbJa-/$_1.JPG?set_id=8800005007
+📷 Uploading uploaded_image_0_1768701169672.jpg to https://apim.ebay.com/commerce/media/v1_beta/image/create_image_from_file
+   Status: 201
+   ✅ SUCCESS: https://i.ebayimg.com/00/s/NzcxWDEwMjQ=/z/zfoAAeSw3sZpbJa~/$_1.JPG?set_id=8800005007
+📷 Uploading uploaded_image_0_1768724114029.jpg to https://apim.ebay.com/commerce/media/v1_beta/image/create_image_from_file
+   Status: 201
+   ✅ SUCCESS: https://i.ebayimg.com/00/s/MTAyNFg3NzE=/z/SY0AAeSwjE1pbJbA/$_1.JPG?set_id=8800005007
+📷 Uploading uploaded_image_1_1768552023131.jpg to https://apim.ebay.com/commerce/media/v1_beta/image/create_image_from_file
+   Status: 201
+   ✅ SUCCESS: https://i.ebayimg.com/00/s/NzcxWDEwMjQ=/z/89cAAeSwo8xpbJbB/$_1.JPG?set_id=8800005007
+📷 Uploading uploaded_image_1_1768701169672.jpg to https://apim.ebay.com/commerce/media/v1_beta/image/create_image_from_file
+   Status: 201
+   ✅ SUCCESS: https://i.ebayimg.com/00/s/MTAyNFg3NzE=/z/hcEAAeSw70FpbJbB/$_1.JPG?set_id=8800005007
+📷 Uploading uploaded_image_1_1768724114029.jpg to https://apim.ebay.com/commerce/media/v1_beta/image/create_image_from_file
+   Status: 201
+   ✅ SUCCESS: https://i.ebayimg.com/00/s/NzcxWDEwMjQ=/z/tf8AAeSwbf1pbJbC/$_1.JPG?set_id=8800005007
+📷 Uploading uploaded_image_2_1768552023131.jpg to https://apim.ebay.com/commerce/media/v1_beta/image/create_image_from_file
+   Status: 201
+   ✅ SUCCESS: https://i.ebayimg.com/00/s/MTAyNFg3NzE=/z/zrcAAeSwHSlpbJbD/$_1.JPG?set_id=8800005007
+📷 Uploading uploaded_image_2_1768701169672.jpg to https://apim.ebay.com/commerce/media/v1_beta/image/create_image_from_file
+   Status: 201
+   ✅ SUCCESS: https://i.ebayimg.com/00/s/NzcxWDEwMjQ=/z/RHYAAeSwXA1pbJbD/$_1.JPG?set_id=8800005007
+📷 Uploading uploaded_image_2_1768724114029.jpg to https://apim.ebay.com/commerce/media/v1_beta/image/create_image_from_file
+   Status: 201
+   ✅ SUCCESS: https://i.ebayimg.com/00/s/MTAyNFg3NzE=/z/LA0AAeSwc4dpbJbE/$_1.JPG?set_id=8800005007
+📷 Uploading uploaded_image_3_1768701169672.jpg to https://apim.ebay.com/commerce/media/v1_beta/image/create_image_from_file
+   Status: 201
+   ✅ SUCCESS: https://i.ebayimg.com/00/s/MTAyNFg3NzE=/z/-4kAAeSwMGppbJbE/$_1.JPG?set_id=8800005007
+📷 Uploading uploaded_image_3_1768724114029.jpg to https://apim.ebay.com/commerce/media/v1_beta/image/create_image_from_file
+   Status: 201
+   ✅ SUCCESS: https://i.ebayimg.com/00/s/NzcxWDEwMjQ=/z/zacAAeSwWGZpbJbF/$_1.JPG?set_id=8800005007
+📷 Uploading uploaded_image_4_1768701169672.jpg to https://apim.ebay.com/commerce/media/v1_beta/image/create_image_from_file
+   Status: 201
+   ✅ SUCCESS: https://i.ebayimg.com/00/s/MTAyNFg3NzE=/z/zBUAAeSwTyFpbJbG/$_1.JPG?set_id=8800005007
+   ✅ Uploaded 12 images successfully
+
+   📦 SKU: DC-8DA6FBFF
+
+   Creating inventory item...
+   ✅ Done!
+   Creating offer...
+   ✅ Offer ID: 106196121011
+   Publishing...
+
+🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉
+
+✅ LISTING PUBLISHED!
+
+   Listing ID: 206006962073
+   URL: https://www.ebay.com/itm/206006962073
+🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉

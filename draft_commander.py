@@ -6,17 +6,20 @@ import os
 import sys
 import json
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox, filedialog, simpledialog
+from tkinterdnd2 import DND_FILES, TkinterDnD
 from pathlib import Path
 from datetime import datetime
 import threading
 import webbrowser
+import shutil
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
 from ebay_api import eBayAPIClient
 from ai_analyzer import AIAnalyzer
+from create_from_folder import create_listing_from_folder
 
 
 class DraftCommanderApp:
@@ -24,9 +27,13 @@ class DraftCommanderApp:
     
     def __init__(self, root):
         self.root = root
-        self.root.title("eBay Draft Commander Pro")
-        self.root.geometry("1200x800")
+        self.root.title("eBay Draft Commander Pro (AI Powered)")
+        self.root.geometry("1300x850")
         self.root.configure(bg='#1a1a2e')
+        
+        # Configure Drop Target
+        self.root.drop_target_register(DND_FILES)
+        self.root.dnd_bind('<<Drop>>', self.on_drop)
         
         # Initialize components
         self.ebay_api = None
@@ -46,7 +53,71 @@ class DraftCommanderApp:
         
         # Initialize APIs in background
         self.root.after(100, self.initialize_apis)
-    
+        
+        # Check for Google API Key
+        self.root.after(1000, self.check_google_key)
+
+    def on_drop(self, event):
+        """Handle dropped files/folders"""
+        data = event.data
+        if not data:
+            return
+            
+        # Clean up path (tkinterdnd can wrap in {})
+        paths = self.parse_drop_paths(data)
+        
+        count = 0
+        for path in paths:
+            p = Path(path)
+            if p.is_dir():
+                # Copy folder to inbox? Or just link it?
+                # For now, let's copy to inbox to keep items organized
+                dest = self.inbox_path / p.name
+                if not dest.exists():
+                    shutil.copytree(p, dest)
+                    count += 1
+            elif p.is_file() and p.suffix.lower() in ['.jpg', '.png', '.jpeg']:
+                # Handle loose images - create new folder
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                new_folder = self.inbox_path / f"New_Item_{timestamp}"
+                new_folder.mkdir(exist_ok=True)
+                shutil.copy2(p, new_folder / p.name)
+                count += 1
+                
+        if count > 0:
+            self.scan_inbox()
+            self.status_label.configure(text=f"📥 Imported {count} items", foreground='#00ff00')
+
+    def parse_drop_paths(self, data):
+        """Parse the weird string format from tkinterdnd"""
+        # It comes as "{path with spaces} path_no_spaces"
+        paths = []
+        if data.startswith('{'):
+            # Complex parsing needed for multiple paths with spaces
+            parts = data.split('} {')
+            for part in parts:
+                paths.append(part.replace('{', '').replace('}', ''))
+        else:
+            paths = [data]
+        return paths
+
+    def check_google_key(self):
+        """Check if Google API Key is configured"""
+        env_path = self.base_path / ".env"
+        has_key = False
+        if env_path.exists():
+            with open(env_path, 'r') as f:
+                if 'GOOGLE_API_KEY=' in f.read():
+                    has_key = True
+        
+        if not has_key:
+            key = simpledialog.askstring("Setup", "Enter your Google Gemini API Key to enable AI features:", parent=self.root)
+            if key:
+                with open(env_path, 'a') as f:
+                    f.write(f"\nGOOGLE_API_KEY={key.strip()}")
+                messagebox.showinfo("Saved", "API Key saved! Restarting AI services...")
+                self.initialize_apis()
+
     def setup_styles(self):
         """Configure ttk styles"""
         style = ttk.Style()
@@ -289,22 +360,31 @@ class DraftCommanderApp:
             for i, item in enumerate(self.items):
                 if item['status'] == 'pending':
                     self.root.after(0, lambda idx=i: self.status_label.configure(
-                        text=f"🤖 Analyzing {idx+1}/{len(self.items)}...", foreground='#ffd700'))
+                        text=f"🤖 Processing {idx+1}/{len(self.items)}...", foreground='#ffd700'))
                     
-                    # Analyze with AI
-                    data = self.ai_analyzer.analyze_folder(item['path'])
-                    
-                    if 'error' not in data:
-                        item['data'] = data
-                        item['status'] = 'ready'
+                    # Run full automation
+                    try:
+                        # Redirect print to nowhere or capture if possible?
+                        # For now we rely on the function's internal logging
+                        # We pass a callback or just check result
                         
-                        # Update listbox
-                        self.root.after(0, lambda idx=i, name=item['name']: 
-                                        self.items_listbox.delete(idx))
-                        self.root.after(0, lambda idx=i, name=item['name']: 
-                                        self.items_listbox.insert(idx, f"✅ {name}"))
-                    else:
+                        listing_id = create_listing_from_folder(item['path'])
+                        
+                        if listing_id:
+                            item['status'] = 'ready' # or 'posted' if fully posted
+                            item['data'] = {'listing_id': listing_id, 'note': 'Draft/Listing Created'}
+                            
+                            # Move to posted?
+                            self.root.after(0, lambda idx=i, name=item['name']: 
+                                            self.items_listbox.delete(idx))
+                            self.root.after(0, lambda idx=i, name=item['name']: 
+                                            self.items_listbox.insert(idx, f"☁️ {name} (Draft Created)"))
+                        else:
+                            raise Exception("Listing creation returned None")
+                            
+                    except Exception as e:
                         item['status'] = 'error'
+                        print(f"Error processing {item['name']}: {e}")
                         self.root.after(0, lambda idx=i, name=item['name']: 
                                         self.items_listbox.delete(idx))
                         self.root.after(0, lambda idx=i, name=item['name']: 
@@ -520,7 +600,8 @@ class DraftCommanderApp:
 
 
 def main():
-    root = tk.Tk()
+    # Use TkinterDnD instead of standard Tk
+    root = TkinterDnD.Tk()
     app = DraftCommanderApp(root)
     root.mainloop()
 

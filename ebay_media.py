@@ -1,8 +1,9 @@
 """
-eBay Image Uploader - Using correct Media API endpoint
-Uploads images to eBay Picture Services
+eBay Picture Services Upload - CORRECTED Media API Endpoint
+Based on validation via eBay API Test Tool (apim.ebay.com exists, api.ebay.com is 404)
 """
 import requests
+import json
 from pathlib import Path
 
 def load_env():
@@ -19,213 +20,134 @@ def load_env():
 credentials = load_env()
 USER_TOKEN = credentials.get('EBAY_USER_TOKEN')
 
-# Correct endpoint for 2026
-MEDIA_URL = 'https://apim.ebay.com/commerce/media/v1_beta/image'
+# CONFIRMED via API Explorer: apim.ebay.com is the correct host for Media API
+BASE_URL = 'https://apim.ebay.com/commerce/media/v1_beta'
 
-
-def upload_image_from_file(image_path):
+def check_endpoint_reachability():
     """
-    Upload an image file to eBay Picture Services
+    Sanity check: Hit the endpoint with correct host but wrong content type.
+    Should return 415 (Unsupported Media Type).
+    If it returns 404, the path/host is unresolved/wrong.
+    """
+    url = f'{BASE_URL}/image/create_image_from_file'
+    print(f"📡 Reachability Test: {url}")
     
-    Uses multipart/form-data as required by the API
+    headers = {
+        'Authorization': 'Bearer ' + USER_TOKEN,
+        'Content-Type': 'application/json',  # Deliberately wrong
+        'Accept': 'application/json'
+    }
     
-    Args:
-        image_path: Path to the image file
-    
-    Returns:
-        EPS image URL if successful, None otherwise
+    try:
+        r = requests.post(url, headers=headers, json={"test": "ping"})
+        print(f"   Status: {r.status_code}")
+        
+        if r.status_code == 415:
+            print("   ✅ Endpoint is REACHABLE (Correctly rejected JSON)")
+            return True
+        elif r.status_code == 404:
+            print("   ❌ Endpoint NOT FOUND (404)")
+            return False
+        else:
+            print(f"   ⚠️ Unexpected status: {r.status_code} (But not 404, so likely reachable)")
+            return True
+            
+    except Exception as e:
+        print(f"   ❌ Network/SSL Error: {e}")
+        return False
+
+def upload_image_to_eps(image_path):
+    """
+    Upload an image to eBay Picture Services (EPS)
     """
     image_path = Path(image_path)
-    
     if not image_path.exists():
-        print(f"   ❌ File not found: {image_path}")
+        print(f"❌ File not found: {image_path}")
         return None
+        
+    url = f'{BASE_URL}/image/create_image_from_file'
+    print(f"📷 Uploading {image_path.name} to {url}")
     
-    # Determine content type
+    # MIME type detection
     suffix = image_path.suffix.lower()
-    content_types = {
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.png': 'image/png',
-        '.gif': 'image/gif',
-        '.webp': 'image/webp'
-    }
-    content_type = content_types.get(suffix, 'image/jpeg')
+    content_type = 'image/jpeg'
+    if suffix == '.png': content_type = 'image/png'
+    elif suffix == '.webp': content_type = 'image/webp'
+    elif suffix == '.gif': content_type = 'image/gif'
     
-    print(f"   📷 Uploading {image_path.name}...")
-    
-    # Use multipart/form-data as required
+    # Read file and prepare multipart upload
     with open(image_path, 'rb') as f:
+        # NOTE: tuple format is (filename, file_object, content_type)
         files = {
-            'file': (image_path.name, f, content_type)
+            'image': (image_path.name, f, content_type)
         }
         
         headers = {
             'Authorization': 'Bearer ' + USER_TOKEN,
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            # 'Connection': 'keep-alive'
         }
         
-        response = requests.post(
-            MEDIA_URL + '/create_image_from_file',
-            headers=headers,
-            files=files
-        )
-    
-    print(f"      Status: {response.status_code}")
-    
-    if response.status_code in [200, 201]:
-        # Get image_id from Location header
-        location = response.headers.get('Location', '')
-        
-        if location:
-            # Extract image_id from the location
-            image_id = location.split('/')[-1]
-            print(f"      Image ID: {image_id}")
+        try:
+            r = requests.post(url, headers=headers, files=files, timeout=30)
+            print(f"   Status: {r.status_code}")
             
-            # Get the actual EPS URL
-            eps_url = get_image_url(image_id)
-            if eps_url:
-                return eps_url
-        
-        # Try parsing response body
-        if response.text:
-            try:
-                data = response.json()
-                return data.get('imageUrl') or data.get('image', {}).get('imageUrl')
-            except:
-                pass
-    
-    print(f"      ❌ Error: {response.text[:200]}")
-    return None
+            if r.status_code in [200, 201]:
+                data = r.json()
+                # Try to find imageUrl
+                eps_url = data.get('imageUrl') 
+                
+                # Sometimes it might be in Location header without body
+                if not eps_url and 'Location' in r.headers:
+                    print(f"   Found Location header, fetching details...")
+                    image_id = r.headers['Location'].split('/')[-1]
+                    # Fetch details
+                    r2 = requests.get(f'{BASE_URL}/image/{image_id}', headers=headers)
+                    if r2.status_code == 200:
+                        eps_url = r2.json().get('imageUrl')
 
+                if eps_url:
+                    print(f"   ✅ SUCCESS: {eps_url}")
+                    return eps_url
+                else:
+                    print(f"   ⚠️ Upload seemingly success but no URL found. Resp: {r.text}")
+                    return None
+            else:
+                print(f"   ❌ Failed. Response: {r.text}")
+                return None
+                
+        except Exception as e:
+            print(f"   ❌ Exception: {e}")
+            return None
 
-def get_image_url(image_id):
-    """Get the EPS URL for an uploaded image"""
-    headers = {
-        'Authorization': 'Bearer ' + USER_TOKEN,
-        'Accept': 'application/json'
-    }
-    
-    response = requests.get(
-        f'{MEDIA_URL}/{image_id}',
-        headers=headers
-    )
-    
-    if response.status_code == 200:
-        data = response.json()
-        return data.get('imageUrl')
-    
-    return None
-
-
-def upload_image_from_url(source_url):
-    """
-    Upload an image from a URL to eBay Picture Services
-    
-    Args:
-        source_url: HTTPS URL of the image
-    
-    Returns:
-        EPS image URL if successful, None otherwise
-    """
-    headers = {
-        'Authorization': 'Bearer ' + USER_TOKEN,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-    }
-    
-    print(f"   📷 Uploading from URL...")
-    
-    response = requests.post(
-        MEDIA_URL + '/create_image_from_url',
-        headers=headers,
-        json={'imageUrl': source_url}
-    )
-    
-    print(f"      Status: {response.status_code}")
-    
-    if response.status_code in [200, 201]:
-        # Get image_id from Location header
-        location = response.headers.get('Location', '')
-        
-        if location:
-            image_id = location.split('/')[-1]
-            eps_url = get_image_url(image_id)
-            if eps_url:
-                return eps_url
-        
-        # Try parsing response
-        if response.text:
-            try:
-                data = response.json()
-                return data.get('imageUrl') or data.get('image', {}).get('imageUrl')
-            except:
-                pass
-    
-    print(f"      ❌ Error: {response.text[:200]}")
-    return None
-
-
-def upload_folder_images(folder_path, max_images=12):
-    """
-    Upload all images from a folder
-    
-    Args:
-        folder_path: Path to folder containing images
-        max_images: Maximum number of images (eBay limit is 12)
-    
-    Returns:
-        List of EPS URLs
-    """
+def upload_folder(folder_path, max_images=12):
+    """Upload all images from a folder"""
     folder_path = Path(folder_path)
-    
     if not folder_path.exists():
-        print(f"❌ Folder not found: {folder_path}")
         return []
-    
-    # Find image files
-    image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
-    images = [f for f in folder_path.iterdir() 
-              if f.suffix.lower() in image_extensions]
-    
-    if not images:
-        print(f"❌ No images found in {folder_path}")
+        
+    # Check reachability first
+    if not check_endpoint_reachability():
+        print("❌ API Endpoint unreachable. Aborting upload.")
         return []
-    
-    # Sort by name
-    images.sort(key=lambda x: x.name)
-    
-    # Limit to max
+        
+    images = [p for p in folder_path.glob("*") if p.suffix.lower() in ['.jpg', '.jpeg', '.png', '.webp']]
     images = images[:max_images]
     
-    print(f"\n📷 Uploading {len(images)} images from {folder_path.name}")
-    
-    eps_urls = []
+    urls = []
+    print(f"\nProcessing {len(images)} images from {folder_path}...")
     for img in images:
-        url = upload_image_from_file(img)
+        url = upload_image_to_eps(img)
         if url:
-            eps_urls.append(url)
-    
-    print(f"\n✅ Uploaded {len(eps_urls)}/{len(images)} images")
-    
-    return eps_urls
-
-
-# Test
-if __name__ == "__main__":
-    # Test with SVBONY images
-    folder = Path(r"C:\Users\adam\Desktop\eBay_Draft_Commander\inbox\svbony_scope")
-    
-    if folder.exists():
-        # Test single image first
-        images = list(folder.glob("*.jpg"))
-        if images:
-            print(f"Testing upload of: {images[0].name}")
-            url = upload_image_from_file(images[0])
+            urls.append(url)
             
-            if url:
-                print(f"\n✅ Success! EPS URL: {url}")
-            else:
-                print("\n❌ Upload failed")
-    else:
-        print(f"Folder not found: {folder}")
+    return urls
+
+# Self-test
+if __name__ == "__main__":
+    if check_endpoint_reachability():
+        test_folder = Path(r"C:\Users\adam\Desktop\eBay_Draft_Commander\inbox\svbony_scope")
+        if test_folder.exists():
+            first_image = next(test_folder.glob("*.jpg"), None)
+            if first_image:
+                upload_image_to_eps(first_image)

@@ -132,16 +132,68 @@ def create_listing_from_folder(folder_path, price="29.99", condition="USED_EXCEL
     
     # Try to use AI analyzer if available
     try:
-        from ai_analyzer import analyze_images
+        from ai_analyzer import AIAnalyzer
         
         print("\n📊 Analyzing images with AI...")
-        ai_data = analyze_images([str(img) for img in images])
+        analyzer = AIAnalyzer()
+        ai_data = analyzer.analyze_item([str(img) for img in images])
         
-        title = ai_data.get('title', folder_path.name)
-        description = ai_data.get('description', f'Item from {folder_path.name}')
-        item_specifics = ai_data.get('item_specifics', {})
+        title = ai_data.get('listing', {}).get('suggested_title', folder_path.name)
+        description = ai_data.get('listing', {}).get('description', f'Item from {folder_path.name}')
         
+        # Flatten structure for create_listing logic
+        item_specifics = {}
+        if 'identification' in ai_data:
+            item_specifics.update(ai_data['identification'])
+        if 'specifications' in ai_data:
+            specs = ai_data['specifications']
+            if isinstance(specs, dict):
+                # Handle nested other_specs
+                if 'other_specs' in specs:
+                    other = specs.pop('other_specs')
+                    if isinstance(other, dict):
+                        for k, v in other.items():
+                            if v and isinstance(v, (str, int, float)):
+                                item_specifics[k] = str(v)
+                
+                # Add remaining simple specs
+                for k, v in specs.items():
+                    if v and isinstance(v, (str, int, float)):
+                        item_specifics[k] = v
+                    elif isinstance(v, list) and v:
+                         item_specifics[k] = v[0] # Take first item of list
+        
+        if 'origin' in ai_data:
+            if isinstance(ai_data['origin'], dict):
+                item_specifics.update({k:v for k,v in ai_data['origin'].items() if isinstance(v, (str, int, float))})
+            
         print(f"   Title: {title[:50]}...")
+        
+        # Get AI suggested price and condition for pricing engine
+        ai_suggested_price = ai_data.get('listing', {}).get('suggested_price')
+        condition_state = ai_data.get('condition', {}).get('state', 'Used - Good')
+        
+        # Call Pricing Engine
+        try:
+            from pricing_engine import PricingEngine
+            pricing = PricingEngine()
+            price_result = pricing.get_price_with_comps(
+                title, 
+                condition=condition_state,
+                ai_suggested_price=ai_suggested_price
+            )
+            
+            if price_result['suggested_price']:
+                # Override with market-based or AI price
+                final_price = str(price_result['suggested_price'])
+                print(f"   💰 Price: ${final_price} ({price_result['source']})")
+                if price_result.get('research_link'):
+                    print(f"   🔗 Verify: {price_result['research_link']}")
+            else:
+                final_price = price  # Use default passed to function
+        except Exception as e:
+            print(f"   ⚠️ Pricing engine error: {e}")
+            final_price = price  # Fallback to default
         
     except Exception as e:
         print(f"   AI analyzer not available: {e}")
@@ -170,7 +222,8 @@ def create_listing_from_folder(folder_path, price="29.99", condition="USED_EXCEL
     # Add any extra specifics
     for name, value in item_specifics.items():
         if name not in aspects and value:
-            aspects[name] = [value]
+            if isinstance(value, (str, int, float)):
+                 aspects[name] = [str(value)]
     
     # Ensure brand
     if 'Brand' not in aspects:
@@ -182,13 +235,22 @@ def create_listing_from_folder(folder_path, price="29.99", condition="USED_EXCEL
     # 2. Host on your own server
     # 3. Use a service like Imgur, Dropbox, etc.
     
-    # For now, we'll create the listing without images as a draft
-    # The images can be added manually in Seller Hub
-    
+    image_urls = []
+    try:
+        from ebay_media import upload_folder
+        print(f"\n   📤 Uploading {len(images)} images to eBay Picture Services...")
+        image_urls = upload_folder(folder_path, max_images=12)
+        if image_urls:
+            print(f"   ✅ Uploaded {len(image_urls)} images successfully")
+        else:
+            print("   ⚠️ Image upload failed or returned no URLs (will create listing without images)")
+    except Exception as e:
+        print(f"   ⚠️ Could not upload images: {e}")
+
     sku = 'DC-' + uuid.uuid4().hex[:8].upper()
     print(f"\n   📦 SKU: {sku}")
     
-    # Create inventory item (without images for now)
+    # Create inventory item
     item = {
         'availability': {'shipToLocationAvailability': {'quantity': 1}},
         'condition': condition,
@@ -196,7 +258,8 @@ def create_listing_from_folder(folder_path, price="29.99", condition="USED_EXCEL
         'product': {
             'title': title[:80],  # eBay limit
             'description': description,
-            'aspects': aspects
+            'aspects': aspects,
+            'imageUrls': image_urls
         }
     }
     
@@ -261,7 +324,8 @@ def create_listing_from_folder(folder_path, price="29.99", condition="USED_EXCEL
         print("\n✅ LISTING PUBLISHED!")
         print(f"\n   Listing ID: {listing_id}")
         print(f"   URL: https://www.ebay.com/itm/{listing_id}")
-        print("\n⚠️  Add images manually in Seller Hub")
+        if not image_urls:
+            print("\n⚠️  Images were not uploaded. Add them in Seller Hub.")
         print("🎉"*20)
         
         return listing_id
