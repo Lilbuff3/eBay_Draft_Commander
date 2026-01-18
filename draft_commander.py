@@ -1,6 +1,6 @@
 """
 eBay Draft Commander Pro
-Main GUI Application
+Main GUI Application with Bulk Queue Processing
 """
 import os
 import sys
@@ -19,7 +19,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from ebay_api import eBayAPIClient
 from ai_analyzer import AIAnalyzer
-from create_from_folder import create_listing_from_folder
+from create_from_folder import create_listing_from_folder, create_listing_structured
+from queue_manager import QueueManager, QueueJob, JobStatus
+from queue_logger import get_logger, new_session
+from report_generator import generate_batch_report, generate_summary_text
 
 
 class DraftCommanderApp:
@@ -47,6 +50,18 @@ class DraftCommanderApp:
         self.ready_path = self.base_path / "ready"
         self.posted_path = self.base_path / "posted"
         
+        # Queue Manager
+        self.queue_manager = QueueManager(self.base_path)
+        self.queue_manager.set_processor(create_listing_structured)
+        self.queue_manager.on_job_start = self._on_job_start
+        self.queue_manager.on_job_complete = self._on_job_complete
+        self.queue_manager.on_job_error = self._on_job_error
+        self.queue_manager.on_queue_complete = self._on_queue_complete
+        self.queue_manager.on_progress = self._on_progress
+        
+        # Logger
+        self.logger = get_logger()
+        
         # Setup UI
         self.setup_styles()
         self.create_widgets()
@@ -56,6 +71,9 @@ class DraftCommanderApp:
         
         # Check for Google API Key
         self.root.after(1000, self.check_google_key)
+        
+        # Refresh queue UI if there's existing state
+        self.root.after(500, self._refresh_queue_display)
 
     def on_drop(self, event):
         """Handle dropped files/folders"""
@@ -149,22 +167,49 @@ class DraftCommanderApp:
                                        foreground='#888')
         self.status_label.pack(side=tk.RIGHT)
         
-        # Control buttons
+        # Control buttons - Row 1
         control_frame = ttk.Frame(main_frame)
-        control_frame.pack(fill=tk.X, pady=(0, 10))
+        control_frame.pack(fill=tk.X, pady=(0, 5))
         
         ttk.Button(control_frame, text="📁 Scan Inbox", 
                    command=self.scan_inbox).pack(side=tk.LEFT, padx=5)
-        ttk.Button(control_frame, text="🤖 Generate All", 
-                   command=self.generate_all).pack(side=tk.LEFT, padx=5)
+        self.start_btn = ttk.Button(control_frame, text="🚀 Start Queue", 
+                   command=self.start_queue)
+        self.start_btn.pack(side=tk.LEFT, padx=5)
+        self.pause_btn = ttk.Button(control_frame, text="⏸️ Pause", 
+                   command=self.pause_queue, state='disabled')
+        self.pause_btn.pack(side=tk.LEFT, padx=5)
         ttk.Button(control_frame, text="🌐 Open eBay", 
                    command=lambda: webbrowser.open('https://www.ebay.com/sl/sell')).pack(side=tk.LEFT, padx=5)
-        ttk.Button(control_frame, text="📂 Open Inbox Folder", 
-                   command=lambda: os.startfile(self.inbox_path)).pack(side=tk.LEFT, padx=5)
         
         # Item count
-        self.item_count_label = ttk.Label(control_frame, text="Items: 0 Ready | 0 Posted")
+        self.item_count_label = ttk.Label(control_frame, text="Queue: 0 pending")
         self.item_count_label.pack(side=tk.RIGHT, padx=10)
+        
+        # Control buttons - Row 2 (Queue Management)
+        queue_frame = ttk.Frame(main_frame)
+        queue_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        ttk.Button(queue_frame, text="🔄 Retry Failed", 
+                   command=self.retry_failed).pack(side=tk.LEFT, padx=5)
+        ttk.Button(queue_frame, text="🗑️ Clear Done", 
+                   command=self.clear_completed).pack(side=tk.LEFT, padx=5)
+        ttk.Button(queue_frame, text="📊 Export Report", 
+                   command=self.export_report).pack(side=tk.LEFT, padx=5)
+        ttk.Button(queue_frame, text="📂 Open Inbox", 
+                   command=lambda: os.startfile(self.inbox_path)).pack(side=tk.LEFT, padx=5)
+        
+        # Progress Bar
+        progress_frame = ttk.Frame(main_frame)
+        progress_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        self.progress_var = tk.DoubleVar(value=0)
+        self.progress_bar = ttk.Progressbar(progress_frame, variable=self.progress_var, 
+                                             maximum=100, length=400)
+        self.progress_bar.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        
+        self.progress_label = ttk.Label(progress_frame, text="0/0", width=10)
+        self.progress_label.pack(side=tk.LEFT, padx=5)
         
         # Main content - split into left (items list) and right (details)
         content_frame = ttk.Frame(main_frame)
@@ -319,32 +364,32 @@ class DraftCommanderApp:
         threading.Thread(target=init, daemon=True).start()
         
     def scan_inbox(self):
-        """Scan inbox folder for new items"""
+        """Scan inbox folder for new items and add to queue"""
         self.status_label.configure(text="🔍 Scanning inbox...", foreground='#ffd700')
         
         folders = [f for f in self.inbox_path.iterdir() if f.is_dir()]
         
-        self.items_listbox.delete(0, tk.END)
-        self.items = []
-        
+        added_count = 0
         for folder in folders:
             # Check if folder has images
             images = list(folder.glob('*.jpg')) + list(folder.glob('*.jpeg')) + \
                      list(folder.glob('*.png')) + list(folder.glob('*.JPG'))
             
             if images:
-                item = {
-                    'name': folder.name,
-                    'path': str(folder),
-                    'image_count': len(images),
-                    'status': 'pending',
-                    'data': None
-                }
-                self.items.append(item)
-                self.items_listbox.insert(tk.END, f"⏳ {folder.name} ({len(images)} imgs)")
+                # Check if already in queue
+                existing = self.queue_manager.get_job_by_folder(folder.name)
+                if not existing:
+                    self.queue_manager.add_folder(str(folder))
+                    added_count += 1
         
-        self.update_item_count()
-        self.status_label.configure(text=f"✅ Found {len(self.items)} items", foreground='#00ff00')
+        # Refresh the display
+        self._refresh_queue_display()
+        
+        stats = self.queue_manager.get_stats()
+        if added_count > 0:
+            self.status_label.configure(text=f"✅ Added {added_count} new items ({stats['pending']} pending)", foreground='#00ff00')
+        else:
+            self.status_label.configure(text=f"✅ {stats['pending']} items pending", foreground='#00ff00')
         
     def generate_all(self):
         """Generate listings for all pending items"""
@@ -597,6 +642,159 @@ class DraftCommanderApp:
             
         except Exception as e:
             messagebox.showerror("Error", f"Could not move folder: {e}")
+    
+    # =========================================================================
+    # Queue Management Methods
+    # =========================================================================
+    
+    def start_queue(self):
+        """Start queue processing"""
+        if not self.queue_manager.get_pending_jobs():
+            # Scan inbox first if queue is empty
+            self.scan_inbox()
+            if not self.queue_manager.get_pending_jobs():
+                messagebox.showinfo("Empty Queue", "No items to process. Add folders to inbox first.")
+                return
+        
+        self.logger.queue_start(len(self.queue_manager.get_pending_jobs()))
+        self.start_btn.configure(state='disabled')
+        self.pause_btn.configure(state='normal', text="⏸️ Pause")
+        self.status_label.configure(text="🚀 Processing queue...", foreground='#ffd700')
+        self.queue_manager.start_processing()
+    
+    def pause_queue(self):
+        """Pause or resume queue processing"""
+        if self.queue_manager.is_paused():
+            self.queue_manager.resume()
+            self.pause_btn.configure(text="⏸️ Pause")
+            self.status_label.configure(text="▶️ Resumed", foreground='#00ff00')
+            self.logger.queue_resume()
+        else:
+            self.queue_manager.pause()
+            self.pause_btn.configure(text="▶️ Resume")
+            self.status_label.configure(text="⏸️ Paused", foreground='#ffd700')
+            self.logger.queue_pause()
+    
+    def retry_failed(self):
+        """Retry all failed jobs"""
+        failed = self.queue_manager.get_failed_jobs()
+        if not failed:
+            messagebox.showinfo("No Failed", "No failed jobs to retry.")
+            return
+        
+        self.queue_manager.retry_failed()
+        self._refresh_queue_display()
+        self.status_label.configure(text=f"🔄 {len(failed)} jobs reset for retry", foreground='#00ff00')
+    
+    def clear_completed(self):
+        """Clear completed jobs from queue"""
+        self.queue_manager.clear_completed()
+        self._refresh_queue_display()
+        self.status_label.configure(text="🗑️ Cleared completed", foreground='#00ff00')
+    
+    def export_report(self):
+        """Export batch report to CSV"""
+        if not self.queue_manager.jobs:
+            messagebox.showinfo("No Data", "No jobs to report.")
+            return
+        
+        report_path = generate_batch_report(self.queue_manager.jobs)
+        
+        # Also show summary
+        summary = generate_summary_text(self.queue_manager.jobs)
+        
+        messagebox.showinfo("Report Saved", 
+                           f"Report saved to:\n{report_path}\n\n{summary[:500]}")
+        
+        # Open the report
+        os.startfile(report_path)
+    
+    def _refresh_queue_display(self):
+        """Refresh the queue listbox display"""
+        self.items_listbox.delete(0, tk.END)
+        self.items = []
+        
+        status_icons = {
+            JobStatus.PENDING: "⏳",
+            JobStatus.PROCESSING: "⚙️",
+            JobStatus.COMPLETED: "✅",
+            JobStatus.FAILED: "❌",
+            JobStatus.PAUSED: "⏸️",
+            JobStatus.SKIPPED: "⏭️"
+        }
+        
+        for job in self.queue_manager.jobs:
+            icon = status_icons.get(job.status, "❓")
+            text = f"{icon} {job.folder_name}"
+            if job.listing_id:
+                text += f" → {job.listing_id[:8]}..."
+            elif job.error_type:
+                text += f" ({job.error_type})"
+            self.items_listbox.insert(tk.END, text)
+            
+            # Track for legacy compatibility
+            self.items.append({
+                'name': job.folder_name,
+                'path': job.folder_path,
+                'status': job.status.value,
+                'data': {'listing_id': job.listing_id, 'offer_id': job.offer_id}
+            })
+        
+        self._update_queue_stats()
+    
+    def _update_queue_stats(self):
+        """Update queue statistics display"""
+        stats = self.queue_manager.get_stats()
+        text = f"Queue: {stats['pending']} pending | {stats['completed']} done | {stats['failed']} failed"
+        self.item_count_label.configure(text=text)
+    
+    def _on_job_start(self, job: QueueJob):
+        """Callback when a job starts processing"""
+        self.logger.job_start(job.id, job.folder_name)
+        self.root.after(0, lambda: self._refresh_queue_display())
+        self.root.after(0, lambda: self.status_label.configure(
+            text=f"⚙️ Processing: {job.folder_name}", foreground='#ffd700'))
+    
+    def _on_job_complete(self, job: QueueJob):
+        """Callback when a job completes successfully"""
+        elapsed = job.timing.get('total', 0) if job.timing else 0
+        self.logger.job_complete(job.id, job.folder_name, job.listing_id, elapsed)
+        
+        # Move folder to posted
+        try:
+            src = Path(job.folder_path)
+            if src.exists():
+                dst = self.posted_path / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{job.folder_name}"
+                self.posted_path.mkdir(exist_ok=True)
+                shutil.move(str(src), str(dst))
+        except Exception as e:
+            print(f"Could not move to posted: {e}")
+        
+        self.root.after(0, lambda: self._refresh_queue_display())
+    
+    def _on_job_error(self, job: QueueJob):
+        """Callback when a job fails"""
+        self.logger.job_error(job.id, job.folder_name, job.error_type, job.error_message)
+        self.root.after(0, lambda: self._refresh_queue_display())
+    
+    def _on_queue_complete(self):
+        """Callback when queue processing completes"""
+        stats = self.queue_manager.get_stats()
+        self.logger.queue_complete(stats['completed'], stats['failed'], stats['total'])
+        
+        self.root.after(0, lambda: self.start_btn.configure(state='normal'))
+        self.root.after(0, lambda: self.pause_btn.configure(state='disabled'))
+        self.root.after(0, lambda: self.status_label.configure(
+            text=f"✅ Complete: {stats['completed']} done, {stats['failed']} failed", 
+            foreground='#00ff00'))
+        self.root.after(0, lambda: self.progress_var.set(100))
+    
+    def _on_progress(self, current: int, total: int):
+        """Callback for progress updates"""
+        if total > 0:
+            pct = (current / total) * 100
+            self.root.after(0, lambda: self.progress_var.set(pct))
+            self.root.after(0, lambda: self.progress_label.configure(text=f"{current}/{total}"))
 
 
 def main():
@@ -608,3 +806,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

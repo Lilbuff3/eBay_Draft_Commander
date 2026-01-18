@@ -368,6 +368,292 @@ def process_inbox(inbox_path):
         print()
 
 
+# ============================================================================
+# QUEUE INTEGRATION - Structured Results Wrapper
+# ============================================================================
+
+class ListingError(Exception):
+    """Base exception for listing errors"""
+    pass
+
+class NoImagesError(ListingError):
+    """No images found in folder"""
+    pass
+
+class AIAnalysisError(ListingError):
+    """AI analysis failed"""
+    pass
+
+class CategoryError(ListingError):
+    """Could not determine category"""
+    pass
+
+class ImageUploadError(ListingError):
+    """Image upload failed"""
+    pass
+
+class InventoryError(ListingError):
+    """Inventory item creation failed"""
+    pass
+
+class OfferError(ListingError):
+    """Offer creation failed"""
+    pass
+
+class PublishError(ListingError):
+    """Publishing failed"""
+    pass
+
+
+def create_listing_structured(folder_path, price="29.99", condition="USED_EXCELLENT"):
+    """
+    Queue-compatible wrapper for create_listing_from_folder.
+    
+    Returns structured result dict instead of just listing_id.
+    
+    Args:
+        folder_path: Path to folder containing product images
+        price: Listing price
+        condition: Item condition
+    
+    Returns:
+        dict with keys:
+            success: bool
+            listing_id: str or None
+            offer_id: str or None
+            status: "published" | "draft" | "error"
+            error_type: str or None
+            error_message: str or None
+            timing: dict with timing info
+    """
+    import time
+    start_time = time.time()
+    timing = {}
+    
+    result = {
+        "success": False,
+        "listing_id": None,
+        "offer_id": None,
+        "status": "error",
+        "error_type": None,
+        "error_message": None,
+        "timing": timing
+    }
+    
+    folder_path = Path(folder_path)
+    
+    if not folder_path.exists():
+        result["error_type"] = "FolderNotFound"
+        result["error_message"] = f"Folder not found: {folder_path}"
+        return result
+    
+    # Find images
+    image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+    images = [f for f in folder_path.iterdir() if f.suffix.lower() in image_extensions]
+    
+    if not images:
+        result["error_type"] = "NoImages"
+        result["error_message"] = "No images found in folder"
+        return result
+    
+    images.sort(key=lambda x: x.name)
+    
+    # AI Analysis
+    ai_start = time.time()
+    try:
+        from ai_analyzer import AIAnalyzer
+        analyzer = AIAnalyzer()
+        ai_data = analyzer.analyze_item([str(img) for img in images])
+        
+        title = ai_data.get('listing', {}).get('suggested_title', folder_path.name)
+        description = ai_data.get('listing', {}).get('description', f'Item from {folder_path.name}')
+        
+        # Extract item specifics
+        item_specifics = {}
+        if 'identification' in ai_data:
+            item_specifics.update(ai_data['identification'])
+        if 'specifications' in ai_data:
+            specs = ai_data['specifications']
+            if isinstance(specs, dict):
+                if 'other_specs' in specs:
+                    other = specs.pop('other_specs')
+                    if isinstance(other, dict):
+                        for k, v in other.items():
+                            if v and isinstance(v, (str, int, float)):
+                                item_specifics[k] = str(v)
+                for k, v in specs.items():
+                    if v and isinstance(v, (str, int, float)):
+                        item_specifics[k] = v
+                    elif isinstance(v, list) and v:
+                        item_specifics[k] = v[0]
+        
+        # Get AI pricing
+        ai_suggested_price = ai_data.get('listing', {}).get('suggested_price')
+        condition_state = ai_data.get('condition', {}).get('state', 'Used - Good')
+        
+        timing['ai_analysis'] = time.time() - ai_start
+        
+    except Exception as e:
+        result["error_type"] = "AIAnalysis"
+        result["error_message"] = str(e)
+        timing['ai_analysis'] = time.time() - ai_start
+        result["timing"] = timing
+        return result
+    
+    # Pricing
+    pricing_start = time.time()
+    try:
+        from pricing_engine import PricingEngine
+        pricing = PricingEngine()
+        price_result = pricing.get_price_with_comps(
+            title, 
+            condition=condition_state,
+            ai_suggested_price=ai_suggested_price
+        )
+        if price_result['suggested_price']:
+            final_price = str(price_result['suggested_price'])
+        else:
+            final_price = price
+        timing['pricing'] = time.time() - pricing_start
+    except Exception as e:
+        final_price = price
+        timing['pricing'] = time.time() - pricing_start
+    
+    # Category
+    cat_start = time.time()
+    try:
+        category_id, required = get_category_and_aspects(title)
+        if not category_id:
+            raise CategoryError("Could not determine category")
+        timing['category'] = time.time() - cat_start
+    except Exception as e:
+        result["error_type"] = "Category"
+        result["error_message"] = str(e)
+        result["timing"] = timing
+        return result
+    
+    # Build aspects
+    aspects = {}
+    for name, default in required.items():
+        if name in item_specifics:
+            aspects[name] = [item_specifics[name]]
+        else:
+            aspects[name] = [default]
+    for name, value in item_specifics.items():
+        if name not in aspects and value:
+            if isinstance(value, (str, int, float)):
+                aspects[name] = [str(value)]
+    if 'Brand' not in aspects:
+        aspects['Brand'] = ['Unbranded']
+    
+    # Image upload
+    upload_start = time.time()
+    image_urls = []
+    try:
+        from ebay_media import upload_folder
+        image_urls = upload_folder(folder_path, max_images=12)
+        timing['image_upload'] = time.time() - upload_start
+    except Exception as e:
+        timing['image_upload'] = time.time() - upload_start
+        # Non-fatal - continue without images
+    
+    # Create inventory item
+    sku = 'DC-' + uuid.uuid4().hex[:8].upper()
+    item = {
+        'availability': {'shipToLocationAvailability': {'quantity': 1}},
+        'condition': condition,
+        'conditionDescription': 'See photos for details.',
+        'product': {
+            'title': title[:80],
+            'description': description,
+            'aspects': aspects,
+            'imageUrls': image_urls
+        }
+    }
+    
+    api_start = time.time()
+    try:
+        response = requests.put(
+            INVENTORY_URL + '/inventory_item/' + sku,
+            headers=get_headers(),
+            json=item
+        )
+        if response.status_code not in [200, 201, 204]:
+            raise InventoryError(f"Inventory creation failed: {response.text[:200]}")
+    except Exception as e:
+        result["error_type"] = "Inventory"
+        result["error_message"] = str(e)
+        timing['api'] = time.time() - api_start
+        result["timing"] = timing
+        return result
+    
+    # Create offer
+    offer = {
+        'sku': sku,
+        'marketplaceId': 'EBAY_US',
+        'format': 'FIXED_PRICE',
+        'availableQuantity': 1,
+        'categoryId': category_id,
+        'listingDescription': description,
+        'listingPolicies': {
+            'fulfillmentPolicyId': FULFILLMENT_POLICY,
+            'paymentPolicyId': PAYMENT_POLICY,
+            'returnPolicyId': RETURN_POLICY
+        },
+        'pricingSummary': {
+            'price': {'value': str(final_price), 'currency': 'USD'}
+        },
+        'merchantLocationKey': MERCHANT_LOCATION
+    }
+    
+    try:
+        response = requests.post(
+            INVENTORY_URL + '/offer',
+            headers=get_headers(),
+            json=offer
+        )
+        if response.status_code not in [200, 201]:
+            raise OfferError(f"Offer creation failed: {response.text[:200]}")
+        
+        offer_data = response.json()
+        offer_id = offer_data.get('offerId')
+        result["offer_id"] = offer_id
+    except Exception as e:
+        result["error_type"] = "Offer"
+        result["error_message"] = str(e)
+        timing['api'] = time.time() - api_start
+        result["timing"] = timing
+        return result
+    
+    # Try to publish
+    try:
+        response = requests.post(
+            INVENTORY_URL + '/offer/' + offer_id + '/publish',
+            headers=get_headers()
+        )
+        timing['api'] = time.time() - api_start
+        
+        if response.status_code in [200, 201]:
+            publish_result = response.json()
+            listing_id = publish_result.get('listingId')
+            result["success"] = True
+            result["listing_id"] = listing_id
+            result["status"] = "published"
+        else:
+            # Could not publish but offer created (draft)
+            result["success"] = True
+            result["status"] = "draft"
+    except Exception as e:
+        # Offer exists, just couldn't publish
+        result["success"] = True
+        result["status"] = "draft"
+    
+    result["timing"] = timing
+    result["timing"]["total"] = time.time() - start_time
+    
+    return result
+
+
 # Main
 if __name__ == "__main__":
     # Test with SVBONY folder
@@ -380,3 +666,4 @@ if __name__ == "__main__":
         print("\nUsage:")
         print("  create_listing_from_folder('/path/to/item/photos')")
         print("  process_inbox('/path/to/inbox')")
+
