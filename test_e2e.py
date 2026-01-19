@@ -2,7 +2,12 @@
 End-to-End Test Script for eBay Draft Commander
 """
 import sys
-sys.path.insert(0, r'C:\Users\adam\Desktop\eBay_Draft_Commander')
+from pathlib import Path
+
+# Add current project directory to path
+project_root = Path(__file__).parent.absolute()
+sys.path.insert(0, str(project_root))
+
 from ai_analyzer import AIAnalyzer
 from ebay_api import eBayAPIClient
 import json
@@ -15,7 +20,15 @@ print('='*60)
 print('\n📸 STEP 1: AI Image Analysis')
 print('-'*40)
 analyzer = AIAnalyzer()
-result = analyzer.analyze_folder(r'C:\Users\adam\Desktop\eBay_Draft_Commander\inbox\cletop_cleaner')
+
+# Use a test folder in the current project inbox
+test_folder = project_root / 'inbox' / 'test_item'
+if not test_folder.exists():
+    print(f'⚠️  Test folder not found: {test_folder}')
+    print('Please create a test item folder with images in inbox/test_item/')
+    sys.exit(1)
+
+result = analyzer.analyze_folder(str(test_folder))
 
 if 'error' in result:
     print(f'❌ AI Analysis failed: {result["error"]}')
@@ -76,9 +89,10 @@ listing_data = {
 print(json.dumps(listing_data, indent=2))
 
 # Save for browser test
-with open(r'C:\Users\adam\Desktop\eBay_Draft_Commander\test_listing.json', 'w') as f:
+output_file = project_root / 'test_listing.json'
+with open(output_file, 'w') as f:
     json.dump(listing_data, f, indent=2)
-print('\n✅ Saved to test_listing.json')
+print(f'\n✅ Saved to {output_file.name}')
 
 print('\n' + '='*60)
 print('END-TO-END TEST COMPLETE')

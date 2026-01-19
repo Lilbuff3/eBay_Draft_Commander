@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eBay Draft Commander | Modern Dashboard</title>
+
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Tailwind Config -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        stone: {
+                            50: '#FAFAF9',
+                            100: '#F5F5F4',
+                            200: '#E7E5E4',
+                            800: '#292524',
+                            900: '#1C1917',
+                        },
+                        sage: {
+                            50: '#F4F7F5',
+                            100: '#E3EBE6',
+                            500: '#84A98C',
+                            600: '#52796F',
+                            700: '#354F52',
+                        },
+                        clay: {
+                            400: '#E09F3E',
+                            500: '#D08C2A',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Outfit', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.07)',
+                        'card': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@500;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FAFAF9;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #E7E5E4;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #D6D3D1;
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-stone-50 text-stone-800 h-screen overflow-hidden flex">
+    <div id="root" class="w-full h-full"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+        const {
+            Upload, Search, Image: ImageIcon, Camera, LayoutTemplate,
+            Settings, Play, Pause, RotateCcw, Check, X, Archive,
+            ChevronRight, BarChart3, Package, Layers, ExternalLink
+        } = lucide;
+
+        // Custom Icon wrapper to handle Lucide icons in browser
+        const Icon = ({ name, size = 20, className = "" }) => {
+            const LucideIcon = lucide[name];
+            if (!LucideIcon) return null;
+            return React.createElement(LucideIcon, { size, className });
+        };
+
+        // --- Components ---
+
+        const Sidebar = ({ activeTab, setActiveTab }) => {
+            const navItems = [
+                { id: 'dashboard', icon: 'LayoutTemplate', label: 'Dashboard' },
+                { id: 'inventory', icon: 'Package', label: 'Inventory' },
+                { id: 'analytics', icon: 'BarChart3', label: 'Analytics' },
+                { id: 'settings', icon: 'Settings', label: 'Settings' },
+            ];
+
+            return (
+                <div className="w-20 bg-white border-r border-stone-200 flex flex-col items-center py-6 h-full z-20 shadow-sm">
+                    <div className="mb-8 p-2 bg-sage-50 rounded-xl">
+                        <div className="w-8 h-8 bg-sage-600 rounded-lg flex items-center justify-center text-white font-bold font-display">
+                            E
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col gap-6 w-full px-2">
+                        {navItems.map(item => (
+                            <button
+                                key={item.id}
+                                onClick={() => setActiveTab(item.id)}
+                                className={`
+                                    w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 mx-auto group relative
+                                    ${activeTab === item.id
+                                        ? 'bg-sage-600 text-white shadow-lg shadow-sage-200'
+                                        : 'text-stone-400 hover:bg-stone-100 hover:text-sage-600'
+                                    }
+                                `}
+                            >
+                                <Icon name={item.icon} size={22} />
+                                {/* Tooltip */}
+                                <span className="absolute left-14 bg-stone-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none">
+                                    {item.label}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const QueueCard = ({ job, isSelected, onClick }) => {
+            const statusColors = {
+                pending: 'bg-stone-100 text-stone-500',
+                processing: 'bg-clay-400 text-white animate-pulse',
+                completed: 'bg-sage-100 text-sage-700',
+                failed: 'bg-red-100 text-red-600',
+            };
+
+            const statusIcon = {
+                pending: 'Clock',
+                processing: 'Loader2',
+                completed: 'Check',
+                failed: 'AlertCircle',
+            };
+
+            return (
+                <div
+                    onClick={onClick}
+                    className={`
+                        p-3 rounded-xl cursor-pointer transition-all duration-200 border
+                        ${isSelected
+                            ? 'bg-white border-sage-500 shadow-md ring-1 ring-sage-500'
+                            : 'bg-white border-transparent hover:border-stone-200 hover:shadow-sm'
+                        }
+                    `}
+                >
+                    <div className="flex gap-3">
+                        <div className="w-16 h-16 rounded-lg bg-stone-100 flex-shrink-0 overflow-hidden relative">
+                            {/* Placeholder for image */}
+                            <div className="w-full h-full flex items-center justify-center text-stone-300">
+                                <Icon name="Image" size={24} />
+                            </div>
+
+                            {/* Status Badge */}
+                            <div className={`absolute bottom-0 right-0 p-1 rounded-tl-lg ${statusColors[job.status] || statusColors.pending}`}>
+                                <Icon name={statusIcon[job.status] || 'Clock'} size={12} />
+                            </div>
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-stone-800 text-sm truncate">{job.name}</h4>
+                            <p className="text-xs text-stone-500 mt-1 truncate">
+                                {job.listing_id ? `Active: ${job.listing_id}` : 'Draft not started'}
+                            </p>
+
+                            <div className="flex items-center gap-2 mt-2">
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full uppercase tracking-wider font-semibold ${statusColors[job.status] || statusColors.pending}`}>
+                                    {job.status}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const StageProgress = ({ currentStage }) => {
+            const stages = [
+                { id: 'import', label: 'Import' },
+                { id: 'analyze', label: 'Analyze' },
+                { id: 'edit', label: 'Edit' },
+                { id: 'price', label: 'Price' },
+                { id: 'post', label: 'Post' }
+            ];
+
+            const currentIndex = stages.findIndex(s => s.id === currentStage);
+
+            return (
+                <div className="w-full py-4 px-6 mb-2">
+                    <div className="relative flex justify-between items-center">
+                        {/* Progress Line Background */}
+                        <div className="absolute top-1/2 left-0 w-full h-0.5 bg-stone-200 -z-10 rounded-full"></div>
+
+                        {/* Active Progress Line */}
+                        <div
+                            className="absolute top-1/2 left-0 h-0.5 bg-sage-500 -z-10 rounded-full transition-all duration-500"
+                            style={{ width: `${(currentIndex / (stages.length - 1)) * 100}%` }}
+                        ></div>
+
+                        {stages.map((stage, idx) => {
+                            const isCompleted = idx <= currentIndex;
+                            const isActive = idx === currentIndex;
+
+                            return (
+                                <div key={stage.id} className="flex flex-col items-center gap-2">
+                                    <div
+                                        className={`
+                                            w-8 h-8 rounded-full flex items-center justify-center border-2 z-10 transition-all duration-300 bg-stone-50
+                                            ${isCompleted
+                                                ? 'border-sage-500 bg-sage-500 text-white'
+                                                : 'border-stone-300 text-stone-400'
+                                            }
+                                            ${isActive ? 'ring-4 ring-sage-100 scale-110' : ''}
+                                        `}
+                                    >
+                                        {idx < currentIndex ? <Icon name="Check" size={14} /> : <span>{idx + 1}</span>}
+                                    </div>
+                                    <span className={`text-xs font-medium transition-colors ${isActive ? 'text-sage-700' : 'text-stone-400'}`}>
+                                        {stage.label}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        };
+
+        const ToolCard = ({ icon, title, desc, color }) => (
+            <button className="flex flex-col items-start p-5 bg-white rounded-2xl border border-stone-100 shadow-card hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group text-left w-full h-full">
+                <div className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center text-white mb-4 shadow-sm group-hover:scale-110 transition-transform`}>
+                    <Icon name={icon} size={20} />
+                </div>
+                <h3 className="font-semibold text-stone-800 text-lg mb-1">{title}</h3>
+                <p className="text-sm text-stone-400 font-light">{desc}</p>
+                <div className="mt-auto pt-4 flex items-center text-xs font-medium uppercase tracking-wider text-stone-300 group-hover:text-stone-600 transition-colors">
+                    Launch <Icon name="ChevronRight" size={12} className="ml-1" />
+                </div>
+            </button>
+        );
+
+        const Dashboard = () => {
+            const [jobs, setJobs] = useState([]);
+            const [selectedJob, setSelectedJob] = useState(null);
+            const [queueStats, setQueueStats] = useState({ pending: 0, completed: 0, failed: 0 });
+            const [isProcessing, setIsProcessing] = useState(false);
+
+            // Poll for real data
+            useEffect(() => {
+                const fetchData = async () => {
+                    try {
+                        const [jobsRes, statsRes, statusRes] = await Promise.all([
+                            fetch('/api/jobs'),
+                            fetch('/api/stats'),
+                            fetch('/api/status')
+                        ]);
+
+                        const jobsData = await jobsRes.json();
+                        const statsData = await statsRes.json();
+                        const statusData = await statusRes.json();
+
+                        setJobs(jobsData);
+                        setQueueStats(statsData);
+                        setIsProcessing(statusData.status === 'processing');
+
+                        if (!selectedJob && jobsData.length > 0) {
+                            setSelectedJob(jobsData[0]);
+                        }
+                    } catch (err) {
+                        console.error("Fetch error:", err);
+                    }
+                };
+
+                fetchData();
+                const interval = setInterval(fetchData, 2000);
+                return () => clearInterval(interval);
+            }, [selectedJob]); // Dependency on selectedJob to avoid resetting it? No, actually we want to preserve selection
+
+            const handleStart = async () => {
+                try {
+                    await fetch('/api/start', { method: 'POST' });
+                    setIsProcessing(true);
+                } catch (e) {
+                    console.error(e);
+                }
+            };
+
+            const handlePause = async () => {
+                try {
+                    await fetch('/api/pause', { method: 'POST' });
+                    setIsProcessing(false);
+                } catch (e) {
+                    console.error(e);
+                }
+            };
+
+            return (
+                <div className="flex-1 flex h-full overflow-hidden relative">
+                    {/* Background Pattern */}
+                    <div className="absolute top-0 right-0 opacity-30 pointer-events-none">
+                        <svg width="400" height="400" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                            <path fill="#84A98C" d="M47.7,-58.3C60.5,-48.9,69.1,-33.4,73.1,-17.1C77.1,-0.8,76.5,16.4,68.4,29.9C60.3,43.4,44.7,53.2,28.7,60.8C12.7,68.4,-3.7,73.8,-19.4,70.9C-35.1,68,-50.1,56.8,-61.1,43C-72.1,29.2,-79.1,12.8,-76.3,-2.2C-73.5,-17.2,-60.9,-30.8,-48.4,-40.5C-35.9,-50.2,-23.5,-56.1,-9.6,-59.4C4.3,-62.7,18.6,-63.3,34.9,-67.7L47.7,-58.3Z" transform="translate(100 100)" />
+                        </svg>
+                    </div>
+
+                    {/* Middle Column: Workspace */}
+                    <div className="flex-1 flex flex-col p-8 overflow-y-auto z-10 w-full max-w-5xl mx-auto">
+                        <header className="flex justify-between items-center mb-8">
+                            <div>
+                                <h1 className="font-display font-bold text-3xl text-stone-800">Workspace</h1>
+                                <p className="text-stone-400">Manage your listings and drafts</p>
+                            </div>
+                            <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-full shadow-sm border border-stone-100">
+                                <div className={`w-2 h-2 rounded-full ${isProcessing ? 'bg-green-500 animate-pulse' : 'bg-stone-300'}`}></div>
+                                <span className="text-xs font-medium text-stone-600">
+                                    {isProcessing ? 'System Active' : 'System Ready'}
+                                </span>
+                            </div>
+                        </header>
+
+                        {/* Workflow Pipeline */}
+                        <div className="bg-white rounded-2xl p-4 shadow-card mb-6 border border-stone-100">
+                            <StageProgress currentStage="edit" />
+                        </div>
+
+                        {/* Main Grid */}
+                        <div className="grid grid-cols-12 gap-6 mb-24">
+                            {/* Hero Image Section (span 8) */}
+                            <div className="col-span-8 bg-white rounded-3xl p-6 shadow-card border border-stone-100 relative group overflow-hidden">
+                                <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-lg backdrop-blur-sm">
+                                        <Icon name="Camera" size={18} />
+                                    </button>
+                                </div>
+
+                                <div className="h-64 rounded-2xl bg-stone-100 flex items-center justify-center mb-6 overflow-hidden relative">
+                                    {/* Mock Image */}
+                                    <div className="text-stone-300 flex flex-col items-center">
+                                        <Icon name="Image" size={48} />
+                                        <span className="text-sm font-medium mt-2">No Image Selected</span>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1 block">Title</label>
+                                        <input type="text" className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sage-500/50" placeholder="Item Title..." value={selectedJob?.name || ''} readOnly />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1 block">Price</label>
+                                        <input type="text" className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sage-500/50" placeholder="$0.00" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Tools Grid (span 4) */}
+                            <div className="col-span-4 grid grid-rows-2 gap-4">
+                                <ToolCard
+                                    icon="Camera"
+                                    title="Photo Editor"
+                                    desc="Crop, rotate, enhance"
+                                    color="bg-blue-500"
+                                />
+                                <ToolCard
+                                    icon="Search"
+                                    title="Price Research"
+                                    desc="Analyze sold listings"
+                                    color="bg-emerald-500"
+                                />
+                            </div>
+
+                            <div className="col-span-4">
+                                <ToolCard
+                                    icon="LayoutTemplate"
+                                    title="Templates"
+                                    desc="Manage presets"
+                                    color="bg-purple-500"
+                                />
+                            </div>
+                            <div className="col-span-4">
+                                <ToolCard
+                                    icon="Eye"
+                                    title="Preview"
+                                    desc="View as buyer"
+                                    color="bg-orange-500"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right Column: Queue */}
+                    <div className="w-80 bg-stone-50 border-l border-stone-200 flex flex-col h-full z-20">
+                        <div className="p-6 border-b border-stone-200 bg-white">
+                            <div className="flex justify-between items-center mb-1">
+                                <h3 className="font-display font-bold text-lg text-stone-800">Queue</h3>
+                                <span className="bg-stone-100 text-stone-600 px-2 py-0.5 rounded text-xs font-bold">{queueStats.pending}</span>
+                            </div>
+                            <p className="text-xs text-stone-400">Drag and drop folders here</p>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                            {jobs.map(job => (
+                                <QueueCard
+                                    key={job.id}
+                                    job={job}
+                                    isSelected={selectedJob?.id === job.id}
+                                    onClick={() => setSelectedJob(job)}
+                                />
+                            ))}
+
+                            {jobs.length === 0 && (
+                                <div className="text-center py-10 text-stone-400 border-2 border-dashed border-stone-200 rounded-xl">
+                                    <Icon name="Upload" size={24} className="mx-auto mb-2 opacity-50" />
+                                    <p className="text-sm">Empty Queue</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Floating Action Bar */}
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-stone-900/90 backdrop-blur-md text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-6 z-50 border border-white/10">
+                        <div className="flex items-center gap-4 border-r border-white/20 pr-6">
+                            <div className="flex flex-col text-right">
+                                <span className="text-xs text-stone-400 uppercase tracking-wider font-bold">Status</span>
+                                <span className="font-medium text-sage-400">
+                                    {isProcessing ? 'Processing Queue' : 'Ready to Start'}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            {!isProcessing ? (
+                                <button
+                                    onClick={handleStart}
+                                    className="bg-white text-stone-900 px-6 py-2.5 rounded-xl font-bold hover:bg-sage-50 transition-colors flex items-center gap-2"
+                                >
+                                    <Icon name="Play" size={18} className="fill-stone-900" />
+                                    Start Queue
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={handlePause}
+                                    className="bg-clay-500 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-clay-600 transition-colors flex items-center gap-2"
+                                >
+                                    <Icon name="Pause" size={18} className="fill-white" />
+                                    Pause
+                                </button>
+                            )}
+
+                            <button className="p-2.5 rounded-xl hover:bg-white/10 text-stone-400 hover:text-white transition-colors">
+                                <Icon name="Settings" size={20} />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('dashboard');
+
+            return (
+                <div className="flex h-screen bg-stone-50">
+                    <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+                    <Dashboard />
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>

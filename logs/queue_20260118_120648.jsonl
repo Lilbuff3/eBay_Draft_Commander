@@ -1,0 +1,9 @@
+{"timestamp": "2026-01-18T12:06:48.860642", "level": "INFO", "event": "\ud83d\udccb Log session started: queue_20260118_120648.log", "data": {}}
+{"timestamp": "2026-01-18T12:09:48.632447", "level": "INFO", "event": "\u2699\ufe0f Processing: cletop_cleaner", "data": {"job_id": "47150A05", "folder": "cletop_cleaner"}}
+{"timestamp": "2026-01-18T12:09:53.864088", "level": "ERROR", "event": "Failed: cletop_cleaner - Category: Could not determine category", "data": {"job_id": "47150A05", "error_type": "Category", "error_message": "Could not determine category"}}
+{"timestamp": "2026-01-18T12:09:53.865636", "level": "INFO", "event": "\u2699\ufe0f Processing: svbony_scope", "data": {"job_id": "28BB4CD5", "folder": "svbony_scope"}}
+{"timestamp": "2026-01-18T12:09:59.920027", "level": "ERROR", "event": "Failed: svbony_scope - Category: Could not determine category", "data": {"job_id": "28BB4CD5", "error_type": "Category", "error_message": "Could not determine category"}}
+{"timestamp": "2026-01-18T12:09:59.927236", "level": "INFO", "event": "\u2699\ufe0f Processing: user_test_item", "data": {"job_id": "C97F8938", "folder": "user_test_item"}}
+{"timestamp": "2026-01-18T12:10:09.353641", "level": "ERROR", "event": "Failed: user_test_item - Category: Could not determine category", "data": {"job_id": "C97F8938", "error_type": "Category", "error_message": "Could not determine category"}}
+{"timestamp": "2026-01-18T12:10:09.356374", "level": "INFO", "event": "\ud83c\udfc1 Queue complete: 0/3 succeeded, 3 failed", "data": {}}
+{"timestamp": "2026-01-18T12:10:21.342771", "level": "INFO", "event": "\ud83c\udfc1 Queue complete: 0/3 succeeded, 3 failed", "data": {}}

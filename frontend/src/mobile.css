@@ -1,0 +1,148 @@
+/* Mobile-specific utilities and overrides */
+
+/* Safe area support for iPhone X+ notch/home indicator */
+.safe-area-inset-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-inset-top {
+    padding-top: env(safe-area-inset-top);
+}
+
+/* Touch-friendly tap targets (iOS/Android guidelines: 44x44px minimum) */
+.tap-target {
+    min-width: 44px;
+    min-height: 44px;
+}
+
+/* Prevent text selection on touch (better UX for buttons) */
+.no-select {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* Smooth scrolling for mobile */
+.mobile-scroll {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+}
+
+/* Remove tap highlight on mobile */
+button,
+a {
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Active state feedback for touch */
+.touch-feedback:active {
+    transform: scale(0.95);
+    transition: transform 0.1s ease;
+}
+
+/* Sticky positioning with safe area */
+.sticky-top-safe {
+    position: sticky;
+    top: env(safe-area-inset-top);
+}
+
+.sticky-bottom-safe {
+    position: sticky;
+    bottom: env(safe-area-inset-bottom);
+}
+
+/* Prevent scroll chaining on modals */
+.modal-scroll {
+    overscroll-behavior: contain;
+}
+
+/* Pull-to-refresh visual feedback */
+@keyframes pull-bounce {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+.pull-refresh {
+    animation: pull-bounce 0.6s ease-in-out;
+}
+
+/* Mobile-optimized card shadows (lighter for performance) */
+@media (max-width: 768px) {
+    .shadow-lg {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .shadow-xl {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    }
+
+    .shadow-2xl {
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    }
+}
+
+/* Hide scrollbar on mobile for cleaner UI */
+@media (max-width: 768px) {
+    .hide-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .hide-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+}
+
+/* Touch-friendly form inputs */
+@media (max-width: 768px) {
+
+    input[type="text"],
+    input[type="number"],
+    input[type="email"],
+    textarea,
+    select {
+        font-size: 16px;
+        /* Prevents zoom on iOS */
+        min-height: 44px;
+    }
+}
+
+/* Bottom sheet animation */
+@keyframes slide-up {
+    from {
+        transform: translateY(100%);
+    }
+
+    to {
+        transform: translateY(0);
+    }
+}
+
+.bottom-sheet-enter {
+    animation: slide-up 0.3s ease-out;
+}
+
+/* Swipe indicator */
+.swipe-indicator {
+    position: relative;
+}
+
+.swipe-indicator::before {
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 32px;
+    height: 4px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 2px;
+}

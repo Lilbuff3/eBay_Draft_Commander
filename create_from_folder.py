@@ -32,6 +32,24 @@ MERCHANT_LOCATION = credentials.get('EBAY_MERCHANT_LOCATION')
 TAXONOMY_URL = 'https://api.ebay.com/commerce/taxonomy/v1'
 INVENTORY_URL = 'https://api.ebay.com/sell/inventory/v1'
 
+# Token refresh helper
+def refresh_token():
+    """Refresh the eBay OAuth token and reload credentials"""
+    global USER_TOKEN, credentials
+    try:
+        from ebay_auth import eBayOAuth
+        print("   🔄 Refreshing eBay token...")
+        oauth = eBayOAuth(use_sandbox=False)
+        if oauth.refresh_access_token():
+            # Reload the updated credentials
+            credentials = load_env()
+            USER_TOKEN = credentials.get('EBAY_USER_TOKEN')
+            print("   ✅ Token refreshed!")
+            return True
+    except Exception as e:
+        print(f"   ❌ Token refresh failed: {e}")
+    return False
+
 
 def get_headers():
     return {
@@ -42,7 +60,7 @@ def get_headers():
     }
 
 
-def get_category_and_aspects(query):
+def get_category_and_aspects(query, retry_on_auth=True):
     """Get best category and required aspects for a product"""
     # Get category
     response = requests.get(
@@ -50,6 +68,11 @@ def get_category_and_aspects(query):
         headers=get_headers(),
         params={'q': query}
     )
+    
+    # Auto-refresh on auth errors
+    if response.status_code in [401, 500] and retry_on_auth:
+        if refresh_token():
+            return get_category_and_aspects(query, retry_on_auth=False)
     
     if response.status_code != 200:
         return None, {}
@@ -95,7 +118,8 @@ def get_category_and_aspects(query):
     return category_id, required
 
 
-def create_listing_from_folder(folder_path, price="29.99", condition="USED_EXCELLENT"):
+def create_listing_from_folder(folder_path, price="29.99", condition="USED_EXCELLENT", 
+                                fulfillment_policy=None, payment_policy=None, return_policy=None):
     """
     Create an eBay listing from a folder of images
     
@@ -105,6 +129,9 @@ def create_listing_from_folder(folder_path, price="29.99", condition="USED_EXCEL
         folder_path: Path to folder containing product images
         price: Listing price
         condition: Item condition
+        fulfillment_policy: Optional fulfillment/shipping policy ID (uses default from .env if None)
+        payment_policy: Optional payment policy ID (uses default from .env if None) 
+        return_policy: Optional return policy ID (uses default from .env if None)
     
     Returns:
         listing_id or offer_id
@@ -277,6 +304,12 @@ def create_listing_from_folder(folder_path, price="29.99", condition="USED_EXCEL
     
     # Create offer
     print("   Creating offer...")
+    
+    # Use provided policies or fall back to defaults from .env
+    actual_fulfillment = fulfillment_policy or FULFILLMENT_POLICY
+    actual_payment = payment_policy or PAYMENT_POLICY
+    actual_return = return_policy or RETURN_POLICY
+    
     offer = {
         'sku': sku,
         'marketplaceId': 'EBAY_US',
@@ -285,9 +318,9 @@ def create_listing_from_folder(folder_path, price="29.99", condition="USED_EXCEL
         'categoryId': category_id,
         'listingDescription': description,
         'listingPolicies': {
-            'fulfillmentPolicyId': FULFILLMENT_POLICY,
-            'paymentPolicyId': PAYMENT_POLICY,
-            'returnPolicyId': RETURN_POLICY
+            'fulfillmentPolicyId': actual_fulfillment,
+            'paymentPolicyId': actual_payment,
+            'returnPolicyId': actual_return
         },
         'pricingSummary': {
             'price': {'value': str(price), 'currency': 'USD'}

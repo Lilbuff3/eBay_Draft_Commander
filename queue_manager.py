@@ -11,6 +11,7 @@ from datetime import datetime
 from enum import Enum
 from dataclasses import dataclass, field, asdict
 from typing import Optional, List, Callable, Dict, Any
+from logger import get_logger
 
 
 class JobStatus(Enum):
@@ -91,6 +92,9 @@ class QueueManager:
         
         # Processing function (injected from create_from_folder)
         self._processor: Optional[Callable[[str], dict]] = None
+        
+        # Initialize logger
+        self.logger = get_logger('queue_manager', level='DEBUG')
         
         # Load any persisted state
         self.load_state()
@@ -341,9 +345,12 @@ class QueueManager:
                 if job.status == JobStatus.PROCESSING:
                     job.status = JobStatus.PENDING
             
-            print(f"Loaded {len(self.jobs)} jobs from queue state")
+            self.logger.info(f"Loaded {len(self.jobs)} jobs from queue state")
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Corrupted queue state file", extra={'error': str(e)})
+            self.jobs = []
         except Exception as e:
-            print(f"Warning: Could not load queue state: {e}")
+            self.logger.exception("Unexpected error loading queue state")
             self.jobs = []
     
     def get_job_by_id(self, job_id: str) -> Optional[QueueJob]:

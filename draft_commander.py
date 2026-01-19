@@ -35,6 +35,8 @@ from preview_generator import PreviewGenerator
 from preview_dialog import PreviewDialog
 from inventory_sync import get_inventory_sync
 from inventory_dialog import InventorySyncDialog
+from ui_widgets import (Theme, StageIndicator, WorkflowStage, QueueCard, 
+                        ToolCard, ActionBar, HeroImage)
 
 
 class DraftCommanderApp:
@@ -44,7 +46,7 @@ class DraftCommanderApp:
         self.root = root
         self.root.title("eBay Draft Commander Pro (AI Powered)")
         self.root.geometry("1300x850")
-        self.root.configure(bg='#1a1a2e')
+        self.root.configure(bg='#FAFAF9')  # Alabaster - warm off-white
         
         # Configure Drop Target
         self.root.drop_target_register(DND_FILES)
@@ -55,6 +57,7 @@ class DraftCommanderApp:
         self.ai_analyzer = None
         self.items = []  # List of analyzed items
         self.current_item_index = 0
+        self.current_item = None  # Currently selected item data
         
         # Paths
         self.base_path = Path(__file__).parent
@@ -124,7 +127,7 @@ class DraftCommanderApp:
                 
         if count > 0:
             self.scan_inbox()
-            self.status_label.configure(text=f"📥 Imported {count} items", foreground='#00ff00')
+            self.status_label.configure(text=f"📥 Imported {count} items", foreground='#4D7C5D')
 
     def parse_drop_paths(self, data):
         """Parse the weird string format from tkinterdnd"""
@@ -157,18 +160,109 @@ class DraftCommanderApp:
                 self.initialize_apis()
 
     def setup_styles(self):
-        """Configure ttk styles"""
+        """Configure ttk styles - Bright & Natural Theme"""
         style = ttk.Style()
         style.theme_use('clam')
         
-        # Dark theme colors
-        style.configure('TFrame', background='#1a1a2e')
-        style.configure('TLabel', background='#1a1a2e', foreground='white', font=('Segoe UI', 10))
-        style.configure('Title.TLabel', font=('Segoe UI', 14, 'bold'), foreground='#00d9ff')
-        style.configure('Header.TLabel', font=('Segoe UI', 12, 'bold'), foreground='#ffd700')
-        style.configure('TButton', font=('Segoe UI', 10))
-        style.configure('Action.TButton', font=('Segoe UI', 11, 'bold'))
-        style.configure('TEntry', font=('Segoe UI', 10))
+        # Natural theme color palette
+        ALABASTER = '#FAFAF9'      # Background
+        WHITE = '#FFFFFF'           # Surface/Cards
+        SAGE_GREEN = '#4D7C5D'     # Primary actions
+        WARM_CLAY = '#D97757'      # Alerts/warnings
+        CHARCOAL = '#374151'       # Text
+        SAND = '#E5E7EB'           # Borders/dividers
+        BEIGE = '#F5F5F0'          # Sidebar
+        MUTED_GOLD = '#C9A227'     # Warnings
+        
+        # Base frame styles
+        style.configure('TFrame', background=ALABASTER)
+        style.configure('Sidebar.TFrame', background=BEIGE)
+        
+        # Label styles
+        style.configure('TLabel', background=ALABASTER, foreground=CHARCOAL, font=('Segoe UI', 10))
+        style.configure('Title.TLabel', font=('Segoe UI', 16, 'bold'), foreground=SAGE_GREEN, background=ALABASTER)
+        style.configure('Header.TLabel', font=('Segoe UI', 12, 'bold'), foreground=CHARCOAL, background=ALABASTER)
+        style.configure('Sidebar.TLabel', background=BEIGE, foreground=CHARCOAL)
+        
+        # Button styles - Pill shaped with organic colors
+        style.configure('TButton', 
+                       font=('Segoe UI', 10),
+                       background=WHITE,
+                       foreground=CHARCOAL,
+                       borderwidth=1,
+                       relief='solid',
+                       padding=(12, 6))
+        style.map('TButton',
+                 background=[('active', SAND), ('pressed', SAND)],
+                 relief=[('pressed', 'sunken')])
+        
+        # Primary action buttons (Sage Green)
+        style.configure('Primary.TButton',
+                       font=('Segoe UI', 11, 'bold'),
+                       background=SAGE_GREEN,
+                       foreground=WHITE,
+                       padding=(16, 8))
+        style.map('Primary.TButton',
+                 background=[('active', '#3D6349'), ('pressed', '#3D6349')])
+        
+        # Action buttons (standard)
+        style.configure('Action.TButton', 
+                       font=('Segoe UI', 11, 'bold'),
+                       background=SAGE_GREEN,
+                       foreground=WHITE,
+                       padding=(14, 8))
+        style.map('Action.TButton',
+                 background=[('active', '#3D6349'), ('pressed', '#3D6349')])
+        
+        # Warning/Delete buttons (Warm Clay)
+        style.configure('Warning.TButton',
+                       font=('Segoe UI', 10),
+                       background=WARM_CLAY,
+                       foreground=WHITE,
+                       padding=(12, 6))
+        style.map('Warning.TButton',
+                 background=[('active', '#C4593D'), ('pressed', '#C4593D')])
+        
+        # Entry styles
+        style.configure('TEntry', 
+                       font=('Segoe UI', 10),
+                       fieldbackground=WHITE,
+                       foreground=CHARCOAL,
+                       borderwidth=1,
+                       relief='solid')
+        
+        # Combobox styles
+        style.configure('TCombobox',
+                       font=('Segoe UI', 10),
+                       fieldbackground=WHITE,
+                       foreground=CHARCOAL)
+        
+        # Progress bar
+        style.configure('TProgressbar',
+                       background=SAGE_GREEN,
+                       troughcolor=SAND,
+                       borderwidth=0,
+                       thickness=8)
+        
+        # Scrollbar
+        style.configure('TScrollbar',
+                       background=SAND,
+                       troughcolor=ALABASTER,
+                       borderwidth=0)
+        
+        # Store colors for use elsewhere
+        self.colors = {
+            'bg': ALABASTER,
+            'surface': WHITE,
+            'primary': SAGE_GREEN,
+            'secondary': WARM_CLAY,
+            'text': CHARCOAL,
+            'border': SAND,
+            'sidebar': BEIGE,
+            'success': SAGE_GREEN,
+            'error': WARM_CLAY,
+            'warning': MUTED_GOLD
+        }
     
     def create_menu(self):
         """Create menu bar"""
@@ -215,121 +309,295 @@ class DraftCommanderApp:
                              command=lambda: webbrowser.open('https://developer.ebay.com/docs'))
         
     def create_widgets(self):
-        """Create all UI widgets"""
-        # Main container
-        main_frame = ttk.Frame(self.root, padding=10)
+        """Create Bento-style UI layout with visual workflow"""
+        # Main container with natural background
+        main_frame = tk.Frame(self.root, bg=Theme.ALABASTER)
         main_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Header
-        header_frame = ttk.Frame(main_frame)
-        header_frame.pack(fill=tk.X, pady=(0, 10))
+        # =====================================================================
+        # HEADER - Title + Settings
+        # =====================================================================
+        header_frame = tk.Frame(main_frame, bg=Theme.ALABASTER)
+        header_frame.pack(fill=tk.X, padx=20, pady=(15, 5))
         
-        ttk.Label(header_frame, text="📦 eBay Draft Commander Pro", 
-                  style='Title.TLabel').pack(side=tk.LEFT)
+        title_label = tk.Label(header_frame, text="📦 eBay Draft Commander Pro",
+                              font=('Segoe UI', 18, 'bold'),
+                              bg=Theme.ALABASTER, fg=Theme.SAGE_GREEN)
+        title_label.pack(side=tk.LEFT)
         
-        self.status_label = ttk.Label(header_frame, text="Initializing...", 
-                                       foreground='#888')
-        self.status_label.pack(side=tk.RIGHT)
+        # Settings button (right)
+        settings_btn = tk.Button(header_frame, text="⚙️",
+                                font=('Segoe UI', 14),
+                                bg=Theme.ALABASTER, fg=Theme.CHARCOAL,
+                                relief='flat', cursor='hand2',
+                                command=self.open_settings)
+        settings_btn.pack(side=tk.RIGHT, padx=10)
         
-        # Control buttons - Row 1
-        control_frame = ttk.Frame(main_frame)
-        control_frame.pack(fill=tk.X, pady=(0, 5))
+        # Mobile QR button
+        qr_btn = tk.Button(header_frame, text="📱",
+                          font=('Segoe UI', 14),
+                          bg=Theme.ALABASTER, fg=Theme.CHARCOAL,
+                          relief='flat', cursor='hand2',
+                          command=self.show_qr_code)
+        qr_btn.pack(side=tk.RIGHT)
         
-        ttk.Button(control_frame, text="📁 Scan Inbox", 
-                   command=self.scan_inbox).pack(side=tk.LEFT, padx=5)
-        self.start_btn = ttk.Button(control_frame, text="🚀 Start Queue", 
-                   command=self.start_queue)
-        self.start_btn.pack(side=tk.LEFT, padx=5)
-        self.pause_btn = ttk.Button(control_frame, text="⏸️ Pause", 
-                   command=self.pause_queue, state='disabled')
-        self.pause_btn.pack(side=tk.LEFT, padx=5)
-        ttk.Button(control_frame, text="🌐 Open eBay", 
-                   command=lambda: webbrowser.open('https://www.ebay.com/sl/sell')).pack(side=tk.LEFT, padx=5)
+        # Status label
+        self.status_label = tk.Label(header_frame, text="Ready",
+                                    font=('Segoe UI', 10),
+                                    bg=Theme.ALABASTER, fg=Theme.LIGHT_GRAY)
+        self.status_label.pack(side=tk.RIGHT, padx=20)
         
-        # Item count and web URL
-        self.item_count_label = ttk.Label(control_frame, text="Queue: 0 pending")
-        self.item_count_label.pack(side=tk.RIGHT, padx=10)
+        # =====================================================================
+        # STAGE INDICATOR - Workflow Pipeline
+        # =====================================================================
+        self.stage_indicator = StageIndicator(main_frame, 
+                                             on_stage_click=self._on_stage_click)
+        self.stage_indicator.pack(fill=tk.X, pady=10)
         
-        # Web control URL
-        web_url = self.web_server.get_url()
-        self.web_label = ttk.Label(control_frame, text=f"📱 {web_url}", 
-                                   foreground='#00d9ff', cursor='hand2')
-        self.web_label.pack(side=tk.RIGHT, padx=10)
-        self.web_label.bind('<Button-1>', lambda e: webbrowser.open(web_url))
+        # =====================================================================
+        # MAIN CONTENT - Three Column Bento
+        # =====================================================================
+        content_frame = tk.Frame(main_frame, bg=Theme.ALABASTER)
+        content_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
         
-        # Control buttons - Row 2 (Queue Management)
-        queue_frame = ttk.Frame(main_frame)
-        queue_frame.pack(fill=tk.X, pady=(0, 5))
-        
-        ttk.Button(queue_frame, text="🔄 Retry Failed", 
-                   command=self.retry_failed).pack(side=tk.LEFT, padx=5)
-        ttk.Button(queue_frame, text="🗑️ Clear Done", 
-                   command=self.clear_completed).pack(side=tk.LEFT, padx=5)
-        ttk.Button(queue_frame, text="📊 Export Report", 
-                   command=self.export_report).pack(side=tk.LEFT, padx=5)
-        ttk.Button(queue_frame, text="📂 Open Inbox", 
-                   command=lambda: os.startfile(self.inbox_path)).pack(side=tk.LEFT, padx=5)
-        ttk.Button(queue_frame, text="⚙️ Settings",
-                   command=self.open_settings).pack(side=tk.LEFT, padx=5)
-        
-        # Progress Bar
-        progress_frame = ttk.Frame(main_frame)
-        progress_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        self.progress_var = tk.DoubleVar(value=0)
-        self.progress_bar = ttk.Progressbar(progress_frame, variable=self.progress_var, 
-                                             maximum=100, length=400)
-        self.progress_bar.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
-        
-        self.progress_label = ttk.Label(progress_frame, text="0/0", width=10)
-        self.progress_label.pack(side=tk.LEFT, padx=5)
-        
-        # Main content - split into left (items list) and right (details)
-        content_frame = ttk.Frame(main_frame)
-        content_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # Left panel - Items list
-        left_panel = ttk.Frame(content_frame, width=350)
-        left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
+        # -----------------------------------------------------------------
+        # LEFT: Queue Cards (scrollable)
+        # -----------------------------------------------------------------
+        left_panel = tk.Frame(content_frame, bg=Theme.BEIGE, width=220)
+        left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 15))
         left_panel.pack_propagate(False)
         
-        ttk.Label(left_panel, text="📋 Items Queue", style='Header.TLabel').pack(pady=5)
+        # Queue header
+        queue_header = tk.Frame(left_panel, bg=Theme.BEIGE)
+        queue_header.pack(fill=tk.X, padx=10, pady=10)
         
-        # Listbox for items
-        self.items_listbox = tk.Listbox(left_panel, font=('Segoe UI', 10),
-                                         bg='#16213e', fg='white',
-                                         selectbackground='#00d9ff',
-                                         selectforeground='black',
-                                         height=25)
-        self.items_listbox.pack(fill=tk.BOTH, expand=True, pady=5)
-        self.items_listbox.bind('<<ListboxSelect>>', self.on_item_select)
+        tk.Label(queue_header, text="📋 Queue", 
+                font=('Segoe UI', 12, 'bold'),
+                bg=Theme.BEIGE, fg=Theme.CHARCOAL).pack(side=tk.LEFT)
         
-        # Right panel - Item details
-        right_panel = ttk.Frame(content_frame)
-        right_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        # Scan button
+        scan_btn = tk.Button(queue_header, text="＋",
+                            font=('Segoe UI', 12, 'bold'),
+                            bg=Theme.SAGE_GREEN, fg=Theme.WHITE,
+                            relief='flat', width=3, cursor='hand2',
+                            command=self.scan_inbox)
+        scan_btn.pack(side=tk.RIGHT)
         
-        # Create scrollable frame for details
-        self.canvas = tk.Canvas(right_panel, bg='#16213e', highlightthickness=0)
-        scrollbar = ttk.Scrollbar(right_panel, orient="vertical", command=self.canvas.yview)
-        self.details_frame = ttk.Frame(self.canvas)
+        # Scrollable queue container
+        queue_canvas = tk.Canvas(left_panel, bg=Theme.BEIGE, 
+                                highlightthickness=0)
+        queue_scrollbar = ttk.Scrollbar(left_panel, orient="vertical",
+                                       command=queue_canvas.yview)
         
-        self.canvas.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.queue_container = tk.Frame(queue_canvas, bg=Theme.BEIGE)
         
-        self.canvas_window = self.canvas.create_window((0, 0), window=self.details_frame, anchor='nw')
+        queue_canvas.configure(yscrollcommand=queue_scrollbar.set)
+        queue_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        queue_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        self.details_frame.bind('<Configure>', 
-                                 lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
-        self.canvas.bind('<Configure>', 
-                         lambda e: self.canvas.itemconfig(self.canvas_window, width=e.width))
+        queue_canvas.create_window((0, 0), window=self.queue_container, anchor='nw')
+        self.queue_container.bind('<Configure>',
+            lambda e: queue_canvas.configure(scrollregion=queue_canvas.bbox('all')))
         
-        # Enable mouse wheel scrolling
-        self.canvas.bind_all("<MouseWheel>", 
-                             lambda e: self.canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
+        # Store for queue cards
+        self.queue_cards = []
         
-        # Create detail widgets
-        self.create_detail_widgets()
+        # Legacy listbox (hidden, for compatibility)
+        self.items_listbox = tk.Listbox(left_panel)  # Hidden
+        
+        # -----------------------------------------------------------------
+        # CENTER: Hero Image + Listing Data
+        # -----------------------------------------------------------------
+        center_panel = tk.Frame(content_frame, bg=Theme.ALABASTER)
+        center_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 15))
+        
+        # Top row: Image + Quick Fields
+        top_row = tk.Frame(center_panel, bg=Theme.ALABASTER)
+        top_row.pack(fill=tk.X, pady=(0, 15))
+        
+        # Hero image
+        self.hero_image = HeroImage(top_row, size=250, 
+                                    on_click=self._open_photo_editor_from_hero)
+        self.hero_image.pack(side=tk.LEFT, padx=(0, 15))
+        
+        # Quick edit fields (card style)
+        fields_card = tk.Frame(top_row, bg=Theme.WHITE,
+                              highlightthickness=1,
+                              highlightbackground=Theme.SAND)
+        fields_card.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        fields_inner = tk.Frame(fields_card, bg=Theme.WHITE)
+        fields_inner.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
+        
+        # Title field
+        tk.Label(fields_inner, text="📝 Title", font=('Segoe UI', 10, 'bold'),
+                bg=Theme.WHITE, fg=Theme.CHARCOAL).pack(anchor='w')
+        
+        title_row = tk.Frame(fields_inner, bg=Theme.WHITE)
+        title_row.pack(fill=tk.X, pady=(2, 10))
+        
+        self.title_var = tk.StringVar()
+        self.title_entry = tk.Entry(title_row, textvariable=self.title_var,
+                                   font=('Segoe UI', 11),
+                                   bg=Theme.ALABASTER, fg=Theme.CHARCOAL,
+                                   relief='flat', highlightthickness=1,
+                                   highlightbackground=Theme.SAND)
+        self.title_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        self.char_count_label = tk.Label(title_row, text="0/80",
+                                        font=('Segoe UI', 9),
+                                        bg=Theme.WHITE, fg=Theme.LIGHT_GRAY)
+        self.char_count_label.pack(side=tk.LEFT, padx=5)
+        self.title_var.trace('w', self.update_char_count)
+        
+        # Price field
+        tk.Label(fields_inner, text="💰 Price", font=('Segoe UI', 10, 'bold'),
+                bg=Theme.WHITE, fg=Theme.CHARCOAL).pack(anchor='w')
+        
+        price_row = tk.Frame(fields_inner, bg=Theme.WHITE)
+        price_row.pack(fill=tk.X, pady=(2, 10))
+        
+        tk.Label(price_row, text="$", font=('Segoe UI', 12),
+                bg=Theme.WHITE, fg=Theme.CHARCOAL).pack(side=tk.LEFT)
+        
+        self.price_var = tk.StringVar()
+        self.price_entry = tk.Entry(price_row, textvariable=self.price_var,
+                                   font=('Segoe UI', 14, 'bold'),
+                                   bg=Theme.ALABASTER, fg=Theme.SAGE_GREEN,
+                                   relief='flat', width=8,
+                                   highlightthickness=1,
+                                   highlightbackground=Theme.SAND)
+        self.price_entry.pack(side=tk.LEFT, padx=5)
+        
+        self.price_note_label = tk.Label(price_row, text="",
+                                        font=('Segoe UI', 9),
+                                        bg=Theme.WHITE, fg=Theme.LIGHT_GRAY)
+        self.price_note_label.pack(side=tk.LEFT, padx=10)
+        
+        # Category field
+        tk.Label(fields_inner, text="📂 Category", font=('Segoe UI', 10, 'bold'),
+                bg=Theme.WHITE, fg=Theme.CHARCOAL).pack(anchor='w')
+        
+        self.category_var = tk.StringVar()
+        self.category_combo = ttk.Combobox(fields_inner, textvariable=self.category_var,
+                                          font=('Segoe UI', 10), state='readonly')
+        self.category_combo.pack(fill=tk.X, pady=(2, 10))
+        self.category_combo.bind('<<ComboboxSelected>>', self.on_category_change)
+        
+        # Item Specifics (collapsible)
+        specifics_frame = tk.Frame(fields_inner, bg=Theme.WHITE)
+        specifics_frame.pack(fill=tk.X)
+        
+        tk.Label(specifics_frame, text="📋 Specifics", font=('Segoe UI', 10, 'bold'),
+                bg=Theme.WHITE, fg=Theme.CHARCOAL).pack(anchor='w')
+        
+        self.specifics_container = tk.Frame(specifics_frame, bg=Theme.WHITE)
+        self.specifics_container.pack(fill=tk.X, pady=5)
+        self.specific_widgets = {}
+        
+        # -----------------------------------------------------------------
+        # TOOL CARDS - Horizontal scroll
+        # -----------------------------------------------------------------
+        tools_section = tk.Frame(center_panel, bg=Theme.ALABASTER)
+        tools_section.pack(fill=tk.X, pady=10)
+        
+        tk.Label(tools_section, text="🛠️ Tools",
+                font=('Segoe UI', 12, 'bold'),
+                bg=Theme.ALABASTER, fg=Theme.CHARCOAL).pack(anchor='w', pady=(0, 10))
+        
+        tools_row = tk.Frame(tools_section, bg=Theme.ALABASTER)
+        tools_row.pack(fill=tk.X)
+        
+        # Create tool cards
+        tool_definitions = [
+            ('📷', 'Photo Editor', 'Edit & enhance', self.open_photo_editor),
+            ('💰', 'Price Research', 'Check sold items', self.open_price_research),
+            ('👁️', 'Preview', 'See listing', self.open_preview),
+            ('📋', 'Templates', 'Quick apply', self.open_templates),
+            ('📦', 'Inventory', 'Sync with eBay', self.open_inventory_sync),
+        ]
+        
+        for icon, title, desc, callback in tool_definitions:
+            card = ToolCard(tools_row, icon, title, desc, 
+                           on_click=callback, width=130)
+            card.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # -----------------------------------------------------------------
+        # DESCRIPTION - Expandable text area
+        # -----------------------------------------------------------------
+        desc_section = tk.Frame(center_panel, bg=Theme.WHITE,
+                               highlightthickness=1,
+                               highlightbackground=Theme.SAND)
+        desc_section.pack(fill=tk.BOTH, expand=True, pady=10)
+        
+        desc_header = tk.Frame(desc_section, bg=Theme.WHITE)
+        desc_header.pack(fill=tk.X, padx=15, pady=(10, 5))
+        
+        tk.Label(desc_header, text="📄 Description",
+                font=('Segoe UI', 10, 'bold'),
+                bg=Theme.WHITE, fg=Theme.CHARCOAL).pack(side=tk.LEFT)
+        
+        copy_btn = tk.Button(desc_header, text="📋 Copy",
+                            font=('Segoe UI', 9),
+                            bg=Theme.WHITE, fg=Theme.SAGE_GREEN,
+                            relief='flat', cursor='hand2',
+                            command=lambda: self.copy_to_clipboard(
+                                self.desc_text.get('1.0', tk.END)))
+        copy_btn.pack(side=tk.RIGHT)
+        
+        self.desc_text = tk.Text(desc_section, height=6, font=('Segoe UI', 10),
+                                bg=Theme.WHITE, fg=Theme.CHARCOAL,
+                                insertbackground=Theme.CHARCOAL,
+                                relief='flat', wrap=tk.WORD,
+                                padx=15, pady=10)
+        self.desc_text.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 15))
+        
+        # -----------------------------------------------------------------
+        # RIGHT: Quick Actions (optional sidebar)
+        # -----------------------------------------------------------------
+        # Simplified - actions moved to bottom bar
+        
+        # =====================================================================
+        # ACTION BAR - Sticky Footer
+        # =====================================================================
+        self.action_bar = ActionBar(main_frame,
+                                   on_start=self._toggle_queue,
+                                   on_post=self.open_ebay_listing)
+        self.action_bar.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        # =====================================================================
+        # Progress indicator (inline with action bar)
+        # =====================================================================
+        self.progress_var = tk.DoubleVar(value=0)
+        self.progress_label = tk.Label(main_frame, text="0/0",
+                                      font=('Segoe UI', 9),
+                                      bg=Theme.ALABASTER, fg=Theme.LIGHT_GRAY)
+        # Store reference but don't pack - updated by action bar
+        
+        # Legacy canvas reference for compatibility
+        self.canvas = tk.Canvas(main_frame)  # Hidden, for scroll binding
+        self.details_frame = tk.Frame(main_frame)  # Hidden, for compatibility
+    
+    def _on_stage_click(self, stage: WorkflowStage):
+        """Handle workflow stage click - filter queue by stage"""
+        self.status_label.configure(text=f"Viewing: {stage.name.title()} items",
+                                   fg=Theme.SAGE_GREEN)
+    
+    def _toggle_queue(self):
+        """Toggle queue processing (start/pause)"""
+        if self.queue_manager.is_processing():
+            self.pause_queue()
+        else:
+            self.start_queue()
+    
+    def _open_photo_editor_from_hero(self, image_paths: list):
+        """Open photo editor from hero image click"""
+        if image_paths:
+            dialog = PhotoEditorDialog(self.root, image_paths)
+            self.root.wait_window(dialog)
+            if dialog.result:
+                self.status_label.configure(text="🖼️ Photos edited", 
+                                           fg=Theme.SAGE_GREEN)
         
     def create_detail_widgets(self):
         """Create the detail view widgets"""
@@ -346,7 +614,7 @@ class DraftCommanderApp:
         self.title_entry = ttk.Entry(title_row, textvariable=self.title_var, font=('Segoe UI', 11))
         self.title_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
-        self.char_count_label = ttk.Label(title_row, text="0/80", foreground='#888')
+        self.char_count_label = ttk.Label(title_row, text="0/80", foreground='#9CA3AF')
         self.char_count_label.pack(side=tk.LEFT, padx=5)
         
         ttk.Button(title_row, text="📋 Copy", 
@@ -392,7 +660,7 @@ class DraftCommanderApp:
                                       font=('Segoe UI', 11), width=10)
         self.price_entry.pack(side=tk.LEFT, padx=5)
         
-        self.price_note_label = ttk.Label(price_row, text="", foreground='#888')
+        self.price_note_label = ttk.Label(price_row, text="", foreground='#9CA3AF')
         self.price_note_label.pack(side=tk.LEFT, padx=10)
         
         # Description section
@@ -407,8 +675,14 @@ class DraftCommanderApp:
                    command=lambda: self.copy_to_clipboard(self.desc_text.get('1.0', tk.END))).pack(side=tk.RIGHT)
         
         self.desc_text = tk.Text(desc_frame, height=8, font=('Segoe UI', 10),
-                                  bg='#0f0f23', fg='white', insertbackground='white',
-                                  wrap=tk.WORD)
+                                  bg='#FFFFFF',  # White paper-like surface
+                                  fg='#374151',  # Charcoal text
+                                  insertbackground='#374151',
+                                  relief='solid',
+                                  borderwidth=1,
+                                  highlightthickness=0,
+                                  wrap=tk.WORD,
+                                  padx=8, pady=8)  # Inner padding for paper feel
         self.desc_text.pack(fill=tk.X, pady=5)
         
         # Action buttons
@@ -434,7 +708,7 @@ class DraftCommanderApp:
         if dialog.result:
             # Settings were saved, reload configuration
             self.reload_settings()
-            self.status_label.configure(text="⚙️ Settings updated", foreground='#00ff00')
+            self.status_label.configure(text="⚙️ Settings updated", foreground='#4D7C5D')
     
     def reload_settings(self):
         """Reload settings and reinitialize API clients"""
@@ -442,7 +716,7 @@ class DraftCommanderApp:
         self.settings_manager.load()
         
         # Reinitialize API clients with new settings
-        self.status_label.configure(text="🔄 Reloading APIs...", foreground='#ffd700')
+        self.status_label.configure(text="🔄 Reloading APIs...", foreground='#C9A227')
         self.initialize_apis()
     
     def show_qr_code(self):
@@ -461,7 +735,7 @@ class DraftCommanderApp:
             # Create popup window
             popup = tk.Toplevel(self.root)
             popup.title("📱 Scan to Connect")
-            popup.configure(bg='#1a1a2e')
+            popup.configure(bg='#FAFAF9')
             popup.resizable(False, False)
             
             # Convert PIL image to Tkinter
@@ -473,13 +747,13 @@ class DraftCommanderApp:
             qr_label.pack(padx=20, pady=20)
             
             # URL label
-            url_label = ttk.Label(popup, text=url, foreground='#00d9ff',
+            url_label = ttk.Label(popup, text=url, foreground='#4D7C5D',
                                  font=('Segoe UI', 12))
             url_label.pack(pady=(0, 10))
             
             # Instructions
             ttk.Label(popup, text="Scan with your phone camera to open",
-                     foreground='#888', font=('Segoe UI', 10)).pack(pady=(0, 15))
+                     foreground='#9CA3AF', font=('Segoe UI', 10)).pack(pady=(0, 15))
             
             # Center on parent
             popup.update_idletasks()
@@ -503,7 +777,7 @@ class DraftCommanderApp:
         if dialog.result:
             # Apply template to current item
             template_data = dialog.result
-            self.status_label.configure(text=f"📋 Template applied", foreground='#00ff00')
+            self.status_label.configure(text=f"📋 Template applied", foreground='#4D7C5D')
             
             # If we have a current item, apply template values
             if hasattr(self, 'condition_combo') and template_data.get('condition'):
@@ -519,7 +793,7 @@ class DraftCommanderApp:
             return
         
         # Get images from current folder
-        folder = self.current_item.get('folder')
+        folder = self.current_item.get('path')  # items use 'path' key
         if not folder:
             messagebox.showwarning("No Folder", "No folder path for current item")
             return
@@ -537,13 +811,13 @@ class DraftCommanderApp:
         self.root.wait_window(dialog)
         
         if dialog.result:
-            self.status_label.configure(text="🖼️ Photos edited", foreground='#00ff00')
+            self.status_label.configure(text="🖼️ Photos edited", foreground='#4D7C5D')
     
     def open_price_research(self):
         """Open price research for current item"""
         # Get search query
-        if self.current_item and self.current_item.get('title'):
-            query = self.current_item['title'][:50]
+        if self.current_item and (self.current_item.get('title') or self.current_item.get('name')):
+            query = (self.current_item.get('title') or self.current_item.get('name'))[:50]
         else:
             query = simpledialog.askstring("Price Research", 
                                           "Enter search keywords:",
@@ -552,7 +826,7 @@ class DraftCommanderApp:
         if not query:
             return
         
-        self.status_label.configure(text="📊 Researching prices...", foreground='#ffd700')
+        self.status_label.configure(text="📊 Researching prices...", foreground='#C9A227')
         self.root.update()
         
         try:
@@ -562,11 +836,11 @@ class DraftCommanderApp:
             dialog = PriceChartDialog(self.root, results)
             self.root.wait_window(dialog)
             
-            self.status_label.configure(text="Ready", foreground='white')
+            self.status_label.configure(text="Ready", foreground='#374151')
             
         except Exception as e:
             messagebox.showerror("Research Error", str(e))
-            self.status_label.configure(text="Ready", foreground='white')
+            self.status_label.configure(text="Ready", foreground='#374151')
     
     def open_preview(self):
         """Open listing preview for current item"""
@@ -576,7 +850,7 @@ class DraftCommanderApp:
         
         # Build listing data from current item
         listing_data = {
-            'title': self.current_item.get('title', 'Untitled'),
+            'title': self.current_item.get('title') or self.current_item.get('name', 'Untitled'),
             'price': self.current_item.get('price', '29.99'),
             'condition': self.current_item.get('condition', 'USED_GOOD'),
             'description': self.current_item.get('description', 'No description'),
@@ -586,7 +860,7 @@ class DraftCommanderApp:
         
         # Get images
         image_paths = []
-        folder = self.current_item.get('folder')
+        folder = self.current_item.get('path')  # items use 'path' key
         if folder:
             folder_path = Path(folder)
             for ext in ['*.jpg', '*.jpeg', '*.png']:
@@ -607,16 +881,16 @@ class DraftCommanderApp:
                 self.ebay_api = eBayAPIClient()
                 self.ai_analyzer = AIAnalyzer()
                 self.root.after(0, lambda: self.status_label.configure(
-                    text="✅ Ready", foreground='#00ff00'))
+                    text="✅ Ready", foreground='#4D7C5D'))
             except Exception as e:
                 self.root.after(0, lambda: self.status_label.configure(
-                    text=f"⚠️ {str(e)[:50]}", foreground='#ff6b6b'))
+                    text=f"⚠️ {str(e)[:50]}", foreground='#D97757'))
         
         threading.Thread(target=init, daemon=True).start()
         
     def scan_inbox(self):
         """Scan inbox folder for new items and add to queue"""
-        self.status_label.configure(text="🔍 Scanning inbox...", foreground='#ffd700')
+        self.status_label.configure(text="🔍 Scanning inbox...", foreground='#C9A227')
         
         folders = [f for f in self.inbox_path.iterdir() if f.is_dir()]
         
@@ -638,9 +912,9 @@ class DraftCommanderApp:
         
         stats = self.queue_manager.get_stats()
         if added_count > 0:
-            self.status_label.configure(text=f"✅ Added {added_count} new items ({stats['pending']} pending)", foreground='#00ff00')
+            self.status_label.configure(text=f"✅ Added {added_count} new items ({stats['pending']} pending)", foreground='#4D7C5D')
         else:
-            self.status_label.configure(text=f"✅ {stats['pending']} items pending", foreground='#00ff00')
+            self.status_label.configure(text=f"✅ {stats['pending']} items pending", foreground='#4D7C5D')
         
     def generate_all(self):
         """Generate listings for all pending items"""
@@ -656,7 +930,7 @@ class DraftCommanderApp:
             for i, item in enumerate(self.items):
                 if item['status'] == 'pending':
                     self.root.after(0, lambda idx=i: self.status_label.configure(
-                        text=f"🤖 Processing {idx+1}/{len(self.items)}...", foreground='#ffd700'))
+                        text=f"🤖 Processing {idx+1}/{len(self.items)}...", foreground='#C9A227'))
                     
                     # Run full automation
                     try:
@@ -687,7 +961,7 @@ class DraftCommanderApp:
                                         self.items_listbox.insert(idx, f"❌ {name}"))
             
             self.root.after(0, lambda: self.status_label.configure(
-                text="✅ Generation complete", foreground='#00ff00'))
+                text="✅ Generation complete", foreground='#4D7C5D'))
             self.root.after(0, self.update_item_count)
         
         threading.Thread(target=generate, daemon=True).start()
@@ -700,6 +974,7 @@ class DraftCommanderApp:
             
         self.current_item_index = selection[0]
         item = self.items[self.current_item_index]
+        self.current_item = item  # Set current item for tools to access
         
         if item['data']:
             self.display_item(item['data'])
@@ -777,7 +1052,7 @@ class DraftCommanderApp:
         # Required fields
         if aspects['required']:
             ttk.Label(self.specifics_container, text="Required Fields *", 
-                      foreground='#ff6b6b').pack(anchor='w', pady=(5, 2))
+                      foreground='#D97757').pack(anchor='w', pady=(5, 2))
             
             for aspect in aspects['required']:
                 self.create_aspect_widget(aspect, required=True)
@@ -785,7 +1060,7 @@ class DraftCommanderApp:
         # Optional fields
         if aspects['optional']:
             ttk.Label(self.specifics_container, text="Optional Fields", 
-                      foreground='#888').pack(anchor='w', pady=(10, 2))
+                      foreground='#9CA3AF').pack(anchor='w', pady=(10, 2))
             
             for aspect in aspects['optional'][:8]:  # Limit to 8 optional
                 self.create_aspect_widget(aspect, required=False)
@@ -824,7 +1099,7 @@ class DraftCommanderApp:
     def update_char_count(self, *args):
         """Update title character count"""
         count = len(self.title_var.get())
-        color = '#00ff00' if count <= 80 else '#ff6b6b'
+        color = '#4D7C5D' if count <= 80 else '#D97757'  # Sage Green / Warm Clay
         self.char_count_label.configure(text=f"{count}/80", foreground=color)
         
     def update_item_count(self):
@@ -837,7 +1112,7 @@ class DraftCommanderApp:
         """Copy text to clipboard"""
         self.root.clipboard_clear()
         self.root.clipboard_append(text.strip())
-        self.status_label.configure(text="📋 Copied!", foreground='#00ff00')
+        self.status_label.configure(text="📋 Copied!", foreground='#4D7C5D')
         
     def copy_all(self):
         """Copy all listing data as JSON for bookmarklet"""
@@ -889,7 +1164,7 @@ class DraftCommanderApp:
             self.items_listbox.delete(self.current_item_index)
             
             self.update_item_count()
-            self.status_label.configure(text="✅ Marked as posted", foreground='#00ff00')
+            self.status_label.configure(text="✅ Marked as posted", foreground='#4D7C5D')
             
         except Exception as e:
             messagebox.showerror("Error", f"Could not move folder: {e}")
@@ -908,22 +1183,27 @@ class DraftCommanderApp:
                 return
         
         self.logger.queue_start(len(self.queue_manager.get_pending_jobs()))
-        self.start_btn.configure(state='disabled')
-        self.pause_btn.configure(state='normal', text="⏸️ Pause")
-        self.status_label.configure(text="🚀 Processing queue...", foreground='#ffd700')
+        
+        # Update action bar
+        if hasattr(self, 'action_bar'):
+            self.action_bar.set_processing(True)
+        
+        self.status_label.configure(text="🚀 Processing queue...", fg=Theme.MUTED_GOLD)
         self.queue_manager.start_processing()
     
     def pause_queue(self):
         """Pause or resume queue processing"""
         if self.queue_manager.is_paused():
             self.queue_manager.resume()
-            self.pause_btn.configure(text="⏸️ Pause")
-            self.status_label.configure(text="▶️ Resumed", foreground='#00ff00')
+            if hasattr(self, 'action_bar'):
+                self.action_bar.set_processing(True)
+            self.status_label.configure(text="▶️ Resumed", fg=Theme.SAGE_GREEN)
             self.logger.queue_resume()
         else:
             self.queue_manager.pause()
-            self.pause_btn.configure(text="▶️ Resume")
-            self.status_label.configure(text="⏸️ Paused", foreground='#ffd700')
+            if hasattr(self, 'action_bar'):
+                self.action_bar.set_processing(False)
+            self.status_label.configure(text="⏸️ Paused", fg=Theme.MUTED_GOLD)
             self.logger.queue_pause()
     
     def retry_failed(self):
@@ -935,13 +1215,13 @@ class DraftCommanderApp:
         
         self.queue_manager.retry_failed()
         self._refresh_queue_display()
-        self.status_label.configure(text=f"🔄 {len(failed)} jobs reset for retry", foreground='#00ff00')
+        self.status_label.configure(text=f"🔄 {len(failed)} jobs reset for retry", foreground='#4D7C5D')
     
     def clear_completed(self):
         """Clear completed jobs from queue"""
         self.queue_manager.clear_completed()
         self._refresh_queue_display()
-        self.status_label.configure(text="🗑️ Cleared completed", foreground='#00ff00')
+        self.status_label.configure(text="🗑️ Cleared completed", foreground='#4D7C5D')
     
     def export_report(self):
         """Export batch report to CSV"""
@@ -961,29 +1241,44 @@ class DraftCommanderApp:
         os.startfile(report_path)
     
     def _refresh_queue_display(self):
-        """Refresh the queue listbox display"""
-        self.items_listbox.delete(0, tk.END)
+        """Refresh the queue with visual QueueCards"""
+        # Clear existing cards
+        for card in self.queue_cards:
+            card.destroy()
+        self.queue_cards = []
         self.items = []
         
-        status_icons = {
-            JobStatus.PENDING: "⏳",
-            JobStatus.PROCESSING: "⚙️",
-            JobStatus.COMPLETED: "✅",
-            JobStatus.FAILED: "❌",
-            JobStatus.PAUSED: "⏸️",
-            JobStatus.SKIPPED: "⏭️"
-        }
+        # Also update hidden listbox for legacy compatibility
+        self.items_listbox.delete(0, tk.END)
         
         for job in self.queue_manager.jobs:
-            icon = status_icons.get(job.status, "❓")
-            text = f"{icon} {job.folder_name}"
-            if job.listing_id:
-                text += f" → {job.listing_id[:8]}..."
-            elif job.error_type:
-                text += f" ({job.error_type})"
-            self.items_listbox.insert(tk.END, text)
+            # Map job status to card status
+            status_map = {
+                JobStatus.PENDING: 'pending',
+                JobStatus.PROCESSING: 'processing',
+                JobStatus.COMPLETED: 'completed',
+                JobStatus.FAILED: 'failed',
+                JobStatus.PAUSED: 'pending',
+                JobStatus.SKIPPED: 'completed',
+            }
+            status = status_map.get(job.status, 'pending')
             
-            # Track for legacy compatibility
+            # Create QueueCard
+            card = QueueCard(
+                self.queue_container,
+                name=job.folder_name,
+                folder_path=job.folder_path,
+                status=status,
+                on_click=lambda c, j=job: self._on_queue_card_click(c, j),
+                thumbnail_size=60
+            )
+            card.pack(fill=tk.X, pady=2)
+            self.queue_cards.append(card)
+            
+            # Legacy listbox (hidden)
+            self.items_listbox.insert(tk.END, job.folder_name)
+            
+            # Track items for legacy compatibility
             self.items.append({
                 'name': job.folder_name,
                 'path': job.folder_path,
@@ -993,18 +1288,48 @@ class DraftCommanderApp:
         
         self._update_queue_stats()
     
+    def _on_queue_card_click(self, card: QueueCard, job: QueueJob):
+        """Handle queue card selection"""
+        # Deselect all cards
+        for c in self.queue_cards:
+            c.set_selected(False)
+        
+        # Select clicked card
+        card.set_selected(True)
+        
+        # Set current item
+        self.current_item = {
+            'name': job.folder_name,
+            'path': job.folder_path,
+            'status': job.status.value,
+            'data': {'listing_id': job.listing_id, 'offer_id': job.offer_id}
+        }
+        
+        # Load hero image
+        self.hero_image.load_images(job.folder_path)
+        
+        # Update status
+        self.status_label.configure(text=f"Selected: {job.folder_name}",
+                                   fg=Theme.CHARCOAL)
+    
     def _update_queue_stats(self):
-        """Update queue statistics display"""
+        """Update queue statistics in action bar"""
         stats = self.queue_manager.get_stats()
-        text = f"Queue: {stats['pending']} pending | {stats['completed']} done | {stats['failed']} failed"
-        self.item_count_label.configure(text=text)
+        
+        # Update action bar if exists
+        if hasattr(self, 'action_bar'):
+            self.action_bar.update_status(
+                stats['pending'], 
+                stats['completed'], 
+                stats['failed']
+            )
     
     def _on_job_start(self, job: QueueJob):
         """Callback when a job starts processing"""
         self.logger.job_start(job.id, job.folder_name)
         self.root.after(0, lambda: self._refresh_queue_display())
         self.root.after(0, lambda: self.status_label.configure(
-            text=f"⚙️ Processing: {job.folder_name}", foreground='#ffd700'))
+            text=f"⚙️ Processing: {job.folder_name}", foreground='#C9A227'))
     
     def _on_job_complete(self, job: QueueJob):
         """Callback when a job completes successfully"""
@@ -1033,11 +1358,13 @@ class DraftCommanderApp:
         stats = self.queue_manager.get_stats()
         self.logger.queue_complete(stats['completed'], stats['failed'], stats['total'])
         
-        self.root.after(0, lambda: self.start_btn.configure(state='normal'))
-        self.root.after(0, lambda: self.pause_btn.configure(state='disabled'))
+        # Update action bar
+        self.root.after(0, lambda: (
+            self.action_bar.set_processing(False) if hasattr(self, 'action_bar') else None
+        ))
         self.root.after(0, lambda: self.status_label.configure(
             text=f"✅ Complete: {stats['completed']} done, {stats['failed']} failed", 
-            foreground='#00ff00'))
+            fg=Theme.SAGE_GREEN))
         self.root.after(0, lambda: self.progress_var.set(100))
     
     def _on_progress(self, current: int, total: int):
