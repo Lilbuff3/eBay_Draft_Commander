@@ -975,38 +975,48 @@ class WebControlServer:
                     with open(metadata_file, 'w') as f:
                         json.dump(metadata, f, indent=2)
                 
-                # Process the listing using existing pipeline
-                from create_from_folder import create_listing_from_folder
+                # Process the listing using existing pipeline with structured results
+                from create_from_folder import create_listing_structured
                 
-                result = create_listing_from_folder(
+                # Handle price - convert to string, use default if empty
+                listing_price = price if price else "29.99"
+                
+                result = create_listing_structured(
                     str(job_folder),
-                    price=float(price) if price else None
+                    price=listing_price
                 )
                 
-                if result:
+                if result.get('success'):
                     self.logger.info(f"Listing created successfully from mobile upload", 
                                    extra={'job_id': job_id, 'result': result})
                     
                     return jsonify({
                         'success': True,
-                        'listingId': result if isinstance(result, str) and result.startswith('2') else None,
-                        'offerId': result if isinstance(result, str) and not result.startswith('2') else None,
+                        'listingId': result.get('listing_id'),
+                        'offerId': result.get('offer_id'),
+                        'status': result.get('status'),
                         'jobId': job_id,
-                        'photosProcessed': len(uploaded_files)
+                        'photosProcessed': len(uploaded_files),
+                        'timing': result.get('timing', {})
                     })
                 else:
-                    # Clean up folder on failure
-                    if job_folder.exists():
-                        shutil.rmtree(job_folder)
+                    # Keep folder for debugging but return detailed error
+                    error_msg = result.get('error_message', 'Unknown error')
+                    error_type = result.get('error_type', 'Unknown')
+                    
+                    self.logger.error(f"Mobile listing creation failed: {error_type} - {error_msg}",
+                                    extra={'job_id': job_id, 'result': result})
                     
                     return jsonify({
                         'success': False,
-                        'error': 'Failed to create listing'
+                        'error': f"{error_type}: {error_msg}",
+                        'errorType': error_type,
+                        'jobId': job_id
                     }), 500
                     
             except FileNotFoundError as e:
                 self.logger.error(f"File not found during photo upload: {e}")
-                return jsonify({'success': False, 'error': 'Upload processing failed'}), 500
+                return jsonify({'success': False, 'error': f'Upload processing failed: {e}'}), 500
                 
             except ImportError as e:
                 self.logger.error(f"create_from_folder module not available: {e}")
@@ -1014,7 +1024,7 @@ class WebControlServer:
                 
             except Exception as e:
                 self.logger.exception("Error creating listing from photos")
-                return jsonify({'success': False, 'error': 'Internal server error'}), 500
+                return jsonify({'success': False, 'error': f'Internal server error: {str(e)}'}), 500
 
         
         @self.app.route('/api/status')
