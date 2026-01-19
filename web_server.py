@@ -940,7 +940,7 @@ class WebControlServer:
                 
                 # Create temporary job folder
                 job_id = f"mobile_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
-                job_folder = Path(self.base_path) / 'inbox' / job_id
+                job_folder = Path(self.queue_manager.base_path) / 'inbox' / job_id
                 job_folder.mkdir(parents=True, exist_ok=True)
                 
                 self.logger.info(f"Creating listing from {len(uploaded_files)} uploaded photos", 
@@ -1285,15 +1285,8 @@ class WebControlServer:
 if __name__ == "__main__":
     from queue_manager import QueueManager
     
-    # Use real queue manager for testing tools
+    # Use real queue manager
     qm = QueueManager()
-    qm.clear_all()
-    
-    # Add our test job
-    test_job_path = Path("inbox/test_job_1").absolute()
-    if test_job_path.exists():
-        job = qm.add_folder(str(test_job_path))
-        print(f"Added test job: {job.folder_name} (ID: {job.id})")
     
     server = WebControlServer(qm)
     server.start()
