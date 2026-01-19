@@ -56,6 +56,7 @@ class InventorySync:
             'Authorization': f'Bearer {self.user_token}',
             'Content-Type': 'application/json',
             'Accept': 'application/json',
+            'Content-Language': 'en-US',
             'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
         }
     
@@ -98,47 +99,69 @@ class InventorySync:
             raise ValueError("EBAY_USER_TOKEN not configured")
         
         listings = []
-        offset = 0
-        page_size = min(100, limit)
         
-        while len(listings) < limit:
-            url = f"{self.INVENTORY_API_URL}/offer"
-            params = {
-                'offset': offset,
-                'limit': page_size,
-            }
-            
-            try:
+        # Strategy: Fetch inventory items first, then fetch offers for each SKU
+        # This avoids the "Invalid SKU" error that happens when fetching all offers in bulk
+        
+        offset = 0
+        limit_per_page = 20 # Smaller batch size for item loops
+        
+        print(f"Fetching inventory items...")
+        
+        try:
+            while True:
+                url = f"{self.INVENTORY_API_URL}/inventory_item"
+                params = {
+                    'offset': offset,
+                    'limit': limit_per_page
+                }
+                
                 response = requests.get(url, headers=self._get_headers(), params=params)
                 
                 if response.status_code == 200:
                     data = response.json()
-                    offers = data.get('offers', [])
+                    items = data.get('inventoryItems', [])
                     
-                    if not offers:
+                    if not items:
                         break
                     
-                    for offer in offers:
-                        listing = self._parse_offer(offer)
-                        if listing:
-                            listings.append(listing)
+                    for item in items:
+                        sku = item.get('sku')
+                        if not sku:
+                            continue
+                            
+                        # Fetch offer for this SKU
+                        try:
+                            offer_url = f"{self.INVENTORY_API_URL}/offer"
+                            offer_resp = requests.get(offer_url, headers=self._get_headers(), params={'sku': sku})
+                            
+                            if offer_resp.status_code == 200:
+                                offer_data = offer_resp.json()
+                                offers = offer_data.get('offers', [])
+                                if offers:
+                                    # Use the first offer found for this SKU
+                                    primary_offer = offers[0]
+                                    listing = self._parse_offer(primary_offer)
+                                    if listing:
+                                        listings.append(listing)
+                        except Exception as e:
+                            print(f"Error fetching offer for SKU {sku}: {e}")
                     
                     if progress_callback:
                         progress_callback(len(listings), limit)
+                        
+                    offset += limit_per_page
                     
-                    offset += page_size
-                    
-                    # Check if we got all
-                    if len(offers) < page_size:
+                    if len(listings) >= limit or len(items) < limit_per_page:
                         break
                 else:
-                    print(f"API error: {response.status_code}")
-                    # Try alternative API
-                    return self._fetch_via_trading_api(limit, progress_callback)
+                    print(f"API error fetching inventory items: {response.status_code} - {response.text}")
+                    break
                     
-            except Exception as e:
-                print(f"Fetch error: {e}")
-                break
+        except Exception as e:
+            print(f"Fetch error: {e}")
+            if not listings:
+                return self._fetch_via_trading_api(limit, progress_callback)
         
         self._listings = listings
         self.save_local()

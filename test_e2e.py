@@ -22,7 +22,7 @@ print('-'*40)
 analyzer = AIAnalyzer()
 
 # Use a test folder in the current project inbox
-test_folder = project_root / 'inbox' / 'test_item'
+test_folder = project_root / 'inbox' / 'haeger_vase_demo'
 if not test_folder.exists():
     print(f'⚠️  Test folder not found: {test_folder}')
     print('Please create a test item folder with images in inbox/test_item/')

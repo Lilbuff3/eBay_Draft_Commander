@@ -274,6 +274,10 @@ def create_listing_from_folder(folder_path, price="29.99", condition="USED_EXCEL
     except Exception as e:
         print(f"   ⚠️ Could not upload images: {e}")
 
+    if not image_urls:
+         print("   ⚠️ No images uploaded - using placeholder for draft creation")
+         image_urls = ["https://placehold.co/800x600.png?text=Placeholder+Image"]
+
     sku = 'DC-' + uuid.uuid4().hex[:8].upper()
     print(f"\n   📦 SKU: {sku}")
     
@@ -589,6 +593,9 @@ def create_listing_structured(folder_path, price="29.99", condition="USED_EXCELL
     except Exception as e:
         timing['image_upload'] = time.time() - upload_start
         # Non-fatal - continue without images
+
+    if not image_urls:
+         image_urls = ["https://placehold.co/800x600.png?text=Placeholder+Image"]
     
     # Create inventory item
     sku = 'DC-' + uuid.uuid4().hex[:8].upper()
