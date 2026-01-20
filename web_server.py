@@ -221,39 +221,12 @@ class WebControlServer:
                 data = response.json()
                 items = []
                 
-                # Step 2: For each inventory item, get its offer details
+                # Return inventory items directly without per-SKU offer calls
+                # (Per-SKU calls were causing 32+ sequential requests = 5+ min timeout)
                 for inv_item in data.get('inventoryItems', []):
                     sku = inv_item.get('sku')
                     product = inv_item.get('product', {})
                     availability = inv_item.get('availability', {})
-                    
-                    # Try to get offer for this SKU to get pricing
-                    price = 0.0
-                    offer_id = None
-                    listing_id = None
-                    status = 'UNPUBLISHED'
-                    
-                    try:
-                        offer_resp = requests.get(
-                            f'{INVENTORY_URL}/offer',
-                            headers=_get_headers(),
-                            params={'sku': sku},
-                            timeout=10
-                        )
-                        if offer_resp.status_code == 200:
-                            offer_data = offer_resp.json()
-                            offers = offer_data.get('offers', [])
-                            if offers:
-                                offer = offers[0]
-                                pricing = offer.get('pricingSummary', {})
-                                price_val = pricing.get('price', {}).get('value')
-                                price = float(price_val) if price_val else 0.0
-                                offer_id = offer.get('offerId')
-                                listing = offer.get('listing', {})
-                                listing_id = listing.get('listingId')
-                                status = offer.get('status', 'UNPUBLISHED')
-                    except Exception as e:
-                        self.logger.debug(f"Could not get offer for SKU {sku}: {e}")
                     
                     # Get image URLs from product
                     image_urls = product.get('imageUrls', [])
@@ -265,14 +238,14 @@ class WebControlServer:
                     
                     items.append({
                         'sku': sku,
-                        'offerId': offer_id,
-                        'listingId': listing_id,
+                        'offerId': None,  # Will be fetched on-demand
+                        'listingId': None,
                         'title': product.get('title', sku),
-                        'price': price,
+                        'price': 0.0,  # Will be fetched on-demand
                         'currency': 'USD',
                         'availableQuantity': quantity,
                         'imageUrl': image_url,
-                        'status': status,
+                        'status': 'INVENTORY',  # From inventory API
                         'condition': inv_item.get('condition')
                     })
                 
