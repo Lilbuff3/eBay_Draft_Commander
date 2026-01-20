@@ -163,19 +163,19 @@ class WebControlServer:
         @self.app.route('/api/listings/active')
         def get_active_listings():
             """
-            Fetch active listings (Published Offers) from eBay Inventory API.
-            Now uses /offer endpoint to get Price and Offer ID.
+            Fetch active listings from eBay Inventory API.
+            First fetches inventory_items, then queries offers for each SKU to get pricing.
             """
             try:
                 from ebay_policies import load_env, _get_headers, _refresh_token_if_needed
                 
                 INVENTORY_URL = 'https://api.ebay.com/sell/inventory/v1'
                 
-                # Get Offers (limit 100 for now, TODO: pagination)
+                # Step 1: Get Inventory Items (this endpoint works without SKU filter)
                 response = requests.get(
-                    f'{INVENTORY_URL}/offer',
+                    f'{INVENTORY_URL}/inventory_item',
                     headers=_get_headers(),
-                    params={'marketplace_id': 'EBAY_US', 'limit': 100},
+                    params={'limit': 100},
                     timeout=30
                 )
                 
@@ -183,9 +183,9 @@ class WebControlServer:
                 if response.status_code in [401, 500]:
                     if _refresh_token_if_needed(response):
                         response = requests.get(
-                            f'{INVENTORY_URL}/offer',
+                            f'{INVENTORY_URL}/inventory_item',
                             headers=_get_headers(),
-                            params={'marketplace_id': 'EBAY_US', 'limit': 100},
+                            params={'limit': 100},
                             timeout=30
                         )
                 
@@ -197,34 +197,65 @@ class WebControlServer:
                 data = response.json()
                 items = []
                 
-                for offer in data.get('offers', []):
-                    # We return all statuses (PUBLISHED, UNPUBLISHED) so frontend can filter
-                    # if offer.get('status') != 'PUBLISHED':
-                    #    continue
-                        
-                    sku = offer.get('sku')
-                    listing = offer.get('listing', {})
-                    pricing = offer.get('pricingSummary', {})
+                # Step 2: For each inventory item, get its offer details
+                for inv_item in data.get('inventoryItems', []):
+                    sku = inv_item.get('sku')
+                    product = inv_item.get('product', {})
+                    availability = inv_item.get('availability', {})
                     
-                    # We assume pricing.price.value exists
-                    price_val = pricing.get('price', {}).get('value')
+                    # Try to get offer for this SKU to get pricing
+                    price = 0.0
+                    offer_id = None
+                    listing_id = None
+                    status = 'UNPUBLISHED'
+                    
+                    try:
+                        offer_resp = requests.get(
+                            f'{INVENTORY_URL}/offer',
+                            headers=_get_headers(),
+                            params={'sku': sku},
+                            timeout=10
+                        )
+                        if offer_resp.status_code == 200:
+                            offer_data = offer_resp.json()
+                            offers = offer_data.get('offers', [])
+                            if offers:
+                                offer = offers[0]
+                                pricing = offer.get('pricingSummary', {})
+                                price_val = pricing.get('price', {}).get('value')
+                                price = float(price_val) if price_val else 0.0
+                                offer_id = offer.get('offerId')
+                                listing = offer.get('listing', {})
+                                listing_id = listing.get('listingId')
+                                status = offer.get('status', 'UNPUBLISHED')
+                    except Exception as e:
+                        self.logger.debug(f"Could not get offer for SKU {sku}: {e}")
+                    
+                    # Get image URLs from product
+                    image_urls = product.get('imageUrls', [])
+                    image_url = image_urls[0] if image_urls else None
+                    
+                    # Get quantity
+                    ship_avail = availability.get('shipToLocationAvailability', {})
+                    quantity = ship_avail.get('quantity', 0)
                     
                     items.append({
                         'sku': sku,
-                        'offerId': offer.get('offerId'),
-                        'listingId': listing.get('listingId'),
-                        'title': listing.get('listingTitle') or sku, # Fallback title
-                        'price': float(price_val) if price_val else 0.0,
-                        'currency': pricing.get('price', {}).get('currency', 'USD'),
-                        'availableQuantity': offer.get('availableQuantity', 0),
-                        'imageUrl': None, # TODO: Fetch from inventory_item if needed, or Browse API
-                        'status': offer.get('status')
+                        'offerId': offer_id,
+                        'listingId': listing_id,
+                        'title': product.get('title', sku),
+                        'price': price,
+                        'currency': 'USD',
+                        'availableQuantity': quantity,
+                        'imageUrl': image_url,
+                        'status': status,
+                        'condition': inv_item.get('condition')
                     })
                 
                 return jsonify({
                     'listings': items,
-                    'total': len(items), # This is count of fetched active, not global total
-                    'source': 'eBay Inventory Offer API'
+                    'total': data.get('total', len(items)),
+                    'source': 'eBay Inventory Item API'
                 })
                 
             except requests.Timeout:
@@ -1086,6 +1117,31 @@ class WebControlServer:
         def get_stats():
             """Get queue statistics"""
             return jsonify(self.queue_manager.get_stats())
+
+        @self.app.route('/api/ebay/status')
+        def get_ebay_status():
+            """Check eBay API connectivity and Token Status"""
+            try:
+                from ebay_policies import load_env, get_fulfillment_policies
+                
+                # 1. Check Token Existence
+                creds = load_env()
+                token = creds.get('EBAY_USER_TOKEN')
+                if not token:
+                    return jsonify({'status': 'disconnected', 'message': 'No token found'}), 200
+                
+                # 2. Check Expiry/Validity by making a lightweight call
+                # We use fulfillment policies as it's cached/light
+                policies = get_fulfillment_policies(retry=True)
+                
+                if policies is not None:
+                     return jsonify({'status': 'connected', 'message': 'eBay API Connected'})
+                else:
+                     return jsonify({'status': 'error', 'message': 'API Call Returned Empty'}), 503
+                     
+            except Exception as e:
+                self.logger.error(f"eBay Status Check Failed: {e}")
+                return jsonify({'status': 'error', 'message': str(e)}), 500
         
         @self.app.route('/api/start', methods=['POST'])
         def start_queue():
