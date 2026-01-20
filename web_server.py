@@ -169,6 +169,7 @@ class WebControlServer:
             
             return jsonify({'images': images, 'count': len(images)})
 
+
         @self.app.route('/api/job/<job_id>/image/<filename>')
         def serve_job_image(job_id, filename):
             """Serve an image from a job folder"""
@@ -181,8 +182,9 @@ class WebControlServer:
             
             if not image_path.exists():
                 return jsonify({'error': 'Image not found'}), 404
-            
-            return send_file(image_path)
+                
+            return send_file(str(image_path))
+
 
         @self.app.route('/api/listings/active')
         def get_active_listings():
@@ -1076,7 +1078,7 @@ class WebControlServer:
                 if job.status.value == 'processing':
                     current_job = {
                         'name': job.folder_name,
-                        'started': job.started_at.isoformat() if job.started_at else None
+                        'started': job.started_at  # Already isoformat string
                     }
                     break
             
@@ -1337,9 +1339,18 @@ class WebControlServer:
 # Test the server standalone
 if __name__ == "__main__":
     from queue_manager import QueueManager
+    from ai_analyzer import AIAnalyzer
     
     # Use real queue manager
     qm = QueueManager()
+    
+    # Initialize AI Analyzer and wire to queue
+    try:
+        analyzer = AIAnalyzer()
+        qm.set_processor(analyzer.analyze_folder)
+        print("✅ AI Analyzer wired to Queue Manager")
+    except Exception as e:
+        print(f"❌ Failed to initialize AI Analyzer: {e}")
     
     server = WebControlServer(qm)
     server.start()

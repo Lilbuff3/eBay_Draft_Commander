@@ -234,7 +234,30 @@ INSTRUCTIONS FOR 'description' FIELD (HTML_STRING):
         
         print(f"📸 Analyzing {len(images)} images from {Path(folder_path).name}...")
         
-        return self.analyze_item(images)
+        # Run analysis
+        result = self.analyze_item(images)
+        
+        # Check for errors in result
+        if result.get('error'):
+            return result
+            
+        # Save result to ai_data.json
+        try:
+            data_path = Path(folder_path) / 'ai_data.json'
+            with open(data_path, 'w') as f:
+                json.dump(result, f, indent=2)
+            print(f"✅ Saved analysis to {data_path.name}")
+        except Exception as e:
+            print(f"⚠️ Failed to save ai_data.json: {e}")
+            # We still return success as we have the data in memory/result
+            
+        # Return success structure for queue manager
+        return {
+            'success': True,
+            'data': result,
+            'listing_id': None, # No listing created yet, just analysis
+            'offer_id': None
+        }
 
 
 # Test the analyzer
