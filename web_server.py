@@ -123,6 +123,30 @@ class WebControlServer:
                 return send_from_directory(app_dir, path)
             # Otherwise serve index.html (for SPA routing)
             return send_from_directory(app_dir, 'index.html')
+        
+        @self.app.route('/sw.js')
+        def serve_service_worker():
+            """Serve service worker from root path for PWA scope"""
+            pwa_dir = Path(__file__).parent / 'frontend' / 'public'
+            return send_from_directory(pwa_dir, 'sw.js', mimetype='application/javascript')
+        
+        @self.app.route('/manifest.json')
+        def serve_manifest():
+            """Serve PWA manifest from root path"""
+            pwa_dir = Path(__file__).parent / 'frontend' / 'public'
+            return send_from_directory(pwa_dir, 'manifest.json', mimetype='application/json')
+        
+        @self.app.route('/icons/<path:filename>')
+        def serve_icons(filename):
+            """Serve PWA icons"""
+            icons_dir = Path(__file__).parent / 'frontend' / 'public' / 'icons'
+            return send_from_directory(icons_dir, filename)
+        
+        @self.app.route('/offline.html')
+        def serve_offline():
+            """Serve offline fallback page"""
+            pwa_dir = Path(__file__).parent / 'frontend' / 'public'
+            return send_from_directory(pwa_dir, 'offline.html')
 
         # --- Tool API Endpoints ---
 
