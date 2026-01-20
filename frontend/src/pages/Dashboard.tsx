@@ -18,6 +18,7 @@ import { ShippingSelector } from '@/components/ShippingSelector'
 import { SalesWidget } from '@/components/SalesWidget'
 import { ActiveListings } from '@/components/ActiveListings'
 import { UploadZone } from '@/components/UploadZone'
+import { InstallPrompt } from '@/components/InstallPrompt'
 import { fetchJobs, fetchStatus, startQueue, pauseQueue, createListing, type Job, type QueueStats } from '@/lib/api'
 
 type ActiveTool = 'photo-editor' | 'price-research' | 'templates' | 'preview' | 'inventory' | null
@@ -33,6 +34,7 @@ export function Dashboard() {
     const [listingPrice, setListingPrice] = useState<string>('29.99')
     const [isCreating, setIsCreating] = useState(false)
     const [createResult, setCreateResult] = useState<{ success: boolean; message: string } | null>(null)
+    const [ebayStatus, setEbayStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking')
 
     // Poll for real data
     useEffect(() => {
@@ -55,9 +57,26 @@ export function Dashboard() {
             }
         }
 
+        const checkEbay = async () => {
+            try {
+                const res = await fetch('/api/ebay/status')
+                const data = await res.json()
+                setEbayStatus(data.status === 'connected' ? 'connected' : 'disconnected')
+            } catch (e) {
+                setEbayStatus('disconnected')
+            }
+        }
+
         fetchData()
+        checkEbay()
+
         const interval = setInterval(fetchData, 2000)
-        return () => clearInterval(interval)
+        const ebayInterval = setInterval(checkEbay, 30000) // Check eBay every 30s
+
+        return () => {
+            clearInterval(interval)
+            clearInterval(ebayInterval)
+        }
     }, [selectedJob])
 
     const handleStart = async () => {
@@ -353,13 +372,21 @@ export function Dashboard() {
                             {queueStats.pending} Items Pending
                         </p>
                     </div>
-                    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-stone-100">
-                        <div
-                            className={`w-2 h-2 rounded-full ${isProcessing ? 'bg-green-500 animate-pulse' : 'bg-stone-300'}`}
-                        />
-                        <span className="text-[10px] uppercase font-bold text-stone-500">
-                            {isProcessing ? 'Active' : 'Ready'}
-                        </span>
+                    <div className="flex items-center gap-2">
+                        {/* Install App Button */}
+                        <InstallPrompt />
+
+                        {/* Mobile eBay Badge */}
+                        <div className={`w-2 h-2 rounded-full ${ebayStatus === 'connected' ? 'bg-blue-500' : ebayStatus === 'checking' ? 'bg-gray-300' : 'bg-red-500'}`} title={ebayStatus === 'connected' ? 'eBay Connected' : 'eBay Offline'} />
+
+                        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-stone-100">
+                            <div
+                                className={`w-2 h-2 rounded-full ${isProcessing ? 'bg-green-500 animate-pulse' : 'bg-stone-300'}`}
+                            />
+                            <span className="text-[10px] uppercase font-bold text-stone-500">
+                                {isProcessing ? 'Active' : 'Ready'}
+                            </span>
+                        </div>
                     </div>
                 </header>
 
@@ -378,13 +405,25 @@ export function Dashboard() {
                                     <h1 className="font-display font-bold text-3xl text-stone-800">Workspace</h1>
                                     <p className="text-stone-400">Manage your listings and drafts</p>
                                 </div>
-                                <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-full shadow-sm border border-stone-100">
-                                    <div
-                                        className={`w-2 h-2 rounded-full ${isProcessing ? 'bg-green-500 animate-pulse' : 'bg-stone-300'}`}
-                                    />
-                                    <span className="text-xs font-medium text-stone-600">
-                                        {isProcessing ? 'System Active' : 'System Ready'}
-                                    </span>
+                                <div className="flex items-center gap-3">
+                                    {/* Desktop eBay Badge */}
+                                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${ebayStatus === 'connected'
+                                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                        : 'bg-red-50 text-red-700 border-red-200'
+                                        }`}>
+                                        <div className={`w-1.5 h-1.5 rounded-full ${ebayStatus === 'connected' ? 'bg-blue-500' : 'bg-red-500'
+                                            }`} />
+                                        {ebayStatus === 'connected' ? 'eBay Linked' : 'eBay Offline'}
+                                    </div>
+
+                                    <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-full shadow-sm border border-stone-100">
+                                        <div
+                                            className={`w-2 h-2 rounded-full ${isProcessing ? 'bg-green-500 animate-pulse' : 'bg-stone-300'}`}
+                                        />
+                                        <span className="text-xs font-medium text-stone-600">
+                                            {isProcessing ? 'System Active' : 'System Ready'}
+                                        </span>
+                                    </div>
                                 </div>
                             </header>
 

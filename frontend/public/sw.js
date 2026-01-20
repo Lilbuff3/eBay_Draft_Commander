@@ -8,6 +8,7 @@ const STATIC_ASSETS = [
     '/manifest.json',
     '/icons/icon-192.png',
     '/icons/icon-512.png',
+    '/offline.html',
 ];
 
 // Install event - cache static assets
@@ -80,7 +81,7 @@ async function networkFirst(request) {
 
         // Return offline page for navigation requests
         if (request.mode === 'navigate') {
-            return caches.match('/app');
+            return caches.match('/offline.html');
         }
 
         throw error;
