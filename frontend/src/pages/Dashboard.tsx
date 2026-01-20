@@ -19,7 +19,7 @@ import { SalesWidget } from '@/components/SalesWidget'
 import { ActiveListings } from '@/components/ActiveListings'
 import { UploadZone } from '@/components/UploadZone'
 import { InstallPrompt } from '@/components/InstallPrompt'
-import { fetchJobs, fetchStatus, startQueue, pauseQueue, createListing, type Job, type QueueStats } from '@/lib/api'
+import { fetchJobs, fetchStatus, startQueue, pauseQueue, createListing, scanInbox, type Job, type QueueStats } from '@/lib/api'
 
 type ActiveTool = 'photo-editor' | 'price-research' | 'templates' | 'preview' | 'inventory' | null
 
@@ -35,6 +35,8 @@ export function Dashboard() {
     const [isCreating, setIsCreating] = useState(false)
     const [createResult, setCreateResult] = useState<{ success: boolean; message: string } | null>(null)
     const [ebayStatus, setEbayStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking')
+    const [isScanning, setIsScanning] = useState(false)
+    const [scanMessage, setScanMessage] = useState<string | null>(null)
 
     // Poll for real data
     useEffect(() => {
@@ -123,6 +125,29 @@ export function Dashboard() {
         }
     }
 
+    const handleScan = async () => {
+        setIsScanning(true)
+        setScanMessage(null)
+        try {
+            const result = await scanInbox()
+            if (result.success) {
+                setScanMessage(`${result.added} new folders queued!`)
+                const jobsData = await fetchJobs()
+                setJobs(jobsData)
+                if (jobsData.length > 0 && !selectedJob) {
+                    setSelectedJob(jobsData[0])
+                }
+            } else {
+                setScanMessage('Scan failed')
+            }
+        } catch (e) {
+            setScanMessage('Scan error')
+        } finally {
+            setIsScanning(false)
+            setTimeout(() => setScanMessage(null), 3000)
+        }
+    }
+
     // --- Components for Layouts ---
 
     const DashboardContent = ({ isMobile = false }) => (
@@ -134,7 +159,28 @@ export function Dashboard() {
                     <div className="py-8">
                         <h2 className="text-xl font-semibold text-stone-700 mb-4 text-center">Step 1: Add Photos</h2>
                         <UploadZone onUploadComplete={() => { }} />
-                        <p className="text-center text-stone-400 text-sm mt-4">Upload product photos to create a new listing</p>
+                        <div className="flex flex-col items-center gap-4 mt-6">
+                            <div className="flex items-center gap-2 w-full max-w-xs">
+                                <div className="h-px bg-stone-100 flex-1" />
+                                <span className="text-[10px] uppercase font-bold text-stone-300">OR</span>
+                                <div className="h-px bg-stone-100 flex-1" />
+                            </div>
+                            <Button
+                                onClick={handleScan}
+                                disabled={isScanning}
+                                variant="outline"
+                                className="w-full max-w-xs h-12 rounded-xl border-dashed border-2 hover:border-blue-400 hover:bg-blue-50/50 transition-all group"
+                            >
+                                <Search className={`mr-2 group-hover:text-blue-500 ${isScanning ? 'animate-spin' : ''}`} size={18} />
+                                {isScanning ? 'Scanning Inbox...' : 'Scan "inbox" Folder'}
+                            </Button>
+                            {scanMessage && (
+                                <p className="text-xs font-medium text-blue-600 animate-in fade-in slide-in-from-top-1">
+                                    {scanMessage}
+                                </p>
+                            )}
+                            <p className="text-center text-stone-400 text-sm">Upload product photos or scan for folders you've prepared</p>
+                        </div>
                     </div>
                 ) : (
                     /* Show Image Preview */

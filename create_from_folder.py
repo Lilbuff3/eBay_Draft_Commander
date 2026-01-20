@@ -586,15 +586,26 @@ def create_listing_structured(folder_path, price="29.99", condition="USED_EXCELL
     # Image upload
     upload_start = time.time()
     image_urls = []
+    upload_success = False
     try:
         from ebay_media import upload_folder
         image_urls = upload_folder(folder_path, max_images=12)
         timing['image_upload'] = time.time() - upload_start
+        if image_urls:
+            upload_success = True
     except Exception as e:
         timing['image_upload'] = time.time() - upload_start
-        # Non-fatal - continue without images
+        # Non-fatal - will handle fallback below
 
     if not image_urls:
+         # If there WERE images in the folder but none were uploaded, this is an issue
+         if images:
+             result["error_type"] = "ImageUpload"
+             result["error_message"] = "Images found in folder but failed to upload to eBay Picture Services."
+             result["timing"] = timing
+             return result
+         
+         # Otherwise, use placeholder (unlikely since we check if images exists above, but safe)
          image_urls = ["https://placehold.co/800x600.png?text=Placeholder+Image"]
     
     # Create inventory item

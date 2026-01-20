@@ -970,7 +970,7 @@ class WebControlServer:
                 
                 # Create temporary job folder
                 job_id = f"mobile_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
-                job_folder = Path(self.queue_manager.base_path) / 'inbox' / job_id
+                job_folder = Path(self.queue_manager.data_path) / 'inbox' / job_id
                 job_folder.mkdir(parents=True, exist_ok=True)
                 
                 self.logger.info(f"Creating listing from {len(uploaded_files)} uploaded photos", 
@@ -1002,6 +1002,7 @@ class WebControlServer:
                         metadata['description_hint'] = description
                     
                     metadata_file = job_folder / 'metadata.json'
+                    import json
                     with open(metadata_file, 'w') as f:
                         json.dump(metadata, f, indent=2)
                 
@@ -1076,9 +1077,14 @@ class WebControlServer:
             current_job = None
             for job in self.queue_manager.jobs:
                 if job.status.value == 'processing':
+                    # Handle both datetime and isoformat string
+                    started_val = job.started_at
+                    if started_val and not isinstance(started_val, str):
+                        started_val = started_val.isoformat()
+                        
                     current_job = {
                         'name': job.folder_name,
-                        'started': job.started_at  # Already isoformat string
+                        'started': started_val
                     }
                     break
             
@@ -1111,6 +1117,43 @@ class WebControlServer:
                     'completed_at': job.completed_at,
                 })
             return jsonify(jobs)
+
+        @self.app.route('/api/queue/scan', methods=['POST'])
+        def scan_inbox():
+            """Scan inbox folder and add new items to queue"""
+            try:
+                inbox_path = self.queue_manager.base_path / 'inbox'
+                if not inbox_path.exists():
+                    inbox_path.mkdir(exist_ok=True)
+                    
+                folders = [f for f in inbox_path.iterdir() if f.is_dir()]
+                added_count = 0
+                
+                for folder in folders:
+                    # Check for images
+                    images = list(folder.glob('*.jpg')) + list(folder.glob('*.jpeg')) + \
+                             list(folder.glob('*.png')) + list(folder.glob('*.webp'))
+                    
+                    if images:
+                        # Check if already in queue
+                        existing = self.queue_manager.get_job_by_folder(folder.name)
+                        if not existing:
+                            self.queue_manager.add_folder(str(folder))
+                            added_count += 1
+                
+                # Automatically start processing if items were added
+                if added_count > 0 and not self.queue_manager.is_processing():
+                    self.queue_manager.start_processing()
+                    
+                return jsonify({
+                    'success': True, 
+                    'added': added_count,
+                    'total': len(self.queue_manager.jobs),
+                    'message': f"Added {added_count} new folders to queue"
+                })
+            except Exception as e:
+                self.logger.exception("Inbox scan failed")
+                return jsonify({'success': False, 'error': str(e)}), 500
         
         @self.app.route('/api/stats')
         def get_stats():
@@ -1290,23 +1333,35 @@ class WebControlServer:
 
         url = f"http://{local_ip}:{self.port}/app"
         
-        print("\n" + "="*50)
+        print("\n\n" + "="*50)
         print("📱 MOBILE ACCESS")
         print("="*50)
-        print(f"To control from your phone, open:")
+        print(f"To access your eBay Draft Commander from your phone:")
         print(f"👉 {url}")
         print("-"*50)
         
         if HAS_QRCODE:
             try:
-                qr = qrcode.QRCode(border=1)
+                # Use version 1 (smallest) and minimal border for compactness
+                qr = qrcode.QRCode(version=1, border=1)
                 qr.add_data(url)
                 qr.make(fit=True)
-                qr.print_ascii(invert=True)
-                print("(Scan with camera app)")
+                
+                # Manual compact printing (1 char per module)
+                matrix = qr.get_matrix()
+                print("\n" * 2) # Extra vertical padding
+                for row in matrix:
+                    line = ""
+                    for col in row:
+                        if col:
+                            line += "██" # Double block for better aspect ratio
+                        else:
+                            line += "  "
+                    print("  " + line) # Horizontal padding
+                print("\n(Scan with camera app)\n")
             except Exception as e:
                 print(f"QR Gen failed: {e}")
-        print("="*50 + "\n")
+        print("="*50 + "\n\n")
         
         self._thread = threading.Thread(
             target=self.app.run,

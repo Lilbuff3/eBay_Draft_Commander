@@ -39,10 +39,28 @@ class PricingEngine:
                         break
         
         if not self.app_id:
-            self.app_id = os.getenv('EBAY_APP_ID')
-        
-        if not self.app_id:
             print("⚠️ EBAY_APP_ID not found in .env - Pricing Intelligence disabled")
+            
+        # Initialize Gemini 3 for Search Grounding (from Roadmap Phase 6)
+        self.google_api_key = None
+        if env_path.exists():
+            with open(env_path, 'r') as f:
+                for line in f:
+                    if line.strip().startswith('GOOGLE_API_KEY='):
+                        self.google_api_key = line.split('=')[1].strip()
+                        break
+        
+        if not self.google_api_key:
+            self.google_api_key = os.getenv('GOOGLE_API_KEY')
+            
+        self.ai_client = None
+        if self.google_api_key:
+            try:
+                from google import genai
+                self.ai_client = genai.Client(api_key=self.google_api_key)
+                print("✅ Pricing AI initialized (Gemini 3 + Search Grounding)")
+            except Exception as e:
+                print(f"⚠️ Could not initialize Pricing AI: {e}")
     
     def search_sold_listings(self, keywords, category_id=None, limit=15):
         """
@@ -200,6 +218,40 @@ class PricingEngine:
         search_terms = "+".join(title.split()[:6])
         return f"https://www.ebay.com/sch/i.html?_nkw={quote(search_terms)}&LH_Complete=1&LH_Sold=1"
     
+    def get_ai_price_estimate(self, title, condition):
+        """Estimate price using Gemini 3 with Google Search grounding"""
+        if not self.ai_client:
+            return None
+            
+        try:
+            from google.genai import types
+            
+            prompt = f"""Search for the current market value of this item specifically for eBay:
+            Item: {title}
+            Condition: {condition}
+            
+            Return ONLY a number representing the suggested price in USD. No symbols, no text."""
+            
+            response = self.ai_client.models.generate_content(
+                model='gemini-3-flash-preview',
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                    temperature=0.0
+                )
+            )
+            
+            # Extract number
+            price_text = response.text.strip().replace('$', '').replace(',', '')
+            import re
+            match = re.search(r'\d+\.?\d*', price_text)
+            if match:
+                return float(match.group())
+        except Exception as e:
+            print(f"   ⚠️ Gemini 3 Grounding failed: {e}")
+            
+        return None
+
     def get_price_with_comps(self, title, condition="Used - Good", category_id=None, ai_suggested_price=None):
         """
         Main entry point: Get suggested price and comparable sales data.
@@ -236,13 +288,27 @@ class PricingEngine:
                 "research_link": research_link
             }
         
-        # Fallback to AI suggestion
+        # Try Gemini 3 Grounding if market data fails or as enhancement
+        if not sold_items:
+            print(f"🔍 Performing AI Market Research (Gemini 3 Grounding)...")
+            grounded_price = self.get_ai_price_estimate(title, condition)
+            if grounded_price:
+                print(f"   🌐 AI Research Price: ${grounded_price:.2f}")
+                return {
+                    "suggested_price": grounded_price,
+                    "comps": [],
+                    "reasoning": "Researched via Gemini 3 with Google Search grounding",
+                    "source": "ai_grounded_research",
+                    "research_link": research_link
+                }
+        
+        # Fallback to AI suggestion from analyzer (image-based)
         if ai_suggested_price:
-            print(f"   💡 Using AI estimate: ${ai_suggested_price}")
+            print(f"   💡 Using AI image estimate: ${ai_suggested_price}")
             return {
                 "suggested_price": float(ai_suggested_price),
                 "comps": [],
-                "reasoning": "Based on AI analysis (no market data available)",
+                "reasoning": "Based on AI image analysis (no market data found)",
                 "source": "ai_estimate",
                 "research_link": research_link
             }
@@ -251,7 +317,7 @@ class PricingEngine:
         return {
             "suggested_price": None,
             "comps": [],
-            "reasoning": "No comparable sales found and no AI estimate",
+            "reasoning": "No comparable sales found and AI research failed",
             "source": "none",
             "research_link": research_link
         }

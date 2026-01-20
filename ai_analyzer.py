@@ -36,9 +36,10 @@ class AIAnalyzer:
 
         genai.configure(api_key=api_key)
         
-        # Use the latest Flash model
-        self.model = genai.GenerativeModel('gemini-2.0-flash-exp') 
-        # Fallback to 1.5 flash if 2.0 experimental not available or desired:
+        # Use the latest Gemini 3 Flash model
+        self.model = genai.GenerativeModel('gemini-3-flash-preview') 
+        # Fallback to 2.0 or 1.5 if 3.0 not available:
+        # self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
         # self.model = genai.GenerativeModel('gemini-1.5-flash')
         
         print("✅ AI Analyzer initialized (Google AI Studio)")

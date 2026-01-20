@@ -3,7 +3,7 @@ import requests
 import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
-from ebay_auth import eBayOAuth
+from ebay_policies import _get_headers, _refresh_token_if_needed
 
 class eBayOrders:
     """
@@ -17,28 +17,12 @@ class eBayOrders:
     def __init__(self, use_sandbox=False):
         self.use_sandbox = use_sandbox
         self.base_url = self.BASE_URL_SANDBOX if use_sandbox else self.BASE_URL_PROD
-        self.oauth = eBayOAuth(use_sandbox=use_sandbox)
         
-    def _get_headers(self):
-        """Get authorized headers"""
-        if not self.oauth.has_valid_token():
-            print("Warning: No valid token, attempting refresh...")
-            if not self.oauth.refresh_access_token():
-                raise Exception("Authentication failed. Please run functionality requiring auth via CLI first.")
-                
-        return {
-            'Authorization': f'Bearer {self.oauth.user_token}',
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        }
-
     def get_orders(self, days_back=90, limit=50) -> Dict:
         """
         Fetch orders from the last N days.
         """
         try:
-            headers = self._get_headers()
-            
             # Date filter (last N days)
             start_date = (datetime.utcnow() - timedelta(days=days_back)).strftime('%Y-%m-%dT%H:%M:%S.000Z')
             
@@ -48,7 +32,18 @@ class eBayOrders:
                 'offset': 0
             }
             
+            # Use shared headers from ebay_policies
+            headers = _get_headers()
+            
             response = requests.get(self.base_url, headers=headers, params=params)
+            
+            # Retry logic using shared policy
+            if response.status_code in [401, 500]:
+                print(f"Auth failed ({response.status_code}), attempting refresh...")
+                if _refresh_token_if_needed(response):
+                    print("Token refreshed, retrying request...")
+                    headers = _get_headers() # Get new headers with fresh token
+                    response = requests.get(self.base_url, headers=headers, params=params)
             
             if response.status_code != 200:
                 print(f"Error fetching orders: {response.status_code} - {response.text}")
@@ -138,15 +133,14 @@ class eBayOrders:
         top_items = sorted(best_sellers.values(), key=lambda x: x['qty'], reverse=True)[:5]
 
         # Sell-through Rate Calculation
-        # Sell-through = Items Sold / (Items Sold + Active Listings) * 100
         active_listings_count = 0
         try:
-            from ebay_policies import _get_headers
-            import requests as req_lib
-            inv_response = req_lib.get(
+            # Use raw request to avoid circular dependency if we imported full module
+            inv_headers = _get_headers()
+            inv_response = requests.get(
                 'https://api.ebay.com/sell/inventory/v1/offer',
-                headers=_get_headers(),
-                params={'marketplace_id': 'EBAY_US', 'limit': 1}  # We only need total count
+                headers=inv_headers,
+                params={'marketplace_id': 'EBAY_US', 'limit': 1}
             )
             if inv_response.status_code == 200:
                 active_listings_count = inv_response.json().get('total', 0)

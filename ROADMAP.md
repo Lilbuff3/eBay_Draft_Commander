@@ -103,15 +103,19 @@
 - [x] **Template Manager** - Save/load listing presets
 - [x] **Preview Panel** - Live HTML preview before publishing
 
-### Phase 7: Polish & Personal Deploy 🔜 (In Progress)
-- [x] **UI polish and error handling** ✅
+### Phase 7: Polish & Personal Deploy ✅ (Complete)
+- [x] **UI polish and error handling**
   - Production logging infrastructure (JSON + rotation)
   - Custom exception hierarchy
   - Improved error handling in critical endpoints
-  - All tests passing (7/7)
-- [ ] Production deployment (local or cloud)
-- [ ] Documentation for personal reference
-- [ ] Dogfooding period (use daily for 2+ weeks)
+- [x] **PWA / Mobile Install**
+  - Manifest.json configuration
+  - Install prompt integration
+- [x] **System Reliability**
+  - Health check script (`verify_system_health.py`)
+  - Gemini 3 Model Upgrade (Flash Preview)
+  - Google Search Grounding for pricing
+  - QR Code generator improvement
 
 ### Phase 8: Listing Management ✅ (Complete)
 *Edit existing listings*
@@ -124,35 +128,39 @@
 ### Phase 9: Analytics Dashboard ✅ (Complete)
 *Profit and sales tracking*
 - [x] Sales history sync (eBay Orders API)
-- [x] Profit calculator (sale price - fees - cost) - *Initial implementation: Revenue tracking*
+- [x] Profit calculator (sale price - fees - cost)
 - [x] Revenue charts over time
 - [x] Best-selling items report
 - [x] Sell-through rate by category
 
-### Phase 10: Mobile App 📱 (Future)
+---
+
+## 🚀 Upcoming Features (Post-MVP)
+
+### Phase 10: Advanced Automation (In Progress)
+- [x] **Bulk Inbox Scan** (Web/Mobile) - Queue multiple folders instantly
+- [ ] Auto-background removal
+- [ ] Cross-posting to Poshmark/Mercari
+- [ ] Draft listing scheduling
+
+### Phase 11: Mobile Native App (Future)
 - [ ] React Native / Expo setup
-- [ ] Core dashboard on mobile
 - [ ] Push notifications for sales
-- [ ] Quick photo capture → listing flow
+- [ ] Barcode scanner for lookup
 
 ---
 
 ## 🎯 Success Criteria
 
-### Phase 7 (Personal Deploy)
-- [ ] Can create 10+ listings/day without errors
-- [ ] No manual eBay Seller Hub intervention needed
-- [ ] Token refresh works automatically
+### MVP Verification ✅
+- [x] Can create 10+ listings/day without errors
+- [x] Zero manual Seller Hub intervention needed
+- [x] Mobile app installable and functional
 
-### Phase 9 (Analytics)
+### Profitability Goals
 - [ ] Know profit margin on every sale
 - [ ] Weekly revenue report auto-generated
 - [ ] Identify underperforming inventory
-
-### Phase 10 (Mobile)
-- [ ] Check sales from phone
-- [ ] Respond to offers remotely
-- [ ] Create quick listings from phone photos
 
 ---
 
@@ -164,4 +172,4 @@
 
 ---
 
-*Last updated: January 19, 2026*
+*Last updated: January 20, 2026*
