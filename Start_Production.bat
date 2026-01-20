@@ -1,46 +1,68 @@
 @echo off
-echo ====================================
-echo eBay Draft Commander - Production Mode
-echo ====================================
+setlocal EnableDelayedExpansion
+
+REM Get timestamp for log file (YYYYMMDD_HHMMSS)
+for /f "tokens=2 delims==" %%I in ('wmic os get localdatetime /value') do set datetime=%%I
+set "timestamp=%datetime:~0,8%_%datetime:~8,6%"
+
+REM Create logs directory if it doesn't exist
+if not exist "logs" mkdir "logs"
+set "LOG_FILE=logs\session_%timestamp%.log"
+
+echo ===========================================
+echo   eBay Draft Commander - Production Start
+echo   Started: %date% %time%
+echo   Log: %LOG_FILE%
+echo ===========================================
 echo.
 
-REM Set production environment
+REM 1. System Health Check
+echo [1/4] Running System Health Check...
+echo [1/4] Running System Health Check... >> "%LOG_FILE%"
+python verify_system_health.py >> "%LOG_FILE%" 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo [ERROR] System Health Check FAILED! 
+    echo Please review the errors above or in %LOG_FILE%
+    echo.
+    pause
+    exit /b 1
+) else (
+    echo    Health Check PASSED.
+)
+
+REM 2. Set Environment
+echo [2/4] Setting Production Environment...
 set FLASK_ENV=production
 set LOG_LEVEL=INFO
 
-echo [1/3] Checking Python...
-python --version
-if %ERRORLEVEL% NEQ 0 (
-    echo ERROR: Python not found!
-    pause
-    exit /b 1
-)
+REM 3. Start Backend
+echo [3/4] Starting Web Server...
+echo [3/4] Starting Web Server... >> "%LOG_FILE%"
+start "eBay Backend Server" cmd /k "python web_server.py >> "%LOG_FILE%" 2>&1"
 
-echo [2/3] Starting Backend Server...
-start "eBay Draft Commander Backend" cmd /k "python web_server.py"
-
-REM Wait for server to start
-echo [3/3] Waiting for server startup...
+REM 4. Launch Frontend
+echo [4/4] Waiting for server & Launching Browser...
 timeout /t 5 /nobreak > nul
 
-echo.
-echo ====================================
-echo eBay Draft Commander is RUNNING
-echo ====================================
-echo.
-echo Desktop Access: http://localhost:5000/app
-echo Mobile Access:  http://YOUR-IP:5000/app
-echo.
-echo To find your IP address:
-echo   ipconfig ^| findstr IPv4
-echo.
-echo Press any key to open in browser...
-pause > nul
+REM Find Local IP for reference
+for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr "IPv4"') do (
+    set IP=%%a
+    set IP=!IP: =!
+)
 
+echo.
+echo ===========================================
+echo   SYSTEM IS READY
+echo ===========================================
+echo   Desktop: http://localhost:5000/app
+echo   Mobile:  http://%IP%:5000/app
+echo ===========================================
+echo.
+echo Opening browser...
 start http://localhost:5000/app
 
 echo.
-echo Server is running in background window.
-echo Close this window when done (server will keep running).
-echo.
+echo Server running in background. Logs: %LOG_FILE%
+echo Close this window when finished.
 pause
