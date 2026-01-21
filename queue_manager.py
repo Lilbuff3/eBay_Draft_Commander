@@ -90,6 +90,9 @@ class QueueManager:
         self.on_queue_complete: Optional[Callable[[], None]] = None
         self.on_progress: Optional[Callable[[int, int], None]] = None  # (current, total)
         
+        # Supabase client for realtime sync
+        self.supabase = None
+        
         # Processing function (injected from create_from_folder)
         self._processor: Optional[Callable[[str], dict]] = None
         
@@ -102,6 +105,13 @@ class QueueManager:
     def set_processor(self, processor: Callable[[str], dict]):
         """Set the function that processes a folder into a listing"""
         self._processor = processor
+        
+    def set_supabase_client(self, client):
+        """Set Supabase client for realtime sync"""
+        self.supabase = client
+        # Initial sync of all existing jobs
+        for job in self.jobs:
+            self._sync_to_supabase(job)
     
     def add_folder(self, folder_path: str) -> QueueJob:
         """Add a single folder to the queue"""
@@ -114,6 +124,7 @@ class QueueManager:
         with self._lock:
             self.jobs.append(job)
         self.save_state()
+        self._sync_to_supabase(job)
         return job
     
     def add_batch(self, folder_paths: List[str]) -> List[QueueJob]:
@@ -272,6 +283,7 @@ class QueueManager:
         job.started_at = datetime.now().isoformat()
         job.attempts += 1
         self.save_state()
+        self._sync_to_supabase(job)
         
         if self.on_job_start:
             self.on_job_start(job)
@@ -309,6 +321,7 @@ class QueueManager:
         
         job.completed_at = datetime.now().isoformat()
         self.save_state()
+        self._sync_to_supabase(job)
         
         if job.status == JobStatus.COMPLETED:
             if self.on_job_complete:
@@ -328,6 +341,25 @@ class QueueManager:
                 json.dump(data, f, indent=2)
         except Exception as e:
             print(f"Warning: Could not save queue state: {e}")
+            
+    def _sync_to_supabase(self, job: QueueJob):
+        """Sync a single job to Supabase database"""
+        if not self.supabase:
+            return
+            
+        try:
+            # Only send columns that exist in the Supabase schema
+            full_data = job.to_dict()
+            schema_cols = [
+                'id', 'folder_name', 'status', 'listing_id', 'offer_id',
+                'error_type', 'error_message', 'started_at', 'completed_at'
+            ]
+            sync_data = {k: v for k, v in full_data.items() if k in schema_cols}
+            
+            # Upsert the job
+            self.supabase.table("jobs").upsert(sync_data).execute()
+        except Exception as e:
+            self.logger.error(f"Failed to sync job {job.id} to Supabase: {e}")
     
     def load_state(self):
         """Load queue state from JSON file"""

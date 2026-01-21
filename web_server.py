@@ -17,6 +17,10 @@ from werkzeug.utils import secure_filename
 
 from logger import get_logger
 from exceptions import eBayAPIError, eBayAuthError, eBayTimeoutError, from_http_status
+try:
+    from supabase import create_client, Client
+except ImportError:
+    create_client = None
 
 try:
     import qrcode
@@ -90,6 +94,20 @@ class WebControlServer:
         # Initialize logger
         self.logger = get_logger('web_server')
         self.logger.info(f"Initializing web server on port {port}")
+        
+        # Initialize Supabase
+        self.supabase: Optional['Client'] = None
+        if create_client:
+            creds = ebay_policies.load_env()
+            sb_url = creds.get('SUPABASE_URL')
+            sb_key = creds.get('SUPABASE_KEY')
+            if sb_url and sb_key:
+                try:
+                    self.supabase = create_client(sb_url, sb_key)
+                    self.queue_manager.set_supabase_client(self.supabase)
+                    self.logger.info("✅ Supabase Realtime initialized")
+                except Exception as e:
+                    self.logger.error(f"❌ Failed to initialize Supabase: {e}")
         
         self.orders_client = None
         if eBayOrders:

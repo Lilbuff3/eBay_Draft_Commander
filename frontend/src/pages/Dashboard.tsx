@@ -20,6 +20,7 @@ import { ActiveListings } from '@/components/ActiveListings'
 import { UploadZone } from '@/components/UploadZone'
 import { InstallPrompt } from '@/components/InstallPrompt'
 import { fetchJobs, fetchStatus, startQueue, pauseQueue, createListing, scanInbox, type Job, type QueueStats } from '@/lib/api'
+import { supabase } from '@/lib/supabase'
 
 type ActiveTool = 'photo-editor' | 'price-research' | 'templates' | 'preview' | 'inventory' | null
 
@@ -38,7 +39,7 @@ export function Dashboard() {
     const [isScanning, setIsScanning] = useState(false)
     const [scanMessage, setScanMessage] = useState<string | null>(null)
 
-    // Poll for real data
+    // Initial fetch and Realtime subscription
     useEffect(() => {
         const fetchData = async () => {
             try {
@@ -69,14 +70,32 @@ export function Dashboard() {
             }
         }
 
+        // Initial load
         fetchData()
         checkEbay()
 
-        const interval = setInterval(fetchData, 2000)
-        const ebayInterval = setInterval(checkEbay, 30000) // Check eBay every 30s
+        // Realtime Subscription
+        const channel = supabase
+            .channel('jobs-realtime')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'jobs'
+                },
+                () => {
+                    // Re-fetch everything when jobs table changes
+                    fetchData()
+                }
+            )
+            .subscribe()
+
+        // Still poll eBay status but less frequently as it's not "live" data
+        const ebayInterval = setInterval(checkEbay, 60000)
 
         return () => {
-            clearInterval(interval)
+            supabase.removeChannel(channel)
             clearInterval(ebayInterval)
         }
     }, [selectedJob])
