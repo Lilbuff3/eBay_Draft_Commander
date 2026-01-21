@@ -50,7 +50,7 @@ export default defineConfig({
     outDir: '../static/app',
     emptyOutDir: true,
   },
-  base: '/app/',
+  base: './',
   server: {
     proxy: {
       '/api': {

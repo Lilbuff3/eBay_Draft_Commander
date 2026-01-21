@@ -30,11 +30,19 @@ export function SalesWidget() {
         setIsLoading(true)
         setError(null)
         try {
+            console.log("Fetching sales data...")
             const res = await fetch('/api/sales/recent')
+            if (!res.ok) {
+                console.error("Sales fetch response not ok", res.status, res.statusText)
+                throw new Error(`API Error: ${res.status}`)
+            }
             const json = await res.json()
+            console.log("Sales data received:", json)
+
             if (json.error) throw new Error(json.error)
             setData(json)
         } catch (e) {
+            console.error("Sales Widget Error:", e)
             setError(e instanceof Error ? e.message : 'Failed to load sales')
         } finally {
             setIsLoading(false)

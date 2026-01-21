@@ -41,6 +41,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
 
     // Selection
     const [selectedSkus, setSelectedSkus] = useState<Set<string>>(new Set())
+    const [fetchingSkus, setFetchingSkus] = useState<Set<string>>(new Set())
 
     // Edit State
     const [editingSku, setEditingSku] = useState<string | null>(null)
@@ -139,6 +140,37 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
             alert("Failed to update listing")
         } finally {
             setIsSaving(false)
+        }
+    }
+
+    const refreshPrice = async (sku: string) => {
+        setFetchingSkus(prev => new Set(prev).add(sku))
+        try {
+            const res = await fetch(`/api/listings/${sku}/details`)
+            if (!res.ok) throw new Error('Failed to fetch price')
+
+            const details = await res.json()
+
+            if (data) {
+                setData({
+                    ...data,
+                    listings: data.listings.map(l => l.sku === sku ? {
+                        ...l,
+                        price: details.price,
+                        availableQuantity: details.quantity,
+                        offerId: details.offerId
+                    } : l)
+                })
+            }
+        } catch (e) {
+            console.error(e)
+            alert('Could not fetch latest price')
+        } finally {
+            setFetchingSkus(prev => {
+                const next = new Set(prev)
+                next.delete(sku)
+                return next
+            })
         }
     }
 
@@ -480,7 +512,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                                     </div>
 
                                     {/* Price */}
-                                    <div className="text-right">
+                                    <div className="text-right flex items-center justify-end gap-2">
                                         {editingSku === listing.sku ? (
                                             <Input
                                                 type="number"
@@ -490,8 +522,18 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                                                 step="0.01"
                                             />
                                         ) : (
-                                            <div className="font-medium text-stone-700">
-                                                ${listing.price.toFixed(2)}
+                                            <div className="flex items-center gap-2">
+                                                <div className={`font-medium ${listing.price === 0 ? 'text-red-500' : 'text-stone-700'}`}>
+                                                    ${listing.price.toFixed(2)}
+                                                </div>
+                                                <button
+                                                    onClick={() => refreshPrice(listing.sku)}
+                                                    disabled={fetchingSkus.has(listing.sku)}
+                                                    className="p-1 hover:bg-stone-100 rounded-full text-stone-400 hover:text-blue-500 transition-colors"
+                                                    title="Refresh Price from eBay"
+                                                >
+                                                    <RefreshCw size={12} className={fetchingSkus.has(listing.sku) ? 'animate-spin' : ''} />
+                                                </button>
                                             </div>
                                         )}
                                     </div>

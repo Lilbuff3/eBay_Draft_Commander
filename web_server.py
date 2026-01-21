@@ -13,6 +13,8 @@ import shutil
 import uuid
 import json
 import datetime
+from xml.etree import ElementTree as ET
+from werkzeug.utils import secure_filename
 from werkzeug.utils import secure_filename
 
 from logger import get_logger
@@ -209,89 +211,191 @@ class WebControlServer:
         @self.app.route('/api/listings/active')
         def get_active_listings():
             """
-            Fetch active listings from eBay Inventory API.
-            First fetches inventory_items, then queries offers for each SKU to get pricing.
+            Fetch active listings from eBay Trading API (GetMyeBaySelling).
+            This returns Price, Quantity, ListingID, and SKU for all active items.
             """
             try:
-                from ebay_policies import load_env, _get_headers, _refresh_token_if_needed
+                from ebay_policies import load_env, _get_headers
                 
-                INVENTORY_URL = 'https://api.ebay.com/sell/inventory/v1'
+                # Load credentials directly for Trading API
+                creds = load_env()
+                token = creds.get('EBAY_USER_TOKEN')
                 
-                # Step 1: Get Inventory Items (this endpoint works without SKU filter)
-                response = requests.get(
-                    f'{INVENTORY_URL}/inventory_item',
-                    headers=_get_headers(),
-                    params={'limit': 100},
-                    timeout=30
-                )
+                if not token:
+                    return jsonify({'error': 'eBay token not found'}), 500
+
+                TRADING_URL = 'https://api.ebay.com/ws/api.dll'
                 
-                # Retry on auth error
-                if response.status_code in [401, 500]:
-                    if _refresh_token_if_needed(response):
-                        response = requests.get(
-                            f'{INVENTORY_URL}/inventory_item',
-                            headers=_get_headers(),
-                            params={'limit': 100},
-                            timeout=30
-                        )
+                # Construct XML Request
+                xml_request = f"""<?xml version="1.0" encoding="utf-8"?>
+                <GetMyeBaySellingRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                  <RequesterCredentials>
+                    <eBayAuthToken>{token}</eBayAuthToken>
+                  </RequesterCredentials>
+                  <ActiveList>
+                    <Sort>TimeLeft</Sort>
+                    <Pagination>
+                      <EntriesPerPage>200</EntriesPerPage>
+                      <PageNumber>1</PageNumber>
+                    </Pagination>
+                  </ActiveList>
+                  <DetailLevel>ReturnAll</DetailLevel>
+                </GetMyeBaySellingRequest>"""
+                
+                headers = {
+                    'X-EBAY-API-SITEID': '0',
+                    'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
+                    'X-EBAY-API-CALL-NAME': 'GetMyeBaySelling',
+                    # 'X-EBAY-API-IAF-TOKEN': token, # Using RequesterCredentials in XML instead for older API
+                    'Content-Type': 'text/xml'
+                }
+
+                # Executing request
+                response = requests.post(TRADING_URL, headers=headers, data=xml_request, timeout=30)
                 
                 if response.status_code != 200:
-                    self.logger.error(f"eBay Inventory API error: {response.status_code}",
-                                    extra={'response': response.text[:500]})
+                    self.logger.error(f"eBay Trading API error: {response.status_code}")
                     return jsonify({'error': f'eBay API error: {response.status_code}'}), 502
+
+                # Parse XML
+                root = ET.fromstring(response.content)
+                ns = {'e': 'urn:ebay:apis:eBLBaseComponents'}
                 
-                data = response.json()
+                # Check for errors in XML
+                ack = root.find('.//e:Ack', ns)
+                if ack is not None and ack.text == 'Failure':
+                    errors = root.findall('.//e:Errors', ns)
+                    msg = errors[0].find('e:LongMessage', ns).text if errors else 'Unknown error'
+                    self.logger.error(f"eBay API Failure: {msg}")
+                    return jsonify({'error': msg}), 500
+
                 items = []
-                
-                # Return inventory items directly without per-SKU offer calls
-                # (Per-SKU calls were causing 32+ sequential requests = 5+ min timeout)
-                for inv_item in data.get('inventoryItems', []):
-                    sku = inv_item.get('sku')
-                    product = inv_item.get('product', {})
-                    availability = inv_item.get('availability', {})
-                    
-                    # Get image URLs from product
-                    image_urls = product.get('imageUrls', [])
-                    image_url = image_urls[0] if image_urls else None
-                    
-                    # Get quantity
-                    ship_avail = availability.get('shipToLocationAvailability', {})
-                    quantity = ship_avail.get('quantity', 0)
-                    
-                    items.append({
-                        'sku': sku,
-                        'offerId': None,  # Will be fetched on-demand
-                        'listingId': None,
-                        'title': product.get('title', sku),
-                        'price': 0.0,  # Will be fetched on-demand
-                        'currency': 'USD',
-                        'availableQuantity': quantity,
-                        'imageUrl': image_url,
-                        'status': 'INVENTORY',  # From inventory API
-                        'condition': inv_item.get('condition')
-                    })
+                active_list = root.find('.//e:ActiveList', ns)
+                if active_list is not None:
+                    item_array = active_list.find('e:ItemArray', ns)
+                    if item_array is not None:
+                        for item in item_array.findall('e:Item', ns):
+                            try:
+                                # Extract Details
+                                listing_id = item.find('e:ItemID', ns).text
+                                sku = item.find('e:SKU', ns).text if item.find('e:SKU', ns) is not None else ''
+                                title = item.find('e:Title', ns).text
+                                
+                                # Price
+                                selling_status = item.find('e:SellingStatus', ns)
+                                price = 0.0
+                                currency = 'USD'
+                                if selling_status is not None:
+                                    current_price = selling_status.find('e:CurrentPrice', ns)
+                                    if current_price is not None:
+                                        price = float(current_price.text)
+                                        currency = current_price.get('currencyID', 'USD')
+                                
+                                # Quantity
+                                quantity = 0
+                                quantity_avail = item.find('e:QuantityAvailable', ns)
+                                if quantity_avail is not None:
+                                    quantity = int(quantity_avail.text)
+                                else:
+                                    # Fallback to Quantity - QuantitySold
+                                    qty_total = int(item.find('e:Quantity', ns).text)
+                                    # QuantitySold info might be elsewhere, but ActiveList usually returns avail
+                                    quantity = qty_total 
+
+                                # Image
+                                picture_details = item.find('e:PictureDetails', ns)
+                                image_url = None
+                                if picture_details is not None:
+                                    url_node = picture_details.find('e:GalleryURL', ns)
+                                    if url_node is not None:
+                                        image_url = url_node.text
+                                    else:
+                                         # Try PictureURL
+                                         pic_url = picture_details.find('e:PictureURL', ns)
+                                         if pic_url is not None:
+                                             image_url = pic_url.text
+
+                                # Listing Type/Status
+                                status = item.find('e:ListingStatus', ns).text # Active, Completed, etc.
+                                
+                                if sku: # Only add if has SKU? Or add all?
+                                    items.append({
+                                        'sku': sku,
+                                        'offerId': None, # Trading API doesn't use OfferID the same way, but we can search for it later if needed
+                                        'listingId': listing_id,
+                                        'title': title,
+                                        'price': price,
+                                        'currency': currency,
+                                        'availableQuantity': quantity,
+                                        'imageUrl': image_url,
+                                        'status': status,
+                                        'condition': 'Used' # Default/Unknown
+                                    })
+                            except Exception as parse_e:
+                                self.logger.warning(f"Error parsing item: {parse_e}")
+                                continue
                 
                 return jsonify({
                     'listings': items,
-                    'total': data.get('total', len(items)),
-                    'source': 'eBay Inventory Item API'
+                    'total': len(items),
+                    'source': 'eBay Trading API'
                 })
                 
             except requests.Timeout:
-                self.logger.error("eBay Inventory API timeout")
-                return jsonify({'error': 'eBay API timeout, please try again'}), 504
-                
-            except requests.RequestException as e:
-                self.logger.exception("eBay Inventory API request failed")
-                return jsonify({'error': 'Network error connecting to eBay'}), 503
-                
-            except ImportError as e:
-                self.logger.error(f"Missing ebay_policies module: {e}")
-                return jsonify({'error': 'eBay integration not configured'}), 500
+                self.logger.error("eBay Trading API timeout")
+                return jsonify({'error': 'eBay API timeout'}), 504
                 
             except Exception as e:
                 self.logger.exception("Unexpected error fetching active listings")
-                return jsonify({'error': 'Internal server error'}), 500
+                return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+
+        @self.app.route('/api/listings/<sku>/details')
+        def get_listing_details(sku):
+            """Fetch details (price, offerId) for a single SKU"""
+            try:
+                from ebay_policies import _get_headers, _refresh_token_if_needed
+                
+                INVENTORY_URL = 'https://api.ebay.com/sell/inventory/v1'
+                
+                response = requests.get(
+                    f'{INVENTORY_URL}/offer',
+                    headers=_get_headers(),
+                    params={'sku': sku},
+                    timeout=10
+                )
+                
+                if response.status_code in [401, 500]:
+                    if _refresh_token_if_needed(response):
+                        response = requests.get(
+                            f'{INVENTORY_URL}/offer',
+                            headers=_get_headers(),
+                            params={'sku': sku},
+                            timeout=10
+                        )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    offers = data.get('offers', [])
+                    if offers:
+                        offer = offers[0]
+                        price_obj = offer.get('pricingSummary', {}).get('price', {})
+                        return jsonify({
+                            'price': float(price_obj.get('value', 0)),
+                            'currency': price_obj.get('currency', 'USD'),
+                            'quantity': offer.get('availableQuantity', 0),
+                            'offerId': offer.get('offerId'),
+                            'listingId': offer.get('listingId'),
+                            'status': offer.get('status')
+                        })
+                    else:
+                        return jsonify({'error': 'No offer found for SKU'}), 404
+                else:
+                    return jsonify({'error': f'eBay API error: {response.status_code}'}), 502
+                    
+            except Exception as e:
+                self.logger.error(f"Error fetching details for SKU {sku}: {e}")
+                return jsonify({'error': str(e)}), 500
 
 
         @self.app.route('/api/listings/<sku>', methods=['PUT', 'POST'])
@@ -748,7 +852,59 @@ class WebControlServer:
                  if template_id:
                      self.template_store.delete(template_id)
                      return jsonify({'success': True})
+                     self.template_store.delete(template_id)
+                     return jsonify({'success': True})
                  return jsonify({'success': False, 'error': 'Missing ID'}), 400
+
+        @self.app.route('/api/settings', methods=['GET', 'POST'])
+        def handle_settings():
+            """Manage application settings (env variables)"""
+            env_path = Path(__file__).parent / ".env"
+            
+            if request.method == 'GET':
+                settings = {}
+                if env_path.exists():
+                    with open(env_path, 'r') as f:
+                        for line in f:
+                            line = line.strip()
+                            if line and not line.startswith('#') and '=' in line:
+                                key, value = line.split('=', 1)
+                                settings[key.strip()] = value.strip()
+                return jsonify(settings)
+            
+            elif request.method == 'POST':
+                try:
+                    new_settings = request.json
+                    current_settings = {}
+                    
+                    # Read existing to preserve comments/order if possible, 
+                    # but simple append/replace is safer for now
+                    if env_path.exists():
+                        with open(env_path, 'r') as f:
+                            for line in f:
+                                line = line.strip()
+                                if line and not line.startswith('#') and '=' in line:
+                                    key, value = line.split('=', 1)
+                                    current_settings[key.strip()] = value.strip()
+                    
+                    # Update with new values
+                    current_settings.update(new_settings)
+                    
+                    # Write back
+                    with open(env_path, 'w') as f:
+                        for k, v in current_settings.items():
+                            f.write(f"{k}={v}\n")
+                            
+                    # Force reload of policies/creds in memory
+                    if HAS_POLICIES:
+                        import importlib
+                        importlib.reload(ebay_policies)
+                        
+                    return jsonify({'success': True})
+                    
+                except Exception as e:
+                    self.logger.error(f"Failed to save settings: {e}")
+                    return jsonify({'error': str(e)}), 500
 
         @self.app.route('/api/tools/preview')
         def generate_preview():
@@ -1609,11 +1765,11 @@ if __name__ == "__main__":
     
     # Initialize AI Analyzer and wire to queue
     try:
-        analyzer = AIAnalyzer()
-        qm.set_processor(analyzer.analyze_folder)
-        print("✅ AI Analyzer wired to Queue Manager")
-    except Exception as e:
-        print(f"❌ Failed to initialize AI Analyzer: {e}")
+        from create_from_folder import create_listing_structured
+        qm.set_processor(create_listing_structured)
+        print("✅ Structured Listing Processor wired to Queue Manager")
+    except ImportError as e:
+        print(f"❌ Failed to import processor: {e}")
     
     server = WebControlServer(qm)
     server.start()

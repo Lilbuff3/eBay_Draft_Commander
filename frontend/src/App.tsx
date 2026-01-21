@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { AnalyticsDashboard } from '@/components/AnalyticsDashboard'
 import { ActiveListings } from '@/components/ActiveListings'
 import { Sidebar } from '@/components/Sidebar'
+import { Settings } from '@/pages/Settings'
 import { Dashboard } from '@/pages/Dashboard'
 import { QuickListingForm } from '@/components/QuickListingForm'
 import { Toaster } from '@/components/ui/sonner'
@@ -40,11 +41,7 @@ function App() {
         {activeTab === 'create' && <QuickListingForm />}
         {activeTab === 'inventory' && <ActiveListings />}
         {activeTab === 'analytics' && <AnalyticsDashboard />}
-        {activeTab === 'settings' && (
-          <div className="h-full flex items-center justify-center">
-            <p className="text-stone-500">Settings coming soon...</p>
-          </div>
-        )}
+        {activeTab === 'settings' && <Settings />}
       </main>
 
       {/* Mobile Bottom Navigation */}

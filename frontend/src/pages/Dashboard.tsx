@@ -24,6 +24,283 @@ import { supabase } from '@/lib/supabase'
 
 type ActiveTool = 'photo-editor' | 'price-research' | 'templates' | 'preview' | 'inventory' | null
 
+interface DashboardContentProps {
+    isMobile: boolean
+    selectedJob: Job | null
+    listingPrice: string
+    setListingPrice: (price: string) => void
+    selectedShipping: string | null
+    setSelectedShipping: (id: string | null) => void
+    isCreating: boolean
+    handleCreateListing: () => void
+    createResult: { success: boolean; message: string } | null
+    handleScan: () => void
+    isScanning: boolean
+    scanMessage: string | null
+    activeTool: ActiveTool
+    setActiveTool: (tool: ActiveTool) => void
+}
+
+const DashboardContent = ({
+    isMobile = false,
+    selectedJob,
+    listingPrice,
+    setListingPrice,
+    selectedShipping,
+    setSelectedShipping,
+    isCreating,
+    handleCreateListing,
+    createResult,
+    handleScan,
+    isScanning,
+    scanMessage,
+    activeTool,
+    setActiveTool
+}: DashboardContentProps) => (
+    <div className={`grid ${isMobile ? 'grid-cols-1 flex flex-col' : 'grid-cols-12'} gap-6 mb-24`}>
+        {/* Hero Image Section */}
+        <div className={`${isMobile ? 'w-full order-1' : 'col-span-8'} bg-white rounded-3xl p-6 shadow-sm border border-stone-100 relative group overflow-hidden`}>
+            {!selectedJob ? (
+                /* Show Upload Zone when no job selected */
+                <div className="py-8">
+                    <h2 className="text-xl font-semibold text-stone-700 mb-4 text-center">Step 1: Add Photos</h2>
+                    <UploadZone onUploadComplete={() => { }} />
+                    <div className="flex flex-col items-center gap-4 mt-6">
+                        <div className="flex items-center gap-2 w-full max-w-xs">
+                            <div className="h-px bg-stone-100 flex-1" />
+                            <span className="text-[10px] uppercase font-bold text-stone-300">OR</span>
+                            <div className="h-px bg-stone-100 flex-1" />
+                        </div>
+                        <Button
+                            onClick={handleScan}
+                            disabled={isScanning}
+                            variant="outline"
+                            className="w-full max-w-xs h-12 rounded-xl border-dashed border-2 hover:border-blue-400 hover:bg-blue-50/50 transition-all group"
+                        >
+                            <Search className={`mr-2 group-hover:text-blue-500 ${isScanning ? 'animate-spin' : ''}`} size={18} />
+                            {isScanning ? 'Scanning Inbox...' : 'Scan "inbox" Folder'}
+                        </Button>
+                        {scanMessage && (
+                            <p className="text-xs font-medium text-blue-600 animate-in fade-in slide-in-from-top-1">
+                                {scanMessage}
+                            </p>
+                        )}
+                        <p className="text-center text-stone-400 text-sm">Upload product photos or scan for folders you've prepared</p>
+                    </div>
+                </div>
+            ) : (
+                /* Show Image Preview */
+                <>
+                    <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-lg backdrop-blur-sm">
+                            <Camera size={18} />
+                        </button>
+                    </div>
+
+                    <div className="h-64 rounded-2xl bg-stone-100 flex items-center justify-center mb-6 overflow-hidden relative">
+                        <div className="text-stone-300 flex flex-col items-center">
+                            <Image size={48} />
+                            <span className="text-sm font-medium mt-2">{selectedJob.name}</span>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1 block">
+                                Title
+                            </label>
+                            <Input
+                                placeholder="Item Title..."
+                                value={selectedJob?.name || ''}
+                                readOnly
+                                className="bg-stone-50"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1 block">
+                                Price
+                            </label>
+                            <Input
+                                placeholder="$0.00"
+                                className="bg-stone-50"
+                                value={listingPrice}
+                                onChange={(e) => setListingPrice(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Shipping Selector */}
+                    <div className="mt-4">
+                        <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1 block">
+                            Shipping
+                        </label>
+                        <ShippingSelector
+                            value={selectedShipping || undefined}
+                            onChange={setSelectedShipping}
+                        />
+                    </div>
+
+                    {/* Create Listing Button */}
+                    <div className="mt-6">
+                        <button
+                            onClick={handleCreateListing}
+                            disabled={!selectedJob || isCreating}
+                            className={`w-full py-3 px-4 rounded-xl font-medium text-white transition-all ${isCreating
+                                ? 'bg-stone-400 cursor-wait'
+                                : selectedJob
+                                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/25'
+                                    : 'bg-stone-300 cursor-not-allowed'
+                                }`}
+                        >
+                            {isCreating ? 'Creating...' : 'Create eBay Listing'}
+                        </button>
+
+                        {createResult && (
+                            <div className={`mt-2 p-2 rounded-lg text-sm ${createResult.success
+                                ? 'bg-green-50 text-green-700 border border-green-200'
+                                : 'bg-red-50 text-red-700 border border-red-200'
+                                }`}>
+                                {createResult.message}
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
+        </div>
+
+        {/* Tools & Stats Section */}
+        <AnimatePresence mode="wait">
+            {!activeTool ? (
+                <motion.div
+                    key="tools-grid"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className={`${isMobile ? 'order-2 w-full' : 'col-span-4'} flex flex-col gap-6`}
+                >
+                    <div className="grid grid-cols-2 gap-3">
+                        <ToolCard
+                            icon={Camera}
+                            title="Photo Editor"
+                            description="Enhance"
+                            color="bg-blue-500"
+                            onClick={() => setActiveTool('photo-editor')}
+                        />
+                        <ToolCard
+                            icon={Search}
+                            title="Research"
+                            description="Prices"
+                            color="bg-emerald-500"
+                            onClick={() => setActiveTool('price-research')}
+                        />
+                        <ToolCard
+                            icon={LayoutTemplate}
+                            title="Templates"
+                            description="Presets"
+                            color="bg-purple-500"
+                            onClick={() => setActiveTool('templates')}
+                        />
+                        <ToolCard
+                            icon={Eye}
+                            title="Preview"
+                            description="Check"
+                            color="bg-orange-500"
+                            onClick={() => setActiveTool('preview')}
+                        />
+                        <ToolCard
+                            icon={Package}
+                            title="Inventory Sync"
+                            description="Listings"
+                            color="bg-indigo-500"
+                            onClick={() => setActiveTool('inventory')}
+                        />
+                    </div>
+
+                    <SalesWidget />
+                </motion.div>
+            ) : (
+                <motion.div
+                    key="tools-compact"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className={`${isMobile ? 'order-2 w-full' : 'col-span-4'} flex gap-2 overflow-x-auto pb-2 scrollbar-none`}
+                >
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setActiveTool(null)}
+                        className="shrink-0"
+                    >
+                        <ArrowLeft size={16} className="mr-1" /> Back
+                    </Button>
+                    {[
+                        { id: 'photo-editor', icon: Camera, label: 'Photos', color: 'bg-blue-500' },
+                        { id: 'price-research', icon: Search, label: 'Prices', color: 'bg-emerald-500' },
+                        { id: 'templates', icon: LayoutTemplate, label: 'Templates', color: 'bg-purple-500' },
+                        { id: 'preview', icon: Eye, label: 'Preview', color: 'bg-orange-500' },
+                        { id: 'inventory', icon: Package, label: 'Inventory Sync', color: 'bg-indigo-500' },
+                    ].map(tool => (
+                        <button
+                            key={tool.id}
+                            onClick={() => setActiveTool(tool.id as ActiveTool)}
+                            className={`p-2 rounded-lg border flex items-center justify-center gap-2 transition-all whitespace-nowrap px-3 ${activeTool === tool.id
+                                ? `${tool.color} text-white border-transparent`
+                                : 'bg-white border-stone-200 hover:bg-stone-50'
+                                }`}
+                        >
+                            <tool.icon size={16} />
+                            <span className="text-xs font-medium">{tool.label}</span>
+                        </button>
+                    ))}
+                </motion.div>
+            )}
+        </AnimatePresence>
+
+        {/* Active Tool Panel */}
+        <AnimatePresence>
+            {activeTool && (
+                <motion.div
+                    key="tool-panel"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 20 }}
+                    className={`${isMobile ? 'order-3 w-full' : 'col-span-12'}`}
+                >
+                    {activeTool === 'photo-editor' && (
+                        <PhotoEditor
+                            jobId={selectedJob?.id}
+                            onClose={() => setActiveTool(null)}
+                        />
+                    )}
+                    {activeTool === 'price-research' && (
+                        <PriceResearch
+                            jobId={selectedJob?.id}
+                            initialQuery={selectedJob?.name}
+                            onClose={() => setActiveTool(null)}
+                        />
+                    )}
+                    {activeTool === 'templates' && (
+                        <TemplateManager
+                            onClose={() => setActiveTool(null)}
+                        />
+                    )}
+                    {activeTool === 'preview' && (
+                        <PreviewPanel
+                            jobId={selectedJob?.id}
+                            onClose={() => setActiveTool(null)}
+                        />
+                    )}
+                    {activeTool === 'inventory' && (
+                        <ActiveListings
+                            onClose={() => setActiveTool(null)}
+                        />
+                    )}
+                </motion.div>
+            )}
+        </AnimatePresence>
+    </div>
+)
+
 export function Dashboard() {
     const [jobs, setJobs] = useState<Job[]>([])
     const [selectedJob, setSelectedJob] = useState<Job | null>(null)
@@ -167,251 +444,23 @@ export function Dashboard() {
         }
     }
 
-    // --- Components for Layouts ---
-
-    const DashboardContent = ({ isMobile = false }) => (
-        <div className={`grid ${isMobile ? 'grid-cols-1 flex flex-col' : 'grid-cols-12'} gap-6 mb-24`}>
-            {/* Hero Image Section */}
-            <div className={`${isMobile ? 'w-full order-1' : 'col-span-8'} bg-white rounded-3xl p-6 shadow-sm border border-stone-100 relative group overflow-hidden`}>
-                {!selectedJob ? (
-                    /* Show Upload Zone when no job selected */
-                    <div className="py-8">
-                        <h2 className="text-xl font-semibold text-stone-700 mb-4 text-center">Step 1: Add Photos</h2>
-                        <UploadZone onUploadComplete={() => { }} />
-                        <div className="flex flex-col items-center gap-4 mt-6">
-                            <div className="flex items-center gap-2 w-full max-w-xs">
-                                <div className="h-px bg-stone-100 flex-1" />
-                                <span className="text-[10px] uppercase font-bold text-stone-300">OR</span>
-                                <div className="h-px bg-stone-100 flex-1" />
-                            </div>
-                            <Button
-                                onClick={handleScan}
-                                disabled={isScanning}
-                                variant="outline"
-                                className="w-full max-w-xs h-12 rounded-xl border-dashed border-2 hover:border-blue-400 hover:bg-blue-50/50 transition-all group"
-                            >
-                                <Search className={`mr-2 group-hover:text-blue-500 ${isScanning ? 'animate-spin' : ''}`} size={18} />
-                                {isScanning ? 'Scanning Inbox...' : 'Scan "inbox" Folder'}
-                            </Button>
-                            {scanMessage && (
-                                <p className="text-xs font-medium text-blue-600 animate-in fade-in slide-in-from-top-1">
-                                    {scanMessage}
-                                </p>
-                            )}
-                            <p className="text-center text-stone-400 text-sm">Upload product photos or scan for folders you've prepared</p>
-                        </div>
-                    </div>
-                ) : (
-                    /* Show Image Preview */
-                    <>
-                        <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-lg backdrop-blur-sm">
-                                <Camera size={18} />
-                            </button>
-                        </div>
-
-                        <div className="h-64 rounded-2xl bg-stone-100 flex items-center justify-center mb-6 overflow-hidden relative">
-                            <div className="text-stone-300 flex flex-col items-center">
-                                <Image size={48} />
-                                <span className="text-sm font-medium mt-2">{selectedJob.name}</span>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1 block">
-                                    Title
-                                </label>
-                                <Input
-                                    placeholder="Item Title..."
-                                    value={selectedJob?.name || ''}
-                                    readOnly
-                                    className="bg-stone-50"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1 block">
-                                    Price
-                                </label>
-                                <Input
-                                    placeholder="$0.00"
-                                    className="bg-stone-50"
-                                    value={listingPrice}
-                                    onChange={(e) => setListingPrice(e.target.value)}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Shipping Selector */}
-                        <div className="mt-4">
-                            <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1 block">
-                                Shipping
-                            </label>
-                            <ShippingSelector
-                                value={selectedShipping || undefined}
-                                onChange={setSelectedShipping}
-                            />
-                        </div>
-
-                        {/* Create Listing Button */}
-                        <div className="mt-6">
-                            <button
-                                onClick={handleCreateListing}
-                                disabled={!selectedJob || isCreating}
-                                className={`w-full py-3 px-4 rounded-xl font-medium text-white transition-all ${isCreating
-                                    ? 'bg-stone-400 cursor-wait'
-                                    : selectedJob
-                                        ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/25'
-                                        : 'bg-stone-300 cursor-not-allowed'
-                                    }`}
-                            >
-                                {isCreating ? 'Creating...' : 'Create eBay Listing'}
-                            </button>
-
-                            {createResult && (
-                                <div className={`mt-2 p-2 rounded-lg text-sm ${createResult.success
-                                    ? 'bg-green-50 text-green-700 border border-green-200'
-                                    : 'bg-red-50 text-red-700 border border-red-200'
-                                    }`}>
-                                    {createResult.message}
-                                </div>
-                            )}
-                        </div>
-                    </>
-                )}
-            </div>
-
-            {/* Tools & Stats Section */}
-            <AnimatePresence mode="wait">
-                {!activeTool ? (
-                    <motion.div
-                        key="tools-grid"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className={`${isMobile ? 'order-2 w-full' : 'col-span-4'} flex flex-col gap-6`}
-                    >
-                        <div className="grid grid-cols-2 gap-3">
-                            <ToolCard
-                                icon={Camera}
-                                title="Photo Editor"
-                                description="Enhance"
-                                color="bg-blue-500"
-                                onClick={() => setActiveTool('photo-editor')}
-                            />
-                            <ToolCard
-                                icon={Search}
-                                title="Research"
-                                description="Prices"
-                                color="bg-emerald-500"
-                                onClick={() => setActiveTool('price-research')}
-                            />
-                            <ToolCard
-                                icon={LayoutTemplate}
-                                title="Templates"
-                                description="Presets"
-                                color="bg-purple-500"
-                                onClick={() => setActiveTool('templates')}
-                            />
-                            <ToolCard
-                                icon={Eye}
-                                title="Preview"
-                                description="Check"
-                                color="bg-orange-500"
-                                onClick={() => setActiveTool('preview')}
-                            />
-                            <ToolCard
-                                icon={Package}
-                                title="Inventory Sync"
-                                description="Listings"
-                                color="bg-indigo-500"
-                                onClick={() => setActiveTool('inventory')}
-                            />
-                        </div>
-
-                        <SalesWidget />
-                    </motion.div>
-                ) : (
-                    <motion.div
-                        key="tools-compact"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className={`${isMobile ? 'order-2 w-full' : 'col-span-4'} flex gap-2 overflow-x-auto pb-2 scrollbar-none`}
-                    >
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setActiveTool(null)}
-                            className="shrink-0"
-                        >
-                            <ArrowLeft size={16} className="mr-1" /> Back
-                        </Button>
-                        {[
-                            { id: 'photo-editor', icon: Camera, label: 'Photos', color: 'bg-blue-500' },
-                            { id: 'price-research', icon: Search, label: 'Prices', color: 'bg-emerald-500' },
-                            { id: 'templates', icon: LayoutTemplate, label: 'Templates', color: 'bg-purple-500' },
-                            { id: 'preview', icon: Eye, label: 'Preview', color: 'bg-orange-500' },
-                            { id: 'inventory', icon: Package, label: 'Inventory Sync', color: 'bg-indigo-500' },
-                        ].map(tool => (
-                            <button
-                                key={tool.id}
-                                onClick={() => setActiveTool(tool.id as ActiveTool)}
-                                className={`p-2 rounded-lg border flex items-center justify-center gap-2 transition-all whitespace-nowrap px-3 ${activeTool === tool.id
-                                    ? `${tool.color} text-white border-transparent`
-                                    : 'bg-white border-stone-200 hover:bg-stone-50'
-                                    }`}
-                            >
-                                <tool.icon size={16} />
-                                <span className="text-xs font-medium">{tool.label}</span>
-                            </button>
-                        ))}
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* Active Tool Panel */}
-            <AnimatePresence>
-                {activeTool && (
-                    <motion.div
-                        key="tool-panel"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 20 }}
-                        className={`${isMobile ? 'order-3 w-full' : 'col-span-12'}`}
-                    >
-                        {activeTool === 'photo-editor' && (
-                            <PhotoEditor
-                                jobId={selectedJob?.id}
-                                onClose={() => setActiveTool(null)}
-                            />
-                        )}
-                        {activeTool === 'price-research' && (
-                            <PriceResearch
-                                jobId={selectedJob?.id}
-                                initialQuery={selectedJob?.name}
-                                onClose={() => setActiveTool(null)}
-                            />
-                        )}
-                        {activeTool === 'templates' && (
-                            <TemplateManager
-                                onClose={() => setActiveTool(null)}
-                            />
-                        )}
-                        {activeTool === 'preview' && (
-                            <PreviewPanel
-                                jobId={selectedJob?.id}
-                                onClose={() => setActiveTool(null)}
-                            />
-                        )}
-                        {activeTool === 'inventory' && (
-                            <ActiveListings
-                                onClose={() => setActiveTool(null)}
-                            />
-                        )}
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
+    const renderContent = (isMobile: boolean) => (
+        <DashboardContent
+            isMobile={isMobile}
+            selectedJob={selectedJob}
+            listingPrice={listingPrice}
+            setListingPrice={setListingPrice}
+            selectedShipping={selectedShipping}
+            setSelectedShipping={setSelectedShipping}
+            isCreating={isCreating}
+            handleCreateListing={handleCreateListing}
+            createResult={createResult}
+            handleScan={handleScan}
+            isScanning={isScanning}
+            scanMessage={scanMessage}
+            activeTool={activeTool}
+            setActiveTool={setActiveTool}
+        />
     )
 
     return (
@@ -455,7 +504,7 @@ export function Dashboard() {
                     </div>
                 </header>
 
-                <DashboardContent isMobile={true} />
+                {renderContent(true)}
             </div>
 
             {/* Desktop Layout - Hidden on Mobile */}
@@ -497,7 +546,7 @@ export function Dashboard() {
                                 <StageProgress currentStage={currentStage} onStageClick={setCurrentStage} />
                             </div>
 
-                            <DashboardContent isMobile={false} />
+                            {renderContent(false)}
                         </div>
                     </ResizablePanel>
 

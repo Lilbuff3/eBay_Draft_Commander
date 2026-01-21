@@ -1,0 +1,5 @@
+{"timestamp": "2026-01-21T02:23:14.704015", "level": "INFO", "event": "\ud83d\udccb Log session started: queue_20260121_022314.log", "data": {}}
+{"timestamp": "2026-01-21T02:23:34.328851", "level": "INFO", "event": "\ud83d\ude80 Starting queue processing: 1 jobs", "data": {}}
+{"timestamp": "2026-01-21T02:23:34.475013", "level": "INFO", "event": "\u2699\ufe0f Processing: New folder", "data": {"job_id": "374E9965", "folder": "New folder"}}
+{"timestamp": "2026-01-21T02:24:22.953293", "level": "SUCCESS", "event": "\u2705 Completed: New folder \u2192 206013968505 (48.1s)", "data": {"job_id": "374E9965", "listing_id": "206013968505", "elapsed": 48.113791942596436}}
+{"timestamp": "2026-01-21T02:24:22.976315", "level": "INFO", "event": "\ud83c\udfc1 Queue complete: 6/8 succeeded, 2 failed", "data": {}}
