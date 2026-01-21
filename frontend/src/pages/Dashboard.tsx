@@ -303,7 +303,7 @@ export function Dashboard() {
                             />
                             <ToolCard
                                 icon={Package}
-                                title="Inventory"
+                                title="Inventory Sync"
                                 description="Listings"
                                 color="bg-indigo-500"
                                 onClick={() => setActiveTool('inventory')}
@@ -332,7 +332,7 @@ export function Dashboard() {
                             { id: 'price-research', icon: Search, label: 'Prices', color: 'bg-emerald-500' },
                             { id: 'templates', icon: LayoutTemplate, label: 'Templates', color: 'bg-purple-500' },
                             { id: 'preview', icon: Eye, label: 'Preview', color: 'bg-orange-500' },
-                            { id: 'inventory', icon: Package, label: 'Inventory', color: 'bg-indigo-500' },
+                            { id: 'inventory', icon: Package, label: 'Inventory Sync', color: 'bg-indigo-500' },
                         ].map(tool => (
                             <button
                                 key={tool.id}
@@ -409,7 +409,7 @@ export function Dashboard() {
             </div>
 
             {/* Mobile Layout */}
-            <div className="md:hidden w-full h-full overflow-y-auto bg-stone-50 p-4 pb-24">
+            <div className="md:hidden w-full h-full overflow-y-auto bg-stone-50 p-4 pb-36">
                 {/* Mobile Header */}
                 <header className="flex justify-between items-center mb-6">
                     <div>
@@ -511,9 +511,19 @@ export function Dashboard() {
                                     </AnimatePresence>
 
                                     {jobs.length === 0 && (
-                                        <div className="text-center py-10 text-stone-400 border-2 border-dashed border-stone-200 rounded-xl">
-                                            <Upload size={24} className="mx-auto mb-2 opacity-50" />
-                                            <p className="text-sm">Empty Queue</p>
+                                        <div className="text-center py-10 text-stone-400 border-2 border-dashed border-stone-200 rounded-xl flex flex-col items-center gap-2">
+                                            <Upload size={24} className="opacity-50" />
+                                            <p className="text-sm font-medium">Queue is Empty</p>
+                                            <p className="text-xs mb-2">Drag folders or scan inbox</p>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={handleScan}
+                                                disabled={isScanning}
+                                                className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                                            >
+                                                {isScanning ? 'Scanning...' : 'Scan Inbox'}
+                                            </Button>
                                         </div>
                                     )}
                                 </div>

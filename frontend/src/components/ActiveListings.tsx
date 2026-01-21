@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Package, RefreshCw, Edit2, ExternalLink, Check, X, AlertCircle, Power } from 'lucide-react'
+import { Package, RefreshCw, Edit2, ExternalLink, Check, X, AlertCircle, Power, Download } from 'lucide-react'
+import { MigrationModal } from './MigrationModal'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -36,6 +37,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [searchQuery, setSearchQuery] = useState('')
+    const [showMigration, setShowMigration] = useState(false)
 
     // Selection
     const [selectedSkus, setSelectedSkus] = useState<Set<string>>(new Set())
@@ -301,7 +303,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="bg-white rounded-3xl border border-stone-200 shadow-xl overflow-hidden flex flex-col h-[600px] w-full max-w-4xl mx-auto"
+            className="bg-white rounded-3xl border border-stone-200 shadow-xl overflow-hidden flex flex-col h-[75vh] w-full max-w-5xl mx-auto"
         >
             {/* Header */}
             <div className="px-6 py-4 border-b border-stone-100 bg-gradient-to-r from-blue-50 to-white flex items-center justify-between shrink-0">
@@ -333,6 +335,10 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setShowMigration(true)} className="gap-2 text-blue-600 bg-blue-50 border-blue-100 hover:bg-blue-100">
+                        <Download size={16} />
+                        Import
+                    </Button>
                     <Button variant="ghost" size="icon" onClick={fetchListings} disabled={isLoading}>
                         <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
                     </Button>
@@ -583,6 +589,20 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                 </span>
                 <span>eBay Inventory Sync</span>
             </div>
-        </motion.div>
+
+
+            <AnimatePresence>
+                {showMigration && (
+                    <MigrationModal
+                        onClose={() => setShowMigration(false)}
+                        onSuccess={() => {
+                            fetchListings()
+                            // Keep modal open to show status? Or close?
+                            // Let's keep it open so they see the success message in the modal
+                        }}
+                    />
+                )}
+            </AnimatePresence>
+        </motion.div >
     )
 }

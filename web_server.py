@@ -11,6 +11,8 @@ from flask import Flask, render_template, jsonify, request, send_file, send_from
 import requests
 import shutil
 import uuid
+import json
+import datetime
 from werkzeug.utils import secure_filename
 
 from logger import get_logger
@@ -1002,7 +1004,6 @@ class WebControlServer:
                         metadata['description_hint'] = description
                     
                     metadata_file = job_folder / 'metadata.json'
-                    import json
                     with open(metadata_file, 'w') as f:
                         json.dump(metadata, f, indent=2)
                 
@@ -1058,6 +1059,110 @@ class WebControlServer:
                 return jsonify({'success': False, 'error': f'Internal server error: {str(e)}'}), 500
 
         
+
+        # --- Migration Endpoints ---
+
+        @self.app.route('/api/migration/check')
+        def check_migration_eligibility():
+            """Fetch active listings from Trading API (Legacy) to find unmigrated items."""
+            try:
+                # 1. Fetch all active items from Trading API
+                legacy_items = self._fetch_legacy_listings()
+                
+                # 2. Fetch all current Inventory API items for deduplication
+                inventory_skus = set()
+                try:
+                    import requests
+                    from ebay_policies import _get_headers
+                    inv_res = requests.get(
+                        'https://api.ebay.com/sell/inventory/v1/inventory_item',
+                        headers=_get_headers(),
+                        params={'limit': 100}
+                    )
+                    if inv_res.status_code == 200:
+                        data = inv_res.json()
+                        for item in data.get('inventoryItems', []):
+                            inventory_skus.add(item.get('sku'))
+                except:
+                    pass 
+
+                # 3. Mark items already in inventory
+                results = []
+                for item in legacy_items:
+                    # Naive check: if SKU exists
+                    is_in_inventory = item['sku'] in inventory_skus if item.get('sku') else False
+                    results.append({
+                        **item,
+                        'inInventory': is_in_inventory
+                    })
+                    
+                return jsonify({'items': results, 'count': len(results)})
+                
+            except Exception as e:
+                self.logger.exception("Migration check failed")
+                return jsonify({'error': str(e)}), 500
+
+        @self.app.route('/api/migration/execute', methods=['POST'])
+        def execute_migration():
+            """
+            Migrate selected listing IDs to Inventory API
+            eBay Limit: 5 items per request. We must chunk it.
+            """
+            try:
+                from ebay_policies import _get_headers
+                import requests
+                
+                data = request.json
+                listing_ids = data.get('listingIds', [])
+                
+                if not listing_ids:
+                    return jsonify({'error': 'No listing IDs provided'}), 400
+                
+                url = 'https://api.ebay.com/sell/inventory/v1/bulk_migrate_listing'
+                headers = _get_headers()
+                
+                # Chunk into groups of 5
+                chunk_size = 5
+                all_responses = []
+                
+                # Simple sequential processing
+                for i in range(0, len(listing_ids), chunk_size):
+                    chunk = listing_ids[i:i + chunk_size]
+                    payload = {'requests': [{'listingId': lid} for lid in chunk]}
+                    
+                    try:
+                        res = requests.post(url, headers=headers, json=payload)
+                        if res.status_code == 200:
+                            # deeply merge responses
+                            json_res = res.json()
+                            if 'responses' in json_res:
+                                all_responses.extend(json_res['responses'])
+                        else:
+                            # Log error but continue other chunks? 
+                            # Better to record failure for this chunk
+                            self.logger.error(f"Migration chunk failed: {res.text}")
+                            # Add fake failure responses for this chunk
+                            for lid in chunk:
+                                all_responses.append({
+                                    'listingId': lid,
+                                    'statusCode': res.status_code,
+                                    'errors': [{'message': 'Batch request failed'}]
+                                })
+                    except Exception as e:
+                        self.logger.error(f"Migration chunk exception: {e}")
+                        for lid in chunk:
+                            all_responses.append({
+                                'listingId': lid,
+                                'statusCode': 500,
+                                'errors': [{'message': str(e)}]
+                            })
+
+                return jsonify({'responses': all_responses})
+                
+            except Exception as e:
+                self.logger.exception("Migration execution failed")
+                return jsonify({'error': str(e)}), 500
+
         @self.app.route('/api/status')
         def get_status():
             """Get current queue status"""
@@ -1113,8 +1218,8 @@ class WebControlServer:
                     'price': None,  # TODO: Store price in QueueJob
                     'error_type': job.error_type,
                     'error_message': job.error_message,
-                    'started_at': job.started_at,
-                    'completed_at': job.completed_at,
+                    'started_at': job.started_at.isoformat() if hasattr(job.started_at, 'isoformat') else job.started_at,
+                    'completed_at': job.completed_at.isoformat() if hasattr(job.completed_at, 'isoformat') else job.completed_at,
                 })
             return jsonify(jobs)
 
@@ -1122,7 +1227,7 @@ class WebControlServer:
         def scan_inbox():
             """Scan inbox folder and add new items to queue"""
             try:
-                inbox_path = self.queue_manager.base_path / 'inbox'
+                inbox_path = self.queue_manager.data_path / 'inbox'
                 if not inbox_path.exists():
                     inbox_path.mkdir(exist_ok=True)
                     
@@ -1245,7 +1350,7 @@ class WebControlServer:
                 return jsonify({'success': False, 'error': 'No files selected'}), 400
             
             # Create a unique folder in inbox
-            inbox_path = Path(__file__).parent / 'inbox'
+            inbox_path = self.queue_manager.data_path / 'inbox'
             inbox_path.mkdir(exist_ok=True)
             
             # Generate folder name from first file or use timestamp
@@ -1380,6 +1485,91 @@ class WebControlServer:
             print(f"Web server error: {e}")
             self._running = False
     
+    def _fetch_legacy_listings(self):
+        """
+        Helper: Call Trading API GetMyeBaySelling to get ActiveListings
+        Returns list of dicts: {title, listingId, price, sku, imageUrl}
+        """
+        from ebay_policies import load_env
+        import requests
+        import xml.etree.ElementTree as ET
+        
+        creds = load_env()
+        token = creds.get('EBAY_USER_TOKEN')
+        
+        # XML Request
+        xml_request = f"""<?xml version="1.0" encoding="utf-8"?>
+<GetMyeBaySellingRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+  <RequesterCredentials>
+    <eBayAuthToken>{token}</eBayAuthToken>
+  </RequesterCredentials>
+  <ActiveList>
+    <Include>true</Include>
+    <Pagination>
+      <EntriesPerPage>100</EntriesPerPage>
+      <PageNumber>1</PageNumber>
+    </Pagination>
+  </ActiveList>
+  <DetailLevel>ReturnAll</DetailLevel>
+</GetMyeBaySellingRequest>"""
+        
+        headers = {
+            'X-EBAY-API-SITEID': '0',
+            'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
+            'X-EBAY-API-CALL-NAME': 'GetMyeBaySelling',
+            'Content-Type': 'text/xml'
+        }
+        
+        api_url = 'https://api.ebay.com/ws/api.dll'
+        if creds.get('EBAY_ENVIRONMENT') == 'sandbox':
+                api_url = 'https://api.sandbox.ebay.com/ws/api.dll'
+                
+        response = requests.post(api_url, data=xml_request, headers=headers)
+        
+        if response.status_code != 200:
+            raise Exception(f"Trading API Error: {response.status_code}")
+            
+        # Parse XML
+        root = ET.fromstring(response.content)
+        
+        # Check for errors
+        ack = root.find('.//{urn:ebay:apis:eBLBaseComponents}Ack')
+        if ack is not None and ack.text == 'Failure':
+                err = root.find('.//{urn:ebay:apis:eBLBaseComponents}LongMessage')
+                msg = err.text if err is not None else "Unknown eBay Error"
+                raise Exception(msg)
+        
+        items = []
+        ns = {'e': 'urn:ebay:apis:eBLBaseComponents'}
+        
+        # Find ActiveList -> ItemArray -> Item
+        active_list = root.find('.//e:ActiveList', ns)
+        if active_list:
+            item_array = active_list.find('e:ItemArray', ns)
+            if item_array:
+                for item in item_array.findall('e:Item', ns):
+                    listing_id = item.find('e:ItemID', ns).text
+                    title = item.find('e:Title', ns).text
+                    
+                    price_node = item.find('e:SellingStatus/e:CurrentPrice', ns)
+                    price = float(price_node.text) if price_node is not None else 0.0
+                    
+                    sku_node = item.find('e:SKU', ns)
+                    sku = sku_node.text if sku_node is not None else None
+                    
+                    img_node = item.find('e:PictureDetails/e:GalleryURL', ns)
+                    image_url = img_node.text if img_node is not None else None
+                    
+                    items.append({
+                        'listingId': listing_id,
+                        'title': title,
+                        'price': price,
+                        'sku': sku,
+                        'imageUrl': image_url
+                    })
+        
+        return items
+
     def stop(self):
         """Stop the web server"""
         self._running = False

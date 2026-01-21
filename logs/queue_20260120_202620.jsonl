@@ -1,0 +1,13 @@
+{"timestamp": "2026-01-20T20:26:20.153240", "level": "INFO", "event": "\ud83d\udccb Log session started: queue_20260120_202620.log", "data": {}}
+{"timestamp": "2026-01-20T20:42:29.302343", "level": "INFO", "event": "\ud83d\ude80 Starting queue processing: 5 jobs", "data": {}}
+{"timestamp": "2026-01-20T20:42:29.310933", "level": "INFO", "event": "\u2699\ufe0f Processing: card", "data": {"job_id": "9709772C", "folder": "card"}}
+{"timestamp": "2026-01-20T20:43:49.807384", "level": "SUCCESS", "event": "\u2705 Completed: card \u2192 206013445457 (80.0s)", "data": {"job_id": "9709772C", "listing_id": "206013445457", "elapsed": 79.96753120422363}}
+{"timestamp": "2026-01-20T20:43:50.249190", "level": "INFO", "event": "\u2699\ufe0f Processing: mobile_20260119_195211_18eb77", "data": {"job_id": "5A3BD3F7", "folder": "mobile_20260119_195211_18eb77"}}
+{"timestamp": "2026-01-20T20:44:22.649304", "level": "SUCCESS", "event": "\u2705 Completed: mobile_20260119_195211_18eb77 \u2192 206013445787 (32.0s)", "data": {"job_id": "5A3BD3F7", "listing_id": "206013445787", "elapsed": 31.959980726242065}}
+{"timestamp": "2026-01-20T20:44:22.982077", "level": "INFO", "event": "\u2699\ufe0f Processing: mobile_20260120_033543_2c04d6", "data": {"job_id": "B79C38FB", "folder": "mobile_20260120_033543_2c04d6"}}
+{"timestamp": "2026-01-20T20:45:27.345937", "level": "SUCCESS", "event": "\u2705 Completed: mobile_20260120_033543_2c04d6 \u2192 206013446559 (64.0s)", "data": {"job_id": "B79C38FB", "listing_id": "206013446559", "elapsed": 64.03132891654968}}
+{"timestamp": "2026-01-20T20:45:27.582595", "level": "INFO", "event": "\u2699\ufe0f Processing: upload_879c2d", "data": {"job_id": "DE8461FC", "folder": "upload_879c2d"}}
+{"timestamp": "2026-01-20T20:46:15.114387", "level": "SUCCESS", "event": "\u2705 Completed: upload_879c2d \u2192 206013446967 (47.5s)", "data": {"job_id": "DE8461FC", "listing_id": "206013446967", "elapsed": 47.52011752128601}}
+{"timestamp": "2026-01-20T20:46:15.234618", "level": "INFO", "event": "\u2699\ufe0f Processing: yonex", "data": {"job_id": "BD496DD0", "folder": "yonex"}}
+{"timestamp": "2026-01-20T20:47:12.296944", "level": "SUCCESS", "event": "\u2705 Completed: yonex \u2192 206013447396 (56.9s)", "data": {"job_id": "BD496DD0", "listing_id": "206013447396", "elapsed": 56.94737458229065}}
+{"timestamp": "2026-01-20T20:47:12.325415", "level": "INFO", "event": "\ud83c\udfc1 Queue complete: 5/5 succeeded, 0 failed", "data": {}}
