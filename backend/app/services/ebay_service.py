@@ -19,7 +19,8 @@ class eBayService:
     """
 
     def __init__(self):
-        self.trading_service = TradingService()
+        # self.trading_service = TradingService() # Deprecated
+        self.inventory_service = InventoryService()
         self.inventory_service = InventoryService()
         # Pass a lambda to resolve circular dependency for active count
         self.analytics_service = AnalyticsService(
@@ -69,18 +70,10 @@ class eBayService:
 
     def get_active_listings(self):
         """
-        Fetch active listings using Hybrid Strategy:
-        1. Try TradingService (XML) first.
-        2. Fallback to InventoryService (REST).
+        Fetch active listings using Inventory API (REST).
+        Compliance Note: Legacy Trading API fallback has been removed for 2026 alignment.
         """
-        # 1. Try Trading API
-        trading_result, trading_status = self.trading_service.get_active_listings_light()
-        if trading_status == 200:
-            return trading_result, 200
-            
-        logger.warning(f"Trading API failed ({trading_status}), falling back to Inventory API")
-        
-        # 2. Fallback to Inventory API
+        # Exclusively use Inventory API (Sell Feed / Inventory Items)
         return self.inventory_service.get_inventory_items()
 
     # --- Delegated Methods ---
@@ -114,3 +107,5 @@ class eBayService:
              if 'revenue' not in result:
                  result['revenue'] = sum(o['total'] for o in result['orders'])
         return result, status
+    def update_inventory_item(self, sku, update_data):
+        return self.inventory_service.update_inventory_item(sku, update_data)

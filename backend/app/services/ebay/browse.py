@@ -37,7 +37,16 @@ class eBayBrowseAPI:
     
     def load_credentials(self):
         """Load API credentials from .env file"""
-        env_path = Path(__file__).resolve().parents[4] / ".env"
+        # Robust .env lookup
+        current_path = Path(__file__).resolve()
+        env_path = None
+        for parent in [current_path] + list(current_path.parents):
+            check_path = parent / ".env"
+            if check_path.exists():
+                env_path = check_path
+                break
+        if not env_path:
+             env_path = Path.cwd() / ".env"
         
         if not env_path.exists():
             raise FileNotFoundError(f"No .env file found at {env_path}")

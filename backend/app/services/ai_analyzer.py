@@ -19,11 +19,21 @@ class AIAnalyzer:
     
     def __init__(self):
         """Initialize the Gemini client"""
-        env_path = Path(__file__).resolve().parents[3] / ".env"
+        # Robust .env lookup
+        current_path = Path(__file__).resolve()
+        env_path = None
+        for parent in [current_path] + list(current_path.parents):
+            check_path = parent / ".env"
+            if check_path.exists():
+                env_path = check_path
+                break
+        if not env_path:
+             env_path = Path.cwd() / ".env"
+        
         api_key = None
         
         # Load API key custom
-        if env_path.exists():
+        if env_path and env_path.exists():
             with open(env_path, 'r') as f:
                 for line in f:
                     if line.strip().startswith('GOOGLE_API_KEY='):
@@ -217,8 +227,9 @@ INSTRUCTIONS FOR 'description' FIELD (HTML_STRING):
                 ]
             )
 
-            # Use a stable model name
-            model_name = 'gemini-2.0-flash'
+            # Use Pro model for high-fidelity vision as requested
+            model_name = 'gemini-1.5-pro'
+            print(f"🧠 Using AI Model: {model_name}")
             
             response = self.client.models.generate_content(
                 model=model_name,

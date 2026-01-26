@@ -182,7 +182,7 @@ export function Dashboard(props: DashboardProps) {
     const { selectedJob, jobs, setSelectedJob, queueStats, isProcessing, ebayStatus, handleScan, isScanning, scanMessage } = props
 
     // Local UI State for "Create Listing" flow
-    const [currentStage, setCurrentStage] = useState(WorkflowStage.EDIT)
+    const [currentStage, setCurrentStage] = useState(WorkflowStage.IMPORT)
     const [selectedShipping, setSelectedShipping] = useState<string | null>(null)
     const [listingPrice, setListingPrice] = useState<string>('29.99')
     const [isCreating, setIsCreating] = useState(false)

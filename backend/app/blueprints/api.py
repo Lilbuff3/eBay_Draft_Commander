@@ -137,6 +137,30 @@ def create_listing_from_photos():
         print(f"Error in create-from-photos: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+# --- Scanner Endpoint ---
+
+@api_bp.route('/scan', methods=['POST'])
+def scan_inbox_endpoint():
+    """Trigger scan of inbox directory"""
+    try:
+        from backend.app.services.scanner_service import ScannerService
+        
+        # Use config INBOX_DIR or fallback
+        inbox_dir = current_app.config.get('INBOX_DIR')
+        if not inbox_dir:
+            # Fallback (should be set in config)
+            inbox_dir = Path(current_app.root_path).parent.parent / 'inbox'
+            
+        scanner = ScannerService(inbox_dir)
+        qm = current_app.queue_manager
+        
+        result = scanner.scan_inbox(qm)
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 # --- eBay Connection Status ---
 
 @api_bp.route('/ebay/status')
@@ -303,17 +327,40 @@ def get_listing_details(sku):
 
 @api_bp.route('/listings/<sku>', methods=['PUT', 'POST'])
 def update_listing(sku):
-    """Update listing price and quantity (Wrapper for bulk update)"""
+    """
+    Update listing details (Title, Description, Price, Qty).
+    Coordinatess updates to both Inventory Item (Product) and Offer.
+    """
     try:
         data = request.json
-        updates = [{
-            'sku': sku,
-            'offerId': data.get('offerId'),
-            'price': data.get('price'),
-            'quantity': data.get('quantity')
-        }]
-        result, status = ebay_service.bulk_update(updates)
-        return jsonify(result), status
+        results = {}
+        
+        # 1. Update Product Details (Title, Description) if provided
+        if 'title' in data or 'description' in data:
+            item_updates = {}
+            if 'title' in data: item_updates['title'] = data['title']
+            if 'description' in data: item_updates['description'] = data['description']
+            
+            res, status = ebay_service.update_inventory_item(sku, item_updates)
+            if status not in [200, 204]:
+                return jsonify({'error': 'Failed to update item details', 'details': res}), status
+            results['item_update'] = 'success'
+
+        # 2. Update Offer Details (Price, Quantity) if provided
+        if 'price' in data or 'quantity' in data:
+            updates = [{
+                'sku': sku,
+                'offerId': data.get('offerId'),
+                'price': data.get('price'),
+                'quantity': data.get('quantity')
+            }]
+            res, status = ebay_service.bulk_update(updates)
+            if status not in [200, 204]:
+                return jsonify({'error': 'Failed to update price/qty', 'details': res}), status
+            results['offer_update'] = 'success'
+            
+        return jsonify({'success': True, 'results': results}), 200
+        
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

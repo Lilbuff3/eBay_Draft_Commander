@@ -343,39 +343,34 @@ class PricingEngine:
                 "research_link": research_link
             }
         
-        # Try Gemini 3 Grounding if market data fails or as enhancement
-        if not sold_items:
-            print(f"🔍 Performing AI Market Research (Gemini 3 Grounding)...")
-            grounded_price = self.get_ai_price_estimate(title, condition)
-            if grounded_price:
-                print(f"   🌐 AI Research Price: ${grounded_price:.2f}")
-                return {
-                    "suggested_price": grounded_price,
-                    "comps": [],
-                    "reasoning": "Researched via Gemini 3 with Google Search grounding",
-                    "source": "ai_grounded_research",
-                    "research_link": research_link
-                }
+        # Try Gemini 3 Grounding (Mandatory if no comps)
+        print(f"🔍 Performing AI Market Research (Gemini 3 Grounding)...")
+        grounded_price = self.get_ai_price_estimate(title, condition)
         
-        # Fallback to AI suggestion from analyzer (image-based)
+        if grounded_price:
+            print(f"   🌐 AI Research Price: ${grounded_price:.2f}")
+            return {
+                "suggested_price": grounded_price,
+                "comps": [],
+                "reasoning": "Researched via Gemini 3 with Google Search grounding",
+                "source": "ai_grounded_research",
+                "research_link": research_link
+            }
+        
+        # Fallback to AI suggestion from analyzer (image-based) ONLY if valid
         if ai_suggested_price:
             print(f"   💡 Using AI image estimate: ${ai_suggested_price}")
             return {
                 "suggested_price": float(ai_suggested_price),
                 "comps": [],
-                "reasoning": "Based on AI image analysis (no market data found)",
+                "reasoning": "Based on AI image analysis",
                 "source": "ai_estimate",
                 "research_link": research_link
             }
-        
-        print("   ⚠️ No pricing data available")
-        return {
-            "suggested_price": None,
-            "comps": [],
-            "reasoning": "No comparable sales found and AI research failed",
-            "source": "none",
-            "research_link": research_link
-        }
+            
+        # CRITICAL FAIL - No Price Found
+        # User requested to NEVER return default.
+        raise Exception("Pricing Engine Failed: Could not find market price via API or Web Search.")
 
 
 # Test the pricing engine

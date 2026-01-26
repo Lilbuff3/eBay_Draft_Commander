@@ -26,6 +26,17 @@ class InventoryService:
                 )
             
             if response.status_code != 200:
+                # GRACEFUL FALLBACK: If 401 (Unauthorized) persists, return empty list (Offline Mode)
+                # This allow the UI to load existing local features without crashing.
+                if response.status_code == 401:
+                    logger.warning("eBay API Unauthorized - Returning Empty Inventory (Offline Mode)")
+                    return {
+                        'listings': [],
+                        'total': 0,
+                        'source': 'Offline Mode (Auth Failed)',
+                        'status': 'offline' 
+                    }, 200
+                
                 return {'error': f'eBay API error: {response.status_code}'}, 502
 
             data = response.json()
@@ -48,6 +59,22 @@ class InventoryService:
                     'status': 'Active' if item.get('condition') else 'Draft',
                     'condition': item.get('condition', 'USED_EXCELLENT')
                 })
+
+            # FALLBACK: If Inventory API returns 0 items, try Legacy Trading API
+            if not items:
+                logger.info("Inventory API return 0 items. Attempting Legacy Trading API fallback...")
+                try:
+                    from backend.app.services.ebay.trading import TradingService
+                    trading_service = TradingService()
+                    legacy_data, status = trading_service.get_active_listings_light()
+                    
+                    if status == 200:
+                         logger.info(f"Legacy Trading API found {len(legacy_data.get('listings', []))} items")
+                         return legacy_data, 200
+                    else:
+                         logger.warning(f"Legacy Trading API failed or found 0 items: {status}")
+                except Exception as e:
+                    logger.error(f"Legacy Trading API Fallback Error: {e}")
             
             return {
                 'listings': items,
@@ -57,11 +84,39 @@ class InventoryService:
             
         except Exception as e:
             logger.exception("Inventory API Error")
+            # Return empty on crash too? Maybe safer for now to be explicit about errors
+            # But user wants "tool to work". Let's stick to catching the specific 401 for now.
+            return {'error': str(e)}, 500
+
+    def get_offer(self, offer_id):
+        """Fetch details for a specific Offer ID"""
+        try:
+            INVENTORY_URL = 'https://api.ebay.com/sell/inventory/v1'
+            response = requests.get(
+                f'{INVENTORY_URL}/offer/{offer_id}',
+                headers=_get_headers(),
+                timeout=10
+            )
+            
+            if response.status_code in [401, 500] and _refresh_token_if_needed(response):
+                response = requests.get(
+                    f'{INVENTORY_URL}/offer/{offer_id}',
+                    headers=_get_headers(),
+                    timeout=10
+                )
+            
+            if response.status_code == 200:
+                return response.json(), 200
+            
+            return {'error': f'eBay Offer Error: {response.text}'}, response.status_code
+            
+        except Exception as e:
             return {'error': str(e)}, 500
 
     def get_listing_details(self, sku):
-        """Fetch details for a single SKU"""
+        """Fetch details for a single SKU (Offer + Product Description)"""
         try:
+            # 1. Fetch Offer (Price, Qty, ListingId)
             INVENTORY_URL = 'https://api.ebay.com/sell/inventory/v1'
             response = requests.get(
                 f'{INVENTORY_URL}/offer',
@@ -70,33 +125,43 @@ class InventoryService:
                 timeout=10
             )
             
-            if response.status_code in [401, 500]:
-                if _refresh_token_if_needed(response):
-                    response = requests.get(
-                        f'{INVENTORY_URL}/offer',
-                        headers=_get_headers(),
-                        params={'sku': sku},
-                        timeout=10
-                    )
+            if response.status_code in [401, 500] and _refresh_token_if_needed(response):
+                response = requests.get(
+                    f'{INVENTORY_URL}/offer',
+                    headers=_get_headers(),
+                    params={'sku': sku},
+                    timeout=10
+                )
             
+            result_data = {}
             if response.status_code == 200:
                 data = response.json()
                 offers = data.get('offers', [])
                 if offers:
                     offer = offers[0]
                     price_obj = offer.get('pricingSummary', {}).get('price', {})
-                    return {
+                    result_data = {
                         'price': float(price_obj.get('value', 0)),
                         'currency': price_obj.get('currency', 'USD'),
                         'quantity': offer.get('availableQuantity', 0),
                         'offerId': offer.get('offerId'),
                         'listingId': offer.get('listingId'),
                         'status': offer.get('status')
-                    }, 200
+                    }
                 else:
                     return {'error': 'No offer found for SKU'}, 404
             else:
-                return {'error': f'eBay API error: {response.status_code}'}, 502
+                return {'error': f'eBay API error (Offer): {response.status_code}'}, 502
+
+            # 2. Fetch Inventory Item (Title, Description)
+            item_data, item_status = self.get_inventory_item(sku)
+            if item_status == 200:
+                product = item_data.get('product', {})
+                result_data['title'] = product.get('title')
+                result_data['description'] = product.get('description')
+                # Add images if we want them later
+            
+            return result_data, 200
                 
         except Exception as e:
             return {'error': str(e)}, 500
@@ -221,3 +286,132 @@ class InventoryService:
             'failed': len(results['failed']),
             'details': results
         }, 200
+    def get_inventory_item(self, sku):
+        """Fetch single inventory item raw data"""
+        try:
+            INVENTORY_URL = 'https://api.ebay.com/sell/inventory/v1'
+            response = requests.get(
+                f'{INVENTORY_URL}/inventory_item/{sku}',
+                headers=_get_headers()
+            )
+            
+            if response.status_code in [401, 500] and _refresh_token_if_needed(response):
+                response = requests.get(
+                    f'{INVENTORY_URL}/inventory_item/{sku}',
+                    headers=_get_headers()
+                )
+                
+            if response.status_code == 200:
+                return response.json(), 200
+            return {'error': f'eBay API error: {response.status_code}', 'details': response.text}, response.status_code
+            
+        except Exception as e:
+            logger.exception(f"Error fetching inventory item {sku}")
+            return {'error': str(e)}, 500
+
+    def update_inventory_item(self, sku, update_data):
+        """
+        Update inventory item details (Title, Description).
+        This performs a GET -> MERGE -> PUT to ensure we don't wipe existing data.
+        """
+        # 1. Fetch existing
+        current_data, status = self.get_inventory_item(sku)
+        if status != 200:
+            return current_data, status
+            
+        # 2. Merge updates
+        product = current_data.get('product', {})
+        
+        if 'title' in update_data:
+            product['title'] = update_data['title']
+        if 'description' in update_data:
+            product['description'] = update_data['description']
+        # Add other product fields here if needed (images, aspects)
+        
+        current_data['product'] = product
+        
+        # 3. PUT update
+        INVENTORY_URL = 'https://api.ebay.com/sell/inventory/v1'
+        try:
+            response = requests.put(
+                f'{INVENTORY_URL}/inventory_item/{sku}',
+                headers=_get_headers(),
+                json=current_data
+            )
+            
+            if response.status_code in [401, 500] and _refresh_token_if_needed(response):
+                response = requests.put(
+                    f'{INVENTORY_URL}/inventory_item/{sku}',
+                    headers=_get_headers(),
+                    json=current_data
+                )
+                
+            if response.status_code in [200, 204]:
+                return {'success': True}, 200
+            
+            return {'error': f'Update failed: {response.status_code}', 'details': response.text}, response.status_code
+            
+        except Exception as e:
+            logger.exception(f"Error updating inventory item {sku}")
+            return {'error': str(e)}, 500
+
+    def create_inventory_item(self, sku, item_data):
+        """
+        Create or Replace an Inventory Item record.
+        PUT /sell/inventory/v1/inventory_item/{sku}
+        """
+        INVENTORY_URL = 'https://api.ebay.com/sell/inventory/v1'
+        try:
+            logger.info(f"Creating Inventory Item: {sku}")
+            response = requests.put(
+                f'{INVENTORY_URL}/inventory_item/{sku}',
+                headers=_get_headers(),
+                json=item_data
+            )
+            
+            if response.status_code in [401, 500] and _refresh_token_if_needed(response):
+                response = requests.put(
+                    f'{INVENTORY_URL}/inventory_item/{sku}',
+                    headers=_get_headers(),
+                    json=item_data
+                )
+                
+            if response.status_code in [200, 204]:
+                return {'success': True}, 200
+            
+            return {'error': f'Create Item Failed: {response.status_code}', 'details': response.text}, response.status_code
+            
+        except Exception as e:
+            logger.exception(f"Error creating inventory item {sku}")
+            return {'error': str(e)}, 500
+
+    def create_offer(self, offer_data):
+        """
+        Create an Offer for an Inventory Item.
+        POST /sell/inventory/v1/offer
+        """
+        INVENTORY_URL = 'https://api.ebay.com/sell/inventory/v1'
+        try:
+            logger.info(f"Creating Offer for SKU: {offer_data.get('sku')}")
+            response = requests.post(
+                f'{INVENTORY_URL}/offer',
+                headers=_get_headers(),
+                json=offer_data
+            )
+            
+            if response.status_code in [401, 500] and _refresh_token_if_needed(response):
+                response = requests.post(
+                    f'{INVENTORY_URL}/offer',
+                    headers=_get_headers(),
+                    json=offer_data
+                )
+                
+            if response.status_code in [200, 201]:
+                result = response.json()
+                return {'success': True, 'offerId': result.get('offerId')}, 200
+            
+            return {'error': f'Create Offer Failed: {response.status_code}', 'details': response.text}, response.status_code
+            
+        except Exception as e:
+            logger.exception("Error creating offer")
+            return {'error': str(e)}, 500

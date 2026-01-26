@@ -10,6 +10,13 @@ except ImportError:
     HAS_PIL = False
     logger.warning("Pillow not installed. Photo editing disabled.")
 
+try:
+    from rembg import remove
+    HAS_REMBG = True
+except ImportError:
+    HAS_REMBG = False
+    logger.warning("rembg not installed. Auto-background removal disabled.")
+
 class ImageService:
     """Service for handling image operations"""
 
@@ -66,12 +73,26 @@ class ImageService:
             target_image = sorted(image_files)[0]
             
             with Image.open(target_image) as img:
-                # Rotation
+                # 1. Background Removal (Should be first)
+                if edits.get('remove_background'):
+                    if HAS_REMBG:
+                        # Convert to RGBA for transparency
+                        img = img.convert("RGBA")
+                        img = remove(img)
+                        # Fill background with white instead of leaving transparent 
+                        # (eBay prefers white backgrounds)
+                        new_img = Image.new("RGBA", img.size, "WHITE")
+                        new_img.paste(img, (0, 0), img)
+                        img = new_img.convert("RGB")
+                    else:
+                        logger.warning("Background removal requested but rembg not available.")
+
+                # 2. Rotation
                 rotation = edits.get('rotation', 0)
                 if rotation:
                     img = img.rotate(-rotation, expand=True)
                 
-                # Crop
+                # 3. Crop
                 crop = edits.get('crop')
                 if crop:
                     w, h = img.size
@@ -79,7 +100,7 @@ class ImageService:
                     top = crop['y'] * h / 100
                     img = img.crop((left, top, left + (crop['width'] * w / 100), top + (crop['height'] * h / 100)))
 
-                # Adjustments
+                # 4. Adjustments
                 adj = edits.get('adjustments', {})
                 if adj:
                     if 'brightness' in adj:

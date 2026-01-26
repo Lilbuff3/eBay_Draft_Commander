@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Package, RefreshCw, AlertCircle, Download } from 'lucide-react'
+import { Package, RefreshCw, AlertCircle, Download, Edit } from 'lucide-react'
 import { MigrationModal } from './MigrationModal'
+import { EditListingDialog } from './listings/EditListingDialog'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
@@ -43,7 +44,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
     const [fetchingSkus, setFetchingSkus] = useState<Set<string>>(new Set())
 
     // Edit State
-    const [editingSku, setEditingSku] = useState<string | null>(null)
+    const [editingListing, setEditingListing] = useState<Listing | null>(null)
 
     // Bulk Action State
     const [isBulkActing, setIsBulkActing] = useState(false)
@@ -80,10 +81,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
         fetchListings()
     }, [])
 
-    const handleSave = async (sku: string, newQty: number, newPrice: number) => {
-        const item = data?.listings.find(l => l.sku === sku)
-        if (!item) return
-
+    const handleSave = async (sku: string, updates: any) => {
         // Optimistic update
         const previousData = data
         if (data) {
@@ -91,8 +89,9 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                 ...data,
                 listings: data.listings.map(l => l.sku === sku ? {
                     ...l,
-                    availableQuantity: newQty,
-                    price: newPrice
+                    title: updates.title || l.title,
+                    availableQuantity: updates.quantity || l.availableQuantity,
+                    price: updates.price || l.price
                 } : l)
             })
         }
@@ -101,21 +100,21 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
             const res = await fetch(`/api/listings/${sku}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    offerId: item.offerId,
-                    quantity: newQty,
-                    price: newPrice
-                })
+                body: JSON.stringify(updates)
             })
 
-            if (!res.ok) throw new Error('Update failed')
+            if (!res.ok) {
+                const err = await res.json()
+                throw new Error(err.error || 'Update failed')
+            }
 
-            setEditingSku(null)
+            setEditingListing(null)
         } catch (e) {
             console.error(e)
             // Revert on error
             setData(previousData)
-            alert("Failed to update listing")
+            alert(`Failed to update listing: ${e instanceof Error ? e.message : 'Unknown error'}`)
+            throw e // Rethrow so dialog knows it failed
         }
     }
 
@@ -304,13 +303,14 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                                     key={listing.sku}
                                     listing={listing}
                                     isSelected={selectedSkus.has(listing.sku)}
-                                    isEditing={editingSku === listing.sku}
+                                    // Use editingListing state instead of editingSku
+                                    isEditing={false}
                                     filterStatus={filterStatus}
                                     isFetching={fetchingSkus.has(listing.sku)}
                                     onToggleSelect={toggleSelect}
-                                    onEditStart={(l) => setEditingSku(l.sku)}
-                                    onEditCancel={() => setEditingSku(null)}
-                                    onSave={handleSave}
+                                    onEditStart={(l) => setEditingListing(l)}
+                                    onEditCancel={() => setEditingListing(null)}
+                                    onSave={(sku, qty, price) => handleSave(sku, { quantity: qty, price })}
                                     onRefreshPrice={refreshPrice}
                                     onRelist={handleRelist}
                                 />
@@ -339,6 +339,16 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                     />
                 )}
             </AnimatePresence>
+
+            {/* Edit DIALOG */}
+            {editingListing && (
+                <EditListingDialog
+                    listing={editingListing}
+                    isOpen={!!editingListing}
+                    onClose={() => setEditingListing(null)}
+                    onSave={handleSave}
+                />
+            )}
         </motion.div >
     )
 }

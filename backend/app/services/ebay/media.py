@@ -7,7 +7,16 @@ import json
 from pathlib import Path
 
 def load_env():
-    env_path = Path(__file__).parent / ".env"
+    # Robust .env lookup
+    current_path = Path(__file__).resolve()
+    env_path = None
+    for parent in [current_path] + list(current_path.parents):
+        check_path = parent / ".env"
+        if check_path.exists():
+            env_path = check_path
+            break
+    if not env_path:
+         env_path = Path.cwd() / ".env"
     credentials = {}
     with open(env_path, 'r') as f:
         for line in f:

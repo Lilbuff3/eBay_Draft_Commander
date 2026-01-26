@@ -33,7 +33,16 @@ class eBayOAuth:
     ]
     
     def __init__(self, use_sandbox=False):
-        self.env_path = Path(__file__).resolve().parents[4] / ".env"
+        # Robust .env lookup
+        current_path = Path(__file__).resolve()
+        self.env_path = None
+        for parent in [current_path] + list(current_path.parents):
+            check_path = parent / ".env"
+            if check_path.exists():
+                self.env_path = check_path
+                break
+        if not self.env_path:
+             self.env_path = Path.cwd() / ".env"
         self.load_credentials()
         
         self.use_sandbox = use_sandbox

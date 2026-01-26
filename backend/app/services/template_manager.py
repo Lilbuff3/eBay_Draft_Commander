@@ -1,262 +1,182 @@
 """
 Listing Template Manager for eBay Draft Commander Pro
-Save and load reusable listing configurations
+Now powered by SQLite database.
 """
 import json
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict
-
+from backend.app.core.database import init_db, TemplateModel
 
 class ListingTemplate:
-    """Represents a saved listing template"""
-    
-    def __init__(self, name: str, data: dict):
+    """Represents a saved listing template (Data Wrapper)"""
+    def __init__(self, name: str, data: dict, created_at=None, updated_at=None, use_count=0):
         self.name = name
         self.data = data
-        self.created_at = data.get('_created_at', datetime.now().isoformat())
-        self.updated_at = data.get('_updated_at', datetime.now().isoformat())
-        self.use_count = data.get('_use_count', 0)
+        self.created_at = created_at or datetime.utcnow().isoformat()
+        self.updated_at = updated_at or datetime.utcnow().isoformat()
+        self.use_count = use_count
     
     def to_dict(self) -> dict:
-        """Convert template to dictionary for saving"""
         result = self.data.copy()
         result['_name'] = self.name
         result['_created_at'] = self.created_at
         result['_updated_at'] = self.updated_at
         result['_use_count'] = self.use_count
         return result
-    
-    @classmethod
-    def from_dict(cls, data: dict) -> 'ListingTemplate':
-        """Create template from saved dictionary"""
-        name = data.pop('_name', 'Unnamed')
-        return cls(name, data)
-
 
 class TemplateManager:
-    """Manages listing templates"""
+    """Manages listing templates using SQLAlchemy"""
     
-    def __init__(self, templates_dir: Optional[Path] = None):
-        """
-        Initialize the template manager
-        
-        Args:
-            templates_dir: Directory to store templates. Defaults to 'templates' in app dir.
-        """
-        if templates_dir is None:
-            templates_dir = Path(__file__).parent / "data" / "templates"
-        
-        self.templates_dir = Path(templates_dir)
-        self.templates_dir.mkdir(parents=True, exist_ok=True)
+    def __init__(self, db_path: Optional[Path] = None):
+        if db_path is None:
+            # Assume standard data location
+            db_path = Path(__file__).parent.parent.parent.parent / "data" / "commander.db"
+            
+        self.SessionFactory = init_db(db_path)
+        self.TemplateModel = TemplateModel
         self._templates: Dict[str, ListingTemplate] = {}
         self.load_all()
     
     def load_all(self) -> Dict[str, ListingTemplate]:
-        """Load all templates from disk"""
-        self._templates = {}
-        
-        for file in self.templates_dir.glob("*.json"):
-            try:
-                with open(file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    template = ListingTemplate.from_dict(data)
-                    self._templates[template.name] = template
-            except Exception as e:
-                print(f"Error loading template {file}: {e}")
-        
-        return self._templates
+        """Load all templates from database"""
+        session = self.SessionFactory()
+        try:
+            db_templates = session.query(self.TemplateModel).all()
+            self._templates = {}
+            for db_t in db_templates:
+                template = ListingTemplate(
+                    name=db_t.name,
+                    data=db_t.data,
+                    created_at=db_t.created_at.isoformat(),
+                    updated_at=db_t.updated_at.isoformat(),
+                    use_count=db_t.use_count
+                )
+                self._templates[template.name] = template
+            return self._templates
+        finally:
+            session.close()
     
     def get_all(self) -> List[ListingTemplate]:
-        """Get all templates sorted by use count (most used first)"""
-        return sorted(self._templates.values(), 
-                     key=lambda t: t.use_count, reverse=True)
+        """Get all templates sorted by use count"""
+        return sorted(self._templates.values(), key=lambda t: t.use_count, reverse=True)
     
     def get(self, name: str) -> Optional[ListingTemplate]:
-        """Get a template by name"""
         return self._templates.get(name)
     
     def save(self, name: str, data: dict) -> ListingTemplate:
-        """
-        Save a new template or update existing
-        
-        Args:
-            name: Template name
-            data: Template data (condition, price, item_specifics, etc.)
+        """Save a new template or update existing in DB"""
+        session = self.SessionFactory()
+        try:
+            db_t = session.query(self.TemplateModel).filter_by(name=name).first()
+            if db_t:
+                db_t.data = data
+                db_t.updated_at = datetime.utcnow()
+            else:
+                db_t = self.TemplateModel(name=name)
+                db_t.data = data
             
-        Returns:
-            The saved template
-        """
-        # Check if updating existing
-        if name in self._templates:
-            template = self._templates[name]
-            template.data = data
-            template.updated_at = datetime.now().isoformat()
-        else:
-            template = ListingTemplate(name, data)
-        
-        self._templates[name] = template
-        
-        # Save to file
-        filename = self._sanitize_filename(name) + ".json"
-        filepath = self.templates_dir / filename
-        
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(template.to_dict(), f, indent=2)
-        
-        return template
+            session.add(db_t)
+            session.commit()
+            
+            # Update cache
+            template = ListingTemplate(
+                name=db_t.name,
+                data=db_t.data,
+                created_at=db_t.created_at.isoformat(),
+                updated_at=db_t.updated_at.isoformat(),
+                use_count=db_t.use_count
+            )
+            self._templates[name] = template
+            return template
+        except Exception as e:
+            session.rollback()
+            raise
+        finally:
+            session.close()
     
     def delete(self, name: str) -> bool:
-        """Delete a template"""
-        if name not in self._templates:
+        session = self.SessionFactory()
+        try:
+            db_t = session.query(self.TemplateModel).filter_by(name=name).first()
+            if db_t:
+                session.delete(db_t)
+                session.commit()
+                if name in self._templates:
+                    del self._templates[name]
+                return True
             return False
-        
-        del self._templates[name]
-        
-        # Remove file
-        filename = self._sanitize_filename(name) + ".json"
-        filepath = self.templates_dir / filename
-        
-        if filepath.exists():
-            filepath.unlink()
-        
-        return True
+        except Exception as e:
+            session.rollback()
+            return False
+        finally:
+            session.close()
     
     def use(self, name: str) -> Optional[dict]:
-        """
-        Get template data and increment use count
-        
-        Args:
-            name: Template name
+        """Increment use count in DB and return data"""
+        session = self.SessionFactory()
+        try:
+            db_t = session.query(self.TemplateModel).filter_by(name=name).first()
+            if not db_t:
+                return None
             
-        Returns:
-            Template data dict (without metadata fields)
-        """
-        template = self._templates.get(name)
-        if not template:
-            return None
-        
-        # Increment use count
-        template.use_count += 1
-        template.data['_use_count'] = template.use_count
-        
-        # Save updated count
-        self.save(template.name, template.data)
-        
-        # Return clean data (without metadata)
-        return {k: v for k, v in template.data.items() if not k.startswith('_')}
+            db_t.use_count += 1
+            session.commit()
+            
+            # Update cache
+            if name in self._templates:
+                self._templates[name].use_count = db_t.use_count
+            
+            # Return clean data
+            return db_t.data
+        finally:
+            session.close()
     
     def get_names(self) -> List[str]:
-        """Get list of all template names"""
         return [t.name for t in self.get_all()]
-    
-    def _sanitize_filename(self, name: str) -> str:
-        """Convert template name to valid filename"""
-        # Replace invalid characters
-        invalid = '<>:"/\\|?*'
-        result = name
-        for char in invalid:
-            result = result.replace(char, '_')
-        return result[:50]  # Limit length
-    
-    def create_from_listing(self, name: str, listing_data: dict) -> ListingTemplate:
+
+    def render_description(self, title: str, description: str, images: List[str], aspects: Dict[str, List[str]], condition: str) -> str:
         """
-        Create a template from listing data
-        
-        Args:
-            name: Template name
-            listing_data: Data from a created listing
+        Render the final HTML description using templates/ebay_master.html.
+        """
+        try:
+            # Locate the master template
+            template_path = Path(__file__).parent.parent.parent.parent / "templates" / "ebay_master.html"
+            if not template_path.exists():
+                return f"<h1>{title}</h1><p>{description}</p>" # Fallback
+                
+            with open(template_path, 'r', encoding='utf-8') as f:
+                html = f.read()
+                
+            # 1. Render Images (Grid)
+            img_html = ""
+            for img in images[:12]: # Max 12
+                img_html += f'<div class="img-box"><img src="{img}" alt="{title}"></div>'
             
-        Returns:
-            New template
-        """
-        # Extract reusable fields
-        template_data = {
-            'condition': listing_data.get('condition'),
-            'default_price': listing_data.get('price'),
-            'category_id': listing_data.get('category_id'),
-            'item_specifics': listing_data.get('item_specifics', {}),
-            'fulfillment_policy': listing_data.get('fulfillment_policy'),
-            'payment_policy': listing_data.get('payment_policy'),
-            'return_policy': listing_data.get('return_policy'),
-        }
-        
-        # Remove None values
-        template_data = {k: v for k, v in template_data.items() if v is not None}
-        
-        return self.save(name, template_data)
-
-
-# Default templates for common categories
-DEFAULT_TEMPLATES = [
-    {
-        'name': 'Electronics - Used Good',
-        'condition': 'USED_GOOD',
-        'default_price': '29.99',
-        'item_specifics': {
-            'Condition': 'Used',
-        }
-    },
-    {
-        'name': 'Electronics - Like New',
-        'condition': 'LIKE_NEW',
-        'default_price': '49.99',
-        'item_specifics': {
-            'Condition': 'Open box',
-        }
-    },
-    {
-        'name': 'Industrial Parts',
-        'condition': 'USED_EXCELLENT',
-        'default_price': '79.99',
-        'item_specifics': {
-            'Type': 'Replacement Part',
-        }
-    },
-    {
-        'name': 'Office Equipment',
-        'condition': 'USED_GOOD',
-        'default_price': '39.99',
-        'item_specifics': {
-            'Type': 'Office Equipment',
-        }
-    },
-]
-
+            # 2. Render Aspects (Table)
+            aspects_html = '<table class="specs-table">'
+            for k, v in aspects.items():
+                val_str = ", ".join(v) if isinstance(v, list) else str(v)
+                aspects_html += f'<tr><th>{k}</th><td>{val_str}</td></tr>'
+            aspects_html += '</table>'
+            
+            # 3. Replace Token
+            html = html.replace('{{TITLE}}', title)
+            html = html.replace('{{DESCRIPTION}}', description)
+            html = html.replace('{{IMAGES}}', img_html)
+            html = html.replace('{{ASPECTS}}', aspects_html)
+            html = html.replace('{{CONDITION}}', condition)
+            
+            return html
+            
+        except Exception as e:
+            print(f"Template Render Error: {e}")
+            return f"<h1>{title}</h1><p>{description}</p>"
 
 def get_template_manager() -> TemplateManager:
-    """Get the global template manager instance"""
     global _instance
     if '_instance' not in globals():
         _instance = TemplateManager()
-        
-        # Create default templates if none exist
-        if not _instance.get_all():
-            for t in DEFAULT_TEMPLATES:
-                name = t.pop('name')
-                _instance.save(name, t)
-    
     return _instance
 
-
-# Test
-if __name__ == "__main__":
-    print("Testing Template Manager...")
-    
-    manager = TemplateManager()
-    
-    # Create a test template
-    manager.save("Test Template", {
-        'condition': 'USED_GOOD',
-        'default_price': '25.00',
-        'item_specifics': {'Brand': 'Test', 'Model': 'Demo'}
-    })
-    
-    # List all
-    print(f"\nTemplates: {manager.get_names()}")
-    
-    # Use a template
-    data = manager.use("Test Template")
-    print(f"\nTemplate data: {data}")
-    
-    print("\n✅ Template Manager working!")
+# (DEFAULT_TEMPLATES logic would be handled by migration script or first-run check)

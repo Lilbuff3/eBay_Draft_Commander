@@ -52,5 +52,9 @@ inbox/
 logs/
 *.png
 !frontend/public/logo.png  # Example: keep if there is a real logo
-!mobile_access_qr.png      # Keep QR codes for connection
-!mobile_access_vite_qr.png
+
+# Additional Debug & Test Outputs
+*_output.txt
+*_log.txt
+debug_*.html
+pricing_test.txt

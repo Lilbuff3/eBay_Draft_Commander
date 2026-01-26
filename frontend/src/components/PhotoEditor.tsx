@@ -44,6 +44,8 @@ export function PhotoEditor({ imagePath, jobId, onClose, onSave }: PhotoEditorPr
     const [images, setImages] = useState<{ name: string; url: string }[]>([])
     const [selectedImage, setSelectedImage] = useState<string | null>(null)
     const [isLoadingImages, setIsLoadingImages] = useState(false)
+    const [removeBackground, setRemoveBackground] = useState(false)
+    const [isRemovingBg, setIsRemovingBg] = useState(false)
 
     // Fetch images from job folder
     useEffect(() => {
@@ -98,28 +100,44 @@ export function PhotoEditor({ imagePath, jobId, onClose, onSave }: PhotoEditorPr
         setHasChanges(true)
     }
 
+    const handleRemoveBackground = () => {
+        setRemoveBackground(true)
+        setHasChanges(true)
+    }
+
     const handleReset = () => {
         setRotation(0)
         setFlipX(false)
         setFlipY(false)
         setZoom(100)
         setAdjustments(defaultAdjustments)
+        setRemoveBackground(false)
         setHasChanges(false)
     }
 
     const handleSave = async () => {
         try {
+            if (removeBackground) setIsRemovingBg(true)
             await fetch('/api/tools/photo/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     jobId,
-                    edits: { rotation, flipX, flipY, adjustments }
+                    edits: {
+                        rotation,
+                        flipX,
+                        flipY,
+                        adjustments,
+                        remove_background: removeBackground
+                    }
                 })
             })
+            setRemoveBackground(false)
+            setIsRemovingBg(false)
             onSave?.()
         } catch (error) {
             console.error('Failed to save photo:', error)
+            setIsRemovingBg(false)
         }
     }
 
@@ -231,6 +249,20 @@ scale(${zoom / 100})
                         <Button
                             variant="outline"
                             size="sm"
+                            onClick={handleRemoveBackground}
+                            disabled={isRemovingBg}
+                            className={cn(
+                                "border-blue-200 hover:bg-blue-50 transition-all",
+                                removeBackground && "bg-blue-50 border-blue-400 text-blue-600 shadow-inner"
+                            )}
+                            title="Auto-Background Removal"
+                        >
+                            <Wand2 size={16} className={cn("mr-1", isRemovingBg && "animate-spin")} />
+                            {isRemovingBg ? 'Processing...' : removeBackground ? 'BG Marked' : 'Remove BG'}
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
                             onClick={handleAutoEnhance}
                             disabled={isEnhancing}
                             className="bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200 hover:from-purple-100 hover:to-pink-100"
@@ -248,8 +280,8 @@ scale(${zoom / 100})
                                     key={img.name}
                                     onClick={() => setSelectedImage(img.url)}
                                     className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${selectedImage === img.url
-                                            ? 'border-blue-500 ring-2 ring-blue-200'
-                                            : 'border-stone-200 hover:border-stone-300'
+                                        ? 'border-blue-500 ring-2 ring-blue-200'
+                                        : 'border-stone-200 hover:border-stone-300'
                                         }`}
                                 >
                                     <img

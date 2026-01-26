@@ -16,7 +16,7 @@ import { PriceResearch } from '@/components/PriceResearch'
 import { TemplateManager } from '@/components/TemplateManager'
 import { PreviewPanel } from '@/components/PreviewPanel'
 import { fetchJobs, fetchStatus, startQueue, pauseQueue, scanInbox, type Job, type QueueStats } from '@/lib/api'
-import { supabase } from '@/lib/supabase'
+import { io } from 'socket.io-client'
 
 function App() {
   const [activeTab, setActiveTab] = useState(() => {
@@ -36,8 +36,9 @@ function App() {
   const [ebayStatus, setEbayStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking')
   const [isScanning, setIsScanning] = useState(false)
   const [scanMessage, setScanMessage] = useState<string | null>(null)
+  const [jobLogs, setJobLogs] = useState<Record<string, any[]>>({})
 
-  // Initial fetch and Realtime subscription
+  // Initial fetch and Realtime (Socket.IO) setup
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -45,14 +46,9 @@ function App() {
           fetchJobs(),
           fetchStatus()
         ])
-
         setJobs(jobsData)
         setQueueStats(statusData.stats)
         setIsProcessing(statusData.status === 'processing')
-
-        if (!selectedJob && jobsData.length > 0) {
-          setSelectedJob(jobsData[0])
-        }
       } catch (err) {
         console.error('Fetch error:', err)
       }
@@ -72,32 +68,37 @@ function App() {
     fetchData()
     checkEbay()
 
-    // Realtime Subscription
-    const channel = supabase
-      .channel('jobs-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'jobs'
-        },
-        () => {
-          // Re-fetch everything when jobs table changes
-          fetchData()
-        }
-      )
-      .subscribe()
+    // Socket.IO Connection
+    const socket = io()
 
-    // Still poll eBay status but less frequently as it's not "live" data
+    socket.on('connect', () => {
+      console.log('Connected to Event Bus ⚡')
+    })
+
+    socket.on('job_added', (newJob: Job) => {
+      setJobs(prev => [...prev, newJob])
+    })
+
+    socket.on('job_update', (updatedJob: Job) => {
+      setJobs(prev => prev.map(j => j.id === updatedJob.id ? updatedJob : j))
+      // Update stats if status changed
+      fetchStatus().then(data => setQueueStats(data.stats))
+    })
+
+    socket.on('job_log', (log: any) => {
+      setJobLogs(prev => ({
+        ...prev,
+        [log.job_id]: [...(prev[log.job_id] || []), log].slice(-50) // Keep last 50 logs
+      }))
+    })
+
     const ebayInterval = setInterval(checkEbay, 60000)
 
     return () => {
-      supabase.removeChannel(channel)
+      socket.disconnect()
       clearInterval(ebayInterval)
     }
-  }, [selectedJob]) // Re-run if selectedJob changes? Maybe check if this dependency is truly needed for everything. 
-  // Actually, keeping strict parity with original Dashboard logic for now: 'useEffect(..., [selectedJob])' was there.
+  }, [])
 
   // Global Actions
   const handleStart = async () => {

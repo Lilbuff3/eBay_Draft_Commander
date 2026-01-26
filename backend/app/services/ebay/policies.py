@@ -11,11 +11,25 @@ INVENTORY_URL = 'https://api.ebay.com/sell/inventory/v1'
 
 
 def load_env():
-    """Load credentials from .env file"""
-    # Point to project root (.env is 5 levels up from here)
-    env_path = Path(__file__).resolve().parents[4] / ".env"
+    """Load credentials from .env file (Robust lookup)"""
+    current_path = Path(__file__).resolve()
+    env_path = None
+    
+    # Traverse up to find .env
+    for parent in [current_path] + list(current_path.parents):
+        check_path = parent / ".env"
+        if check_path.exists():
+            env_path = check_path
+            break
+            
+    # Fallback to CWD
+    if not env_path:
+        cwd_env = Path.cwd() / ".env"
+        if cwd_env.exists():
+            env_path = cwd_env
+            
     credentials = {}
-    if env_path.exists():
+    if env_path and env_path.exists():
         with open(env_path, 'r') as f:
             for line in f:
                 line = line.strip()
@@ -32,7 +46,8 @@ def _get_headers() -> Dict:
     return {
         'Authorization': f'Bearer {token}',
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Content-Language': 'en-US'
     }
 
 
