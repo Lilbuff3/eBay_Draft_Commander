@@ -45,7 +45,7 @@ class AIPriceEstimator:
     
     def _load_api_key(self):
         """Load Google API key from .env"""
-        env_path = Path(__file__).parent / ".env"
+        env_path = Path(__file__).resolve().parents[3] / ".env"
         api_key = None
         
         if env_path.exists():
@@ -117,7 +117,7 @@ class AIPriceEstimator:
             # Use google-genai SDK with Google Search tool
             # Using Gemini 3 Flash Preview for best price analysis with search
             response = self.client.models.generate_content(
-                model='gemini-3-flash-preview',  # Latest Gemini 3.0 model
+                model='gemini-2.0-flash',  # Stable Gemini 2.0 model
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     tools=[types.Tool(google_search=types.GoogleSearch())]
@@ -141,7 +141,7 @@ class AIPriceEstimator:
             # Try without search tool
             try:
                 response = self.client.models.generate_content(
-                    model='gemini-3-flash-preview',
+                    model='gemini-2.0-flash',
                     contents=prompt
                 )
                 return self._parse_response(response.text, query, [])

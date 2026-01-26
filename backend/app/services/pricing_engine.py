@@ -24,11 +24,13 @@ class PricingEngine:
         "Used - Acceptable": 0.60,
         "For Parts": 0.40,
         "For Parts or Not Working": 0.40,
+        "New Old Stock": 0.95,  # NOS commands higher prices
+        "New other (see details)": 0.90,
     }
     
     def __init__(self):
         """Initialize with eBay App ID from .env"""
-        env_path = Path(__file__).parent / ".env"
+        env_path = Path(__file__).resolve().parents[3] / ".env"
         self.app_id = None
         
         if env_path.exists():
@@ -152,18 +154,20 @@ class PricingEngine:
             print(f"❌ Pricing engine error: {e}")
             return []
     
-    def calculate_suggested_price(self, sold_items, our_condition="Used - Good"):
+    def calculate_suggested_price(self, sold_items, our_condition="Used - Good", acquisition_cost=0.0):
         """
         Calculate a suggested price based on sold items data.
         
         Uses median price (robust to outliers) with condition adjustment.
+        Also performs margin protection check against acquisition cost.
         
         Args:
             sold_items: List of dicts from search_sold_listings()
             our_condition: The condition of our item
+            acquisition_cost: Cost of goods sold (default 0.0)
         
         Returns:
-            Dict with: suggested_price, comp_count, median_price, reasoning
+            Dict with: suggested_price, comp_count, median_price, reasoning, margin_data
         """
         if not sold_items:
             return {
@@ -187,21 +191,46 @@ class PricingEngine:
         median_price = statistics.median(prices)
         
         # Get condition multiplier
-        multiplier = self.CONDITION_MULTIPLIERS.get(our_condition, 0.75)
+        # Fuzzy match for NOS
+        cond_key = our_condition
+        if "new old stock" in our_condition.lower() or "nos" in our_condition.lower():
+            cond_key = "New Old Stock"
+            
+        multiplier = self.CONDITION_MULTIPLIERS.get(cond_key, 0.75)
         
         # Calculate suggested price
         suggested_price = round(median_price * multiplier, 2)
         
+        # --- Margin Protection ---
+        # Estimated eBay Fees: ~13.25% + $0.30
+        est_fees = (suggested_price * 0.1325) + 0.30
+        projected_profit = suggested_price - est_fees - acquisition_cost
+        
+        min_margin = 10.00 # Minimum desired profit per item
+        margin_boost = False
+        
+        if acquisition_cost > 0 and projected_profit < min_margin:
+            # Price is too low for target margin, calculate target price
+            # Target = (Cost + MinMargin + 0.30) / (1 - 0.1325)
+            target_price = (acquisition_cost + min_margin + 0.30) / (1 - 0.1325)
+            suggested_price = round(target_price, 2)
+            margin_boost = True
+            
         # Smart pricing: round to .99 or .95
         if suggested_price > 10:
             suggested_price = round(suggested_price) - 0.01  # e.g., 45.00 -> 44.99
         
+        reasoning = f"Median of {len(prices)} sales (${median_price:.2f}) × {multiplier:.0%} condition"
+        if margin_boost:
+            reasoning += f" (Boosted for ${min_margin} min margin)"
+            
         return {
             "suggested_price": suggested_price,
             "comp_count": len(prices),
             "median_price": round(median_price, 2),
             "multiplier": multiplier,
-            "reasoning": f"Median of {len(prices)} sales (${median_price:.2f}) × {multiplier:.0%} condition adjustment"
+            "reasoning": reasoning,
+            "projected_profit": round(suggested_price - est_fees - acquisition_cost, 2)
         }
     
     def generate_ebay_search_link(self, title):
@@ -233,7 +262,7 @@ class PricingEngine:
             Return ONLY a number representing the suggested price in USD. No symbols, no text."""
             
             response = self.ai_client.models.generate_content(
-                model='gemini-3-flash-preview',
+                model='gemini-2.0-flash',
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     tools=[types.Tool(google_search=types.GoogleSearch())],
@@ -252,7 +281,7 @@ class PricingEngine:
             
         return None
 
-    def get_price_with_comps(self, title, condition="Used - Good", category_id=None, ai_suggested_price=None):
+    def get_price_with_comps(self, title, condition="Used - Good", category_id=None, ai_suggested_price=None, acquisition_cost=0.0, isbn=None):
         """
         Main entry point: Get suggested price and comparable sales data.
         Falls back to AI suggestion if API fails.
@@ -262,6 +291,8 @@ class PricingEngine:
             condition: The item's condition
             category_id: Optional category to narrow search
             ai_suggested_price: Fallback price from AI analyzer
+            acquisition_cost: Cost of goods sold
+            isbn: Optional ISBN for book/media exact matching
         
         Returns:
             Dict with: suggested_price, comps, reasoning, source, research_link
@@ -269,6 +300,29 @@ class PricingEngine:
         # Generate research link for user
         research_link = self.generate_ebay_search_link(title)
         
+        search_query = ""
+        
+        # --- STRATEGY 1: ISBN SEARCH (Gold Standard for Books) ---
+        if isbn:
+             print(f"🔍 Searching sold listings by ISBN: {isbn}...")
+             sold_items = self.search_sold_listings(isbn, category_id, limit=15)
+             
+             if sold_items:
+                 price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost)
+                 print(f"   💰 Market price (ISBN): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
+                 
+                 return {
+                    "suggested_price": price_data["suggested_price"],
+                    "comps": sold_items[:5],
+                    "reasoning": f"ISBN Match: {price_data['reasoning']}",
+                    "projected_profit": price_data.get("projected_profit"),
+                    "source": "market_data_isbn",
+                    "research_link": self.generate_ebay_search_link(isbn) # Override link
+                }
+             else:
+                 print("   ⚠️ No sales found for exact ISBN, falling back to title...")
+        
+        # --- STRATEGY 2: KEYWORD SEARCH ---
         # Clean up title for search (remove special chars, limit length)
         search_query = " ".join(title.split()[:8])  # First 8 words
         
@@ -277,13 +331,14 @@ class PricingEngine:
         sold_items = self.search_sold_listings(search_query, category_id, limit=15)
         
         if sold_items:
-            price_data = self.calculate_suggested_price(sold_items, condition)
+            price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost)
             print(f"   💰 Market price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
             
             return {
                 "suggested_price": price_data["suggested_price"],
                 "comps": sold_items[:5],
                 "reasoning": price_data["reasoning"],
+                "projected_profit": price_data.get("projected_profit"),
                 "source": "market_data",
                 "research_link": research_link
             }

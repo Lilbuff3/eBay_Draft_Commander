@@ -9,9 +9,10 @@ import shutil
 from pathlib import Path
 
 # Add project to path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add project to path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from queue_manager import QueueManager, QueueJob, JobStatus
+from backend.app.services.queue_manager import QueueManager, QueueJob, JobStatus
 
 
 def test_add_jobs():

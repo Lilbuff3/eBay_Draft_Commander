@@ -37,17 +37,17 @@ def refresh_token():
     """Refresh the eBay OAuth token and reload credentials"""
     global USER_TOKEN, credentials
     try:
-        from ebay_auth import eBayOAuth
-        print("   🔄 Refreshing eBay token...")
+        from backend.app.services.ebay.auth import eBayOAuth
+        print("   [REFRESH] Refreshing eBay token...")
         oauth = eBayOAuth(use_sandbox=False)
         if oauth.refresh_access_token():
             # Reload the updated credentials
             credentials = load_env()
             USER_TOKEN = credentials.get('EBAY_USER_TOKEN')
-            print("   ✅ Token refreshed!")
+            print("   [SUCCESS] Token refreshed!")
             return True
     except Exception as e:
-        print(f"   ❌ Token refresh failed: {e}")
+        print(f"   [ERROR] Token refresh failed: {e}")
     return False
 
 
@@ -59,13 +59,39 @@ def get_headers():
         'Accept': 'application/json'
     }
 
+def authenticated_request(method, url, retry=True, **kwargs):
+    """
+    Wrapper for requests to handle 401 Unauthorized automatically.
+    """
+    headers = kwargs.get('headers', get_headers())
+    kwargs['headers'] = headers
+    
+    try:
+        response = requests.request(method, url, **kwargs)
+        
+        if response.status_code == 401 and retry:
+            print("   ⚠️ Token expired (401). attempting auto-refresh...")
+            if refresh_token():
+                # Update headers with new token
+                kwargs['headers'] = get_headers()
+                print("   🔄 Retrying request with new token...")
+                return requests.request(method, url, **kwargs)
+            else:
+                print("   ❌ Token refresh failed. Request aborted.")
+        
+        return response
+    except Exception as e:
+        # Pass exception up (or handle it)
+        print(f"   ❌ Request failed: {e}")
+        raise e
+
 
 def get_category_and_aspects(query, retry_on_auth=True):
     """Get best category and required aspects for a product"""
     # Get category
-    response = requests.get(
+    response = authenticated_request(
+        'GET',
         TAXONOMY_URL + '/category_tree/0/get_category_suggestions',
-        headers=get_headers(),
         params={'q': query}
     )
     
@@ -88,9 +114,9 @@ def get_category_and_aspects(query, retry_on_auth=True):
     print(f"   📂 Category: {category_id} - {category_name}")
     
     # Get required aspects
-    response = requests.get(
+    response = authenticated_request(
+        'GET',
         TAXONOMY_URL + '/category_tree/0/get_item_aspects_for_category',
-        headers=get_headers(),
         params={'category_id': category_id}
     )
     
@@ -139,7 +165,7 @@ def create_listing_from_folder(folder_path, price="29.99", condition="USED_EXCEL
     folder_path = Path(folder_path)
     
     if not folder_path.exists():
-        print(f"❌ Folder not found: {folder_path}")
+        print(f"[ERROR] Folder not found: {folder_path}")
         return None
     
     print("\n" + "="*70)
@@ -151,17 +177,17 @@ def create_listing_from_folder(folder_path, price="29.99", condition="USED_EXCEL
     images = [f for f in folder_path.iterdir() if f.suffix.lower() in image_extensions]
     
     if not images:
-        print("❌ No images found")
+        print("[ERROR] No images found")
         return None
     
     images.sort(key=lambda x: x.name)
-    print(f"   📷 Found {len(images)} images")
+    print(f"   [INFO] Found {len(images)} images")
     
     # Try to use AI analyzer if available
     try:
-        from ai_analyzer import AIAnalyzer
+        from backend.app.services.ai_analyzer import AIAnalyzer
         
-        print("\n📊 Analyzing images with AI...")
+        print("\n[AI] Analyzing images with AI...")
         analyzer = AIAnalyzer()
         ai_data = analyzer.analyze_item([str(img) for img in images])
         
@@ -202,7 +228,7 @@ def create_listing_from_folder(folder_path, price="29.99", condition="USED_EXCEL
         
         # Call Pricing Engine
         try:
-            from pricing_engine import PricingEngine
+            from backend.app.services.pricing_engine import PricingEngine
             pricing = PricingEngine()
             price_result = pricing.get_price_with_comps(
                 title, 
@@ -213,7 +239,7 @@ def create_listing_from_folder(folder_path, price="29.99", condition="USED_EXCEL
             if price_result['suggested_price']:
                 # Override with market-based or AI price
                 final_price = str(price_result['suggested_price'])
-                print(f"   💰 Price: ${final_price} ({price_result['source']})")
+                print(f"   [PRICE] Price: ${final_price} ({price_result['source']})")
                 if price_result.get('research_link'):
                     print(f"   🔗 Verify: {price_result['research_link']}")
             else:
@@ -264,22 +290,22 @@ def create_listing_from_folder(folder_path, price="29.99", condition="USED_EXCEL
     
     image_urls = []
     try:
-        from ebay_media import upload_folder
+        from backend.app.services.ebay.media import upload_folder
         print(f"\n   📤 Uploading {len(images)} images to eBay Picture Services...")
         image_urls = upload_folder(folder_path, max_images=12)
         if image_urls:
-            print(f"   ✅ Uploaded {len(image_urls)} images successfully")
+            print(f"   [SUCCESS] Uploaded {len(image_urls)} images successfully")
         else:
-            print("   ⚠️ Image upload failed or returned no URLs (will create listing without images)")
+            print("   [WARN] Image upload failed or returned no URLs (will create listing without images)")
     except Exception as e:
-        print(f"   ⚠️ Could not upload images: {e}")
+        print(f"   [WARN] Could not upload images: {e}")
 
     if not image_urls:
-         print("   ⚠️ No images uploaded - using placeholder for draft creation")
+         print("   [WARN] No images uploaded - using placeholder for draft creation")
          image_urls = ["https://placehold.co/800x600.png?text=Placeholder+Image"]
 
     sku = 'DC-' + uuid.uuid4().hex[:8].upper()
-    print(f"\n   📦 SKU: {sku}")
+    print(f"\n   [SKU]: {sku}")
     
     # Create inventory item
     item = {
@@ -295,16 +321,16 @@ def create_listing_from_folder(folder_path, price="29.99", condition="USED_EXCEL
     }
     
     print("\n   Creating inventory item...")
-    response = requests.put(
+    response = authenticated_request(
+        'PUT',
         INVENTORY_URL + '/inventory_item/' + sku,
-        headers=get_headers(),
         json=item
     )
     
     if response.status_code not in [200, 201, 204]:
-        print(f"   ❌ Error: {response.text[:300]}")
+        print(f"   [ERROR] Error: {response.text[:300]}")
         return None
-    print("   ✅ Done!")
+    print("   [DONE] Done!")
     
     # Create offer
     print("   Creating offer...")
@@ -332,9 +358,9 @@ def create_listing_from_folder(folder_path, price="29.99", condition="USED_EXCEL
         'merchantLocationKey': MERCHANT_LOCATION
     }
     
-    response = requests.post(
+    response = authenticated_request(
+        'POST',
         INVENTORY_URL + '/offer',
-        headers=get_headers(),
         json=offer
     )
     
@@ -344,26 +370,35 @@ def create_listing_from_folder(folder_path, price="29.99", condition="USED_EXCEL
     
     offer_data = response.json()
     offer_id = offer_data.get('offerId')
-    print(f"   ✅ Offer ID: {offer_id}")
+    print(f"   [OFFER] Offer ID: {offer_id}")
+    
+    # Check if auto-publish is enabled
+    auto_publish = credentials.get('AUTO_PUBLISH', 'true').lower() == 'true'
+    
+    if not auto_publish:
+        print("\n📌 Draft Mode: Listing saved as draft (Auto-Publish is OFF)")
+        print(f"   Offer ID: {offer_id}")
+        print("   Edit/Publish at: https://www.ebay.com/sh/lst/drafts")
+        return offer_id
     
     # Try to publish
     print("   Publishing...")
-    response = requests.post(
-        INVENTORY_URL + '/offer/' + offer_id + '/publish',
-        headers=get_headers()
+    response = authenticated_request(
+        'POST',
+        INVENTORY_URL + '/offer/' + offer_id + '/publish'
     )
     
     if response.status_code in [200, 201]:
         result = response.json()
         listing_id = result.get('listingId')
         
-        print("\n" + "🎉"*20)
-        print("\n✅ LISTING PUBLISHED!")
+        print("\n" + "*"*20)
+        print("\n[PUBLISHED] LISTING PUBLISHED!")
         print(f"\n   Listing ID: {listing_id}")
         print(f"   URL: https://www.ebay.com/itm/{listing_id}")
         if not image_urls:
-            print("\n⚠️  Images were not uploaded. Add them in Seller Hub.")
-        print("🎉"*20)
+            print("\n[WARN]  Images were not uploaded. Add them in Seller Hub.")
+        print("*"*20)
         
         return listing_id
     else:
@@ -471,6 +506,7 @@ def create_listing_structured(folder_path, price="29.99", condition="USED_EXCELL
         "success": False,
         "listing_id": None,
         "offer_id": None,
+        "price": None,
         "status": "error",
         "error_type": None,
         "error_message": None,
@@ -498,7 +534,7 @@ def create_listing_structured(folder_path, price="29.99", condition="USED_EXCELL
     # AI Analysis
     ai_start = time.time()
     try:
-        from ai_analyzer import AIAnalyzer
+        from backend.app.services.ai_analyzer import AIAnalyzer
         analyzer = AIAnalyzer()
         ai_data = analyzer.analyze_item([str(img) for img in images])
         
@@ -540,7 +576,7 @@ def create_listing_structured(folder_path, price="29.99", condition="USED_EXCELL
     # Pricing
     pricing_start = time.time()
     try:
-        from pricing_engine import PricingEngine
+        from backend.app.services.pricing_engine import PricingEngine
         pricing = PricingEngine()
         price_result = pricing.get_price_with_comps(
             title, 
@@ -588,7 +624,7 @@ def create_listing_structured(folder_path, price="29.99", condition="USED_EXCELL
     image_urls = []
     upload_success = False
     try:
-        from ebay_media import upload_folder
+        from backend.app.services.ebay.media import upload_folder
         image_urls = upload_folder(folder_path, max_images=12)
         timing['image_upload'] = time.time() - upload_start
         if image_urls:
@@ -676,6 +712,19 @@ def create_listing_structured(folder_path, price="29.99", condition="USED_EXCELL
         result["timing"] = timing
         return result
     
+    # Check if auto-publish is enabled
+    auto_publish = credentials.get('AUTO_PUBLISH', 'true').lower() == 'true'
+    
+    if not auto_publish:
+        # Draft mode - skip publish
+        timing['api'] = time.time() - api_start
+        result["success"] = True
+        result["status"] = "draft"
+        result["timing"] = timing
+        result["timing"]["total"] = time.time() - start_time
+        result["price"] = final_price
+        return result
+    
     # Try to publish
     try:
         response = requests.post(
@@ -701,6 +750,7 @@ def create_listing_structured(folder_path, price="29.99", condition="USED_EXCELL
     
     result["timing"] = timing
     result["timing"]["total"] = time.time() - start_time
+    result["price"] = final_price
     
     return result
 

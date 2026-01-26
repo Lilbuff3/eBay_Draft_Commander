@@ -8,7 +8,7 @@ from pathlib import Path
 import threading
 import webbrowser
 
-from settings_manager import SettingsManager
+from backend.app.core.settings_manager import SettingsManager
 
 
 class SettingsDialog(tk.Toplevel):
@@ -194,6 +194,12 @@ class SettingsDialog(tk.Toplevel):
                          "AUTO_MOVE_POSTED",
                          "Auto-move Posted Items",
                          "Move items to 'posted' folder after successful listing",
+                         field_type="checkbox")
+        
+        self.create_field(content,
+                         "AUTO_PUBLISH",
+                         "Auto-Publish Listings",
+                         "If OFF, listings are saved as drafts in Seller Hub",
                          field_type="checkbox")
         
         # Folder Paths

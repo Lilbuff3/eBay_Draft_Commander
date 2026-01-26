@@ -4,7 +4,7 @@ UI for saving and selecting listing templates
 """
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
-from template_manager import TemplateManager, get_template_manager
+from backend.app.services.template_manager import TemplateManager, get_template_manager
 
 
 class TemplateDialog(tk.Toplevel):

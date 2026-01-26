@@ -13,7 +13,7 @@ import urllib.parse
 
 # Import the official API client
 try:
-    from ebay_browse_api import eBayBrowseAPI
+    from backend.app.services.ebay.browse import eBayBrowseAPI
     HAS_BROWSE_API = True
 except ImportError:
     HAS_BROWSE_API = False
@@ -21,7 +21,7 @@ except ImportError:
 
 # Import AI price estimator
 try:
-    from ai_price_estimator import AIPriceEstimator
+    from backend.app.services.ai_price import AIPriceEstimator
     HAS_AI_ESTIMATOR = True
 except ImportError:
     HAS_AI_ESTIMATOR = False

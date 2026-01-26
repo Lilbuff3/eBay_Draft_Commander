@@ -12,7 +12,8 @@ INVENTORY_URL = 'https://api.ebay.com/sell/inventory/v1'
 
 def load_env():
     """Load credentials from .env file"""
-    env_path = Path(__file__).parent / ".env"
+    # Point to project root (.env is 5 levels up from here)
+    env_path = Path(__file__).resolve().parents[4] / ".env"
     credentials = {}
     if env_path.exists():
         with open(env_path, 'r') as f:
@@ -39,7 +40,7 @@ def _refresh_token_if_needed(response) -> bool:
     """Refresh token if auth failed"""
     if response.status_code in [401, 500]:
         try:
-            from ebay_auth import eBayOAuth
+            from backend.app.services.ebay.auth import eBayOAuth
             oauth = eBayOAuth(use_sandbox=False)
             return oauth.refresh_access_token()
         except Exception:

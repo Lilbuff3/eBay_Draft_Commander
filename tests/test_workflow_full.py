@@ -1,6 +1,12 @@
+
 import os
+import sys
 from pathlib import Path
 from PIL import Image
+
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).parent.parent.absolute()))
+
 from create_from_folder import create_listing_structured
 
 print("="*60)
@@ -18,12 +24,10 @@ if not img_path.exists():
     img = Image.new('RGB', (800, 800), color = 'red')
     img.save(img_path)
 
-# Create info.txt to bypass AI if needed (or test AI)
-# We'll let AI run if configured, or it falls back to folder name
-print(f"📂 Targeted Folder: {test_folder}")
+print(f"Targeted Folder: {test_folder}")
 
 # 2. Run Creation
-print("\n🚀 Starting creation process...")
+print("\nStarting creation process...")
 result = create_listing_structured(test_folder, price="99.99", condition="USED_EXCELLENT")
 
 # 3. Analyze Result
@@ -36,11 +40,11 @@ print(f"Listing: {result.get('listing_id')}")
 print(f"Offer:   {result.get('offer_id')}")
 
 if result.get('error_message'):
-    print(f"❌ Error: {result.get('error_message')}")
+    print(f"Error: {result.get('error_message')}")
 else:
-    print("✅ Workflow successful!")
+    print("Workflow successful!")
 
-print("\n⏱️ Timing:")
+print("\nTiming:")
 for k, v in result.get('timing', {}).items():
     print(f"   - {k}: {v:.2f}s")
 

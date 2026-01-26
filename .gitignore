@@ -44,3 +44,13 @@ env/
 *.tmp
 *.temp
 *.log
+*.jsonl
+debug_output*.txt
+
+# Project specific noise
+inbox/
+logs/
+*.png
+!frontend/public/logo.png  # Example: keep if there is a real logo
+!mobile_access_qr.png      # Keep QR codes for connection
+!mobile_access_vite_qr.png

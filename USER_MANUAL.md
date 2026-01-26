@@ -10,19 +10,20 @@ Double-click `Start_Selling_Session.bat` on your desktop.
 - If everything is green, your browser will open to the **Dashboard**.
 
 ### 2. Prepare Photos
-1. Take photos of your items.
-2. Transfer them to your computer (e.g., via OneDrive/Dropbox).
-3. Organize them into folders inside the `inbox` folder on your desktop:
+**Method A: Folder Prep (Traditional)**
+1. Transfer photos to your computer.
+2. Organize them into folders inside the `inbox` folder:
    ```
    /inbox
-     /Nike_Shoes_Sz10/
-        - thumb.jpg
-        - sole.jpg
-        - tag.jpg
-     /Canon_Camera/
-        - angle1.jpg
-        - angle2.jpg
+     /Nike_Shoes_Sz10/ ...
    ```
+
+**Method B: Direct Mobile Upload (New!)**
+1. Open the **Draft Commander** app on your phone.
+2. Tap **"Step 1: Add Photos"** or the upload icon.
+3. Select photos from your Camera Roll.
+4. The app will automatically create a job folder and start processing.
+   *No computer transfer required!*
 
 ### 3. Bulk Scan (Mobile or Desktop)
 **From your Phone:**

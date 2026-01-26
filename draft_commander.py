@@ -18,15 +18,15 @@ import shutil
 sys.path.insert(0, str(Path(__file__).parent))
 
 from ebay_api import eBayAPIClient
-from ai_analyzer import AIAnalyzer
+from backend.app.services.ai_analyzer import AIAnalyzer
 from create_from_folder import create_listing_from_folder, create_listing_structured
-from queue_manager import QueueManager, QueueJob, JobStatus
+from backend.app.services.queue_manager import QueueManager, QueueJob, JobStatus
 from queue_logger import get_logger, new_session
 from report_generator import generate_batch_report, generate_summary_text
-from settings_manager import SettingsManager, get_settings_manager
+from backend.app.core.settings_manager import SettingsManager, get_settings_manager
 from settings_dialog import SettingsDialog
 from web_server import WebControlServer
-from template_manager import get_template_manager
+from backend.app.services.template_manager import get_template_manager
 from template_dialog import TemplateDialog, SaveTemplateDialog
 from photo_editor_dialog import PhotoEditorDialog
 from price_research import get_price_researcher

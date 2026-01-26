@@ -9,7 +9,7 @@ def test_auth_logic():
     print("Testing eBay Policies Auth Logic...")
     
     try:
-        from ebay_policies import load_env, _get_headers, get_fulfillment_policies
+        from backend.app.services.ebay.policies import load_env, _get_headers, get_fulfillment_policies
         
         # 1. Check Env
         creds = load_env()

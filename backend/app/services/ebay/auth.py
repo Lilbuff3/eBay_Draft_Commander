@@ -33,7 +33,7 @@ class eBayOAuth:
     ]
     
     def __init__(self, use_sandbox=False):
-        self.env_path = Path(__file__).parent / ".env"
+        self.env_path = Path(__file__).resolve().parents[4] / ".env"
         self.load_credentials()
         
         self.use_sandbox = use_sandbox

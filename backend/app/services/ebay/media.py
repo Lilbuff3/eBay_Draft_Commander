@@ -89,9 +89,34 @@ def upload_image_to_eps(image_path):
         }
         
         try:
-            r = requests.post(url, headers=headers, files=files, timeout=30)
-            print(f"   Status: {r.status_code}")
-            
+            # RETRY LOOP for Auth Automation
+            max_retries = 2
+            for attempt in range(max_retries):
+                r = requests.post(url, headers=headers, files=files, timeout=30)
+                print(f"   Status: {r.status_code}")
+                
+                # Check for Token Expiry (401)
+                if r.status_code == 401 and attempt == 0:
+                    print("   ⚠️ Token expired (401) during upload. Refreshing...")
+                    try:
+                        from backend.app.services.ebay.auth import eBayOAuth
+                        oauth = eBayOAuth(use_sandbox=False)
+                        if oauth.refresh_access_token():
+                            # Reload creds/token from file
+                            new_creds = load_env()
+                            new_token = new_creds.get('EBAY_USER_TOKEN')
+                            if new_token:
+                                headers['Authorization'] = f'Bearer {new_token}'
+                                # Rewind file for retry
+                                f.seek(0)
+                                print("   🔄 Retrying upload with new token...")
+                                continue # Loop to retry
+                    except Exception as e:
+                        print(f"   ❌ Refresh failed: {e}")
+                
+                # If we're here, it's either success, a non-401 error, or retry failed
+                break
+                
             if r.status_code in [200, 201]:
                 data = r.json()
                 # Try to find imageUrl

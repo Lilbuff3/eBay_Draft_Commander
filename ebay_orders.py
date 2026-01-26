@@ -3,7 +3,7 @@ import requests
 import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
-from ebay_policies import _get_headers, _refresh_token_if_needed
+from backend.app.services.ebay.policies import _get_headers, _refresh_token_if_needed
 
 class eBayOrders:
     """

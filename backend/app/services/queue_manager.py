@@ -11,7 +11,7 @@ from datetime import datetime
 from enum import Enum
 from dataclasses import dataclass, field, asdict
 from typing import Optional, List, Callable, Dict, Any
-from logger import get_logger
+from backend.app.core.logger import get_logger
 
 
 class JobStatus(Enum):
@@ -33,6 +33,7 @@ class QueueJob:
     status: JobStatus = JobStatus.PENDING
     listing_id: Optional[str] = None
     offer_id: Optional[str] = None
+    price: Optional[str] = None
     error_type: Optional[str] = None
     error_message: Optional[str] = None
     attempts: int = 0
@@ -101,10 +102,40 @@ class QueueManager:
         
         # Load any persisted state
         self.load_state()
+        
+        # Start Token Maintenance Thread (Heartbeat)
+        self._token_thread = threading.Thread(target=self._token_maintainer, daemon=True)
+        self._token_thread.start()
+    
+    def _token_maintainer(self):
+        """Background thread to keep eBay token alive"""
+        self.logger.info("🔐 Token Maintenance Heartbeat started")
+        from backend.app.services.ebay.auth import eBayOAuth
+        
+        while True:
+            try:
+                # Sleep for 60 minutes
+                time.sleep(3600)
+                
+                self.logger.info("💓 Running scheduled token refresh...")
+                oauth = eBayOAuth(use_sandbox=False)
+                if oauth.refresh_access_token():
+                    self.logger.info("✅ Token refreshed successfully (Background)")
+                else:
+                    self.logger.warning("⚠️ Background token refresh failed")
+                    
+            except Exception as e:
+                self.logger.error(f"❌ Token maintenance error: {e}")
+                time.sleep(300) # Retry sooner on error
     
     def set_processor(self, processor: Callable[[str], dict]):
         """Set the function that processes a folder into a listing"""
         self._processor = processor
+        
+        # Check for auto-resume
+        if hasattr(self, '_should_auto_resume') and self._should_auto_resume:
+            self.start_processing()
+            self._should_auto_resume = False
         
     def set_supabase_client(self, client):
         """Set Supabase client for realtime sync"""
@@ -299,6 +330,7 @@ class QueueManager:
                     job.status = JobStatus.COMPLETED
                     job.listing_id = result.get('listing_id')
                     job.offer_id = result.get('offer_id')
+                    job.price = result.get('price')
                     job.timing = result.get('timing', {'total': elapsed})
                 else:
                     job.status = JobStatus.FAILED
@@ -335,6 +367,7 @@ class QueueManager:
         try:
             data = {
                 'saved_at': datetime.now().isoformat(),
+                'was_processing': self.is_processing(),
                 'jobs': [job.to_dict() for job in self.jobs]
             }
             with open(self.state_file, 'w') as f:
@@ -351,7 +384,7 @@ class QueueManager:
             # Only send columns that exist in the Supabase schema
             full_data = job.to_dict()
             schema_cols = [
-                'id', 'folder_name', 'status', 'listing_id', 'offer_id',
+                'id', 'folder_name', 'status', 'listing_id', 'offer_id', 'price',
                 'error_type', 'error_message', 'started_at', 'completed_at'
             ]
             sync_data = {k: v for k, v in full_data.items() if k in schema_cols}
@@ -378,6 +411,15 @@ class QueueManager:
                     job.status = JobStatus.PENDING
             
             self.logger.info(f"Loaded {len(self.jobs)} jobs from queue state")
+            
+            # Auto-Resume if it was processing before
+            if data.get('was_processing', False):
+                self.logger.info("♻️ Auto-Resuming queue processing from previous state")
+                # We need to ensure processor is set first. 
+                # Since processor is set after init, we might need a deferred start or 
+                # handle this in the set_processor method.
+                self._should_auto_resume = True
+                
         except json.JSONDecodeError as e:
             self.logger.error(f"Corrupted queue state file", extra={'error': str(e)})
             self.jobs = []

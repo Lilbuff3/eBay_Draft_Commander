@@ -16,6 +16,7 @@ class SettingsManager:
         'DEFAULT_CONDITION': 'USED_EXCELLENT',
         'DEFAULT_PRICE': '29.99',
         'AUTO_MOVE_POSTED': 'true',
+        'AUTO_PUBLISH': 'true',  # If false, creates drafts instead of live listings
     }
     
     # All known setting keys organized by category
@@ -44,6 +45,7 @@ class SettingsManager:
             'DEFAULT_CONDITION',
             'DEFAULT_PRICE',
             'AUTO_MOVE_POSTED',
+            'AUTO_PUBLISH',
         ],
     }
     
@@ -67,13 +69,48 @@ class SettingsManager:
         Initialize the settings manager
         
         Args:
-            env_path: Path to .env file. Defaults to .env in same directory as this file.
+            env_path: Path to .env file. Defaults to finding .env in project root.
         """
-        if env_path is None:
-            env_path = Path(__file__).parent / ".env"
-        self.env_path = Path(env_path)
         self._settings = {}
         self._comments = []  # Preserve comments from original file
+        
+        # Determine .env path
+        if env_path:
+            self.env_path = Path(env_path)
+        else:
+            # Search for .env in common locations
+            search_paths = [
+                # 1. Current working directory
+                Path.cwd() / ".env",
+                # 2. Directory of this file
+                Path(__file__).parent / ".env",
+                # 3. Project root (assuming this file is in backend/app/core)
+                Path(__file__).parent.parent.parent.parent / ".env",
+                # 4. Project root (relative to simplified imports)
+                Path(__file__).parent.parent / ".env",
+            ]
+            
+            # Also search recursively up from this file until we find one
+            current = Path(__file__).resolve().parent
+            for _ in range(5):  # Go up to 5 levels
+                search_paths.append(current / ".env")
+                if (current / ".git").exists():  # Git root is a good anchor
+                    search_paths.append(current / ".env")
+                    break
+                current = current.parent
+
+            # Use the first one that exists
+            found = False
+            for path in search_paths:
+                if path.exists():
+                    self.env_path = path
+                    found = True
+                    break
+            
+            # Fallback if none found (will create new one in CWD)
+            if not found:
+                self.env_path = Path.cwd() / ".env"
+
         self.load()
     
     def load(self) -> dict:

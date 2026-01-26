@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
-import { Camera, Search, LayoutTemplate, Eye, Image, Upload, Package, ArrowLeft } from 'lucide-react'
+import { AnimatePresence } from 'framer-motion'
+import { Camera, Search, Image, Upload } from 'lucide-react'
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
@@ -8,25 +8,29 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { StageProgress, WorkflowStage } from '@/components/StageProgress'
 import { QueueCard } from '@/components/QueueCard'
-import { ToolCard } from '@/components/ToolCard'
 import { ActionBar } from '@/components/ActionBar'
-import { PhotoEditor } from '@/components/PhotoEditor'
-import { PriceResearch } from '@/components/PriceResearch'
-import { TemplateManager } from '@/components/TemplateManager'
-import { PreviewPanel } from '@/components/PreviewPanel'
 import { ShippingSelector } from '@/components/ShippingSelector'
-import { SalesWidget } from '@/components/SalesWidget'
-import { ActiveListings } from '@/components/ActiveListings'
 import { UploadZone } from '@/components/UploadZone'
 import { InstallPrompt } from '@/components/InstallPrompt'
-import { fetchJobs, fetchStatus, startQueue, pauseQueue, createListing, scanInbox, type Job, type QueueStats } from '@/lib/api'
-import { supabase } from '@/lib/supabase'
+import { createListing, type Job, type QueueStats } from '@/lib/api'
+import { ScannerListener } from '@/components/ScannerListener'
 
-type ActiveTool = 'photo-editor' | 'price-research' | 'templates' | 'preview' | 'inventory' | null
-
-interface DashboardContentProps {
-    isMobile: boolean
+interface DashboardProps {
+    jobs: Job[]
     selectedJob: Job | null
+    setSelectedJob: (job: Job | null) => void
+    queueStats: QueueStats
+    isProcessing: boolean
+    ebayStatus: 'connected' | 'disconnected' | 'checking'
+    handleStart: () => void
+    handlePause: () => void
+    handleScan: () => void
+    isScanning: boolean
+    scanMessage: string | null
+}
+
+interface DashboardContentProps extends DashboardProps {
+    isMobile: boolean
     listingPrice: string
     setListingPrice: (price: string) => void
     selectedShipping: string | null
@@ -34,11 +38,7 @@ interface DashboardContentProps {
     isCreating: boolean
     handleCreateListing: () => void
     createResult: { success: boolean; message: string } | null
-    handleScan: () => void
-    isScanning: boolean
-    scanMessage: string | null
-    activeTool: ActiveTool
-    setActiveTool: (tool: ActiveTool) => void
+    previewImage?: string | null
 }
 
 const DashboardContent = ({
@@ -54,12 +54,11 @@ const DashboardContent = ({
     handleScan,
     isScanning,
     scanMessage,
-    activeTool,
-    setActiveTool
+    previewImage
 }: DashboardContentProps) => (
     <div className={`grid ${isMobile ? 'grid-cols-1 flex flex-col' : 'grid-cols-12'} gap-6 mb-24`}>
         {/* Hero Image Section */}
-        <div className={`${isMobile ? 'w-full order-1' : 'col-span-8'} bg-white rounded-3xl p-6 shadow-sm border border-stone-100 relative group overflow-hidden`}>
+        <div className={`${isMobile ? 'w-full order-1' : 'col-span-12'} bg-white rounded-3xl p-6 shadow-sm border border-stone-100 relative group overflow-hidden`}>
             {!selectedJob ? (
                 /* Show Upload Zone when no job selected */
                 <div className="py-8">
@@ -98,10 +97,19 @@ const DashboardContent = ({
                     </div>
 
                     <div className="h-64 rounded-2xl bg-stone-100 flex items-center justify-center mb-6 overflow-hidden relative">
-                        <div className="text-stone-300 flex flex-col items-center">
-                            <Image size={48} />
-                            <span className="text-sm font-medium mt-2">{selectedJob.name}</span>
-                        </div>
+                        {previewImage ? (
+                            <img
+                                src={previewImage}
+                                alt={selectedJob.name}
+                                className="w-full h-full object-contain"
+                            />
+                        ) : (
+                            <div className="text-stone-300 flex flex-col items-center">
+                                <Image size={48} />
+                                <span className="text-sm font-medium mt-2">{selectedJob.name}</span>
+                                <span className="text-xs mt-1">No images found</span>
+                            </div>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -167,233 +175,34 @@ const DashboardContent = ({
                 </>
             )}
         </div>
-
-        {/* Tools & Stats Section */}
-        <AnimatePresence mode="wait">
-            {!activeTool ? (
-                <motion.div
-                    key="tools-grid"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className={`${isMobile ? 'order-2 w-full' : 'col-span-4'} flex flex-col gap-6`}
-                >
-                    <div className="grid grid-cols-2 gap-3">
-                        <ToolCard
-                            icon={Camera}
-                            title="Photo Editor"
-                            description="Enhance"
-                            color="bg-blue-500"
-                            onClick={() => setActiveTool('photo-editor')}
-                        />
-                        <ToolCard
-                            icon={Search}
-                            title="Research"
-                            description="Prices"
-                            color="bg-emerald-500"
-                            onClick={() => setActiveTool('price-research')}
-                        />
-                        <ToolCard
-                            icon={LayoutTemplate}
-                            title="Templates"
-                            description="Presets"
-                            color="bg-purple-500"
-                            onClick={() => setActiveTool('templates')}
-                        />
-                        <ToolCard
-                            icon={Eye}
-                            title="Preview"
-                            description="Check"
-                            color="bg-orange-500"
-                            onClick={() => setActiveTool('preview')}
-                        />
-                        <ToolCard
-                            icon={Package}
-                            title="Inventory Sync"
-                            description="Listings"
-                            color="bg-indigo-500"
-                            onClick={() => setActiveTool('inventory')}
-                        />
-                    </div>
-
-                    <SalesWidget />
-                </motion.div>
-            ) : (
-                <motion.div
-                    key="tools-compact"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className={`${isMobile ? 'order-2 w-full' : 'col-span-4'} flex gap-2 overflow-x-auto pb-2 scrollbar-none`}
-                >
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setActiveTool(null)}
-                        className="shrink-0"
-                    >
-                        <ArrowLeft size={16} className="mr-1" /> Back
-                    </Button>
-                    {[
-                        { id: 'photo-editor', icon: Camera, label: 'Photos', color: 'bg-blue-500' },
-                        { id: 'price-research', icon: Search, label: 'Prices', color: 'bg-emerald-500' },
-                        { id: 'templates', icon: LayoutTemplate, label: 'Templates', color: 'bg-purple-500' },
-                        { id: 'preview', icon: Eye, label: 'Preview', color: 'bg-orange-500' },
-                        { id: 'inventory', icon: Package, label: 'Inventory Sync', color: 'bg-indigo-500' },
-                    ].map(tool => (
-                        <button
-                            key={tool.id}
-                            onClick={() => setActiveTool(tool.id as ActiveTool)}
-                            className={`p-2 rounded-lg border flex items-center justify-center gap-2 transition-all whitespace-nowrap px-3 ${activeTool === tool.id
-                                ? `${tool.color} text-white border-transparent`
-                                : 'bg-white border-stone-200 hover:bg-stone-50'
-                                }`}
-                        >
-                            <tool.icon size={16} />
-                            <span className="text-xs font-medium">{tool.label}</span>
-                        </button>
-                    ))}
-                </motion.div>
-            )}
-        </AnimatePresence>
-
-        {/* Active Tool Panel */}
-        <AnimatePresence>
-            {activeTool && (
-                <motion.div
-                    key="tool-panel"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 20 }}
-                    className={`${isMobile ? 'order-3 w-full' : 'col-span-12'}`}
-                >
-                    {activeTool === 'photo-editor' && (
-                        <PhotoEditor
-                            jobId={selectedJob?.id}
-                            onClose={() => setActiveTool(null)}
-                        />
-                    )}
-                    {activeTool === 'price-research' && (
-                        <PriceResearch
-                            jobId={selectedJob?.id}
-                            initialQuery={selectedJob?.name}
-                            onClose={() => setActiveTool(null)}
-                        />
-                    )}
-                    {activeTool === 'templates' && (
-                        <TemplateManager
-                            onClose={() => setActiveTool(null)}
-                        />
-                    )}
-                    {activeTool === 'preview' && (
-                        <PreviewPanel
-                            jobId={selectedJob?.id}
-                            onClose={() => setActiveTool(null)}
-                        />
-                    )}
-                    {activeTool === 'inventory' && (
-                        <ActiveListings
-                            onClose={() => setActiveTool(null)}
-                        />
-                    )}
-                </motion.div>
-            )}
-        </AnimatePresence>
     </div>
 )
 
-export function Dashboard() {
-    const [jobs, setJobs] = useState<Job[]>([])
-    const [selectedJob, setSelectedJob] = useState<Job | null>(null)
-    const [queueStats, setQueueStats] = useState<QueueStats>({ pending: 0, completed: 0, failed: 0, total: 0 })
-    const [isProcessing, setIsProcessing] = useState(false)
+export function Dashboard(props: DashboardProps) {
+    const { selectedJob, jobs, setSelectedJob, queueStats, isProcessing, ebayStatus, handleScan, isScanning, scanMessage } = props
+
+    // Local UI State for "Create Listing" flow
     const [currentStage, setCurrentStage] = useState(WorkflowStage.EDIT)
-    const [activeTool, setActiveTool] = useState<ActiveTool>(null)
     const [selectedShipping, setSelectedShipping] = useState<string | null>(null)
     const [listingPrice, setListingPrice] = useState<string>('29.99')
     const [isCreating, setIsCreating] = useState(false)
     const [createResult, setCreateResult] = useState<{ success: boolean; message: string } | null>(null)
-    const [ebayStatus, setEbayStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking')
-    const [isScanning, setIsScanning] = useState(false)
-    const [scanMessage, setScanMessage] = useState<string | null>(null)
+    const [previewImage, setPreviewImage] = useState<string | null>(null)
 
-    // Initial fetch and Realtime subscription
+    // Fetch preview image when job is selected
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const [jobsData, statusData] = await Promise.all([
-                    fetchJobs(),
-                    fetchStatus()
-                ])
-
-                setJobs(jobsData)
-                setQueueStats(statusData.stats)
-                setIsProcessing(statusData.status === 'processing')
-
-                if (!selectedJob && jobsData.length > 0) {
-                    setSelectedJob(jobsData[0])
-                }
-            } catch (err) {
-                console.error('Fetch error:', err)
-            }
-        }
-
-        const checkEbay = async () => {
-            try {
-                const res = await fetch('/api/ebay/status')
-                const data = await res.json()
-                setEbayStatus(data.status === 'connected' ? 'connected' : 'disconnected')
-            } catch (e) {
-                setEbayStatus('disconnected')
-            }
-        }
-
-        // Initial load
-        fetchData()
-        checkEbay()
-
-        // Realtime Subscription
-        const channel = supabase
-            .channel('jobs-realtime')
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'jobs'
-                },
-                () => {
-                    // Re-fetch everything when jobs table changes
-                    fetchData()
-                }
-            )
-            .subscribe()
-
-        // Still poll eBay status but less frequently as it's not "live" data
-        const ebayInterval = setInterval(checkEbay, 60000)
-
-        return () => {
-            supabase.removeChannel(channel)
-            clearInterval(ebayInterval)
+        if (selectedJob) {
+            setPreviewImage(null) // Reset
+            fetch(`/api/job/${selectedJob.id}/images`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.images && data.images.length > 0) {
+                        setPreviewImage(`/api/job/${selectedJob.id}/image/${data.images[0]}`)
+                    }
+                })
+                .catch(err => console.error("Failed to load job images", err))
         }
     }, [selectedJob])
-
-    const handleStart = async () => {
-        try {
-            await startQueue()
-            setIsProcessing(true)
-        } catch (e) {
-            console.error(e)
-        }
-    }
-
-    const handlePause = async () => {
-        try {
-            await pauseQueue()
-            setIsProcessing(false)
-        } catch (e) {
-            console.error(e)
-        }
-    }
 
     const handleCreateListing = async () => {
         if (!selectedJob) return
@@ -421,46 +230,30 @@ export function Dashboard() {
         }
     }
 
-    const handleScan = async () => {
-        setIsScanning(true)
-        setScanMessage(null)
-        try {
-            const result = await scanInbox()
-            if (result.success) {
-                setScanMessage(`${result.added} new folders queued!`)
-                const jobsData = await fetchJobs()
-                setJobs(jobsData)
-                if (jobsData.length > 0 && !selectedJob) {
-                    setSelectedJob(jobsData[0])
-                }
-            } else {
-                setScanMessage('Scan failed')
-            }
-        } catch (e) {
-            setScanMessage('Scan error')
-        } finally {
-            setIsScanning(false)
-            setTimeout(() => setScanMessage(null), 3000)
-        }
+    // Handle successful scan from USB scanner
+    const handleScannerInput = (bookData: any) => {
+        // Log for now, future updates will create a job
+        console.log("Book Scanned:", bookData);
     }
 
     const renderContent = (isMobile: boolean) => (
-        <DashboardContent
-            isMobile={isMobile}
-            selectedJob={selectedJob}
-            listingPrice={listingPrice}
-            setListingPrice={setListingPrice}
-            selectedShipping={selectedShipping}
-            setSelectedShipping={setSelectedShipping}
-            isCreating={isCreating}
-            handleCreateListing={handleCreateListing}
-            createResult={createResult}
-            handleScan={handleScan}
-            isScanning={isScanning}
-            scanMessage={scanMessage}
-            activeTool={activeTool}
-            setActiveTool={setActiveTool}
-        />
+        <>
+            <ScannerListener onScan={handleScannerInput} />
+            <DashboardContent
+                {...props}
+                isMobile={isMobile}
+                listingPrice={listingPrice}
+                setListingPrice={setListingPrice}
+                selectedShipping={selectedShipping}
+                setSelectedShipping={setSelectedShipping}
+                isCreating={isCreating}
+                handleCreateListing={handleCreateListing}
+                createResult={createResult}
+                isScanning={isScanning}
+                scanMessage={scanMessage}
+                previewImage={previewImage}
+            />
+        </>
     )
 
     return (
@@ -604,8 +397,8 @@ export function Dashboard() {
             {/* Floating Action Bar */}
             <ActionBar
                 isProcessing={isProcessing}
-                onStart={handleStart}
-                onPause={handlePause}
+                onStart={props.handleStart}
+                onPause={props.handlePause}
                 onSettings={() => console.log('Open Settings')}
             />
         </div>

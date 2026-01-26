@@ -1,15 +1,14 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Package, RefreshCw, Edit2, ExternalLink, Check, X, AlertCircle, Power, Download } from 'lucide-react'
+import { Package, RefreshCw, AlertCircle, Download } from 'lucide-react'
 import { MigrationModal } from './MigrationModal'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
-// Using native checkbox input
-// Standard input type='checkbox' is safer if component is missing
+import { BulkActionBar } from './listings/BulkActionBar'
+import { ListingRow } from './listings/ListingRow'
 
-interface Listing {
+export interface Listing {
     sku: string
     offerId?: string
     listingId?: string
@@ -45,12 +44,12 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
 
     // Edit State
     const [editingSku, setEditingSku] = useState<string | null>(null)
-    const [editQty, setEditQty] = useState<string>('')
-    const [editPrice, setEditPrice] = useState<string>('')
-    const [isSaving, setIsSaving] = useState(false)
 
     // Bulk Action State
     const [isBulkActing, setIsBulkActing] = useState(false)
+
+    // Tabs
+    const [filterStatus, setFilterStatus] = useState<'active' | 'ended'>('active')
 
     const fetchListings = async () => {
         setIsLoading(true)
@@ -81,29 +80,9 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
         fetchListings()
     }, [])
 
-    const handleEditStart = (listing: Listing) => {
-        setEditingSku(listing.sku)
-        setEditQty(listing.availableQuantity.toString())
-        setEditPrice(listing.price.toString())
-    }
-
-    const handleEditCancel = () => {
-        setEditingSku(null)
-        setEditQty('')
-        setEditPrice('')
-    }
-
-    const handleSave = async (sku: string) => {
+    const handleSave = async (sku: string, newQty: number, newPrice: number) => {
         const item = data?.listings.find(l => l.sku === sku)
         if (!item) return
-
-        const newQty = parseInt(editQty)
-        const newPrice = parseFloat(editPrice)
-
-        if (isNaN(newQty) || newQty < 0) return
-        if (isNaN(newPrice) || newPrice < 0) return
-
-        setIsSaving(true)
 
         // Optimistic update
         const previousData = data
@@ -119,7 +98,6 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
         }
 
         try {
-            // Use bulk endpoint for single update too, or the updated single endpoint
             const res = await fetch(`/api/listings/${sku}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -138,8 +116,6 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
             // Revert on error
             setData(previousData)
             alert("Failed to update listing")
-        } finally {
-            setIsSaving(false)
         }
     }
 
@@ -188,120 +164,6 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
             setSelectedSkus(new Set())
         } else {
             setSelectedSkus(new Set(filteredListings.map(l => l.sku)))
-        }
-    }
-
-    // Bulk Actions
-    // Tabs
-    const [filterStatus, setFilterStatus] = useState<'active' | 'ended'>('active')
-
-    // Bulk Actions
-    const handleBulkPrice = async () => {
-        const priceStr = prompt(`Enter new price for ${selectedSkus.size} items:`)
-        if (!priceStr) return
-        const newPrice = parseFloat(priceStr)
-        if (isNaN(newPrice) || newPrice < 0) return alert("Invalid price")
-
-        setIsBulkActing(true)
-        try {
-            const updates = []
-            for (const sku of selectedSkus) {
-                const item = data?.listings.find(l => l.sku === sku)
-                if (item?.offerId) {
-                    updates.push({
-                        sku: sku,
-                        offerId: item.offerId,
-                        price: newPrice
-                    })
-                }
-            }
-            if (updates.length > 0) {
-                await fetch('/api/listings/bulk', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ updates })
-                })
-                fetchListings()
-            }
-        } catch (e) {
-            alert('Bulk update failed')
-        } finally {
-            setIsBulkActing(false)
-        }
-    }
-
-    const handleBulkTitle = async () => {
-        const mode = prompt("Title Edit Mode:\n1 = Find & Replace\n2 = Append\n3 = Prepend\n\nEnter 1, 2, or 3:")
-        if (!mode || !['1', '2', '3'].includes(mode)) return
-
-        let findText = '', replaceText = '', appendText = '', prependText = ''
-
-        if (mode === '1') {
-            findText = prompt("Enter text to FIND:") || ''
-            replaceText = prompt("Enter REPLACEMENT text:") || ''
-            if (!findText) return alert("Find text is required")
-        } else if (mode === '2') {
-            appendText = prompt("Text to APPEND to end of title:") || ''
-            if (!appendText) return alert("Append text is required")
-        } else if (mode === '3') {
-            prependText = prompt("Text to PREPEND to start of title:") || ''
-            if (!prependText) return alert("Prepend text is required")
-        }
-
-        setIsBulkActing(true)
-        try {
-            const updates = []
-            for (const sku of selectedSkus) {
-                const item = data?.listings.find(l => l.sku === sku)
-                if (item?.offerId) {
-                    let newTitle = item.title
-                    if (mode === '1') {
-                        newTitle = item.title.replace(new RegExp(findText, 'gi'), replaceText)
-                    } else if (mode === '2') {
-                        newTitle = item.title + appendText
-                    } else if (mode === '3') {
-                        newTitle = prependText + item.title
-                    }
-                    // eBay title max is 80 chars
-                    newTitle = newTitle.substring(0, 80)
-                    updates.push({ offerId: item.offerId, title: newTitle })
-                }
-            }
-            if (updates.length > 0) {
-                const res = await fetch('/api/listings/bulk/title', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ updates })
-                })
-                const result = await res.json()
-                if (result.failed > 0) {
-                    alert(`Updated ${result.updated}, Failed ${result.failed}`)
-                }
-                fetchListings()
-            }
-        } catch (e) {
-            alert('Bulk title update failed')
-        } finally {
-            setIsBulkActing(false)
-        }
-    }
-
-    const handleBulkEnd = async () => {
-        if (!confirm(`End ${selectedSkus.size} listings? This is permanent.`)) return
-        setIsBulkActing(true)
-
-        try {
-            for (const sku of selectedSkus) {
-                const item = data?.listings.find(l => l.sku === sku)
-                if (item?.offerId) {
-                    await fetch(`/api/listings/${item.offerId}/withdraw`, { method: 'POST' })
-                }
-            }
-            fetchListings()
-        } catch (e) {
-            alert('Some items failed to end')
-        } finally {
-            setIsBulkActing(false)
         }
     }
 
@@ -383,54 +245,15 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
             </div>
 
             {/* Bulk Action Bar */}
-            <AnimatePresence>
-                {selectedSkus.size > 0 && (
-                    <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="bg-blue-600 text-white px-6 py-2 flex items-center justify-between shrink-0"
-                    >
-                        <div className="text-sm font-medium">
-                            {selectedSkus.size} selected
-                        </div>
-                        <div className="flex items-center gap-2">
-                            {filterStatus === 'active' && (
-                                <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    className="h-8 bg-blue-500 text-white border-blue-400 hover:bg-blue-400"
-                                    onClick={handleBulkEnd}
-                                    disabled={isBulkActing}
-                                >
-                                    <Power size={14} className="mr-2" />
-                                    End Listings
-                                </Button>
-                            )}
-                            <Button
-                                size="sm"
-                                variant="secondary"
-                                className="h-8 bg-white text-blue-700 hover:bg-stone-100"
-                                onClick={handleBulkPrice}
-                                disabled={isBulkActing}
-                            >
-                                <Edit2 size={14} className="mr-2" />
-                                Bulk Price
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="secondary"
-                                className="h-8 bg-white text-blue-700 hover:bg-stone-100"
-                                onClick={handleBulkTitle}
-                                disabled={isBulkActing}
-                            >
-                                <Edit2 size={14} className="mr-2" />
-                                Bulk Title
-                            </Button>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+            <BulkActionBar
+                selectedSkus={selectedSkus}
+                listings={data?.listings}
+                isBulkActing={isBulkActing}
+                filterStatus={filterStatus}
+                onRefresh={fetchListings}
+                setIsBulkActing={setIsBulkActing}
+                onClearSelection={() => setSelectedSkus(new Set())}
+            />
 
             {/* Search & Filter */}
             <div className="px-6 py-3 border-b border-stone-100 shrink-0 bg-stone-50 flex items-center gap-4">
@@ -477,147 +300,20 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                     ) : (
                         <div className="divide-y divide-stone-100">
                             {filteredListings.map(listing => (
-                                <div
+                                <ListingRow
                                     key={listing.sku}
-                                    className={`px-6 py-3 transition-colors grid grid-cols-[auto_1fr_100px_80px_100px] gap-4 items-center ${selectedSkus.has(listing.sku) || editingSku === listing.sku ? 'bg-blue-50/40' : 'hover:bg-stone-50'
-                                        }`}
-                                >
-                                    {/* Checkbox */}
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedSkus.has(listing.sku)}
-                                        onChange={() => toggleSelect(listing.sku)}
-                                        className="w-4 h-4 rounded border-stone-300 text-blue-600 focus:ring-blue-500"
-                                    />
-
-                                    {/* Item Info */}
-                                    <div className="flex items-center gap-3 min-w-0">
-                                        <div className="w-10 h-10 rounded bg-stone-100 overflow-hidden flex-shrink-0 border border-stone-200">
-                                            {listing.imageUrl ? (
-                                                <img src={listing.imageUrl} alt="" className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-stone-300">
-                                                    <Package size={16} />
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="min-w-0">
-                                            <div className="text-sm font-medium text-stone-800 truncate" title={listing.title}>
-                                                {listing.title}
-                                            </div>
-                                            <div className="text-[10px] text-stone-400 font-mono">
-                                                {listing.sku}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Price */}
-                                    <div className="text-right flex items-center justify-end gap-2">
-                                        {editingSku === listing.sku ? (
-                                            <Input
-                                                type="number"
-                                                value={editPrice}
-                                                onChange={(e) => setEditPrice(e.target.value)}
-                                                className="h-7 w-20 text-right text-xs ml-auto"
-                                                step="0.01"
-                                            />
-                                        ) : (
-                                            <div className="flex items-center gap-2">
-                                                <div className={`font-medium ${listing.price === 0 ? 'text-red-500' : 'text-stone-700'}`}>
-                                                    ${listing.price.toFixed(2)}
-                                                </div>
-                                                <button
-                                                    onClick={() => refreshPrice(listing.sku)}
-                                                    disabled={fetchingSkus.has(listing.sku)}
-                                                    className="p-1 hover:bg-stone-100 rounded-full text-stone-400 hover:text-blue-500 transition-colors"
-                                                    title="Refresh Price from eBay"
-                                                >
-                                                    <RefreshCw size={12} className={fetchingSkus.has(listing.sku) ? 'animate-spin' : ''} />
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Qty */}
-                                    <div className="flex justify-center">
-                                        {editingSku === listing.sku ? (
-                                            <Input
-                                                type="number"
-                                                value={editQty}
-                                                onChange={(e) => setEditQty(e.target.value)}
-                                                className="h-7 w-16 text-center text-xs"
-                                            />
-                                        ) : (
-                                            <Badge
-                                                variant="secondary"
-                                                className={`text-[10px] h-5 px-2 ${listing.availableQuantity > 0
-                                                    ? 'bg-green-50 text-green-700'
-                                                    : 'bg-red-50 text-red-700'
-                                                    }`}
-                                            >
-                                                {listing.availableQuantity}
-                                            </Badge>
-                                        )}
-                                    </div>
-
-                                    {/* Actions */}
-                                    <div className="flex items-center justify-end gap-1">
-                                        {editingSku === listing.sku ? (
-                                            <>
-                                                <Button
-                                                    size="icon"
-                                                    className="h-7 w-7 bg-green-500 hover:bg-green-600 text-white"
-                                                    onClick={() => handleSave(listing.sku)}
-                                                    disabled={isSaving}
-                                                >
-                                                    <Check size={14} />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-7 w-7 text-stone-400 hover:text-red-500"
-                                                    onClick={handleEditCancel}
-                                                    disabled={isSaving}
-                                                >
-                                                    <X size={14} />
-                                                </Button>
-                                            </>
-                                        ) : (
-                                            <>
-                                                {filterStatus === 'ended' ? (
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-7 w-7 text-blue-500 hover:text-blue-700"
-                                                        onClick={() => handleRelist(listing)}
-                                                        title="Relist"
-                                                    >
-                                                        <RefreshCw size={14} />
-                                                    </Button>
-                                                ) : (
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-7 w-7 text-stone-400 hover:text-blue-500"
-                                                        onClick={() => handleEditStart(listing)}
-                                                    >
-                                                        <Edit2 size={14} />
-                                                    </Button>
-                                                )}
-
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-7 w-7 text-stone-400 hover:text-stone-600"
-                                                    onClick={() => window.open(`https://www.ebay.com/itm/${listing.listingId}`, '_blank')}
-                                                    title="View on eBay"
-                                                >
-                                                    <ExternalLink size={14} />
-                                                </Button>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
+                                    listing={listing}
+                                    isSelected={selectedSkus.has(listing.sku)}
+                                    isEditing={editingSku === listing.sku}
+                                    filterStatus={filterStatus}
+                                    isFetching={fetchingSkus.has(listing.sku)}
+                                    onToggleSelect={toggleSelect}
+                                    onEditStart={(l) => setEditingSku(l.sku)}
+                                    onEditCancel={() => setEditingSku(null)}
+                                    onSave={handleSave}
+                                    onRefreshPrice={refreshPrice}
+                                    onRelist={handleRelist}
+                                />
                             ))}
                         </div>
                     )}
@@ -639,8 +335,6 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                         onClose={() => setShowMigration(false)}
                         onSuccess={() => {
                             fetchListings()
-                            // Keep modal open to show status? Or close?
-                            // Let's keep it open so they see the success message in the modal
                         }}
                     />
                 )}
