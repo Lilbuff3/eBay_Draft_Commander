@@ -52,6 +52,7 @@ export default defineConfig({
   },
   base: './',
   server: {
+    host: true,
     proxy: {
       '/api': {
         target: 'http://localhost:5000',

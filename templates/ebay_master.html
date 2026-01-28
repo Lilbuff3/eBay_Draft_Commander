@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{TITLE}}</title>
+    <style>
+        /* Reset & Base */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #fff;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Mobile-First Layout */
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Header */
+        header {
+            border-bottom: 2px solid #eaeaea;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1a1a1a;
+        }
+
+        /* Gallery (Simple Grid) */
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+        }
+
+        .gallery img {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            border: 1px solid #eee;
+        }
+
+        /* Description */
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #555;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+
+        .description-text {
+            font-size: 16px;
+            margin-bottom: 30px;
+        }
+
+        /* Item Specifics Table */
+        .specs-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        .specs-table tr {
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .specs-table th {
+            text-align: left;
+            padding: 12px 8px;
+            width: 40%;
+            color: #666;
+            font-weight: 500;
+            background: #fdfdfd;
+        }
+
+        .specs-table td {
+            padding: 12px 8px;
+            font-weight: 600;
+        }
+
+        /* Mobile Tweaks */
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 20px;
+            }
+
+            body {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>{{TITLE}}</h1>
+        </header>
+
+        <div class="gallery">
+            {{IMAGES}}
+        </div>
+
+        <section class="details">
+            <h2 class="section-title">Item Specifics</h2>
+            {{ASPECTS}}
+        </section>
+
+        <section class="description">
+            <h2 class="section-title">Description</h2>
+            <div class="description-text">
+                {{DESCRIPTION}}
+            </div>
+        </section>
+
+        <section class="policies">
+            <h2 class="section-title">Shipping & Returns</h2>
+            <div class="description-text">
+                <p><strong>Shipping:</strong> Fast, tracked shipping. We ship within 1 business day.</p>
+                <p><strong>Returns:</strong> 30-Day Returns accepted if item is not as described.</p>
+                <p><strong>Condition:</strong> {{CONDITION}}</p>
+            </div>
+        </section>
+    </div>
+</body>
+
+</html>

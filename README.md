@@ -114,12 +114,16 @@ Opens Tkinter-based GUI for batch processing (legacy interface).
 
 | File | Purpose |
 |------|---------|
-| `web_server.py` | Flask API server + serves frontend |
+| File | Purpose |
+|------|---------|
+| `backend/` | **New** Modular Flask Application (App Factory, Blueprints, Services) |
+| `backend/wsgi.py` | Production entry point for the web server |
+| `web_server.py` | Legacy shim for `draft_commander.py` compatibility |
 | `ebay_auth.py` | OAuth user authorization |
 | `ai_analyzer.py` | Gemini 3 image analysis |
 | `pricing_engine.py`| AI pricing with Google Search grounding |
-| `queue_manager.py` | Job queue with persistence |
-| `create_from_folder.py` | Main listing creation logic |
+| `queue_manager.py` | Job queue with persistence (Shared Core) |
+| `create_from_folder.py` | Main listing creation logic (Shared Core) |
 | `frontend/` | React + Vite web app (PWA) |
 | `draft_commander.py` | Legacy Tkinter GUI |
 

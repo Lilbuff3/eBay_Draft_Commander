@@ -10,7 +10,7 @@ let pythonProcess
 const isDev = !app.isPackaged
 const PY_DIST_FOLDER = 'dist-python'
 const PY_FOLDER = '..'
-const PY_MODULE = 'web_server.py'
+const PY_MODULE = 'backend/wsgi.py'
 
 function getPythonScriptPath() {
     if (!isDev) {

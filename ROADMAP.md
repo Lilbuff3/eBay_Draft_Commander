@@ -111,11 +111,12 @@
 - [x] **PWA / Mobile Install**
   - Manifest.json configuration
   - Install prompt integration
-- [x] **System Reliability**
+  - [x] **System Reliability**
   - Health check script (`verify_system_health.py`)
   - Gemini 3 Model Upgrade (Flash Preview)
   - Google Search Grounding for pricing
   - QR Code generator improvement
+  - **Backend Refactor**: Modular Service-Oriented Architecture (Blueprints/Services)
 
 ### Phase 8: Listing Management ✅ (Complete)
 *Edit existing listings*

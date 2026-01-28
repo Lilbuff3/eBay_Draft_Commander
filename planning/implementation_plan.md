@@ -1,31 +1,70 @@
-# Debugging Inventory & Analytics Plan
+# Repository Cleanup Implementation Plan
 
 ## Goal Description
-Resolve two critical issues reported by the user:
-1.  **Zero Price in Inventory**: Inventory items are displaying a price of $0.00. This is likely due to the API optimization in `web_server.py` that skips fetching offer details (price) for each item to save time.
-2.  **Analytics Disappearing**: The analytics dashboard loads data briefly but then it vanishes. This suggests a frontend state issue, potentially a re-render clearing data or an error causing the component to unmount/hide.
+Clean up the `ebay-draft-commander` repository by removing unnecessary, redundant, and outdated files identified in the recent audit. This will improve maintainability and reduce clutter.
 
 ## User Review Required
-None at this stage.
+> [!WARNING]
+> **Deletion Risk**: This plan involves moving files to an `archive/_deprecated_2026_01_25` directory and deleting temporary files. 
+> Please review the "Proposed Changes" section carefully to ensure no critical files are marked for removal.
+> **Specific Note**: The legacy desktop UI Python files (`inventory_dialog.py`, etc.) will be archived. If you still use the desktop GUI (TKinter/Qt), let me know immediately.
 
 ## Proposed Changes
 
-### Inventory Price Fix
-The `get_active_listings` endpoint in `web_server.py` needs to provide price information.
--   **Analyze**: Check if price is available in the initial `get_inventory_items` response (it might be in a different field) or if we need a batch fetch for offers.
--   **Modify**: `web_server.py` to include price in the returned JSON.
--   **Modify**: `ActiveListings.tsx` to ensure it reads the correct price field.
+### 1. Archiving Dead Code
+Create a new directory `archive/_deprecated_2026_01_25` and move the following files there:
 
-### Analytics Fix
--   **Analyze**: `Dashboard.tsx` and `SalesWidget.tsx` (if it exists) or the relevant analytics section in `Dashboard.tsx`.
--   **Debug**: Use browser console to check for errors.
--   **Modify**: Fix the state management or error handling causing the data to disappear.
+#### Legacy Modules
+- `legacy_draft_commander.py`
+- `legacy_web_server.py`
+- `auto_refresh.py`
+- `create_shortcut.py`
+- `smart_listing.py`
+
+#### Obsolete Desktop UI Components
+- `inventory_dialog.py`
+- `photo_editor_dialog.py`
+- `preview_dialog.py`
+- `settings_dialog.py`
+- `template_dialog.py`
+- `ui_widgets.py`
+
+#### Unused Frontend Components
+- `frontend/src/components/TestMediaManager.tsx`
+
+### 2. Archiving Unused Assets
+Move the following to `archive/_unused_assets`:
+
+- `phone_screenshot*.png`
+- `phone_test*.png`
+- `mobile_access_qr.png`
+- `mobile_access_vite_qr.png`
+
+### 3. Cleaning Temporary Files
+**DELETE** the following files:
+
+- `ai_test_output.txt`, `ai_trust_output.txt`, `api_debug.txt`
+- `cletop_output.txt`, `post_cletop_log.txt`
+- `debug_output.txt`, `debug_output_2.txt`
+- `e2e_log.txt`, `health_report.txt`
+- `offer_debug.txt`, `pricing_test.txt`
+- `user_test_output.txt`
+- `debug_ebay_output.html`
+- `frontend/build_error.log`
+
+### 4. Updates to .gitignore
+#### [MODIFY] [.gitignore](file:///c:/Users/adam/OneDrive/Documents/Desktop/Development/projects/ebay-draft-commander/.gitignore)
+- Add patterns to ignore future occurrences of these temporary files.
+    ```
+    *_output.txt
+    *_log.txt
+    debug_*.html
+    pricing_test.txt
+    ```
 
 ## Verification Plan
 
-### Automated Tests
--   None.
-
 ### Manual Verification
--   **Inventory**: Reload "Inventory Sync" and verify valid prices are displayed for items.
--   **Analytics**: Reload the dashboard and verify the analytics widgets stay visible and populated.
+1.  **Build Check**: Run `npm run build` in `frontend/` to ensure no archived assets were critical.
+2.  **Backend Check**: Run `python tools/verify_system_health.py` to ensure core backend services still function.
+3.  **Visual Check**: Verify the `archive/` folder contains the expected items.
