@@ -42,6 +42,8 @@ def get_app_directory() -> Path:
     """
     if is_frozen():
         # Running as packaged app - use user-writable location
+        import tempfile
+        
         if sys.platform == 'win32':
             # Windows: Use LOCALAPPDATA
             base_dir = Path(os.environ.get('LOCALAPPDATA', Path.home() / 'AppData' / 'Local')) / 'eBayDraftCommander'
@@ -52,9 +54,15 @@ def get_app_directory() -> Path:
             # Linux/Unix: Use hidden directory in home
             base_dir = Path.home() / '.ebay-draft-commander'
         
-        # Ensure directory exists
-        base_dir.mkdir(parents=True, exist_ok=True)
-        return base_dir
+        # Ensure directory exists with fallback for permission errors
+        try:
+            base_dir.mkdir(parents=True, exist_ok=True)
+            return base_dir
+        except (PermissionError, OSError) as e:
+            # Fallback to temp directory if LOCALAPPDATA is not writable
+            fallback_dir = Path(tempfile.gettempdir()) / 'eBayDraftCommander'
+            fallback_dir.mkdir(parents=True, exist_ok=True)
+            return fallback_dir
     else:
         # Running from source - use project root
         # Navigate up from: backend/app/core/paths.py -> project root
