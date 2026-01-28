@@ -16,6 +16,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional
 import traceback
+from backend.app.core.paths import get_logs_dir
 
 
 class JSONFormatter(logging.Formatter):
@@ -118,9 +119,7 @@ def get_logger(
     
     # File handler with rotation
     if log_to_file:
-        log_dir = Path(__file__).parent / 'logs'
-        log_dir.mkdir(exist_ok=True)
-        
+        log_dir = get_logs_dir()
         log_file = log_dir / f'{name}.log'
         file_handler = logging.handlers.RotatingFileHandler(
             log_file,

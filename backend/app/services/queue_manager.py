@@ -12,6 +12,7 @@ from enum import Enum
 from dataclasses import dataclass, field, asdict
 from typing import Optional, List, Callable, Dict, Any
 from backend.app.core.logger import get_logger
+from backend.app.core.paths import get_data_dir
 
 
 class JobStatus(Enum):
@@ -73,9 +74,8 @@ class QueueManager:
     """
     
     def __init__(self, base_path: Path = None):
-        self.base_path = base_path or Path(__file__).parent.parent.parent.parent
-        self.data_path = self.base_path / "data"
-        self.data_path.mkdir(exist_ok=True)
+        self.base_path = base_path or get_data_dir().parent
+        self.data_path = get_data_dir()
         self.db_path = self.data_path / "commander.db"
         
         from backend.app.core.database import init_db, JobModel
