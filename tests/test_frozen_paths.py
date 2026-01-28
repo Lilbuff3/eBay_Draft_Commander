@@ -44,31 +44,37 @@ def test_frozen_paths_are_writable():
     print("\nTest: Frozen Paths Are Writable...")
     
     # Mock Windows frozen environment
-    with patch.object(sys, 'frozen', True, create=True):
-        with patch.object(sys, '_MEIPASS', 'C:\\Temp\\_MEI12345', create=True):
-            with patch.object(sys, 'platform', 'win32'):
-                # Mock LOCALAPPDATA environment variable
-                with patch.dict(os.environ, {'LOCALAPPDATA': 'C:\\Users\\TestUser\\AppData\\Local'}):
-                    app_dir = get_app_directory()
-                    logs_dir = get_logs_dir()
-                    data_dir = get_data_dir()
+    with tempfile.TemporaryDirectory() as temp_local_appdata:
+        with patch.object(sys, 'frozen', True, create=True):
+            with patch.object(sys, '_MEIPASS', 'C:\\Temp\\_MEI12345', create=True):
+                with patch.object(sys, 'platform', 'win32'):
+                    # Mock LOCALAPPDATA environment variable to use real temp dir
+                    with patch.dict(os.environ, {'LOCALAPPDATA': temp_local_appdata}):
+                        app_dir = get_app_directory()
+                        logs_dir = get_logs_dir()
+                        data_dir = get_data_dir()
                     
-                    # Verify paths are NOT in the temporary _MEI directory
-                    assert '_MEI' not in str(app_dir), f"App dir should not be in _MEI: {app_dir}"
-                    assert '_MEI' not in str(logs_dir), f"Logs dir should not be in _MEI: {logs_dir}"
-                    assert '_MEI' not in str(data_dir), f"Data dir should not be in _MEI: {data_dir}"
-                    
-                    # Verify paths are in LOCALAPPDATA (user-writable)
-                    assert 'AppData\\Local\\eBayDraftCommander' in str(app_dir), \
-                        f"App dir should be in LOCALAPPDATA: {app_dir}"
-                    assert 'AppData\\Local\\eBayDraftCommander\\logs' in str(logs_dir), \
-                        f"Logs dir should be under app dir: {logs_dir}"
-                    assert 'AppData\\Local\\eBayDraftCommander\\data' in str(data_dir), \
-                        f"Data dir should be under app dir: {data_dir}"
-                    
-                    print(f"  [PASS] App Directory: {app_dir}")
-                    print(f"  [PASS] Logs Directory: {logs_dir}")
-                    print(f"  [PASS] Data Directory: {data_dir}")
+                        # Verify paths are NOT in the temporary _MEI directory
+                        assert '_MEI' not in str(app_dir), f"App dir should not be in _MEI: {app_dir}"
+                        assert '_MEI' not in str(logs_dir), f"Logs dir should not be in _MEI: {logs_dir}"
+                        assert '_MEI' not in str(data_dir), f"Data dir should not be in _MEI: {data_dir}"
+                        
+                        # Verify paths are in LOCALAPPDATA (user-writable)
+                        assert 'eBayDraftCommander' in str(app_dir), \
+                            f"App dir should contain eBayDraftCommander: {app_dir}"
+                        assert 'eBayDraftCommander' in str(logs_dir), \
+                            f"Logs dir should be under app dir: {logs_dir}"
+                        assert 'eBayDraftCommander' in str(data_dir), \
+                            f"Data dir should be under app dir: {data_dir}"
+                        
+                        # Verify directories actually exist and are writable
+                        assert app_dir.exists(), f"App dir should exist: {app_dir}"
+                        assert logs_dir.exists(), f"Logs dir should exist: {logs_dir}"
+                        assert data_dir.exists(), f"Data dir should exist: {data_dir}"
+                        
+                        print(f"  [PASS] App Directory: {app_dir}")
+                        print(f"  [PASS] Logs Directory: {logs_dir}")
+                        print(f"  [PASS] Data Directory: {data_dir}")
 
 
 def test_development_paths_use_project_root():

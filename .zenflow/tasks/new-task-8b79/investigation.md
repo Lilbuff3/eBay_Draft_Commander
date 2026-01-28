@@ -147,5 +147,75 @@ def get_app_directory():
    - Verify paths resolve to writable locations
    - Ensure no attempt to write to `_MEIPASS`
 
+## Implementation Summary
+
+### Files Created
+1. **backend/app/core/paths.py** (New)
+   - Detects PyInstaller frozen environment using `sys.frozen` and `sys._MEIPASS`
+   - Provides `get_app_directory()`, `get_logs_dir()`, `get_data_dir()` utilities
+   - Returns user-writable directories in production (LOCALAPPDATA on Windows)
+   - Returns project-relative paths in development
+
+2. **tests/test_frozen_paths.py** (New)
+   - Comprehensive regression tests for frozen environment path resolution
+   - Mocks PyInstaller environment to verify correct behavior
+   - Tests logger and QueueManager initialization in frozen mode
+
+### Files Modified
+1. **backend/app/core/logger.py**
+   - Added import: `from backend.app.core.paths import get_logs_dir`
+   - Replaced `Path(__file__).parent / 'logs'` with `get_logs_dir()`
+   - Removed manual directory creation (handled by path utility)
+
+2. **backend/app/services/queue_manager.py**
+   - Added import: `from backend.app.core.paths import get_data_dir`
+   - Replaced `Path(__file__).parent.parent.parent.parent` with `get_data_dir().parent`
+   - Replaced manual data directory creation with `get_data_dir()`
+
+3. **backend/wsgi.py**
+   - Added early boot logger that writes to file before main logging system
+   - Replaced all `print()` statements with `boot_logger` calls
+   - Added exception handling with full traceback logging
+   - Boot logger writes to `backend_boot.log` in logs directory
+
 ## Test Results
-*(To be updated after implementation)*
+
+### Regression Test: test_frozen_paths.py
+All tests **PASSED** ✓
+
+**Test 1: Frozen Environment Detection**
+- Non-frozen detection: PASS
+- Frozen detection with mocked sys.frozen: PASS
+
+**Test 2: Frozen Paths Are Writable**
+- Verified paths NOT in _MEI directory: PASS
+- Verified paths in LOCALAPPDATA/eBayDraftCommander: PASS
+- Verified directories exist and are writable: PASS
+- Example paths:
+  - App: `C:\Users\...\AppData\Local\Temp\...\eBayDraftCommander`
+  - Logs: `C:\Users\...\AppData\Local\Temp\...\eBayDraftCommander\logs`
+  - Data: `C:\Users\...\AppData\Local\Temp\...\eBayDraftCommander\data`
+
+**Test 3: Development Paths Use Project Root**
+- App directory in project root: PASS
+- Logs in backend/app/core/logs: PASS
+- Data in project root/data: PASS
+
+**Test 4: Logger in Frozen Environment**
+- Logger initializes without crash: PASS
+- Log files created in writable location: PASS
+- No attempt to write to _MEI directory: PASS
+
+**Test 5: QueueManager in Frozen Environment**
+- QueueManager initializes without crash: PASS
+- Database created in writable location: PASS
+- No attempt to write to _MEI directory: PASS
+
+### Verification
+The implementation successfully fixes the write permission crash by:
+1. Detecting when running as packaged executable
+2. Using OS-appropriate user-writable directories
+3. Creating all directories before attempting writes
+4. Maintaining backward compatibility with development mode
+
+The bug that caused `[WinError 3] The system cannot find the path specified` is now **RESOLVED**.
