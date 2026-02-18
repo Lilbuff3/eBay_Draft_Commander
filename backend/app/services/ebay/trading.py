@@ -126,6 +126,164 @@ class TradingService:
             logger.error(f"Trading Light Error: {e}")
             return {'error': str(e)}, 500
 
+    def add_fixed_price_item(self, item_data: dict, schedule_time: str = None):
+        """
+        Creates a Fixed Price Listing using the Trading API (AddFixedPriceItem).
+        Supports native eBay scheduling via `schedule_time`.
+
+        Args:
+            item_data (dict): Dictionary containing item details:
+                - title
+                - description
+                - price
+                - category_id
+                - condition_id
+                - sku
+                - image_urls (list)
+                - payment_policy_id
+                - return_policy_id
+                - fulfillment_policy_id
+                - paypal_email (optional, legacy requirement)
+                - postal_code (optional)
+            schedule_time (str, optional): ISO 8601 string for scheduled posting.
+        
+        Returns:
+            dict: {success, item_id, error}
+        """
+        try:
+            creds = load_env()
+            token = creds.get('EBAY_USER_TOKEN')
+            if not token: return {'success': False, 'error': 'No eBay User Token found'}
+
+            TRADING_URL = 'https://api.ebay.com/ws/api.dll'
+
+            # Define Namespaces
+            xmlns = "urn:ebay:apis:eBLBaseComponents"
+
+            # Construct XML Body
+            # Note: We use f-strings for simplicity, but for complex user input, 
+            # consider using ElementTree to avoid XML injection issues. 
+            # However, our validator sanitizes most inputs.
+            
+            # Helper for optional tags
+            def tag(name, value):
+                return f"<{name}>{value}</{name}>" if value else ""
+
+            # Prepare Policy Profiles (Business Policies)
+            # Trading API uses SellerProfiles for this
+            seller_profiles = ""
+            if item_data.get('payment_policy_id') or item_data.get('return_policy_id') or item_data.get('fulfillment_policy_id'):
+                seller_profiles = "<SellerProfiles>"
+                if item_data.get('payment_policy_id'):
+                    seller_profiles += f"""<SellerPaymentProfile><PaymentProfileID>{item_data['payment_policy_id']}</PaymentProfileID></SellerPaymentProfile>"""
+                if item_data.get('return_policy_id'):
+                    seller_profiles += f"""<SellerReturnProfile><ReturnProfileID>{item_data['return_policy_id']}</ReturnProfileID></SellerReturnProfile>"""
+                if item_data.get('fulfillment_policy_id'):
+                    seller_profiles += f"""<SellerShippingProfile><ShippingProfileID>{item_data['fulfillment_policy_id']}</ShippingProfileID></SellerShippingProfile>"""
+                seller_profiles += "</SellerProfiles>"
+
+            # Prepare Images
+            picture_details = ""
+            if item_data.get('image_urls'):
+                picture_details = "<PictureDetails><GalleryType>Gallery</GalleryType>"
+                for url in item_data['image_urls']:
+                    picture_details += f"<PictureURL>{url}</PictureURL>"
+                picture_details += "</PictureDetails>"
+
+            # Prepare Schedule Time
+            schedule_tag = ""
+            if schedule_time:
+                # Ensure format is YYYY-MM-DDTHH:MM:SS.000Z
+                # Simple check/conversion might be needed if frontend sends something else
+                schedule_tag = f"<ScheduleTime>{schedule_time}</ScheduleTime>"
+
+            xml_request = f"""<?xml version="1.0" encoding="utf-8"?>
+            <AddFixedPriceItemRequest xmlns="{xmlns}">
+                <RequesterCredentials>
+                    <eBayAuthToken>{token}</eBayAuthToken>
+                </RequesterCredentials>
+                <ErrorLanguage>en_US</ErrorLanguage>
+                <WarningLevel>High</WarningLevel>
+                <Item>
+                    {tag('Title', item_data.get('title'))}
+                    {tag('Description', f"<![CDATA[{item_data.get('description')}]]>")}
+                    <PrimaryCategory>
+                        <CategoryID>{item_data.get('category_id', '1')}</CategoryID>
+                    </PrimaryCategory>
+                    <StartPrice currencyID="USD">{item_data.get('price')}</StartPrice>
+                    <ConditionID>{item_data.get('condition_id', '3000')}</ConditionID>
+                    {tag('SKU', item_data.get('sku'))}
+                    <Country>US</Country>
+                    <Currency>USD</Currency>
+                    <DispatchTimeMax>3</DispatchTimeMax>
+                    <ListingDuration>GTC</ListingDuration>
+                    <ListingType>FixedPriceItem</ListingType>
+                    {schedule_tag}
+                    {picture_details}
+                    {seller_profiles}
+                    {tag('PostalCode', item_data.get('postal_code'))}
+                    <ItemSpecifics>
+                        {self._build_item_specifics_xml(item_data.get('item_specifics', {}))}
+                    </ItemSpecifics>
+                </Item>
+            </AddFixedPriceItemRequest>
+            """
+
+            headers = {
+                'X-EBAY-API-SITEID': '0',
+                'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
+                'X-EBAY-API-CALL-NAME': 'AddFixedPriceItem',
+                'Content-Type': 'text/xml'
+            }
+
+            logger.info(f"Sending AddFixedPriceItem for SKU {item_data.get('sku')}...")
+            
+            response = requests.post(TRADING_URL, headers=headers, data=xml_request.encode('utf-8'), timeout=60)
+            
+            if response.status_code != 200:
+                logger.error(f"Trading API HTTP Error: {response.status_code} - {response.text}")
+                return {'success': False, 'error': f"HTTP {response.status_code}"}
+
+            # Parse Response
+            root = ET.fromstring(response.content)
+            ns = {'e': xmlns}
+            
+            ack = root.find('.//e:Ack', ns).text
+            
+            if ack in ['Success', 'Warning']:
+                item_id = root.find('.//e:ItemID', ns).text
+                start_time = root.find('.//e:StartTime', ns).text
+                return {
+                    'success': True, 
+                    'item_id': item_id, 
+                    'start_time': start_time,
+                    'status': 'Scheduled' if schedule_time else 'Active'
+                }
+            else:
+                # Extract Errors
+                errors = []
+                for err in root.findall('.//e:Errors', ns):
+                    code = err.find('e:ErrorCode', ns).text
+                    msg = err.find('e:LongMessage', ns).text
+                    errors.append(f"{code}: {msg}")
+                
+                logger.error(f"Trading API Failure: {errors}")
+                return {'success': False, 'error': "; ".join(errors)}
+
+        except Exception as e:
+            logger.exception("AddFixedPriceItem Exception")
+            return {'success': False, 'error': str(e)}
+
+    def _build_item_specifics_xml(self, specifics):
+        """Helper to build ItemSpecifics XML"""
+        if not specifics: return ""
+        xml = ""
+        for name, value in specifics.items():
+            val_list = value if isinstance(value, list) else [value]
+            for v in val_list:
+                xml += f"<NameValueList><Name>{name}</Name><Value>{v}</Value></NameValueList>"
+        return xml
+
     def _parse_item_xml(self, item, ns):
         """Helper to parse individual item XML from Trading API"""
         # Safe extraction helper

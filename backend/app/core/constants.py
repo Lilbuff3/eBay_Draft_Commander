@@ -22,6 +22,24 @@ CONDITION_MAP = {
     'For Parts': 'FOR_PARTS_OR_NOT_WORKING'
 }
 
+# eBay Trading API Condition IDs
+CONDITION_ID_MAP = {
+    'NEW': '1000',
+    'NEW_OTHER': '1500',
+    'NEW_WITH_DEFECTS': '1500', 
+    'LIKE_NEW': '3000', # Used (Excellent)
+    'CERTIFIED_REFURBISHED': '2000',
+    'EXCELLENT_REFURBISHED': '2500',
+    'VERY_GOOD_REFURBISHED': '2500',
+    'GOOD_REFURBISHED': '2500',
+    'SELLER_REFURBISHED': '2500',
+    'USED_EXCELLENT': '3000', # Used
+    'USED_VERY_GOOD': '4000', # Very Good
+    'USED_GOOD': '5000', # Good
+    'USED_ACCEPTABLE': '6000', # Acceptable
+    'FOR_PARTS_OR_NOT_WORKING': '7000'
+}
+
 # eBay API Limits and Defaults
 DEFAULT_CATEGORY_ID = "170599"  # Other > Everything Else (fallback category)
 MAX_IMAGES_PER_LISTING = 12  # eBay allows max 12 images per listing

@@ -23,6 +23,7 @@ class JobStatus(Enum):
     FAILED = "failed"
     PAUSED = "paused"
     SKIPPED = "skipped"
+    SCHEDULED = "scheduled"
 
 
 @dataclass
@@ -58,6 +59,7 @@ class QueueJob:
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
+    scheduled_time: Optional[str] = None
     timing: Dict[str, float] = field(default_factory=dict)
     job_metadata: Dict[str, Any] = field(default_factory=dict)
     
@@ -85,6 +87,9 @@ class QueueManager:
     """
     
     def __init__(self, base_path: Path = None):
+        # Initialize logger first
+        self.logger = get_logger('queue_manager', level='DEBUG')
+
         self.base_path = base_path or get_data_dir().parent
         self.data_path = get_data_dir()
         self.db_path = self.data_path / "commander.db"
@@ -92,6 +97,9 @@ class QueueManager:
         from backend.app.core.database import init_db, JobModel
         self.SessionFactory = init_db(self.db_path)
         self.JobModel = JobModel
+        
+        # Auto-Migration: Ensure scheduled_time exists
+        self._ensure_schema()
         
         self.jobs: List[QueueJob] = []
         self._processing = False
@@ -109,12 +117,26 @@ class QueueManager:
         # Socket.IO instance (injected from create_app)
         self.socketio = None
         
+        
         # Initial sync of all existing jobs
         # self.load_state() will naturally handle this on startup
-    
-        # Initialize logger
-        self.logger = get_logger('queue_manager', level='DEBUG')
         
+    def _ensure_schema(self):
+        """Simple migration helper to add columns if missing"""
+        import sqlite3
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            # Check if scheduled_time exists
+            cursor.execute("PRAGMA table_info(jobs)")
+            columns = [info[1] for info in cursor.fetchall()]
+            if 'scheduled_time' not in columns:
+                print("Migrating DB: Adding scheduled_time column...")
+                cursor.execute("ALTER TABLE jobs ADD COLUMN scheduled_time TIMESTAMP")
+                conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"Schema migration warning: {e}")
 
         
         # Load any persisted state
@@ -162,6 +184,146 @@ class QueueManager:
             except Exception as e:
                 self.logger.error(f"Token maintenance error: {e}")
                 time.sleep(300) # Retry sooner on error
+    # ... existing methods ...
+
+    def add_folder(self, folder_path: str, metadata: Dict[str, Any] = None) -> QueueJob:
+        """Add a single folder to the queue with optional metadata"""
+        path = Path(folder_path)
+        meta = metadata or {}
+        
+        job = QueueJob(
+            id=uuid.uuid4().hex[:8].upper(),
+            folder_path=str(path),
+            folder_name=path.name,
+            job_metadata=meta,
+            scheduled_time=meta.get('scheduled_time') # Extract from metadata if present
+        )
+        
+        session = self.SessionFactory()
+        try:
+            db_job = self.JobModel(
+                id=job.id,
+                folder_path=job.folder_path,
+                folder_name=job.folder_name,
+                status=job.status.value,
+                created_at=datetime.fromisoformat(job.created_at),
+                job_metadata=job.job_metadata,
+                scheduled_time=datetime.fromisoformat(job.scheduled_time) if job.scheduled_time else None,
+                
+                # Init new fields
+                ai_data={},
+                item_specifics={},
+                timing={}
+            )
+            session.add(db_job)
+            session.commit()
+            
+            with self._lock:
+                self.jobs.append(job)
+            
+            self._sync_to_supabase(job)
+            self.emit_event('job_added', job.to_dict())
+            return job
+        except Exception as e:
+            session.rollback()
+            self.logger.error(f"Failed to add job to database: {e}")
+            raise
+        finally:
+            session.close()
+
+    # ... existing methods ...
+
+    def save_state(self):
+        """Syncs all in-memory jobs to the database"""
+        session = self.SessionFactory()
+        try:
+            for job in self.jobs:
+                db_job = session.query(self.JobModel).filter_by(id=job.id).first()
+                if db_job:
+                    db_job.status = job.status.value
+                    db_job.listing_id = job.listing_id
+                    db_job.offer_id = job.offer_id
+                    db_job.price = job.price
+                    
+                    # Save New Fields
+                    db_job.user_title = job.user_title
+                    db_job.user_price = job.user_price
+                    db_job.user_description = job.user_description
+                    db_job.user_condition = job.user_condition
+                    db_job.ai_data = job.ai_data
+                    db_job.item_specifics = job.item_specifics
+                    
+                    db_job.error_type = job.error_type
+                    db_job.error_message = job.error_message
+                    db_job.attempts = job.attempts
+                    db_job.started_at = datetime.fromisoformat(job.started_at) if job.started_at else None
+                    db_job.completed_at = datetime.fromisoformat(job.completed_at) if job.completed_at else None
+                    db_job.scheduled_time = datetime.fromisoformat(job.scheduled_time) if job.scheduled_time else None
+                    db_job.timing = job.timing
+                    db_job.job_metadata = job.job_metadata
+            
+            session.commit()
+            # self.logger.info("Saved queue state to DB")
+        except Exception as e:
+            session.rollback()
+            self.logger.error(f"Failed to save state to DB: {e}")
+        finally:
+            session.close()
+            
+    # ... existing methods ...
+
+    def load_state(self):
+        """Load queue state from SQLite database"""
+        session = self.SessionFactory()
+        try:
+            db_jobs = session.query(self.JobModel).all()
+            self.jobs = []
+            for db_j in db_jobs:
+                # Map DB model to QueueJob dataclass
+                job = QueueJob(
+                    id=db_j.id,
+                    folder_path=db_j.folder_path,
+                    folder_name=db_j.folder_name,
+                    status=JobStatus(db_j.status),
+                    listing_id=db_j.listing_id,
+                    offer_id=db_j.offer_id,
+                    price=db_j.price,
+                    
+                    # New Fields
+                    user_title=db_j.user_title,
+                    user_price=db_j.user_price,
+                    user_description=db_j.user_description,
+                    user_condition=db_j.user_condition,
+                    ai_data=db_j.ai_data,
+                    item_specifics=db_j.item_specifics,
+                    
+                    error_type=db_j.error_type,
+                    error_message=db_j.error_message,
+                    attempts=db_j.attempts,
+                    max_attempts=db_j.max_attempts,
+                    created_at=db_j.created_at.isoformat(),
+                    started_at=db_j.started_at.isoformat() if db_j.started_at else None,
+                    completed_at=db_j.completed_at.isoformat() if db_j.completed_at else None,
+                    scheduled_time=db_j.scheduled_time.isoformat() if db_j.scheduled_time else None,
+                    timing=db_j.timing,
+                    job_metadata=db_j.job_metadata
+                )
+                
+                # Reset any jobs that were processing when we closed
+                if job.status == JobStatus.PROCESSING:
+                    job.status = JobStatus.PENDING
+                    db_j.status = JobStatus.PENDING.value
+                
+                self.jobs.append(job)
+            
+            session.commit()
+            self.logger.info(f"Loaded {len(self.jobs)} jobs from SQLite database")
+            
+        except Exception as e:
+            self.logger.error(f"Error loading queue state from database: {e}")
+            self.jobs = []
+        finally:
+            session.close()
 
     def _watch_inbox(self):
         """Background thread to watch for new items in inbox"""

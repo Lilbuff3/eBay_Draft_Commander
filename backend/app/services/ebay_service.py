@@ -20,17 +20,28 @@ class eBayService:
     """
 
     def __init__(self):
-        # self.trading_service = TradingService() # Deprecated
-        self.inventory_service = InventoryService()
+        self.trading_service = TradingService()
         self.inventory_service = InventoryService()
         # Pass a lambda to resolve circular dependency for active count
         self.analytics_service = AnalyticsService(
             inventory_service_callback=lambda: self.get_active_listings()[0]
         )
 
+    # ... existing methods ...
+
+    # --- Trading API (Classic / Scheduled) ---
+    
+    def create_trading_api_listing(self, item_data: Dict[str, Any], schedule_time: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Create a fixed price listing using legacy Trading API (XML).
+        Supports scheduling.
+        """
+        return self.trading_service.add_fixed_price_item(item_data, schedule_time)
+
     # --- Connection Check --- 
     
     def check_connection_status(self) -> Tuple[Dict[str, str], int]:
+    # ... rest of file ...
         """Check if eBay API connection is valid by testing token"""
         try:
             creds = load_env()

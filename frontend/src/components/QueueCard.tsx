@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Clock, Loader2, Check, AlertCircle, Image, Square, CheckSquare } from 'lucide-react'
+import { Clock, Loader2, Check, AlertCircle, Image, Square, CheckSquare, CalendarClock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import type { Job, JobStatus } from '@/lib/api'
@@ -17,6 +17,7 @@ const statusConfig: Record<JobStatus, { icon: typeof Clock; color: string; badge
     processing: { icon: Loader2, color: 'bg-clay-400 text-white', badgeVariant: 'default' },
     completed: { icon: Check, color: 'bg-sage-100 text-sage-700', badgeVariant: 'outline' },
     failed: { icon: AlertCircle, color: 'bg-red-100 text-red-600', badgeVariant: 'destructive' },
+    scheduled: { icon: CalendarClock, color: 'bg-blue-100 text-blue-600', badgeVariant: 'secondary' },
 }
 
 export function QueueCard({ job, isSelected, isSelectionMode, onToggleSelect, onClick }: QueueCardProps) {
@@ -32,6 +33,10 @@ export function QueueCard({ job, isSelected, isSelectionMode, onToggleSelect, on
             onClick()
         }
     }
+
+    // Format scheduled time for display
+    const scheduledDate = job.scheduled_time ? new Date(job.scheduled_time) : null
+    const isScheduledFuture = scheduledDate && scheduledDate > new Date()
 
     return (
         <motion.div
@@ -91,11 +96,12 @@ export function QueueCard({ job, isSelected, isSelectionMode, onToggleSelect, on
                 <div className="flex-1 min-w-0">
                     <h4 className="font-medium text-stone-800 text-sm truncate">{job.name}</h4>
                     <p className="text-xs text-stone-500 mt-1 truncate">
-                        {job.listing_id ? `Active: ${job.listing_id}` :
-                            job.status === 'completed' ? 'Draft Ready' :
-                                job.status === 'processing' ? 'Analyzing...' :
-                                    job.status === 'failed' ? 'Issue Detected' :
-                                        'Pending'}
+                        {isScheduledFuture ? `Scheduled: ${scheduledDate?.toLocaleDateString()} ${scheduledDate?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` :
+                            job.listing_id ? `Active: ${job.listing_id}` :
+                                job.status === 'completed' ? 'Draft Ready' :
+                                    job.status === 'processing' ? 'Analyzing...' :
+                                        job.status === 'failed' ? 'Issue Detected' :
+                                            'Pending'}
                     </p>
 
                     <div className="flex items-center gap-2 mt-2 flex-wrap">

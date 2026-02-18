@@ -18,6 +18,7 @@ from backend.app.services.ebay_service import eBayService
 from backend.app.services.template_manager import get_template_manager
 from backend.app.core.constants import (
     CONDITION_MAP,
+    CONDITION_ID_MAP,
     DEFAULT_CATEGORY_ID,
     DEFAULT_CONDITION,
     MAX_IMAGES_PER_LISTING,
@@ -212,8 +213,8 @@ class ProcessorService:
             logger.error(f"Template rendering failed: {e}")
             return {"html": f"<p>{description}</p>", "timing": time.time() - timing_start}
 
-    def _create_ebay_listing_bundle(self, title: str, final_price: str, condition: str, category_id: str, html_description: str, image_urls: list, item_specifics: dict, shipping_policy: str, ai_data: dict, result_obj: dict) -> dict:
-        """Create eBay inventory item and offer via MCP bundle with auto-publish thresholds"""
+    def _create_trading_api_listing(self, title: str, final_price: str, condition: str, category_id: str, html_description: str, image_urls: list, item_specifics: dict, shipping_policy: str, ai_data: dict, result_obj: dict, scheduled_time: str = None) -> dict:
+        """Create eBay Fixed Price Listing via Trading API (XML)"""
         timing_start = time.time()
         sku = 'DC-' + uuid.uuid4().hex[:8].upper()
         
@@ -221,7 +222,10 @@ class ProcessorService:
             # 0. Final Input Validation
             title = validate_title(title)
             final_price = str(validate_price(final_price))
-            condition = validate_condition(condition)
+            condition = validate_condition(condition) # Returns enum string like 'USED_EXCELLENT'
+            
+            # Map condition to ID
+            condition_id = CONDITION_ID_MAP.get(condition, '3000') # Default to Used
             
             # 1. Aspect Cleaning
             cleaned_aspects = {}
@@ -230,104 +234,55 @@ class ProcessorService:
                 val = v[0] if isinstance(v, list) else v
                 val = str(val)
                 if k == 'Brand' and val.upper() == 'OEM': val = 'Unbranded'
+                # Trading API might be less strict or handle truncation differently, 
+                # but good to keep it clean.
                 if len(val) > ASPECT_VALUE_MAX_LENGTH:
-                    if ',' in val:
-                        parts = val.split(',')
-                        val = parts[0].strip() if len(parts[0]) <= ASPECT_VALUE_MAX_LENGTH else val[:62] + "..."
-                    else:
-                        val = val[:62] + "..."
+                     val = val[:62] + "..."
                 cleaned_aspects[k] = [val]
 
-            # 2. Build Inventory Item
-            item_data = {
-                "sku": sku,
-                "product": {
-                    "title": title[:TITLE_MAX_LENGTH],
-                    "description": f"Product: {title} - {condition}", 
-                    "aspects": cleaned_aspects,
-                    "imageUrls": image_urls
-                },
-                "condition": condition,
-                "availability": {
-                    "shipToLocationAvailability": {
-                        "quantity": 1,
-                        "merchantLocationKey": current_app.config.get('EBAY_MERCHANT_LOCATION', 'DEFAULT')
-                    }
-                }
-            }
-            
-            # 3. Handle Auto-Publish thresholds
-            should_publish = False
-            publish_reason = ""
-            
-            if current_app.config.get('AUTO_PUBLISH'):
-                confidence = ai_data.get('identification', {}).get('confidence_score', 0)
-                try:
-                    confidence = int(confidence)
-                except:
-                    confidence = 0
-                
-                conf_thresh = current_app.config.get('CONFIDENCE_THRESHOLD', DEFAULT_CONFIDENCE_THRESHOLD)
-                min_price = current_app.config.get('AUTO_PUBLISH_MIN_PRICE', DEFAULT_MIN_PRICE)
-                
-                price_val = 0.0
-                try:
-                    price_val = float(final_price)
-                except: pass
-                
-                if confidence >= conf_thresh and price_val >= min_price and not result_obj.get('price_warning'):
-                    should_publish = True
-                    publish_reason = f"High Confidence ({confidence}%) & Price (${price_val})"
-                else:
-                    logger.info(f"Skipping Auto-Publish: Conf={confidence}% (Req {conf_thresh}), Price=${price_val} (Req ${min_price}), Warnings={bool(result_obj.get('price_warning'))}")
-
-            # 4. Prepare Offer Payload
-            shipping_id = shipping_policy or current_app.config.get('EBAY_FULFILLMENT_POLICY')
+            # 2. Get Policies
             payment_id = current_app.config.get('EBAY_PAYMENT_POLICY')
             return_id = current_app.config.get('EBAY_RETURN_POLICY')
-            location_key = current_app.config.get('EBAY_MERCHANT_LOCATION', 'default')
+            fulfillment_id = shipping_policy or current_app.config.get('EBAY_FULFILLMENT_POLICY')
             
-            offer_payload = {
+            # 3. Prepare Item Data
+            item_data = {
+                'title': title[:TITLE_MAX_LENGTH],
+                'description': html_description,
+                'price': final_price,
+                'category_id': category_id,
+                'condition_id': condition_id,
                 'sku': sku,
-                'marketplaceId': 'EBAY_US',
-                'format': 'FIXED_PRICE',
-                'availableQuantity': 1,
-                'categoryId': category_id,
-                'listingDescription': html_description, 
-                'listingPolicies': {
-                    'fulfillmentPolicyId': shipping_id,
-                    'paymentPolicyId': payment_id,
-                    'returnPolicyId': return_id
-                },
-                'pricingSummary': {'price': {'value': str(final_price), 'currency': 'USD'}},
-                'merchantLocationKey': location_key
+                'image_urls': image_urls,
+                'payment_policy_id': payment_id,
+                'return_policy_id': return_id,
+                'fulfillment_policy_id': fulfillment_id,
+                'item_specifics': cleaned_aspects,
+                'postal_code': current_app.config.get('EBAY_POSTAL_CODE')
             }
 
-            # 5. Call eBay Service Bundle
-            logger.info(f"Delegating listing bundle creation for SKU {sku} to eBayService...")
-            bundle_result = self.ebay_service.create_listing_bundle(
-                sku=sku,
-                item_data=item_data,
-                offer_data=offer_payload,
-                auto_publish=should_publish
-            )
+            # 4. Call Trading Service
+            logger.info(f"Creating Trading API Listing for SKU {sku}...")
+            if scheduled_time:
+                logger.info(f"📅 User Requested Schedule: {scheduled_time}")
+                
+            api_result = self.ebay_service.create_trading_api_listing(item_data, schedule_time=scheduled_time)
             
-            if not bundle_result.get('success'):
-                error_details = "; ".join(bundle_result.get('details', []))
-                raise Exception(f"eBay Bundle failed: {error_details}")
+            if not api_result.get('success'):
+                raise Exception(f"Trading API Failed: {api_result.get('error')}")
 
             return {
                 "success": True,
-                "listing_id": bundle_result.get('listing_id'),
-                "offer_id": bundle_result.get('offer_id'),
-                "status": bundle_result.get('status'),
-                "published": bundle_result.get('status') == 'active',
-                "publish_reason": publish_reason,
+                "listing_id": api_result.get('item_id'),
+                "offer_id": None, # Trading API doesn't use offers in the same way
+                "status": api_result.get('status'),
+                "published": api_result.get('status') == 'Active',
+                "publish_reason": "Trading API Direct Post",
                 "timing": time.time() - timing_start
             }
 
         except Exception as e:
-            logger.error(f"eBay Bundle failed: {e}")
+            logger.error(f"Trading API Creation failed: {e}")
             return {"error": str(e), "timing": time.time() - timing_start}
 
     def create_listing(self, job_obj, log_callback=None):
@@ -433,12 +388,15 @@ class ProcessorService:
         html_description = template["html"]
         result["timing"]["templating"] = template["timing"]
 
-        # --- eBay Listing Bundle (Inventory + Offer + Publish) ---
+        # --- eBay Trading API Listing ---
         shipping_policy = None
         if job_obj.job_metadata:
              shipping_policy = job_obj.job_metadata.get('fulfillment_policy')
         
-        bundle = self._create_ebay_listing_bundle(
+        # Pull schedule time from job if present
+        scheduled_time = job_obj.scheduled_time if job_obj.scheduled_time else None
+
+        bundle = self._create_trading_api_listing(
             title=title,
             final_price=final_price,
             condition=condition,
@@ -448,7 +406,8 @@ class ProcessorService:
             item_specifics=item_specifics,
             shipping_policy=shipping_policy,
             ai_data=ai_data,
-            result_obj=result 
+            result_obj=result,
+            scheduled_time=scheduled_time
         )
         
         if "error" in bundle:
@@ -464,7 +423,7 @@ class ProcessorService:
         result["timing"]["api"] = bundle["timing"]
         
         if bundle.get('published'):
-             _log(f"🚀 Auto-Publish Result: {result['status']} ({bundle.get('publish_reason')})", level='success')
+             _log(f"🚀 Listing Created: {result['status']}", level='success')
 
         result["timing"]["total"] = time.time() - start_time
         result["price"] = final_price

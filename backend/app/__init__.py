@@ -1,6 +1,7 @@
 from flask import Flask
 from flask_socketio import SocketIO
 from backend.config import Config
+import logging
 
 # Primary Socket.IO instance
 socketio = SocketIO(cors_allowed_origins="*")

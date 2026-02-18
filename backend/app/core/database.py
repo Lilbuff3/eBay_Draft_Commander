@@ -55,6 +55,7 @@ class JobModel(Base):
     started_at = Column(DateTime)
     completed_at = Column(DateTime)
     timing_json = Column(Text)
+    scheduled_time = Column(DateTime)
     
     # Legacy / Generic Metadata (Keep for backward compatibility during migration)
     metadata_json = Column(Text)

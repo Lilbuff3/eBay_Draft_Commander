@@ -46,6 +46,7 @@ def upload_files():
     # But safer to ask Config or use a known relative path
     # Use standard INBOX_DIR from config
     inbox_dir = current_app.config['INBOX_DIR']
+    inbox_dir = current_app.config['INBOX_DIR']
     inbox_dir.mkdir(parents=True, exist_ok=True)
 
     job_folder = inbox_dir / folder_name
@@ -301,7 +302,8 @@ def get_jobs():
                     if Path(j.folder_path).exists() and any(f.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"} for f in Path(j.folder_path).iterdir())
                     else None
                 ),
-                'condition': j.job_metadata.get('condition') if hasattr(j, 'job_metadata') else None
+                'condition': j.job_metadata.get('condition') if hasattr(j, 'job_metadata') else None,
+                'scheduled_time': getattr(j, 'scheduled_time', None)
             })
     return jsonify(jobs_data)
 

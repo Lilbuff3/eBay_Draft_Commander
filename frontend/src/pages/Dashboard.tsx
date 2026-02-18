@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { AnimatePresence } from 'framer-motion'
-import { Camera, Search, Image, Upload } from 'lucide-react'
+import { Camera, Search, Image, Upload, CalendarClock } from 'lucide-react'
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
@@ -43,6 +43,8 @@ interface DashboardContentProps extends DashboardProps {
     setListingTitle: (title: string) => void
     selectedShipping: string | null
     setSelectedShipping: (id: string | null) => void
+    scheduledTime: string
+    setScheduledTime: (time: string) => void
     isCreating: boolean
     handleCreateListing: () => void
     createResult: { success: boolean; message: string } | null
@@ -63,6 +65,8 @@ const DashboardContent = ({
     setListingTitle,
     selectedShipping,
     setSelectedShipping,
+    scheduledTime,
+    setScheduledTime,
     isCreating,
     handleCreateListing,
     createResult,
@@ -253,6 +257,22 @@ const DashboardContent = ({
                                     onChange={setSelectedShipping}
                                 />
                             </div>
+
+                            {/* Schedule Listing */}
+                            <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100">
+                                <label className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1 block flex items-center gap-1">
+                                    <CalendarClock size={12} />
+                                    Schedule (Optional)
+                                </label>
+                                <Input
+                                    type="datetime-local"
+                                    value={scheduledTime}
+                                    onChange={(e) => setScheduledTime(e.target.value)}
+                                    className="bg-white"
+                                />
+                                <p className="text-[10px] text-stone-400 mt-1">Leave blank to post immediately</p>
+                            </div>
+
                         </div>
                     ) : (
                         /* Fallback basic form if no job details */
@@ -280,7 +300,7 @@ const DashboardContent = ({
                                     : 'bg-stone-300 cursor-not-allowed'
                                 }`}
                         >
-                            {isCreating ? 'Creating...' : 'Create eBay Listing'}
+                            {isCreating ? 'Creating...' : scheduledTime ? 'Schedule Listing' : 'Create eBay Listing'}
                         </button>
 
                         {createResult && (
@@ -317,6 +337,7 @@ export function Dashboard(props: DashboardProps) {
     const [selectedShipping, setSelectedShipping] = useState<string | null>(null)
     const [listingPrice, setListingPrice] = useState<string>('29.99')
     const [listingTitle, setListingTitle] = useState<string>('')
+    const [scheduledTime, setScheduledTime] = useState<string>('')
     const [isCreating, setIsCreating] = useState(false)
     const [createResult, setCreateResult] = useState<{ success: boolean; message: string } | null>(null)
     const [previewImage, setPreviewImage] = useState<string | null>(null)
@@ -432,6 +453,7 @@ export function Dashboard(props: DashboardProps) {
         } else {
             setJobDetails(null)
             setListingTitle('')
+            setScheduledTime('') // Reset schedule time
         }
     }, [selectedJob])
 
@@ -446,7 +468,8 @@ export function Dashboard(props: DashboardProps) {
                 jobId: selectedJob.id,
                 price: listingPrice,
                 title: listingTitle,
-                fulfillmentPolicy: selectedShipping || undefined
+                fulfillmentPolicy: selectedShipping || undefined,
+                scheduledTime: scheduledTime || undefined
             })
 
             if (result.success) {
@@ -461,6 +484,7 @@ export function Dashboard(props: DashboardProps) {
             setIsCreating(false)
         }
     }
+
 
     // Drag & Drop Handlers for Queue Panel
     const handleDragOver = (e: React.DragEvent) => {
@@ -525,6 +549,8 @@ export function Dashboard(props: DashboardProps) {
                 setListingTitle={setListingTitle}
                 selectedShipping={selectedShipping}
                 setSelectedShipping={setSelectedShipping}
+                scheduledTime={scheduledTime}
+                setScheduledTime={setScheduledTime}
                 isCreating={isCreating}
                 handleCreateListing={handleCreateListing}
                 createResult={createResult}
