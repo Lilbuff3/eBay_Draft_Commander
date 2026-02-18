@@ -89,7 +89,8 @@ class QueueManager:
         self.data_path = get_data_dir()
         self.db_path = self.data_path / "commander.db"
         
-        from backend.app.core.database import init_db, JobModel
+        from backend.app.core.database import init_db, get_db_engine, JobModel
+        self._engine = get_db_engine(self.db_path)
         self.SessionFactory = init_db(self.db_path)
         self.JobModel = JobModel
         
@@ -131,6 +132,11 @@ class QueueManager:
         self.inbox_path = self.base_path / "inbox"
         self._watcher_thread = threading.Thread(target=self._watch_inbox, daemon=True)
         self._watcher_thread.start()
+
+    def close(self):
+        """Dispose of DB engine and stop background threads"""
+        if hasattr(self, '_engine') and self._engine:
+            self._engine.dispose()
 
     @property
     def current_job(self) -> Optional[QueueJob]:
@@ -240,16 +246,30 @@ class QueueManager:
         for job in self.jobs:
             self._sync_to_supabase(job)
     
-    def add_folder(self, folder_path: str, metadata: Dict[str, Any] = None) -> QueueJob:
-        """Add a single folder to the queue with optional metadata"""
+    def add_folder(
+        self,
+        folder_path: str,
+        metadata: Dict[str, Any] = None,
+        user_title: str = None,
+        user_price: str = None,
+        user_condition: str = None,
+        user_description: str = None,
+        item_specifics: Dict[str, Any] = None,
+    ) -> QueueJob:
+        """Add a single folder to the queue with optional metadata and user overrides"""
         path = Path(folder_path)
         job = QueueJob(
             id=uuid.uuid4().hex[:8].upper(),
             folder_path=str(path),
             folder_name=path.name,
-            job_metadata=metadata or {}
+            job_metadata=metadata or {},
+            user_title=user_title,
+            user_price=user_price,
+            user_condition=user_condition,
+            user_description=user_description,
+            item_specifics=item_specifics or {},
         )
-        
+
         session = self.SessionFactory()
         try:
             db_job = self.JobModel(
@@ -259,10 +279,14 @@ class QueueManager:
                 status=job.status.value,
                 created_at=datetime.fromisoformat(job.created_at),
                 job_metadata=job.job_metadata,
-                
+                user_title=job.user_title,
+                user_price=job.user_price,
+                user_condition=job.user_condition,
+                user_description=job.user_description,
+                item_specifics=job.item_specifics,
+
                 # Init new fields
                 ai_data={},
-                item_specifics={},
                 timing={}
             )
             session.add(db_job)

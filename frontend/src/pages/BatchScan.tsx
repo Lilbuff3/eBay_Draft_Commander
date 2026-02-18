@@ -103,7 +103,7 @@ export function BatchScan() {
         setLastScannedId(id) // Highlight effect?
 
         try {
-            const res = await fetch(`http://localhost:5000/api/lookup/book?isbn=${isbn}`)
+            const res = await fetch(`/api/lookup/book?isbn=${isbn}`)
             const data = await res.json()
 
             if (data.success) {
@@ -173,14 +173,32 @@ export function BatchScan() {
             dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { status: 'drafting' } } })
 
             try {
-                // Simulating the API call for MVP
-                await new Promise(r => setTimeout(r, 800))
+                const res = await fetch('/api/jobs/create-from-metadata', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: item.fullData?.title,
+                        isbn: item.isbn,
+                        description: item.fullData?.description,
+                        price: item.price,
+                        condition: item.condition,
+                        stock_photo: item.stock_photo,
+                        item_specifics: item.fullData?.item_specifics,
+                        listing_type: 'book',
+                        source_data: item.fullData,
+                    }),
+                })
+                const data = await res.json()
 
-                dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { status: 'drafted', listingId: 'DRAFT-' + item.isbn } } })
+                if (data.success === true) {
+                    dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { status: 'drafted', listingId: data.jobId } } })
+                    processed++
+                } else {
+                    dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { status: 'error' } } })
+                }
             } catch {
                 dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { status: 'error' } } })
             }
-            processed++
         }
         setIsProcessing(false)
         toast.success(`Processed ${processed} items!`)

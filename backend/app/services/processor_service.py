@@ -372,50 +372,98 @@ class ProcessorService:
             return result
         
         images.sort(key=lambda x: x.name)
-        
-        # --- AI Analysis (Enhanced) ---
-        ai_start = time.time()
-        analysis = self._perform_enhanced_ai_analysis(folder_path, images, condition, job_obj, log_callback)
-        
-        if "error" in analysis:
-            result["error_type"] = "AI_Analysis_Failed"
-            result["error_message"] = f"Strict Mode: AI Analysis failed. {analysis['error']}"
-            return result
-            
-        ai_data = analysis["ai_data"]
-        title = analysis["title"]
-        raw_description = analysis["raw_description"]
-        item_specifics = analysis["item_specifics"]
-        ai_suggested_price = analysis["ai_suggested_price"]
-        
-        result["timing"]["ai_analysis"] = time.time() - ai_start
-        
-        # Update job with AI findings if not already set (though _perform_enhanced_ai_analysis sets ai_data on job_obj)
-        # We can also update item specifics if we want to separate them
-        job_obj.item_specifics = item_specifics
 
-        # --- Category Lookup ---
-        cat_start = time.time()
-        category_id = DEFAULT_CATEGORY_ID  # Fallback
-        
-        try:
-            _log("📚 Mapping category taxonomy...")
-            cat_result = self.category_mapper.get_category(title, raw_description)
-            category_id = cat_result['id']
-            if cat_result.get('warning'):
-                 result['category_warning'] = cat_result['warning']
-            _log(f"✅ Mapped to Category ID: {category_id}")
-        except Exception as e:
-            _log(f"Category lookup error: {e}", level='error')
-            
-        result["timing"]["taxonomy"] = time.time() - cat_start
+        # --- Book Listing Fast Path ---
+        is_book: bool = job_obj.job_metadata.get('listing_type') == 'book'
 
-        # --- Pricing ---
-        pricing = self._determine_final_pricing(title, condition, ai_suggested_price, job_obj.user_price, log_callback)
-        final_price = pricing["price"]
-        if "warning" in pricing:
-            result["price_warning"] = pricing["warning"]
-        result["timing"]["pricing"] = pricing["timing"]
+        if is_book:
+            _log("📖 Book listing detected — using metadata fast path")
+
+            isbn: str | None = job_obj.job_metadata.get('isbn')
+
+            # Use pre-populated data from metadata instead of AI vision
+            title: str = job_obj.user_title or job_obj.job_metadata.get('source_data', {}).get('title', folder_path.name)
+            raw_description: str = job_obj.user_description or job_obj.job_metadata.get('user_description', f"Book: {title}")
+            item_specifics: dict = job_obj.item_specifics or job_obj.job_metadata.get('item_specifics', {})
+            ai_suggested_price: float = 0  # Will be overridden by ISBN pricing
+
+            # Populate ai_data structure so downstream code works
+            ai_data: dict = job_obj.ai_data or {
+                'identification': {'confidence_score': 95, 'source': 'book_metadata'},
+                'listing': {'suggested_title': title, 'suggested_price': '0'},
+                'item_specifics': item_specifics,
+            }
+            job_obj.ai_data = ai_data
+            job_obj.item_specifics = item_specifics
+
+            result["timing"]["ai_analysis"] = 0
+
+            # Book category (eBay "Books & Magazines > Books" = 261186)
+            # Using the generic category from the existing lookup endpoint
+            category_id: str = "267"
+            result["timing"]["taxonomy"] = 0
+
+            # ISBN-aware pricing
+            pricing: dict = self._determine_final_pricing(title, condition, ai_suggested_price, job_obj.user_price, log_callback)
+            # If no user price and we have an ISBN, try ISBN pricing via PricingEngine
+            if not job_obj.user_price and isbn:
+                try:
+                    _log(f"💰 ISBN Pricing for {isbn}...")
+                    price_result: dict = self.pricing_engine.get_price_with_comps(title, condition=condition, isbn=isbn)
+                    if price_result and price_result.get('suggested_price'):
+                        pricing = {"price": str(price_result['suggested_price']), "timing": 0}
+                except Exception as e:
+                    _log(f"ISBN pricing failed, falling back: {e}", level='warning')
+
+            final_price: str = pricing["price"]
+            if "warning" in pricing:
+                result["price_warning"] = pricing["warning"]
+            result["timing"]["pricing"] = pricing.get("timing", 0)
+
+        else:
+            # --- AI Analysis (Enhanced) ---
+            ai_start = time.time()
+            analysis = self._perform_enhanced_ai_analysis(folder_path, images, condition, job_obj, log_callback)
+
+            if "error" in analysis:
+                result["error_type"] = "AI_Analysis_Failed"
+                result["error_message"] = f"Strict Mode: AI Analysis failed. {analysis['error']}"
+                return result
+
+            ai_data = analysis["ai_data"]
+            title = analysis["title"]
+            raw_description = analysis["raw_description"]
+            item_specifics = analysis["item_specifics"]
+            ai_suggested_price = analysis["ai_suggested_price"]
+
+            result["timing"]["ai_analysis"] = time.time() - ai_start
+
+            # Update job with AI findings if not already set (though _perform_enhanced_ai_analysis sets ai_data on job_obj)
+            # We can also update item specifics if we want to separate them
+            job_obj.item_specifics = item_specifics
+
+            # --- Category Lookup ---
+            cat_start = time.time()
+            category_id = DEFAULT_CATEGORY_ID  # Fallback
+
+            try:
+                _log("📚 Mapping category taxonomy...")
+                cat_result = self.category_mapper.get_category(title, raw_description)
+                category_id = cat_result['id']
+                if cat_result.get('warning'):
+                    result['category_warning'] = cat_result['warning']
+                _log(f"✅ Mapped to Category ID: {category_id}")
+            except Exception as e:
+                _log(f"Category lookup error: {e}", level='error')
+
+            result["timing"]["taxonomy"] = time.time() - cat_start
+
+            # --- Pricing ---
+            pricing = self._determine_final_pricing(title, condition, ai_suggested_price, job_obj.user_price, log_callback)
+            final_price = pricing["price"]
+            if "warning" in pricing:
+                result["price_warning"] = pricing["warning"]
+            result["timing"]["pricing"] = pricing["timing"]
 
         # --- Image Upload ---
         upload = self._upload_images(folder_path, max_images=12, log_callback=log_callback)

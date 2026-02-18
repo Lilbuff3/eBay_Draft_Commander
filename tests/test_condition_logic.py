@@ -31,17 +31,17 @@ def test_condition_user_override_highest_priority(processor, mock_callback, tmp_
     folder = tmp_path / "Used" / "test_item"  # Parent folder suggests "USED_GOOD"
     folder.mkdir(parents=True)
     
-    user_overrides = {"condition": "NEW"}  # User explicitly wants NEW
+    user_condition = "NEW"  # User explicitly wants NEW
     metadata_condition = "USED_EXCELLENT"  # Queue says USED_EXCELLENT
-    
+
     # Act
     result = processor._determine_condition(
-        folder, 
-        metadata_condition, 
-        user_overrides, 
+        folder,
+        metadata_condition,
+        user_condition,
         mock_callback
     )
-    
+
     # Assert
     assert result == "NEW"
     mock_callback.assert_called()  # Should log the decision
@@ -117,18 +117,18 @@ def test_condition_priority_cascade(processor, mock_callback, tmp_path):
     folder.mkdir(parents=True)
     
     # All three sources present
-    user_overrides = {"condition": "CERTIFIED_REFURBISHED"}
+    user_condition = "CERTIFIED_REFURBISHED"
     metadata_condition = "USED_GOOD"
     # Folder name would give FOR_PARTS_OR_NOT_WORKING
-    
+
     # Act
     result = processor._determine_condition(
         folder,
         metadata_condition,
-        user_overrides,
+        user_condition,
         mock_callback
     )
-    
+
     # Assert
     assert result == "CERTIFIED_REFURBISHED"  # User override wins
 

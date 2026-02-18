@@ -10,6 +10,7 @@ from backend.app.services.ebay import policies as ebay_policies
 from backend.app.core.settings_manager import get_settings_manager
 from backend.app.core.logger import get_logger
 from backend.app.core.validator import validate_price, validate_title, validate_isbn, validate_safe_path, ValidationError
+from backend.app.core.constants import CONDITION_MAP
 
 api_bp = Blueprint('api', __name__)
 logger = get_logger('api')
@@ -159,23 +160,23 @@ def scan_inbox_endpoint():
 
 @api_bp.route('/jobs/create-from-metadata', methods=['POST'])
 def create_job_from_metadata():
-    """Create a new job from provided metadata (e.g. from Book Lookup)"""
+    """Create a new job from provided metadata (e.g. from Book Lookup / BatchScan)"""
     try:
         data = request.json
         if not data:
             return error_response('No metadata provided', 400)
-            
+
         qm = current_app.queue_manager
-        
+
         # 1. Create Folder
         folder_name = f"metadata_import_{int(time.time())}_{uuid.uuid4().hex[:4]}"
         inbox_dir = current_app.config['INBOX_DIR']
         inbox_dir.mkdir(parents=True, exist_ok=True)
         job_folder = inbox_dir / folder_name
         job_folder.mkdir(exist_ok=True)
-        
-        # 2. Handle Thumbnail (if provided URL)
-        image_url = data.get('thumbnail')
+
+        # 2. Handle Thumbnail — supports both 'thumbnail' (legacy) and 'stock_photo' (BatchScan)
+        image_url = data.get('stock_photo') or data.get('thumbnail')
         if image_url:
             try:
                 import requests
@@ -183,33 +184,69 @@ def create_job_from_metadata():
                 if img_resp.status_code == 200:
                     # Guess extension or default to jpg
                     ext = 'jpg'
-                    if 'png' in image_url: ext = 'png'
+                    if 'png' in image_url:
+                        ext = 'png'
                     with open(job_folder / f"cover.{ext}", 'wb') as f:
                         f.write(img_resp.content)
             except Exception as e:
                 logger.warning(f"Failed to download thumbnail: {e}")
-                
-        # 3. Prepare Metadata (passed directly)
-        # Ensure we keep the original data plus mapped fields for AI
-        metadata = {
-            'user_title': data.get('title'),
-            'user_isbn': data.get('isbn'),
-            'user_description': data.get('description'),
-            'source_data': data, # Keep full original data
+
+        # 3. Map friendly condition string to eBay condition enum using CONDITION_MAP.
+        #    CONDITION_MAP keys are friendly display strings (e.g. "Like New" -> "LIKE_NEW").
+        #    Fall back to None so the processor uses its own logic if unrecognised.
+        friendly_condition = data.get('condition')
+        mapped_condition = CONDITION_MAP.get(friendly_condition) if friendly_condition else None
+
+        # 4. Extract and validate user price (optional — processor falls back to AI pricing)
+        raw_price = data.get('price')
+        user_price_val = None
+        if raw_price:
+            try:
+                user_price_val = str(validate_price(raw_price))
+            except (ValidationError, Exception) as e:
+                logger.warning(f"Invalid price '{raw_price}' in metadata import: {e}")
+
+        # 5. Extract user title (optional — processor falls back to AI title)
+        raw_title = data.get('title')
+        user_title_val = None
+        if raw_title:
+            try:
+                user_title_val = validate_title(raw_title)
+            except (ValidationError, Exception) as e:
+                logger.warning(f"Title validation warning '{raw_title}': {e}")
+                # Use raw title even if it fails validation — processor may truncate
+                user_title_val = str(raw_title).strip()[:80] if raw_title else None
+
+        # 6. Build job_metadata — stores supplementary info accessible to the processor and UI
+        job_metadata = {
+            'listing_type': data.get('listing_type'),          # e.g. "book"
+            'isbn': data.get('isbn'),                           # validated separately if needed
+            'item_specifics': data.get('item_specifics', {}),  # e.g. Author, Publisher, …
+            'user_description': data.get('description'),        # HTML description from lookup
+            'source_data': data.get('source_data', data),      # full lookup response
             'created_at': time.time(),
-            'notes': f"Imported from {data.get('source', 'metadata')}"
+            'notes': f"Imported from {data.get('source', 'metadata')}",
         }
-        
-        # 4. Queue Job
-        job = qm.add_folder(str(job_folder), metadata=metadata)
-        
+
+        # 7. Queue Job — pass user overrides directly so the processor honours them immediately
+        job = qm.add_folder(
+            str(job_folder),
+            metadata=job_metadata,
+            user_title=user_title_val,
+            user_price=user_price_val,
+            user_condition=mapped_condition,
+            user_description=data.get('description'),
+            item_specifics=data.get('item_specifics', {}),
+        )
+
         return jsonify({
             'success': True,
             'jobId': job.id,
             'message': 'Job created from metadata'
         })
-        
+
     except Exception as e:
+        logger.error(f"create_job_from_metadata failed: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # --- Lookup Endpoints ---

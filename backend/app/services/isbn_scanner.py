@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Optional, List
 from backend.app.core.logger import get_logger
+from backend.app.core.constants import AI_MODEL_NAME
 
 logger = get_logger('isbn_scanner')
 try:
@@ -54,7 +55,7 @@ class ISBNScanner:
             If no ISBN is visible, return 'None'."""
             
             response = self.client.models.generate_content(
-                model='gemini-3-flash-preview',
+                model=AI_MODEL_NAME,
                 contents=[prompt, img]
             )
             

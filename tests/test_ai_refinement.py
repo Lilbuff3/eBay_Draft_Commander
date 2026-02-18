@@ -4,7 +4,7 @@ import json
 from unittest.mock import MagicMock, patch, ANY
 from backend.app.services.processor_service import ProcessorService
 from backend.app import create_app
-from backend.app.services.queue_manager import QueueManager
+from backend.app.services.queue_manager import QueueManager, QueueJob
 
 @pytest.fixture
 def mock_deps():
@@ -51,25 +51,32 @@ def test_auto_publish_success(test_app, mock_deps, tmp_path):
     """Test that HIGH confidence + HIGH price triggers auto-publish"""
     # Setup High Confidence AI
     mock_deps['ai'].analyze_with_research.return_value = {
-        "identification": {"confidence_score": 90}, 
+        "identification": {"confidence_score": 90},
         "listing": {"suggested_title": "Good Item", "suggested_price": "50.00"},
         "item_specifics": {"Brand": "Test"}
     }
-    
+
     # Run
     service = ProcessorService()
     job_folder = tmp_path / "test_job_success"
     job_folder.mkdir()
     (job_folder / "img.jpg").touch()
-    
+
+    job = QueueJob(
+        id="AUTO_PUB1",
+        folder_path=str(job_folder),
+        folder_name="test_job_success",
+        job_metadata={}
+    )
+
     with test_app.app_context():
-        result = service.create_listing(str(job_folder))
-        
+        result = service.create_listing(job)
+
     # We verify the INTENT to auto-publish by checking the call args
     mock_deps['ebay'].create_listing_bundle.assert_called_with(
-        sku=ANY, 
-        item_data=ANY, 
-        offer_data=ANY, 
+        sku=ANY,
+        item_data=ANY,
+        offer_data=ANY,
         auto_publish=True
     )
 
@@ -80,15 +87,22 @@ def test_auto_publish_low_confidence(test_app, mock_deps, tmp_path):
         "listing": {"suggested_title": "Ambiguous Item", "suggested_price": "50.00"},
         "item_specifics": {"Brand": "Test"}
     }
-    
+
     service = ProcessorService()
     job_folder = tmp_path / "test_job_low_conf"
     job_folder.mkdir()
     (job_folder / "img.jpg").touch()
-    
+
+    job = QueueJob(
+        id="AUTO_PUB2",
+        folder_path=str(job_folder),
+        folder_name="test_job_low_conf",
+        job_metadata={}
+    )
+
     with test_app.app_context():
-        result = service.create_listing(str(job_folder))
-        
+        result = service.create_listing(job)
+
     # Verify we requested auto_publish=False (Draft Mode)
     args = mock_deps['ebay'].create_listing_bundle.call_args
     assert args is not None
@@ -98,22 +112,29 @@ def test_auto_publish_low_price(test_app, mock_deps, tmp_path):
     """Test that LOW price prevents auto-publish (Draft)"""
     # High Confidence but Low Price
     mock_deps['ai'].analyze_with_research.return_value = {
-        "identification": {"confidence_score": 95}, 
+        "identification": {"confidence_score": 95},
         "listing": {"suggested_title": "Cheap Item", "suggested_price": "10.00"},
         "item_specifics": {"Brand": "Test"}
     }
-    
+
     # Force Pricing Engine to return $10.00
     mock_deps['pricing'].get_price_with_comps.return_value = {"suggested_price": "10.00"}
-    
+
     service = ProcessorService()
     job_folder = tmp_path / "test_job_cheap"
     job_folder.mkdir()
     (job_folder / "img.jpg").touch()
-    
+
+    job = QueueJob(
+        id="AUTO_PUB3",
+        folder_path=str(job_folder),
+        folder_name="test_job_cheap",
+        job_metadata={}
+    )
+
     with test_app.app_context():
-        result = service.create_listing(str(job_folder))
-    
+        result = service.create_listing(job)
+
     # Verify we requested auto_publish=False (Draft Mode)
     args = mock_deps['ebay'].create_listing_bundle.call_args
     assert args is not None

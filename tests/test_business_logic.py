@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
 from backend.app.services.processor_service import ProcessorService
-from backend.app.services.queue_manager import QueueManager
+from backend.app.services.queue_manager import QueueManager, QueueJob, JobStatus
 from backend.app import create_app
 
 @pytest.fixture
@@ -50,46 +50,49 @@ def test_condition_mapping_from_folders(mock_deps, tmp_path):
     nos_folder = inbox / "New Old Stock"
     item_folder = nos_folder / "test_item"
     item_folder.mkdir(parents=True)
-    
+
     # We need a dummy image to pass the 'images' check
     (item_folder / "test.jpg").touch()
-    
+
     service = ProcessorService()
-    
+
     mock_deps['ai'].analyze_with_research.return_value = {
         "identification": {"confidence_score": 90},
         "listing": {"suggested_title": "Test Item", "suggested_price": "100.00"},
         "item_specifics": {"Brand": "Sony"}
     }
-    
+
     # Configure create_listing_bundle mock
     mock_deps['ebay'].create_listing_bundle.return_value = {
-        'success': True, 
-        'listing_id': '123', 
-        'offer_id': '456', 
+        'success': True,
+        'listing_id': '123',
+        'offer_id': '456',
         'status': 'published'
     }
+
+    # Create a QueueJob object (matches real create_listing signature)
+    job = QueueJob(
+        id="TEST001",
+        folder_path=str(item_folder),
+        folder_name="test_item",
+        job_metadata={}
+    )
 
     from flask import Flask
     app = Flask(__name__)
     app.config['EBAY_MERCHANT_LOCATION'] = 'DEFAULT'
     with app.app_context():
-        result = service.create_listing(str(item_folder))
-            
+        result = service.create_listing(job)
+
     assert result['success'] == True
-    
+
     # Check that create_listing_bundle was called with correct item_data (containing condition)
     bundle_call = mock_deps['ebay'].create_listing_bundle.call_args
     assert bundle_call is not None
-    
-    # create_listing_bundle(sku=..., item_data=..., ...)
-    # args are likely passed as kwargs or positional. 
-    # Based on processor_service.py: 
-    # create_listing_bundle(sku=sku, item_data=item_data, offer_data=offer_payload, auto_publish=should_publish)
-    
+
     kwargs = bundle_call.kwargs
     item_data = kwargs['item_data']
-    
+
     assert item_data['condition'] == 'NEW_OTHER'
 
 def test_aspect_cleaning_truncation(mock_deps, tmp_path):
@@ -104,24 +107,31 @@ def test_aspect_cleaning_truncation(mock_deps, tmp_path):
             "ShortAspect": "Normal"
         }
     }
-    
+
     (tmp_path / "img.jpg").touch()
     service = ProcessorService()
     mock_deps['ai'].analyze_with_research.return_value = mock_ai_data
-    
+
     mock_deps['ebay'].create_listing_bundle.return_value = {'success': True}
+
+    job = QueueJob(
+        id="TEST002",
+        folder_path=str(tmp_path),
+        folder_name=tmp_path.name,
+        job_metadata={}
+    )
 
     from flask import Flask
     app = Flask(__name__)
     app.config['EBAY_MERCHANT_LOCATION'] = 'DEFAULT'
     with app.app_context():
-        service.create_listing(str(tmp_path))
-            
+        service.create_listing(job)
+
     bundle_call = mock_deps['ebay'].create_listing_bundle.call_args
     assert bundle_call is not None
-    
+
     aspects = bundle_call.kwargs['item_data']['product']['aspects']
-    
+
     assert aspects['Brand'] == ['Unbranded']
     assert len(aspects['LongAspect'][0]) == 65
     assert aspects['LongAspect'][0].endswith("...")
@@ -132,8 +142,15 @@ def test_strict_mode_ai_failure(mock_deps, tmp_path):
     (tmp_path / "img.jpg").touch()
     service = ProcessorService()
     mock_deps['ai'].analyze_with_research.return_value = mock_ai_data
-    
-    result = service.create_listing(str(tmp_path))
-        
+
+    job = QueueJob(
+        id="TEST003",
+        folder_path=str(tmp_path),
+        folder_name=tmp_path.name,
+        job_metadata={}
+    )
+
+    result = service.create_listing(job)
+
     assert result['success'] == False
     assert result['error_type'] == "AI_Analysis_Failed"
