@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 
 interface BookData {
     title: string;
-    item_specifics: any;
+    item_specifics: Record<string, string>;
     description: string;
     category_id: string;
     price: number;

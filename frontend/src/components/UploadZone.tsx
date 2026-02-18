@@ -25,6 +25,7 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
         }
 
         await uploadFiles(files)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -53,7 +54,7 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
             } else {
                 setUploadStatus({ success: false, message: data.error || 'Upload failed' })
             }
-        } catch (err) {
+        } catch {
             setUploadStatus({ success: false, message: 'Network error' })
         } finally {
             setIsUploading(false)
@@ -84,6 +85,7 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
                     accept="image/*"
                     className="hidden"
                     onChange={handleFileSelect}
+                    aria-label="Upload files"
                 />
 
                 {isUploading ? (
@@ -123,7 +125,10 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
                         `}
                     >
                         <span>{uploadStatus.message}</span>
-                        <button onClick={() => setUploadStatus(null)}>
+                        <button
+                            onClick={() => setUploadStatus(null)}
+                            aria-label="Dismiss upload status"
+                        >
                             <X size={16} />
                         </button>
                     </motion.div>

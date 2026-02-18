@@ -7,6 +7,10 @@ import requests
 from pathlib import Path
 from typing import Dict, List, Optional
 from dataclasses import dataclass
+from backend.app.core.logger import get_logger
+from backend.app.core.rate_limiter import limiter
+
+logger = get_logger('ebay_browse')
 
 
 @dataclass
@@ -91,7 +95,7 @@ class eBayBrowseAPI:
             self._access_token = token_data['access_token']
             return self._access_token
         except requests.exceptions.RequestException as e:
-            print(f"❌ Browse API auth failed: {e}")
+            logger.error(f"❌ Browse API auth failed: {e}")
             return None
     
     def search_items(self, query: str, limit: int = 30) -> Dict:
@@ -124,6 +128,9 @@ class eBayBrowseAPI:
         }
         
         try:
+            # Apply Rate Limit for eBay
+            limiter.wait_if_needed('ebay')
+            
             response = requests.get(url, headers=headers, params=params)
             response.raise_for_status()
             
@@ -137,9 +144,9 @@ class eBayBrowseAPI:
                 'source': 'browse_api'
             }
         except requests.exceptions.RequestException as e:
-            print(f"❌ Browse API search failed: {e}")
+            logger.error(f"❌ Browse API search failed: {e}")
             if hasattr(e, 'response') and e.response:
-                print(f"   Response: {e.response.text[:500]}")
+                logger.error(f"   Response: {e.response.text[:500]}")
             return self._empty_result()
     
     def _parse_items(self, summaries: List[Dict]) -> List[MarketItem]:
@@ -220,8 +227,10 @@ class eBayBrowseAPI:
             'price': item.price,
             'shipping': 0,  # Browse API doesn't always include shipping
             'date': 'Active',  # These are active listings
+            'soldDate': 'Active',  # Alias for frontend consistency
             'condition': item.condition,
-            'url': item.item_url
+            'url': item.item_url,
+            'imageUrl': item.image_url  # For frontend display
         }
     
     def _empty_result(self) -> Dict:
@@ -238,33 +247,33 @@ class eBayBrowseAPI:
 
 # Test the Browse API client
 if __name__ == "__main__":
-    print("Testing eBay Browse API Client...")
-    print("=" * 50)
+    logger.info("Testing eBay Browse API Client...")
+    logger.info("=" * 50)
     
     try:
         client = eBayBrowseAPI()
         
         # Test search
         query = "vintage camera"
-        print(f"\n🔍 Searching for: '{query}'")
+        logger.info(f"\n🔍 Searching for: '{query}'")
         
         results = client.search_items(query, limit=10)
         
-        print(f"\n📊 Statistics:")
+        logger.info(f"\n📊 Statistics:")
         stats = results['stats']
-        print(f"   Average: ${stats['average']:.2f}")
-        print(f"   Median:  ${stats['median']:.2f}")
-        print(f"   Low:     ${stats['low']:.2f}")
-        print(f"   High:    ${stats['high']:.2f}")
-        print(f"   Count:   {stats['sold']}")
-        print(f"   Trend:   {stats['trend']} ({stats['trendPercent']}%)")
+        logger.info(f"   Average: ${stats['average']:.2f}")
+        logger.info(f"   Median:  ${stats['median']:.2f}")
+        logger.info(f"   Low:     ${stats['low']:.2f}")
+        logger.info(f"   High:    ${stats['high']:.2f}")
+        logger.info(f"   Count:   {stats['sold']}")
+        logger.info(f"   Trend:   {stats['trend']} ({stats['trendPercent']}%)")
         
-        print(f"\n📦 Sample Items:")
+        logger.info(f"\n📦 Sample Items:")
         for i, item in enumerate(results['items'][:5], 1):
-            print(f"   {i}. {item['title'][:50]}...")
-            print(f"      ${item['price']:.2f} - {item['condition']}")
+            logger.info(f"   {i}. {item['title'][:50]}...")
+            logger.info(f"      ${item['price']:.2f} - {item['condition']}")
         
-        print(f"\n✅ Browse API test complete! Source: {results['source']}")
+        logger.info(f"\n✅ Browse API test complete! Source: {results['source']}")
         
     except Exception as e:
-        print(f"❌ Test failed: {e}")
+        logger.error(f"❌ Test failed: {e}")

@@ -9,22 +9,16 @@ interface BeforeInstallPromptEvent extends Event {
 
 export function InstallPrompt() {
     const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
-    const [isInstalled, setIsInstalled] = useState(false)
+    const [isInstalled, setIsInstalled] = useState(() => {
+        return window.matchMedia('(display-mode: standalone)').matches
+    })
     const [dismissed, setDismissed] = useState(false)
-    const [isIOS, setIsIOS] = useState(false)
+    const [isIOS] = useState(() => {
+        const userAgent = window.navigator.userAgent.toLowerCase()
+        return /iphone|ipad|ipod/.test(userAgent)
+    })
 
     useEffect(() => {
-        // Check if already installed
-        if (window.matchMedia('(display-mode: standalone)').matches) {
-            setIsInstalled(true)
-            return
-        }
-
-        // Detect iOS
-        const userAgent = window.navigator.userAgent.toLowerCase()
-        const isIosDevice = /iphone|ipad|ipod/.test(userAgent)
-        setIsIOS(isIosDevice)
-
         // Listen for install prompt (Android/Desktop)
         const handler = (e: Event) => {
             e.preventDefault()
@@ -34,13 +28,15 @@ export function InstallPrompt() {
         window.addEventListener('beforeinstallprompt', handler)
 
         // Listen for successful install
-        window.addEventListener('appinstalled', () => {
+        const installHandler = () => {
             setIsInstalled(true)
             setDeferredPrompt(null)
-        })
+        }
+        window.addEventListener('appinstalled', installHandler)
 
         return () => {
             window.removeEventListener('beforeinstallprompt', handler)
+            window.removeEventListener('appinstalled', installHandler)
         }
     }, [])
 
@@ -76,7 +72,11 @@ export function InstallPrompt() {
                 >
                     <div className="flex justify-between items-start mb-2">
                         <h3 className="text-white font-semibold text-sm">Install App</h3>
-                        <button onClick={handleDismiss} className="text-slate-400 hover:text-white">
+                        <button
+                            onClick={handleDismiss}
+                            className="text-slate-400 hover:text-white"
+                            aria-label="Dismiss"
+                        >
                             <X className="w-4 h-4" />
                         </button>
                     </div>
@@ -114,6 +114,8 @@ export function InstallPrompt() {
                         handleDismiss()
                     }}
                     className="ml-1 p-0.5 hover:bg-blue-500 rounded-full cursor-pointer"
+                    role="button"
+                    aria-label="Dismiss"
                 >
                     <X className="w-3 h-3" />
                 </div>

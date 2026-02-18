@@ -12,14 +12,19 @@ from pathlib import Path
 # Add project to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from unittest.mock import patch
 from backend.app.services.queue_manager import QueueManager, QueueJob, JobStatus
 
-
-def test_add_jobs():
+@patch('backend.app.services.queue_manager.get_data_dir')
+def test_add_jobs(mock_get_data_dir):
     """Test adding jobs to queue"""
     print("Test: Adding Jobs...")
     
-    with tempfile.TemporaryDirectory() as tmpdir:
+    tmpdir = tempfile.mkdtemp()
+    try:
+        # Mock get_data_dir to return tmpdir
+        mock_get_data_dir.return_value = Path(tmpdir)
+        
         qm = QueueManager(Path(tmpdir))
         
         # Create test folders
@@ -36,14 +41,23 @@ def test_add_jobs():
         assert job1.status == JobStatus.PENDING
         assert job2.folder_name == "item2"
         
+        qm.close()
         print("  ✅ Pass: Jobs added correctly")
+    finally:
+        try:
+            shutil.rmtree(tmpdir)
+        except Exception:
+            pass
 
 
-def test_add_batch():
+@patch('backend.app.services.queue_manager.get_data_dir')
+def test_add_batch(mock_get_data_dir):
     """Test batch adding"""
     print("Test: Batch Adding...")
     
-    with tempfile.TemporaryDirectory() as tmpdir:
+    tmpdir = tempfile.mkdtemp()
+    try:
+        mock_get_data_dir.return_value = Path(tmpdir)
         qm = QueueManager(Path(tmpdir))
         
         folders = []
@@ -57,14 +71,23 @@ def test_add_batch():
         assert len(jobs) == 5
         assert qm.get_stats()['pending'] == 5
         
+        qm.close()
         print("  ✅ Pass: Batch add works")
+    finally:
+        try:
+            shutil.rmtree(tmpdir)
+        except Exception:
+            pass
 
 
-def test_state_persistence():
+@patch('backend.app.services.queue_manager.get_data_dir')
+def test_state_persistence(mock_get_data_dir):
     """Test saving and loading queue state"""
     print("Test: State Persistence...")
     
-    with tempfile.TemporaryDirectory() as tmpdir:
+    tmpdir = tempfile.mkdtemp()
+    try:
+        mock_get_data_dir.return_value = Path(tmpdir)
         qm1 = QueueManager(Path(tmpdir))
         
         folder = Path(tmpdir) / "test_item"
@@ -74,6 +97,11 @@ def test_state_persistence():
         job.status = JobStatus.COMPLETED
         job.listing_id = "123456789"
         qm1.save_state()
+        qm1.close()
+        
+        # Force release of DB connection
+        import gc
+        gc.collect()
         
         # Create new manager - should load state
         qm2 = QueueManager(Path(tmpdir))
@@ -81,14 +109,23 @@ def test_state_persistence():
         assert len(qm2.jobs) == 1
         assert qm2.jobs[0].listing_id == "123456789"
         
+        qm2.close()
         print("  ✅ Pass: State persistence works")
+    finally:
+        try:
+            shutil.rmtree(tmpdir)
+        except Exception:
+            pass
 
 
-def test_retry_failed():
+@patch('backend.app.services.queue_manager.get_data_dir')
+def test_retry_failed(mock_get_data_dir):
     """Test retrying failed jobs"""
     print("Test: Retry Failed...")
     
-    with tempfile.TemporaryDirectory() as tmpdir:
+    tmpdir = tempfile.mkdtemp()
+    try:
+        mock_get_data_dir.return_value = Path(tmpdir)
         qm = QueueManager(Path(tmpdir))
         
         folder = Path(tmpdir) / "failed_item"
@@ -104,14 +141,23 @@ def test_retry_failed():
         assert job.status == JobStatus.PENDING
         assert job.error_message is None
         
+        qm.close()
         print("  ✅ Pass: Retry failed works")
+    finally:
+        try:
+            shutil.rmtree(tmpdir)
+        except Exception:
+            pass
 
 
-def test_clear_completed():
+@patch('backend.app.services.queue_manager.get_data_dir')
+def test_clear_completed(mock_get_data_dir):
     """Test clearing completed jobs"""
     print("Test: Clear Completed...")
     
-    with tempfile.TemporaryDirectory() as tmpdir:
+    tmpdir = tempfile.mkdtemp()
+    try:
+        mock_get_data_dir.return_value = Path(tmpdir)
         qm = QueueManager(Path(tmpdir))
         
         for i in range(3):
@@ -127,14 +173,23 @@ def test_clear_completed():
         assert len(qm.jobs) == 2  # Only pending and failed remain
         assert qm.get_stats()['completed'] == 0
         
+        qm.close()
         print("  ✅ Pass: Clear completed works")
+    finally:
+        try:
+            shutil.rmtree(tmpdir)
+        except Exception:
+            pass
 
 
-def test_stats():
+@patch('backend.app.services.queue_manager.get_data_dir')
+def test_stats(mock_get_data_dir):
     """Test queue statistics"""
     print("Test: Queue Stats...")
     
-    with tempfile.TemporaryDirectory() as tmpdir:
+    tmpdir = tempfile.mkdtemp()
+    try:
+        mock_get_data_dir.return_value = Path(tmpdir)
         qm = QueueManager(Path(tmpdir))
         
         for i in range(4):
@@ -154,14 +209,23 @@ def test_stats():
         assert stats['processing'] == 1
         assert stats['pending'] == 1
         
+        qm.close()
         print("  ✅ Pass: Stats calculated correctly")
+    finally:
+        try:
+            shutil.rmtree(tmpdir)
+        except Exception:
+            pass
 
 
-def test_mock_processing():
+@patch('backend.app.services.queue_manager.get_data_dir')
+def test_mock_processing(mock_get_data_dir):
     """Test processing with a mock processor"""
     print("Test: Mock Processing...")
     
-    with tempfile.TemporaryDirectory() as tmpdir:
+    tmpdir = tempfile.mkdtemp()
+    try:
+        mock_get_data_dir.return_value = Path(tmpdir)
         qm = QueueManager(Path(tmpdir))
         
         folder = Path(tmpdir) / "process_test"
@@ -169,24 +233,29 @@ def test_mock_processing():
         
         qm.add_folder(str(folder))
         
-        # Mock processor that returns success
-        def mock_processor(path):
-            return {
+        # Mock ProcessorService
+        with patch('backend.app.services.processor_service.ProcessorService') as MockService:
+            mock_instance = MockService.return_value
+            mock_instance.create_listing.return_value = {
                 "success": True,
                 "listing_id": "MOCK123",
                 "status": "published",
                 "timing": {"total": 1.5}
             }
-        
-        qm.set_processor(mock_processor)
-        
-        # Process synchronously for testing
-        qm._process_job(qm.jobs[0])
+            
+            # Process synchronously for testing
+            qm._process_job(qm.jobs[0])
         
         assert qm.jobs[0].status == JobStatus.COMPLETED
         assert qm.jobs[0].listing_id == "MOCK123"
         
+        qm.close()
         print("  ✅ Pass: Mock processing works")
+    finally:
+        try:
+            shutil.rmtree(tmpdir)
+        except Exception:
+            pass
 
 
 def run_all_tests():

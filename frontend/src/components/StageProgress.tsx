@@ -1,26 +1,11 @@
 import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-export enum WorkflowStage {
-    IMPORT = 0,
-    ANALYZE = 1,
-    EDIT = 2,
-    PRICE = 3,
-    POST = 4,
-}
+import { WorkflowStage, stages } from '@/lib/stages'
 
 interface StageProgressProps {
     currentStage: WorkflowStage
     onStageClick?: (stage: WorkflowStage) => void
 }
-
-const stages = [
-    { id: WorkflowStage.IMPORT, label: 'Import' },
-    { id: WorkflowStage.ANALYZE, label: 'Analyze' },
-    { id: WorkflowStage.EDIT, label: 'Edit' },
-    { id: WorkflowStage.PRICE, label: 'Price' },
-    { id: WorkflowStage.POST, label: 'Post' },
-]
 
 export function StageProgress({ currentStage, onStageClick }: StageProgressProps) {
     const currentIndex = currentStage
@@ -49,9 +34,9 @@ export function StageProgress({ currentStage, onStageClick }: StageProgressProps
                         >
                             <div
                                 className={cn(
-                                    'w-8 h-8 rounded-full flex items-center justify-center border-2 z-10 transition-all duration-300 bg-stone-50',
+                                    'w-8 h-8 rounded-full flex items-center justify-center border-2 z-10 transition-all duration-300 bg-white/80 backdrop-blur-sm',
                                     isCompleted
-                                        ? 'border-sage-500 bg-sage-500 text-white'
+                                        ? 'border-sage-500 bg-sage-500 text-white shadow-md shadow-sage-500/20'
                                         : 'border-stone-300 text-stone-400',
                                     isActive && 'ring-4 ring-sage-100 scale-110',
                                     onStageClick && 'cursor-pointer hover:scale-105'

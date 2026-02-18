@@ -80,7 +80,7 @@ export function MigrationModal({ onClose, onSuccess }: MigrationModalProps) {
             if (json.error) throw new Error(json.error)
 
             // Analyze results
-            const successCount = json.responses?.filter((r: any) => r.statusCode === 200).length || 0
+            const successCount = json.responses?.filter((r: { statusCode: number }) => r.statusCode === 200).length || 0
             const failCount = (json.responses?.length || 0) - successCount
 
             setMigrationResult({ success: successCount, failed: failCount })

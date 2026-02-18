@@ -1,7 +1,7 @@
 import requests
 from datetime import datetime, timedelta
 from backend.app.core.logger import get_logger
-from backend.app.services.ebay.policies import _get_headers, _refresh_token_if_needed
+from backend.app.services.ebay.policies import _get_headers, _refresh_token_if_needed, ebay_request
 
 logger = get_logger('ebay_analytics_service')
 
@@ -11,24 +11,38 @@ class AnalyticsService:
     def __init__(self, inventory_service_callback=None):
         self._get_active_count = inventory_service_callback
 
+    def _get_price_value(self, pricing_dict: dict, keys: list = None) -> float:
+        """Helper to extract a float value from a variety of eBay price structures"""
+        if not pricing_dict:
+            return 0.0
+        
+        # Keys to try in order of preference
+        if not keys:
+            keys = ['total', 'totalAmount', 'subtotal', 'price', 'amount']
+            
+        for key in keys:
+            val_obj = pricing_dict.get(key)
+            if isinstance(val_obj, dict):
+                try:
+                    return float(val_obj.get('value', 0))
+                except (ValueError, TypeError):
+                    continue
+            elif val_obj is not None:
+                try:
+                    return float(val_obj)
+                except (ValueError, TypeError):
+                    continue
+                    
+        return 0.0
+
     def get_recent_orders(self, days=30, limit=50):
         """Fetch recent orders from eBay Fulfillment API"""
         try:
             FULFILLMENT_URL = 'https://api.ebay.com/sell/fulfillment/v1'
             date_from = (datetime.now() - timedelta(days=int(days))).strftime('%Y-%m-%dT00:00:00.000Z')
             
-            response = requests.get(
-                f'{FULFILLMENT_URL}/order',
-                headers=_get_headers(),
-                params={'filter': f'creationdate:[{date_from}..]', 'limit': limit}
-            )
+            response = ebay_request('GET', f'{FULFILLMENT_URL}/order', params={'filter': f'creationdate:[{date_from}..]', 'limit': limit})
             
-            if response.status_code in [401, 500] and _refresh_token_if_needed(response):
-                response = requests.get(
-                    f'{FULFILLMENT_URL}/order',
-                    headers=_get_headers(),
-                    params={'filter': f'creationdate:[{date_from}..]', 'limit': limit}
-                )
             
             if response.status_code != 200:
                 return {'error': f'eBay API error: {response.status_code}', 'details': response.text[:200]}, 500
@@ -37,12 +51,14 @@ class AnalyticsService:
             orders = []
             
             for order in data.get('orders', []):
-                subtotal = float(order.get('pricingSummary', {}).get('total', {}).get('value', 0))
+                # Use safer extraction
+                order_total = self._get_price_value(order.get('pricingSummary'))
+                
                 orders.append({
                     'orderId': order.get('orderId'),
                     'creationDate': order.get('creationDate'),
                     'buyer': order.get('buyer', {}).get('username', 'Guest'),
-                    'total': subtotal,
+                    'total': order_total,
                     'status': order.get('orderFulfillmentStatus'),
                     'itemCount': len(order.get('lineItems', []))
                 })
@@ -64,18 +80,8 @@ class AnalyticsService:
             date_from = (datetime.now() - timedelta(days=int(days))).strftime('%Y-%m-%dT00:00:00.000Z')
             
             # We need ALL orders for calculation, so increase limit
-            response = requests.get(
-                f'{FULFILLMENT_URL}/order',
-                headers=_get_headers(),
-                params={'filter': f'creationdate:[{date_from}..]', 'limit': 200}
-            )
+            response = ebay_request('GET', f'{FULFILLMENT_URL}/order', params={'filter': f'creationdate:[{date_from}..]', 'limit': 200})
             
-            if response.status_code in [401, 500] and _refresh_token_if_needed(response):
-                response = requests.get(
-                    f'{FULFILLMENT_URL}/order',
-                    headers=_get_headers(),
-                    params={'filter': f'creationdate:[{date_from}..]', 'limit': 200}
-                )
             
             if response.status_code != 200:
                 return {'error': f'eBay API error: {response.status_code}'}, 500
@@ -90,8 +96,8 @@ class AnalyticsService:
             item_sales = {} # title -> {qty, revenue}
             
             for order in orders:
-                # Revenue
-                order_total = float(order.get('pricingSummary', {}).get('total', {}).get('value', 0))
+                # Revenue - safely extract
+                order_total = self._get_price_value(order.get('pricingSummary'))
                 total_revenue += order_total
                 
                 # Date for chart
@@ -110,9 +116,9 @@ class AnalyticsService:
                     if title not in item_sales:
                         item_sales[title] = {'qty': 0, 'revenue': 0.0}
                     item_sales[title]['qty'] += qty
-                    # Approximate revenue per item (split order total? or use line item price?)
-                    # Using line item total is better
-                    line_total = float(line_item.get('total', {}).get('value', 0))
+                    
+                    # Line item revenue extraction
+                    line_total = self._get_price_value(line_item.get('total'))
                     item_sales[title]['revenue'] += line_total
 
             # 3. Format Chart Data

@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area
 } from 'recharts'
@@ -21,6 +21,14 @@ interface SalesStats {
     sell_through_rate?: number
 }
 
+interface StatCardProps {
+    title: string
+    value: string | number
+    icon: React.ElementType
+    subtext: string
+    color: string
+}
+
 interface Order {
     orderId: string
     creationDate: string
@@ -35,36 +43,41 @@ export function AnalyticsDashboard() {
     const [recentOrders, setRecentOrders] = useState<Order[]>([])
     const [timeRange, setTimeRange] = useState('30')
     const [isLoading, setIsLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         setIsLoading(true)
+        setError(null)
         try {
             // Fetch stats
             const statsRes = await fetch(`/api/analytics/summary?days=${timeRange}`)
+            if (!statsRes.ok) throw new Error(`Stats: ${statsRes.status}`)
             const statsData = await statsRes.json()
             setStats(statsData)
 
             // Fetch recent orders
             const ordersRes = await fetch(`/api/analytics/orders?days=${timeRange}&limit=50`)
+            if (!ordersRes.ok) throw new Error(`Orders: ${ordersRes.status}`)
             const ordersData = await ordersRes.json()
             setRecentOrders(ordersData.orders || [])
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to fetch analytics:", error)
+            setError(error.message || "Failed to load analytics data")
         } finally {
             setIsLoading(false)
         }
-    }
+    }, [timeRange])
 
     useEffect(() => {
         fetchData()
-    }, [timeRange])
+    }, [fetchData])
 
     const formatDate = (dateStr: string) => {
         return new Date(dateStr).toLocaleDateString()
     }
 
-    const StatCard = ({ title, value, icon: Icon, subtext, color }: any) => (
+    const StatCard = ({ title, value, icon: Icon, subtext, color }: StatCardProps) => (
         <Card>
             <CardContent className="p-6">
                 <div className="flex items-center justify-between space-y-0 pb-2">
@@ -105,6 +118,12 @@ export function AnalyticsDashboard() {
 
             <ScrollArea className="flex-1 p-8">
                 <div className="max-w-6xl mx-auto space-y-8">
+                    {error && (
+                        <div className="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 border border-red-200 flex items-center gap-2">
+                            <Activity className="h-4 w-4" />
+                            <span><strong>Error:</strong> {error}. Please check your eBay connection.</span>
+                        </div>
+                    )}
 
                     {/* Stats Grid */}
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
@@ -183,7 +202,7 @@ export function AnalyticsDashboard() {
                                                 />
                                                 <Tooltip
                                                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                                    formatter={(value: any) => [`$${Number(value).toFixed(2)}`, 'Revenue']}
+                                                    formatter={(value: any) => [`$${Number(value || 0).toFixed(2)}`, 'Revenue']}
                                                 />
                                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                                                 <Area

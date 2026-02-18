@@ -62,8 +62,8 @@ function createWindow() {
     startPythonSubprocess()
 
     if (isDev) {
-        // In dev, wait for Vite to start? Or assume it's running via concurrently
-        mainWindow.loadURL('http://localhost:5173')
+        // Updated to matching port in vite.config.ts
+        mainWindow.loadURL('http://localhost:5175')
         mainWindow.webContents.openDevTools()
     } else {
         mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))

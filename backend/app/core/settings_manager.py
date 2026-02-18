@@ -5,6 +5,9 @@ Handles loading, saving, and validating application settings from .env file
 import os
 from pathlib import Path
 from typing import Optional
+from backend.app.core.logger import get_logger
+
+logger = get_logger('settings_manager')
 
 
 class SettingsManager:
@@ -308,28 +311,28 @@ def get_settings_manager() -> SettingsManager:
 
 if __name__ == "__main__":
     # Test the settings manager
-    print("Testing Settings Manager...")
+    logger.info("Testing Settings Manager...")
     
     manager = SettingsManager()
     settings = manager.load()
     
-    print(f"\nLoaded {len(settings)} settings from {manager.env_path}")
-    print("\nSettings by category:")
+    logger.info(f"\nLoaded {len(settings)} settings from {manager.env_path}")
+    logger.info("\nSettings by category:")
     
     for category, keys in SettingsManager.SETTING_CATEGORIES.items():
-        print(f"\n{category}:")
+        logger.info(f"\n{category}:")
         for key in keys:
             value = manager.get(key, "(not set)")
             if manager.is_sensitive(key) and value != "(not set)":
                 # Mask sensitive values
                 value = value[:10] + "..." if len(value) > 10 else "***"
-            print(f"  {key}: {value}")
+            logger.info(f"  {key}: {value}")
     
     # Validate
     errors = manager.validate()
     if errors:
-        print("\n⚠️ Validation errors:")
+        logger.warning("\n⚠️ Validation errors:")
         for error in errors:
-            print(f"  - {error}")
+            logger.warning(f"  - {error}")
     else:
-        print("\n✅ All settings valid")
+        logger.info("\n✅ All settings valid")

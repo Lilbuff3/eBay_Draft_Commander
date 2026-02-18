@@ -18,6 +18,10 @@ def create_app(config_class=Config, queue_manager=None):
     # Initialize Socket.IO with app
     socketio.init_app(app)
     
+    # Configure Logging
+    from backend.app.core.logger import configure_module_loggers
+    configure_module_loggers(use_json=False)
+    
     # Inject Dependencies
     if queue_manager:
         app.queue_manager = queue_manager
@@ -33,4 +37,10 @@ def create_app(config_class=Config, queue_manager=None):
     from backend.app.blueprints.api import api_bp
     app.register_blueprint(api_bp, url_prefix='/api')
     
+    # Initialize MCP Client
+    from backend.app.services.mcp_client import get_mcp_client
+    # We don't connect immediately to avoid blocking startup if server is down,
+    # but we ensure the singleton is ready.
+    app.mcp_client = get_mcp_client()
+
     return app

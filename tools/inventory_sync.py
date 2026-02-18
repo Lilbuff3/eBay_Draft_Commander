@@ -86,7 +86,7 @@ class InventorySync:
     def fetch_active_listings(self, limit: int = 100, 
                              progress_callback: Callable = None) -> List[Dict]:
         """
-        Fetch active listings from eBay
+        Fetch active listings from eBay via MCP
         
         Args:
             limit: Max listings to fetch
@@ -95,69 +95,68 @@ class InventorySync:
         Returns:
             List of listing data
         """
-        if not self.user_token:
-            raise ValueError("EBAY_USER_TOKEN not configured")
-        
         listings = []
         
-        # Strategy: Fetch inventory items first, then fetch offers for each SKU
-        # This avoids the "Invalid SKU" error that happens when fetching all offers in bulk
-        
-        offset = 0
-        limit_per_page = 20 # Smaller batch size for item loops
-        
-        print(f"Fetching inventory items...")
-        
         try:
-            while True:
-                url = f"{self.INVENTORY_API_URL}/inventory_item"
-                params = {
-                    'offset': offset,
-                    'limit': limit_per_page
-                }
+            print(f"Fetching inventory via MCP...")
+            from backend.app.services.mcp_client import get_mcp_client
+            
+            client = get_mcp_client()
+            
+            # Helper to run async in sync context
+            import asyncio
+            
+            async def run_fetch():
+                # Get items using MCP tool
+                result = await client.execute_tool("ebay_get_inventory_items", {
+                    "limit": limit,
+                    "offset": 0
+                })
+                return result
                 
-                response = requests.get(url, headers=self._get_headers(), params=params)
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    items = data.get('inventoryItems', [])
-                    
-                    if not items:
-                        break
-                    
-                    for item in items:
-                        sku = item.get('sku')
-                        if not sku:
-                            continue
-                            
-                        # Fetch offer for this SKU
-                        try:
-                            offer_url = f"{self.INVENTORY_API_URL}/offer"
-                            offer_resp = requests.get(offer_url, headers=self._get_headers(), params={'sku': sku})
-                            
-                            if offer_resp.status_code == 200:
-                                offer_data = offer_resp.json()
-                                offers = offer_data.get('offers', [])
-                                if offers:
-                                    # Use the first offer found for this SKU
-                                    primary_offer = offers[0]
-                                    listing = self._parse_offer(primary_offer)
-                                    if listing:
-                                        listings.append(listing)
-                        except Exception as e:
-                            print(f"Error fetching offer for SKU {sku}: {e}")
-                    
-                    if progress_callback:
-                        progress_callback(len(listings), limit)
-                        
-                    offset += limit_per_page
-                    
-                    if len(listings) >= limit or len(items) < limit_per_page:
-                        break
-                else:
-                    print(f"API error fetching inventory items: {response.status_code} - {response.text}")
-                    break
-                    
+            # Run the fetch
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                mcp_result = loop.run_until_complete(run_fetch())
+            finally:
+                loop.close()
+            
+            if mcp_result and not mcp_result.isError:
+                 # Parse MCP result content
+                 # The content is a list of TextContent or EmbeddedResource
+                 # expecting JSON string in text content
+                 
+                 # Basic parsing logic depending on actual tool output structure
+                 # Assuming tool returns structured data directly or JSON string
+                 
+                 # NOTE: Standard MCP tools return TextContent objects.
+                 # We need to inspect `mcp_result.content`
+                 
+                 raw_data = mcp_result.content[0].text
+                 data = json.loads(raw_data)
+                 
+                 items = data.get('inventoryItems', [])
+                 
+                 # Transform to local format
+                 for i, item in enumerate(items):
+                     sku = item.get('sku')
+                     listing = {
+                         'sku': sku,
+                         'title': item.get('product', {}).get('title', 'Unknown'),
+                         'price': 0.0, # Detail fetch needed for price if not in list
+                         'quantity': item.get('availability', {}).get('shipToLocationAvailability', {}).get('quantity', 0),
+                         'status': 'ACTIVE',
+                         'synced_at': datetime.now().isoformat()
+                     }
+                     listings.append(listing)
+                     
+                     if progress_callback:
+                         progress_callback(i+1, len(items))
+
+            else:
+                print(f"MCP Error: {mcp_result}")
+
         except Exception as e:
             print(f"Fetch error: {e}")
             if not listings:

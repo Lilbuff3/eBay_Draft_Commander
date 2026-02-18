@@ -44,6 +44,14 @@
   body {
     @apply bg-stone-50 text-stone-800 antialiased;
     font-family: var(--font-sans);
+    /* Premium Gradient Mesh Background */
+    background: 
+      radial-gradient(at 0% 0%, hsla(110, 40%, 88%, 0.5) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(30, 40%, 90%, 0.5) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, hsla(110, 40%, 88%, 0.5) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, hsla(30, 40%, 90%, 0.5) 0px, transparent 50%),
+      #FAFBF9; /* Fallback base color */
+    background-attachment: fixed;
   }
 
   h1,
@@ -56,10 +64,15 @@
 /* Glass panel effect */
 @layer utilities {
   .glass-panel {
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    @apply bg-white/60 border border-white/40 shadow-sm backdrop-blur-xl;
+  }
+  
+  .glass-card {
+    @apply bg-white/70 border border-white/50 shadow-sm backdrop-blur-md transition-all duration-300;
+  }
+  
+  .glass-card:hover {
+     @apply bg-white/90 shadow-md scale-[1.01] border-white/80;
   }
 }
 

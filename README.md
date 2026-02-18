@@ -4,6 +4,8 @@ A complete solution for automating eBay listing creation using AI-powered image 
 
 ## Features
 
+📘 **[Read the User Manual](USER_MANUAL.md)** for installation and usage instructions.
+
 - 🤖 **AI Image Analysis** - Uses Google Gemini 3 (Fast & Accurate) to extract details
 - 📱 **Mobile PWA** - Installable on iOS/Android for native-like experience
 - 📥 **Bulk Inbox Scan** - Drop folders -> Scan -> Queue multiple items instantly
@@ -16,7 +18,7 @@ A complete solution for automating eBay listing creation using AI-powered image 
 
 ## Architecture (2026 Modern Approach)
 
-```
+```text
 ┌─────────────────┐
 │  React Frontend │ ← Vite + TypeScript + Tailwind CSS
 │  (Port 5000/app)│ 
@@ -38,7 +40,8 @@ eBay APIs              AI Analysis
 ```
 
 **Workflow:**
-```
+
+```text
 eBay_Inbox/             → Drop multiple folders here
     ├── shoe_folder/    → Images for item 1
     └── camera_folder/  → Images for item 2
@@ -57,13 +60,15 @@ Publish                 → Creates live eBay listing
 ## Setup
 
 1. **Install dependencies:**
+
    ```bash
    pip install requests google-generativeai flask
    ```
 
 2. **Configure credentials:**
    Create a `.env` file with your eBay API credentials:
-   ```
+
+   ```env
    EBAY_APP_ID=your-app-id
    EBAY_CERT_ID=your-cert-id
    EBAY_RU_NAME=your-runame
@@ -71,17 +76,21 @@ Publish                 → Creates live eBay listing
    ```
 
 3. **Authorize eBay access:**
+
    ```bash
    python ebay_auth.py
    ```
+
    Follow the prompts to authorize the app to access your eBay account.
 
 ## Usage
 
 ### Web Dashboard & Mobile App (Recommended)
+
 ```bash
 python web_server.py
 ```
+
 Then open your browser to `http://localhost:5000/app`
 
 **Mobile Access:**  
@@ -89,6 +98,7 @@ Scan the QR code printed in the terminal to access on your phone.
 **To Install:** Tap "Share" -> "Add to Home Screen" (iOS) or "Install App" (Android).
 
 **Features:**
+
 - **Bulk Inbox Scanning:** Process multiple items at once
 - **Queue Management:** Monitor AI analysis progress
 - **Active Listings:** Bulk price/title updates
@@ -98,6 +108,7 @@ Scan the QR code printed in the terminal to access on your phone.
 - **Templates:** Save/load listing presets
 
 ### Build Frontend (Development)
+
 ```bash
 cd frontend
 npm install
@@ -105,23 +116,23 @@ npm run build   # Builds to ../static/app
 ```
 
 ### Legacy Desktop GUI
+
 ```bash
 python draft_commander.py
 ```
+
 Opens Tkinter-based GUI for batch processing (legacy interface).
 
 ## Files
 
 | File | Purpose |
-|------|---------|
-| File | Purpose |
-|------|---------|
+| :--- | :--- |
 | `backend/` | **New** Modular Flask Application (App Factory, Blueprints, Services) |
 | `backend/wsgi.py` | Production entry point for the web server |
 | `web_server.py` | Legacy shim for `draft_commander.py` compatibility |
 | `ebay_auth.py` | OAuth user authorization |
 | `ai_analyzer.py` | Gemini 3 image analysis |
-| `pricing_engine.py`| AI pricing with Google Search grounding |
+| `pricing_engine.py` | AI pricing with Google Search grounding |
 | `queue_manager.py` | Job queue with persistence (Shared Core) |
 | `create_from_folder.py` | Main listing creation logic (Shared Core) |
 | `frontend/` | React + Vite web app (PWA) |
@@ -130,6 +141,7 @@ Opens Tkinter-based GUI for batch processing (legacy interface).
 ## API Documentation
 
 This project uses the following eBay APIs:
+
 - **Inventory API** - Create/manage inventory items and offers
 - **Taxonomy API** - Get categories and item specifics
 - **Media API** - Upload images to eBay Picture Services

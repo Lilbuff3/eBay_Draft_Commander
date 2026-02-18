@@ -3,13 +3,14 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import './mobile.css'
 import App from './App.tsx'
-import { registerServiceWorker } from './lib/pwa'
+// import { registerServiceWorker } from './lib/pwa'
 
-// Register service worker for PWA functionality
-registerServiceWorker()
+// registerServiceWorker()
 
-createRoot(document.getElementById('root')!).render(
+const rootEl = document.getElementById('root')!
+const root = createRoot(rootEl)
+root.render(
   <StrictMode>
     <App />
-  </StrictMode>,
+  </StrictMode>
 )

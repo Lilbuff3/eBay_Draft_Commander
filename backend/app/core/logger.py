@@ -154,6 +154,7 @@ def configure_module_loggers(use_json: bool = False):
         'ai_analyzer': 'INFO',     # AI analysis results
         'create_from_folder': 'INFO',
         'photo_editor': 'INFO',
+        'processor_service': 'DEBUG',
     }
     
     for module, level in module_levels.items():

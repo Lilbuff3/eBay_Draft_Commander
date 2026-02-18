@@ -1,6 +1,9 @@
 
 import requests
 from typing import Dict, Optional
+from backend.app.core.logger import get_logger
+
+logger = get_logger('book_service')
 
 class BookService:
     """
@@ -52,10 +55,10 @@ class BookService:
             return {'success': False, 'error': 'Book not found'}
             
         except Exception as e:
-            print(f"⚠️ Google Books API failed: {e}")
+            logger.error(f"⚠️ Google Books API failed: {e}")
             return {'success': False, 'error': str(e)}
 
 if __name__ == "__main__":
     # Test
     svc = BookService()
-    print(svc.lookup_isbn("9780131103627"))  # C Programming Language
+    logger.info(svc.lookup_isbn("9780131103627"))  # C Programming Language

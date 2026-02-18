@@ -10,6 +10,9 @@ import json
 import base64
 from pathlib import Path
 from typing import Dict, List, Optional
+from backend.app.core.logger import get_logger
+
+logger = get_logger('ai_price')
 
 # Try the NEW google-genai SDK first (2025+)
 try:
@@ -27,7 +30,7 @@ if not HAS_NEW_GENAI:
         HAS_LEGACY_GENAI = True
     except ImportError:
         HAS_LEGACY_GENAI = False
-        print("⚠️ Neither google-genai nor google.generativeai installed")
+        logger.warning("⚠️ Neither google-genai nor google.generativeai installed")
 else:
     HAS_LEGACY_GENAI = False
 
@@ -59,26 +62,26 @@ class AIPriceEstimator:
             api_key = os.getenv('GOOGLE_API_KEY')
         
         if not api_key:
-            print("⚠️ GOOGLE_API_KEY not found")
+            logger.warning("⚠️ GOOGLE_API_KEY not found")
             return
         
         # Initialize with NEW google-genai SDK (preferred)
         if HAS_NEW_GENAI:
             try:
                 self.client = genai.Client(api_key=api_key)
-                print("✅ AI Price Estimator initialized (google-genai SDK with Google Search)")
+                logger.info("✅ AI Price Estimator initialized (google-genai SDK with Google Search)")
                 return
             except Exception as e:
-                print(f"⚠️ New SDK init failed: {e}, trying legacy...")
+                logger.warning(f"⚠️ New SDK init failed: {e}, trying legacy...")
         
         # Fall back to legacy SDK
         if HAS_LEGACY_GENAI:
             try:
                 genai_legacy.configure(api_key=api_key)
-                self.legacy_model = genai_legacy.GenerativeModel('gemini-2.0-flash-exp')
-                print("✅ AI Price Estimator initialized (legacy SDK, no live search)")
+                self.legacy_model = genai_legacy.GenerativeModel('gemini-3-flash-preview')
+                logger.info("✅ AI Price Estimator initialized (legacy SDK, no live search)")
             except Exception as e:
-                print(f"❌ Legacy SDK init failed: {e}")
+                logger.error(f"❌ Legacy SDK init failed: {e}")
     
     def estimate_price(
         self,
@@ -117,7 +120,7 @@ class AIPriceEstimator:
             # Use google-genai SDK with Google Search tool
             # Using Gemini 3 Flash Preview for best price analysis with search
             response = self.client.models.generate_content(
-                model='gemini-2.0-flash',  # Stable Gemini 2.0 model
+                model='gemini-3-flash-preview',  # Gemini 3 Flash Preview
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     tools=[types.Tool(google_search=types.GoogleSearch())]
@@ -137,11 +140,11 @@ class AIPriceEstimator:
             return self._parse_response(response.text, query, sources)
             
         except Exception as e:
-            print(f"❌ Google Search grounding failed: {e}")
+            logger.error(f"❌ Google Search grounding failed: {e}")
             # Try without search tool
             try:
                 response = self.client.models.generate_content(
-                    model='gemini-2.0-flash',
+                    model='gemini-3-flash-preview',
                     contents=prompt
                 )
                 return self._parse_response(response.text, query, [])
@@ -247,7 +250,7 @@ Be thorough. Base your estimate on real market data you find."""
             }
             
         except json.JSONDecodeError as e:
-            print(f"⚠️ Failed to parse AI response: {e}")
+            logger.warning(f"⚠️ Failed to parse AI response: {e}")
             return self._extract_from_text(text, query, sources)
         except Exception as e:
             return self._error_result(str(e))
@@ -305,40 +308,40 @@ Be thorough. Base your estimate on real market data you find."""
 
 # Test the estimator
 if __name__ == "__main__":
-    print("Testing AI Price Estimator (2026 SDK)...")
-    print("=" * 50)
+    logger.info("Testing AI Price Estimator (2026 SDK)...")
+    logger.info("=" * 50)
     
     estimator = AIPriceEstimator()
     
     # Test with a unique/rare item
     item = "Vintage 1960s Polaroid Land Camera Model 100"
-    print(f"\n🔍 Estimating price for: {item}")
+    logger.info(f"\n🔍 Estimating price for: {item}")
     
     result = estimator.estimate_price(item, condition="Used - Good")
     
     if result.get('success'):
         stats = result['stats']
-        print(f"\n💰 Price Estimate:")
-        print(f"   Low:    ${stats['low']:.2f}")
-        print(f"   Mid:    ${stats['average']:.2f}")
-        print(f"   High:   ${stats['high']:.2f}")
+        logger.info(f"\n💰 Price Estimate:")
+        logger.info(f"   Low:    ${stats['low']:.2f}")
+        logger.info(f"   Mid:    ${stats['average']:.2f}")
+        logger.info(f"   High:   ${stats['high']:.2f}")
         
         ai = result.get('ai_analysis', {})
-        print(f"\n📊 Confidence: {ai.get('confidence', 'unknown')}")
+        logger.info(f"\n📊 Confidence: {ai.get('confidence', 'unknown')}")
         
         if ai.get('reasoning'):
-            print(f"\n💡 Reasoning: {ai.get('reasoning')[:300]}...")
+            logger.info(f"\n💡 Reasoning: {ai.get('reasoning')[:300]}...")
         
         if ai.get('comparable_items'):
-            print(f"\n📦 Comparables:")
+            logger.info(f"\n📦 Comparables:")
             for comp in ai['comparable_items'][:3]:
-                print(f"   • {comp}")
+                logger.info(f"   • {comp}")
         
         if ai.get('search_sources'):
-            print(f"\n🔗 Sources:")
+            logger.info(f"\n🔗 Sources:")
             for src in ai['search_sources'][:3]:
-                print(f"   • {src}")
+                logger.info(f"   • {src}")
     else:
-        print(f"❌ Error: {result.get('error')}")
+        logger.error(f"❌ Error: {result.get('error')}")
     
-    print("\n✅ Test complete!")
+    logger.info("\n✅ Test complete!")

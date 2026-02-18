@@ -1,8 +1,8 @@
 """
 eBay Price Researcher
-Primary: Uses eBay Browse API for reliable market pricing data.
-Secondary: AI-powered estimation for unique items (Gemini + Google Search)
-Fallback: HTML scraping (unreliable due to bot protection).
+3. Primary: Uses eBay Browse API for reliable market pricing data.
+4. Secondary: AI-powered estimation for unique items (Gemini + Google Search)
+5. Fallback: HTML scraping (unreliable due to bot protection) - Extracts sold items.
 """
 import requests
 import re
@@ -10,6 +10,9 @@ from bs4 import BeautifulSoup
 from dataclasses import dataclass
 from typing import List, Dict, Optional
 import urllib.parse
+from backend.app.core.logger import get_logger
+
+logger = get_logger('ebay_researcher')
 
 # Import the official API client
 try:
@@ -17,7 +20,7 @@ try:
     HAS_BROWSE_API = True
 except ImportError:
     HAS_BROWSE_API = False
-    print("Warning: ebay_browse_api not found, using scraper fallback only")
+    logger.warning("ebay_browse_api not found, using scraper fallback only")
 
 # Import AI price estimator
 try:
@@ -25,7 +28,7 @@ try:
     HAS_AI_ESTIMATOR = True
 except ImportError:
     HAS_AI_ESTIMATOR = False
-    print("Warning: ai_price_estimator not found, AI fallback disabled")
+    logger.warning("ai_price_estimator not found, AI fallback disabled")
 
 
 @dataclass
@@ -35,7 +38,10 @@ class SoldItem:
     shipping: float
     date: str
     condition: str
+    date: str
+    condition: str
     url: str
+    image_url: str = "" # Added image_url support
 
 
 class eBayResearcher:
@@ -61,14 +67,14 @@ class eBayResearcher:
             try:
                 self._api_client = eBayBrowseAPI()
             except Exception as e:
-                print(f"Warning: Browse API init failed: {e}")
+                logger.warning(f"Browse API init failed: {e}")
                 self._use_api = False
         
         if self._use_ai:
             try:
                 self._ai_estimator = AIPriceEstimator()
             except Exception as e:
-                print(f"Warning: AI Estimator init failed: {e}")
+                logger.warning(f"AI Estimator init failed: {e}")
                 self._use_ai = False
 
     def search_sold(self, query: str, limit: int = 30, use_ai_fallback: bool = True) -> Dict:
@@ -93,17 +99,17 @@ class eBayResearcher:
                 if result['items']:  # Got results
                     return result
             except Exception as e:
-                print(f"Browse API failed, trying fallbacks: {e}")
+                logger.warning(f"Browse API failed, trying fallbacks: {e}")
         
         # Try AI estimation for unique items (if enabled)
         if use_ai_fallback and self._use_ai and self._ai_estimator:
             try:
-                print(f"No market data found, using AI estimation for: {query}")
+                logger.info(f"No market data found, using AI estimation for: {query}")
                 result = self._ai_estimator.estimate_price(query)
                 if result.get('success') and result['stats'].get('average', 0) > 0:
                     return result
             except Exception as e:
-                print(f"AI estimation failed: {e}")
+                logger.error(f"AI estimation failed: {e}")
         
         # Last resort: scraper (unreliable)
         return self._scrape_sold_listings(query, limit)
@@ -123,7 +129,7 @@ class eBayResearcher:
                 'source': 'scraper_fallback'
             }
         except Exception as e:
-            print(f"Scraper error: {e}")
+            logger.error(f"Scraper error: {e}")
             return {
                 'stats': {'average': 0, 'median': 0, 'low': 0, 'high': 0, 'sold': 0, 'trend': 'neutral', 'trendPercent': 0},
                 'items': [],
@@ -196,13 +202,23 @@ class eBayResearcher:
                 link_elem = item.select_one('.s-item__link, a[href*="ebay.com/itm"]')
                 url = link_elem['href'] if link_elem else ""
                 
+                # Image (Try to find image)
+                image_url = ""
+                img_elem = item.select_one('.s-item__image-img, .s-card__image-img')
+                if img_elem:
+                    image_url = img_elem.get('src', '')
+                    # If it's a lazy loaded image, try keys like data-src
+                    if not image_url or 'ebaystatic' in image_url: # basic placeholder check
+                         image_url = img_elem.get('data-src') or image_url
+
                 results.append(SoldItem(
                     title=title,
                     price=price,
                     shipping=shipping,
                     date=date,
                     condition="Used",
-                    url=url
+                    url=url,
+                    image_url=image_url
                 ))
             except Exception:
                 continue
@@ -248,27 +264,29 @@ class eBayResearcher:
             'price': item.price,
             'shipping': item.shipping,
             'date': item.date,
+            'soldDate': item.date, # Alias for frontend
             'condition': item.condition,
-            'url': item.url
+            'url': item.url,
+            'imageUrl': item.image_url # CamelCase for frontend
         }
 
 
 # Test
 if __name__ == "__main__":
-    print("Testing eBay Researcher...")
-    print("=" * 50)
+    logger.info("Testing eBay Researcher...")
+    logger.info("=" * 50)
     
     researcher = eBayResearcher()
     result = researcher.search_sold("vintage camera")
     
-    print(f"\nSource: {result.get('source', 'unknown')}")
-    print(f"Found {len(result['items'])} items")
+    logger.info(f"\nSource: {result.get('source', 'unknown')}")
+    logger.info(f"Found {len(result['items'])} items")
     
     stats = result['stats']
     if stats.get('average', 0) > 0:
-        print(f"Average: ${stats['average']:.2f}")
-        print(f"Median:  ${stats['median']:.2f}")
-        print(f"Range:   ${stats['low']:.2f} - ${stats['high']:.2f}")
+        logger.info(f"Average: ${stats['average']:.2f}")
+        logger.info(f"Median:  ${stats['median']:.2f}")
+        logger.info(f"Range:   ${stats['low']:.2f} - ${stats['high']:.2f}")
     else:
-        print("No pricing data available")
+        logger.info("No pricing data available")
 

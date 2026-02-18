@@ -7,6 +7,9 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict
 from backend.app.core.database import init_db, TemplateModel
+from backend.app.core.logger import get_logger
+
+logger = get_logger('template_manager')
 
 class ListingTemplate:
     """Represents a saved listing template (Data Wrapper)"""
@@ -170,7 +173,7 @@ class TemplateManager:
             return html
             
         except Exception as e:
-            print(f"Template Render Error: {e}")
+            logger.error(f"Template Render Error: {e}")
             return f"<h1>{title}</h1><p>{description}</p>"
 
 def get_template_manager() -> TemplateManager:

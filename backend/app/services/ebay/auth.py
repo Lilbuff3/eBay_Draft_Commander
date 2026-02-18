@@ -3,15 +3,15 @@ eBay OAuth Setup - Complete User Authorization
 Uses official eBay OAuth methodology with proper RuName configuration
 """
 import os
-import base64
-import webbrowser
-import urllib.parse
 import requests
-import json
-from pathlib import Path
-from http.server import HTTPServer, BaseHTTPRequestHandler
-import threading
+import base64
 import time
+from pathlib import Path
+from typing import Optional
+from dotenv import load_dotenv
+from backend.app.core.logger import get_logger
+
+logger = get_logger('ebay_auth')
 
 class eBayOAuth:
     """Complete eBay OAuth implementation"""
@@ -32,47 +32,48 @@ class eBayOAuth:
         "https://api.ebay.com/oauth/api_scope/sell.fulfillment",
     ]
     
-    def __init__(self, use_sandbox=False):
-        # Robust .env lookup
-        current_path = Path(__file__).resolve()
-        self.env_path = None
-        for parent in [current_path] + list(current_path.parents):
-            check_path = parent / ".env"
-            if check_path.exists():
-                self.env_path = check_path
-                break
-        if not self.env_path:
-             self.env_path = Path.cwd() / ".env"
-        self.load_credentials()
+    def __init__(self, use_sandbox=True):
+        """
+        Initialize eBay OAuth client
+        Args:
+            use_sandbox: If True, use sandbox credentials/endpoints. If False, use production.
+        """
         
+        # Load environment variables from .env file
+        from dotenv import load_dotenv, find_dotenv
+        self.env_path = Path(find_dotenv())
+        load_dotenv(self.env_path)
+        
+        # Load eBay credentials from environment
+        self.app_id = os.getenv('EBAY_APP_ID')
+        self.cert_id = os.getenv('EBAY_CERT_ID')
+        self.ru_name = os.getenv('EBAY_RU_NAME') # Corrected from EBAY_RUNAME to EBAY_RU_NAME
+        self.refresh_token = os.getenv('EBAY_REFRESH_TOKEN')
+        
+        if not all([self.app_id, self.cert_id, self.ru_name]):
+            logger.error("Missing required eBay credentials in .env file")
+            raise ValueError("eBay credentials not found in environment")
+        
+        # Configure endpoints based on environment
         self.use_sandbox = use_sandbox
-        self.auth_url = self.AUTH_URL_SANDBOX if use_sandbox else self.AUTH_URL_PROD
-        self.token_url = self.TOKEN_URL_SANDBOX if use_sandbox else self.TOKEN_URL_PROD
+        if use_sandbox:
+            self.oauth_endpoint = 'https://auth.sandbox.ebay.com/oauth2/authorize'
+            self.token_endpoint = 'https://api.sandbox.ebay.com/identity/v1/oauth2/token'
+        else:
+            self.oauth_endpoint = 'https://auth.ebay.com/oauth2/authorize'
+            self.token_endpoint = 'https://api.ebay.com/identity/v1/oauth2/token'
         
-        # Local callback server settings
+        self.access_token = None
+        self.token_expiry = None
+        
+        logger.info(f"eBay OAuth initialized ({'Sandbox' if use_sandbox else 'Production'} mode)")
+        
+        # Local callback server settings (kept from original)
         self.callback_port = 8888
         self.callback_path = "/callback"
         self.authorization_code = None
         
-    def load_credentials(self):
-        """Load credentials from .env"""
-        credentials = {}
-        if self.env_path.exists():
-            with open(self.env_path, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith('#') and '=' in line:
-                        key, value = line.split('=', 1)
-                        credentials[key.strip()] = value.strip()
-        
-        self.app_id = credentials.get('EBAY_APP_ID')
-        self.cert_id = credentials.get('EBAY_CERT_ID')
-        self.ru_name = credentials.get('EBAY_RU_NAME')
-        self.user_token = credentials.get('EBAY_USER_TOKEN')
-        self.refresh_token = credentials.get('EBAY_REFRESH_TOKEN')
-        
-        print(f"✅ Loaded App ID: {self.app_id[:20]}..." if self.app_id else "❌ No App ID")
-        print(f"✅ RuName: {self.ru_name}" if self.ru_name else "⚠️ No RuName configured")
+    # Removed load_credentials method as it's replaced by dotenv
         
     def get_authorization_url(self):
         """Generate the authorization URL for user consent"""
@@ -90,7 +91,7 @@ class eBayOAuth:
             'prompt': 'login',  # Force fresh login
         }
         
-        return f"{self.auth_url}?" + urllib.parse.urlencode(params)
+        return f"{self.oauth_endpoint}?" + urllib.parse.urlencode(params)
     
     def exchange_code_for_token(self, auth_code):
         """Exchange authorization code for access token"""
@@ -115,36 +116,36 @@ class eBayOAuth:
         }
         
         try:
-            response = requests.post(self.token_url, headers=headers, data=data)
+            response = requests.post(self.token_endpoint, headers=headers, data=data)
             
             if response.status_code == 200:
                 token_data = response.json()
                 self.user_token = token_data['access_token']
                 self.refresh_token = token_data.get('refresh_token')
                 
-                print("\n✅ Successfully obtained user token!")
-                print(f"   Access Token: {self.user_token[:50]}...")
-                print(f"   Expires in: {token_data.get('expires_in', 'unknown')} seconds")
+                logger.info("✅ Successfully obtained user token!")
+                logger.info(f"   Access Token: {self.user_token[:50]}...")
+                logger.info(f"   Expires in: {token_data.get('expires_in', 'unknown')} seconds")
                 
                 if self.refresh_token:
-                    print(f"   Refresh Token: {self.refresh_token[:30]}...")
+                    logger.info(f"   Refresh Token: {self.refresh_token[:30]}...")
                 
                 # Save tokens
                 self.save_tokens()
                 return True
             else:
-                print(f"\n❌ Failed to get token: {response.status_code}")
-                print(f"   Error: {response.text}")
+                logger.error(f"❌ Failed to get token: {response.status_code}")
+                logger.error(f"   Error: {response.text}")
                 return False
                 
         except Exception as e:
-            print(f"\n❌ Error exchanging code: {e}")
+            logger.error(f"❌ Error exchanging code: {e}")
             return False
     
     def refresh_access_token(self):
         """Refresh expired access token"""
         if not self.refresh_token:
-            print("❌ No refresh token available")
+            logger.error("❌ No refresh token available")
             return False
             
         credentials = f"{self.app_id}:{self.cert_id}"
@@ -162,21 +163,21 @@ class eBayOAuth:
         }
         
         try:
-            response = requests.post(self.token_url, headers=headers, data=data)
+            response = requests.post(self.token_endpoint, headers=headers, data=data)
             
             if response.status_code == 200:
                 token_data = response.json()
                 self.user_token = token_data['access_token']
                 
-                print("✅ Token refreshed successfully!")
+                logger.info("✅ Token refreshed successfully!")
                 self.save_tokens()
                 return True
             else:
-                print(f"❌ Refresh failed: {response.text}")
+                logger.error(f"❌ Refresh failed: {response.text}")
                 return False
                 
         except Exception as e:
-            print(f"❌ Error refreshing: {e}")
+            logger.error(f"❌ Error refreshing: {e}")
             return False
     
     def save_tokens(self):
@@ -186,30 +187,44 @@ class eBayOAuth:
             with open(self.env_path, 'r') as f:
                 lines = f.readlines()
         
-        # Update tokens
-        token_updated = False
-        refresh_updated = False
+        # Consolidate user token variables
+        token_vars = ['EBAY_USER_TOKEN', 'EBAY_USER_ACCESS_TOKEN']
+        refresh_vars = ['EBAY_REFRESH_TOKEN', 'EBAY_USER_REFRESH_TOKEN']
+        
+        token_found = {v: False for v in token_vars}
+        refresh_found = {v: False for v in refresh_vars}
+        
         new_lines = []
-        
         for line in lines:
-            if line.startswith('EBAY_USER_TOKEN='):
-                new_lines.append(f'EBAY_USER_TOKEN={self.user_token}\n')
-                token_updated = True
-            elif line.startswith('EBAY_REFRESH_TOKEN='):
-                new_lines.append(f'EBAY_REFRESH_TOKEN={self.refresh_token}\n')
-                refresh_updated = True
-            else:
-                new_lines.append(line)
+            updated = False
+            for v in token_vars:
+                if line.startswith(f"{v}="):
+                    new_lines.append(f"{v}={self.user_token}\n")
+                    token_found[v] = True
+                    updated = True
+                    break
+            if updated: continue
+            
+            for v in refresh_vars:
+                if line.startswith(f"{v}="):
+                    new_lines.append(f"{v}={self.refresh_token}\n")
+                    refresh_found[v] = True
+                    updated = True
+                    break
+            if updated: continue
+            
+            new_lines.append(line)
         
-        if not token_updated and self.user_token:
-            new_lines.append(f'EBAY_USER_TOKEN={self.user_token}\n')
-        if not refresh_updated and self.refresh_token:
-            new_lines.append(f'EBAY_REFRESH_TOKEN={self.refresh_token}\n')
+        # Add missing vars
+        if self.user_token and not any(token_found.values()):
+            new_lines.append(f"EBAY_USER_TOKEN={self.user_token}\n")
+        if self.refresh_token and not any(refresh_found.values()):
+            new_lines.append(f"EBAY_REFRESH_TOKEN={self.refresh_token}\n")
         
         with open(self.env_path, 'w') as f:
             f.writelines(new_lines)
         
-        print("✅ Tokens saved to .env")
+        logger.info("✅ Tokens saved to .env")
     
     def has_valid_token(self):
         """Check if we have a user token"""
@@ -261,7 +276,7 @@ class eBayOAuth:
             auth_code = auth_code.split('&')[0]  # Remove any trailing params
             return self.exchange_code_for_token(auth_code)
         else:
-            print("❌ No code provided")
+            logger.error("❌ No code provided")
             return False
 
 

@@ -3,3 +3,8 @@ requests
 google-genai
 pillow
 python-dotenv
+sqlalchemy
+flask-socketio
+click
+
+eventlet
