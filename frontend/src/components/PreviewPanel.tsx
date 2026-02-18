@@ -79,6 +79,7 @@ export function PreviewPanel({ jobId, onClose }: PreviewPanelProps) {
     // Refresh when job or template changes
     useEffect(() => {
         handleRefresh()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [jobId, selectedTemplateId])
 
     const passCount = validation.filter(v => v.status === 'pass').length
@@ -111,6 +112,7 @@ export function PreviewPanel({ jobId, onClose }: PreviewPanelProps) {
                         className="text-sm border-none bg-transparent outline-none text-stone-700 font-medium min-w-[150px]"
                         value={selectedTemplateId}
                         onChange={(e) => setSelectedTemplateId(e.target.value)}
+                        aria-label="Select template"
                     >
                         <option value="">Select Template...</option>
                         {templates.map(t => (

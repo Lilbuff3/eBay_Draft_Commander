@@ -49,7 +49,7 @@ export function BulkActionBar({
                 })
                 onRefresh()
             }
-        } catch (e) {
+        } catch {
             alert('Bulk update failed')
         } finally {
             setIsBulkActing(false)
@@ -105,7 +105,7 @@ export function BulkActionBar({
                 }
                 onRefresh()
             }
-        } catch (e) {
+        } catch {
             alert('Bulk title update failed')
         } finally {
             setIsBulkActing(false)
@@ -124,7 +124,7 @@ export function BulkActionBar({
                 }
             }
             onRefresh()
-        } catch (e) {
+        } catch {
             alert('Some items failed to end')
         } finally {
             setIsBulkActing(false)

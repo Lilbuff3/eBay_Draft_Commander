@@ -3,40 +3,33 @@ eBay Policies API Module
 Fetches fulfillment, payment, return policies and inventory locations.
 """
 import requests
+import os
 from pathlib import Path
 from typing import Dict, List, Optional
+from backend.app.core.logger import get_logger
+from backend.app.core.rate_limiter import limiter
+
+logger = get_logger('ebay_policies')
 
 ACCOUNT_URL = 'https://api.ebay.com/sell/account/v1'
 INVENTORY_URL = 'https://api.ebay.com/sell/inventory/v1'
 
 
+from dotenv import load_dotenv, find_dotenv
+
 def load_env():
-    """Load credentials from .env file (Robust lookup)"""
-    current_path = Path(__file__).resolve()
-    env_path = None
+    """Load credentials from .env file using python-dotenv"""
+    env_path = find_dotenv()
+    if env_path:
+        load_dotenv(env_path)
     
-    # Traverse up to find .env
-    for parent in [current_path] + list(current_path.parents):
-        check_path = parent / ".env"
-        if check_path.exists():
-            env_path = check_path
-            break
-            
-    # Fallback to CWD
-    if not env_path:
-        cwd_env = Path.cwd() / ".env"
-        if cwd_env.exists():
-            env_path = cwd_env
-            
-    credentials = {}
-    if env_path and env_path.exists():
-        with open(env_path, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#') and '=' in line:
-                    key, value = line.split('=', 1)
-                    credentials[key.strip()] = value.strip()
-    return credentials
+    # Return a dict for compatibility with existing code
+    return {key: os.environ.get(key) for key in [
+        'EBAY_APP_ID', 'EBAY_CERT_ID', 'EBAY_DEV_ID', 'EBAY_RU_NAME',
+        'EBAY_USER_TOKEN', 'EBAY_REFRESH_TOKEN', 'EBAY_USER_ACCESS_TOKEN',
+        'EBAY_FULFILLMENT_POLICY', 'EBAY_PAYMENT_POLICY', 'EBAY_RETURN_POLICY',
+        'EBAY_MERCHANT_LOCATION'
+    ]}
 
 
 def _get_headers() -> Dict:
@@ -61,6 +54,34 @@ def _refresh_token_if_needed(response) -> bool:
         except Exception:
             pass
     return False
+
+
+def ebay_request(method, url, **kwargs):
+    """
+    Centralized eBay request wrapper.
+    - Applies Rate Limiting
+    - Handles Authorization Headers
+    - Auto-refreshes tokens on 401
+    """
+    # 1. Wait for Rate Limit
+    limiter.wait_if_needed('ebay')
+    
+    # 2. Inject Headers if not provided
+    if 'headers' not in kwargs:
+        kwargs['headers'] = _get_headers()
+        
+    # 3. Execute Request
+    response = requests.request(method, url, **kwargs)
+    
+    # 4. Handle Auth Expiry
+    if response.status_code in [401, 500]:
+        if _refresh_token_if_needed(response):
+            logger.info(f"Token refreshed after {response.status_code}. Retrying {method} {url}...")
+            # Re-fetch headers with new token
+            kwargs['headers'] = _get_headers()
+            response = requests.request(method, url, **kwargs)
+            
+    return response
 
 
 def get_fulfillment_policies(retry: bool = True) -> List[Dict]:
@@ -222,25 +243,25 @@ def get_current_defaults() -> Dict:
 
 # Test
 if __name__ == "__main__":
-    print("Testing eBay Policies API...")
+    logger.info("Testing eBay Policies API...")
     
-    print("\n📦 Fulfillment Policies:")
+    logger.info("\n📦 Fulfillment Policies:")
     for p in get_fulfillment_policies():
-        print(f"  - {p['name']} ({p['id'][:20]}...): {p['description']}")
+        logger.info(f"  - {p['name']} ({p['id'][:20]}...): {p['description']}")
     
-    print("\n💳 Payment Policies:")
+    logger.info("\n💳 Payment Policies:")
     for p in get_payment_policies():
-        print(f"  - {p['name']} ({p['id'][:20]}...)")
+        logger.info(f"  - {p['name']} ({p['id'][:20]}...)")
     
-    print("\n🔄 Return Policies:")
+    logger.info("\n🔄 Return Policies:")
     for p in get_return_policies():
-        print(f"  - {p['name']} ({p['id'][:20]}...): {p['description']}")
+        logger.info(f"  - {p['name']} ({p['id'][:20]}...): {p['description']}")
     
-    print("\n📍 Locations:")
+    logger.info("\n📍 Locations:")
     for loc in get_inventory_locations():
-        print(f"  - {loc['name']} ({loc['id']}): {loc['description']}")
+        logger.info(f"  - {loc['name']} ({loc['id']}): {loc['description']}")
     
-    print("\n⚙️ Current Defaults:")
+    logger.info("\n⚙️ Current Defaults:")
     defaults = get_current_defaults()
     for key, val in defaults.items():
-        print(f"  - {key}: {val[:20] if val else 'Not set'}...")
+        logger.info(f"  - {key}: {val[:20] if val else 'Not set'}...")

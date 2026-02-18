@@ -3,10 +3,16 @@ Pricing Engine for eBay Draft Commander
 Uses eBay Finding API to get sold listings and calculate market-based prices
 """
 import os
+import json
+import re
 import statistics
 import requests
+from typing import List, Dict, Optional, Union, Any
 from pathlib import Path
 from urllib.parse import quote
+from backend.app.core.logger import get_logger
+
+logger = get_logger('pricing_engine')
 
 
 class PricingEngine:
@@ -41,7 +47,7 @@ class PricingEngine:
                         break
         
         if not self.app_id:
-            print("⚠️ EBAY_APP_ID not found in .env - Pricing Intelligence disabled")
+            logger.warning("⚠️ EBAY_APP_ID not found in .env - Pricing Intelligence disabled")
             
         # Initialize Gemini 3 for Search Grounding (from Roadmap Phase 6)
         self.google_api_key = None
@@ -60,11 +66,11 @@ class PricingEngine:
             try:
                 from google import genai
                 self.ai_client = genai.Client(api_key=self.google_api_key)
-                print("✅ Pricing AI initialized (Gemini 3 + Search Grounding)")
+                logger.info("✅ Pricing AI initialized (Gemini 3 + Search Grounding)")
             except Exception as e:
-                print(f"⚠️ Could not initialize Pricing AI: {e}")
+                logger.warning(f"⚠️ Could not initialize Pricing AI: {e}")
     
-    def search_sold_listings(self, keywords, category_id=None, limit=15):
+    def search_sold_listings(self, keywords: str, category_id: Optional[str] = None, limit: int = 15) -> List[Dict[str, Any]]:
         """
         Search for recently sold items matching the keywords.
         
@@ -79,82 +85,37 @@ class PricingEngine:
         if not self.app_id:
             return []
         
-        params = {
-            "OPERATION-NAME": "findCompletedItems",
-            "SERVICE-VERSION": "1.0.0",
-            "SECURITY-APPNAME": self.app_id,
-            "RESPONSE-DATA-FORMAT": "JSON",
-            "REST-PAYLOAD": "",
-            "keywords": keywords,
-            "itemFilter(0).name": "SoldItemsOnly",
-            "itemFilter(0).value": "true",
-            "paginationInput.entriesPerPage": str(limit),
-            "sortOrder": "EndTimeSoonest",  # Most recent first
-        }
-        
-        if category_id:
-            params["categoryId"] = str(category_id)
-        
+        # Use eBayResearcher (Browse API) instead of legacy Finding API
         try:
-            response = requests.get(self.FINDING_API_URL, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
+            from backend.app.services.ebay.researcher import eBayResearcher
+            researcher = eBayResearcher(use_api=True, use_ai=False) # AI fallback handled by caller if needed
             
-            # Navigate the complex response structure
-            result = data.get("findCompletedItemsResponse", [{}])[0]
-            ack = result.get("ack", ["Failure"])[0]
-            
-            if ack != "Success":
-                error_msg = result.get("errorMessage", [{}])[0].get("error", [{}])[0].get("message", ["Unknown error"])[0]
-                print(f"⚠️ Finding API error: {error_msg}")
-                return []
-            
-            search_result = result.get("searchResult", [{}])[0]
-            items = search_result.get("item", [])
+            # The researcher returns {'items': [SoldItem...], ...}
+            # We need to adapt it to the dict format expected by this class
+            results = researcher.search_sold(keywords, limit=limit)
             
             sold_items = []
-            for item in items:
-                try:
-                    title = item.get("title", [""])[0]
-                    
-                    # Get price
-                    selling_status = item.get("sellingStatus", [{}])[0]
-                    current_price = selling_status.get("currentPrice", [{}])[0]
-                    price = float(current_price.get("__value__", 0))
-                    currency = current_price.get("@currencyId", "USD")
-                    
-                    # Get condition
-                    condition_info = item.get("condition", [{}])[0]
-                    condition = condition_info.get("conditionDisplayName", ["Unknown"])[0]
-                    
-                    # Get end date
-                    listing_info = item.get("listingInfo", [{}])[0]
-                    end_time = listing_info.get("endTime", [""])[0]
-                    
-                    # Get URL
-                    url = item.get("viewItemURL", [""])[0]
-                    
+            if results and 'items' in results:
+                for item in results['items']:
                     sold_items.append({
-                        "title": title,
-                        "price": price,
-                        "currency": currency,
-                        "condition": condition,
-                        "end_date": end_time[:10] if end_time else "",  # Just the date part
-                        "url": url
+                        "title": item['title'],
+                        "price": item['price'],
+                        "currency": "USD", # Researcher normalizes to float, assuming USD for now
+                        "condition": item['condition'],
+                        "end_date": item['date'],
+                        "url": item['url']
                     })
-                except (KeyError, IndexError, ValueError) as e:
-                    continue  # Skip malformed items
             
             return sold_items
-            
-        except requests.RequestException as e:
-            print(f"❌ Finding API request failed: {e}")
+
+        except ImportError:
+            logger.error("❌ Could not import eBayResearcher")
             return []
         except Exception as e:
-            print(f"❌ Pricing engine error: {e}")
+            logger.error(f"❌ Pricing engine error (using Researcher): {e}")
             return []
     
-    def calculate_suggested_price(self, sold_items, our_condition="Used - Good", acquisition_cost=0.0):
+    def calculate_suggested_price(self, sold_items: List[Dict], our_condition: str = "Used - Good", acquisition_cost: float = 0.0) -> Dict[str, Any]:
         """
         Calculate a suggested price based on sold items data.
         
@@ -233,7 +194,7 @@ class PricingEngine:
             "projected_profit": round(suggested_price - est_fees - acquisition_cost, 2)
         }
     
-    def generate_ebay_search_link(self, title):
+    def generate_ebay_search_link(self, title: str) -> str:
         """
         Generate a link to eBay's sold listings search for manual research.
         
@@ -247,7 +208,7 @@ class PricingEngine:
         search_terms = "+".join(title.split()[:6])
         return f"https://www.ebay.com/sch/i.html?_nkw={quote(search_terms)}&LH_Complete=1&LH_Sold=1"
     
-    def get_ai_price_estimate(self, title, condition):
+    def get_ai_price_estimate(self, title: str, condition: str) -> Optional[Dict[str, Union[float, str]]]:
         """Estimate price using Gemini 3 with Google Search grounding"""
         if not self.ai_client:
             return None
@@ -255,47 +216,127 @@ class PricingEngine:
         try:
             from google.genai import types
             
-            prompt = f"""Search for the current market value of this item specifically for eBay:
-            Item: {title}
+            # IMPORTANT: Search Grounding + JSON Mode often conflicts (INVALID_ARGUMENT).
+            # We must use TEXT mode and parse the JSON out manually.
+            
+            prompt = f"""You are a High-End Industrial Appraiser and eBay Pricing Strategist.
+            The user has an item that may be rare, industrial, or undervalued. 
+            Do NOT default to a low price just because direct sales data is scarce.
+            
+            Item Title: {title}
             Condition: {condition}
             
-            Return ONLY a number representing the suggested price in USD. No symbols, no text."""
+            YOUR MISSION: Determine the maximum realistic list price.
+            
+            EXECUTE CHAIN OF THOUGHT (Do not skip steps):
+            
+            PHASE 1: IDENTIFY & ANCHOR (The most important step)
+            1. What EXACTLY is this? (e.g., "Precision Fiber Optic Cleaner", "Vintage Telescope", "Industrial PLC").
+            2. Who acts as the buyer? (Engineers, Factories, Collectors?). These buyers pay more.
+            3. SEARCH for the ORIGINAL MSRP or Current Retail Price of this item (or its nearest modern equivalent).
+               -> This is your "ANCHOR PRICE". If it cost $500 new, it is likely NOT worth $15 used, closer to $100-$200.
+            
+            PHASE 2: MARKET REALITY
+            1. Search for used sold listings on eBay/Mercari.
+            2. IF you find cheap sold comps ($10-$20), CHECK: Are they "For Parts"? Broken? Generic Clones?
+            3. IF offered item is genuine/good condition, IGNORE low-quality outliers.
+            
+            PHASE 3: VALUATION CALCULATION
+            - If Direct Comps exist and match condition: Use them.
+            - If NO Direct Comps: Apply "Depreciation Logic" to your ANCHOR MSRP:
+                 * New/Open Box: 70-80% of MSRP
+                 * Used Good: 40-60% of MSRP
+                 * Vintage/Rare: May maintain or exceed MSRP.
+            
+            OUTPUT:
+            Return a JSON block:
+            ```json
+            {{
+                "identified_item": "Brief description of what it is",
+                "original_msrp_estimate": "$XXX.XX",
+                "listing_strategy": "Value based on [Comps|MSRP Depreciation]",
+                "price": 0.00,
+                "reasoning": "Step-by-step logic: 1. MSRP was $X. 2. Comps are scarce but similar industrial units sell for $Y. 3. Setting price to $Z to capture professional value."
+            }}
+            ```
+            """
             
             response = self.ai_client.models.generate_content(
-                model='gemini-2.0-flash',
+                model='gemini-3-flash-preview',
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     tools=[types.Tool(google_search=types.GoogleSearch())],
-                    temperature=0.0
+                    temperature=0.3
+                    # response_mime_type REMOVED to enable Search Tool
                 )
             )
             
-            # Extract number
-            price_text = response.text.strip().replace('$', '').replace(',', '')
-            import re
-            match = re.search(r'\d+\.?\d*', price_text)
-            if match:
-                return float(match.group())
-        except Exception as e:
-            print(f"   ⚠️ Gemini 3 Grounding failed: {e}")
+            # Parse Text Response
+            text = response.text.strip() if response.text else ""
             
+            # Extract JSON block
+            match = re.search(r'```json\s*(\{.*?\})\s*```', text, re.DOTALL)
+            if match:
+                data = json.loads(match.group(1))
+            else:
+                # Try finding strict JSON without ticks
+                match = re.search(r'\{.*"price":.*\}', text, re.DOTALL)
+                if match:
+                     data = json.loads(match.group(0))
+                else:
+                     raise ValueError("No JSON found in AI response")
+
+            price = float(data.get('price', 0))
+            reasoning = data.get('reasoning', 'AI Estimate')
+            
+            if price > 0:
+                return {"price": price, "reasoning": reasoning}
+                
+        except Exception as e:
+            logger.warning(f"   ⚠️ Gemini 3 Grounding failed: {e}")
+            
+            # FALLBACK: Try Standard Inference (No Tools) if Grounding crashes
+            try:
+                logger.info("   🔄 Retrying with robust logical inference (No Search Tools)...")
+                retry_prompt = f"""You are an expert appraiser. valid_price_prediction_required.
+                Item: {title}
+                Condition: {condition}
+                
+                Based on your internal knowledge of this item brand and type, estimate a fair market listing price for eBay.
+                If it is a rare or industrial item, value it appropriately (do not undervalue).
+                
+                Return JSON:
+                {{
+                    "price": 0.00,
+                    "reasoning": "Inferred based on brand reputation and device type"
+                }}"""
+                
+                retry_resp = self.ai_client.models.generate_content(
+                    model='gemini-3-flash-preview',
+                    contents=retry_prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=0.3,
+                        response_mime_type="application/json"
+                    )
+                )
+                
+                text = retry_resp.text.strip()
+                if text.startswith('```json'):  # parse json if wrapped
+                    text = text.split('```json')[1].split('```')[0]
+                elif text.startswith('```'):
+                    text = text.split('```')[1].split('```')[0]
+
+                data = json.loads(text)
+                return {"price": float(data.get('price', 0)), "reasoning": "Inferred: " + data.get('reasoning', '')}
+            except Exception as e2:
+                logger.error(f"   ❌ Standard Inference also failed: {e2}")
+
         return None
 
-    def get_price_with_comps(self, title, condition="Used - Good", category_id=None, ai_suggested_price=None, acquisition_cost=0.0, isbn=None):
+    def get_price_with_comps(self, title: str, condition: str = "Used - Good", category_id: Optional[str] = None, ai_suggested_price: Optional[str] = None, acquisition_cost: float = 0.0, isbn: Optional[str] = None) -> Dict[str, Any]:
         """
         Main entry point: Get suggested price and comparable sales data.
         Falls back to AI suggestion if API fails.
-        
-        Args:
-            title: The item title (used as search keywords)
-            condition: The item's condition
-            category_id: Optional category to narrow search
-            ai_suggested_price: Fallback price from AI analyzer
-            acquisition_cost: Cost of goods sold
-            isbn: Optional ISBN for book/media exact matching
-        
-        Returns:
-            Dict with: suggested_price, comps, reasoning, source, research_link
         """
         # Generate research link for user
         research_link = self.generate_ebay_search_link(title)
@@ -304,12 +345,12 @@ class PricingEngine:
         
         # --- STRATEGY 1: ISBN SEARCH (Gold Standard for Books) ---
         if isbn:
-             print(f"🔍 Searching sold listings by ISBN: {isbn}...")
+             logger.info(f"🔍 Searching sold listings by ISBN: {isbn}...")
              sold_items = self.search_sold_listings(isbn, category_id, limit=15)
              
              if sold_items:
                  price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost)
-                 print(f"   💰 Market price (ISBN): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
+                 logger.info(f"   💰 Market price (ISBN): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
                  
                  return {
                     "suggested_price": price_data["suggested_price"],
@@ -320,19 +361,19 @@ class PricingEngine:
                     "research_link": self.generate_ebay_search_link(isbn) # Override link
                 }
              else:
-                 print("   ⚠️ No sales found for exact ISBN, falling back to title...")
+                 logger.info("   ⚠️ No sales found for exact ISBN, falling back to title...")
         
         # --- STRATEGY 2: KEYWORD SEARCH ---
         # Clean up title for search (remove special chars, limit length)
         search_query = " ".join(title.split()[:8])  # First 8 words
         
-        print(f"🔍 Searching sold listings for: {search_query[:50]}...")
+        logger.info(f"🔍 Searching sold listings for: {search_query[:50]}...")
         
         sold_items = self.search_sold_listings(search_query, category_id, limit=15)
         
         if sold_items:
             price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost)
-            print(f"   💰 Market price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
+            logger.info(f"   💰 Market price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
             
             return {
                 "suggested_price": price_data["suggested_price"],
@@ -344,43 +385,51 @@ class PricingEngine:
             }
         
         # Try Gemini 3 Grounding (Mandatory if no comps)
-        print(f"🔍 Performing AI Market Research (Gemini 3 Grounding)...")
-        grounded_price = self.get_ai_price_estimate(title, condition)
+        logger.info(f"🔍 Performing AI Market Research (Gemini 3 Grounding)...")
+        grounded_result = self.get_ai_price_estimate(title, condition)
         
-        if grounded_price:
-            print(f"   🌐 AI Research Price: ${grounded_price:.2f}")
+        if grounded_result:
+            logger.info(f"   🌐 AI Research Price: ${grounded_result['price']:.2f}")
             return {
-                "suggested_price": grounded_price,
+                "suggested_price": grounded_result['price'],
                 "comps": [],
-                "reasoning": "Researched via Gemini 3 with Google Search grounding",
+                "reasoning": grounded_result.get('reasoning', "Researched via Gemini 3"),
                 "source": "ai_grounded_research",
                 "research_link": research_link
             }
         
         # Fallback to AI suggestion from analyzer (image-based) ONLY if valid
         if ai_suggested_price:
-            print(f"   💡 Using AI image estimate: ${ai_suggested_price}")
+            logger.info(f"   💡 Using AI image estimate: ${ai_suggested_price}")
             return {
                 "suggested_price": float(ai_suggested_price),
                 "comps": [],
-                "reasoning": "Based on AI image analysis",
+                "reasoning": "Based on logical inference from visual analysis (No market data found)",
                 "source": "ai_estimate",
                 "research_link": research_link
             }
             
-        # CRITICAL FAIL - No Price Found
-        # User requested to NEVER return default.
-        raise Exception("Pricing Engine Failed: Could not find market price via API or Web Search.")
+        # LAST RESORT: Fail Loudly (No Default)
+        # User requested NO DEFAULT PRICING for undervalued items.
+        logger.warning("   ❌ Price discovery failed. Manual pricing required.")
+        return {
+            "suggested_price": None, 
+            "comps": [],
+            "reasoning": "Could not determine price. Manual input required.",
+            "source": "failed_requires_manual",
+            "research_link": research_link,
+            "error": "Price discovery failed"
+        }
 
 
 # Test the pricing engine
 if __name__ == "__main__":
-    print("Testing Pricing Engine...\n")
+    logger.info("Testing Pricing Engine...\n")
     
     engine = PricingEngine()
     
     if not engine.app_id:
-        print("⚠️ EBAY_APP_ID not configured - using AI fallback only")
+        logger.warning("⚠️ EBAY_APP_ID not configured - using AI fallback only")
     
     # Test with a known item
     test_title = "NTTAT CLETOP REEL TYPE A Optical Fiber Connector Cleaner"
@@ -389,13 +438,13 @@ if __name__ == "__main__":
     
     result = engine.get_price_with_comps(test_title, test_condition, ai_suggested_price=test_ai_price)
     
-    print(f"\n📊 Results for: {test_title[:50]}...")
-    print(f"   Suggested Price: ${result['suggested_price']}" if result['suggested_price'] else "   No price suggestion")
-    print(f"   Source: {result['source']}")
-    print(f"   Reasoning: {result['reasoning']}")
-    print(f"   🔗 Research: {result['research_link']}")
+    logger.info(f"\n📊 Results for: {test_title[:50]}...")
+    logger.info(f"   Suggested Price: ${result['suggested_price']}" if result['suggested_price'] else "   No price suggestion")
+    logger.info(f"   Source: {result['source']}")
+    logger.info(f"   Reasoning: {result['reasoning']}")
+    logger.info(f"   🔗 Research: {result['research_link']}")
     
     if result['comps']:
-        print(f"\n   📦 Recent Sales ({len(result['comps'])} shown):")
+        logger.info(f"\n   📦 Recent Sales ({len(result['comps'])} shown):")
         for comp in result['comps']:
-            print(f"      ${comp['price']:.2f} - {comp['condition']} - {comp['end_date']}")
+            logger.info(f"      ${comp['price']:.2f} - {comp['condition']} - {comp['end_date']}")

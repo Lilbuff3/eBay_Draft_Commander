@@ -1,5 +1,5 @@
 
-import { useState, useRef, useEffect, useReducer } from 'react'
+import { useState, useRef, useEffect, useReducer, useCallback } from 'react'
 import { Trash2, Search, Package } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -34,7 +34,7 @@ interface BatchItem {
     stock_photo?: string
     imgUrl?: string
     listingId?: string
-    fullData?: any // Store the full API response for drafting
+    fullData?: Record<string, unknown> // Store the full API response for drafting
 }
 
 type BatchAction =
@@ -76,7 +76,7 @@ const initBatchState = (): BatchItem[] => {
     try {
         const saved = localStorage.getItem('batchScanItems')
         return saved ? JSON.parse(saved) : []
-    } catch (e) {
+    } catch {
         return []
     }
 }
@@ -96,35 +96,8 @@ export function BatchScan() {
     const lastKeystrokeRef = useRef(0)
     const [lastScannedId, setLastScannedId] = useState<string | null>(null)
 
-    // --- Scanner Listener ---
-    useEffect(() => {
-        const handleKeyDown = async (e: KeyboardEvent) => {
-            // Allow typing in inputs
-            const target = e.target as HTMLElement
-            if (['INPUT', 'TEXTAREA'].includes(target.tagName) || target.isContentEditable) return
-
-            const now = Date.now()
-            if (now - lastKeystrokeRef.current > 50) bufferRef.current = ''
-            lastKeystrokeRef.current = now
-
-            if (e.key === 'Enter') {
-                const isbn = bufferRef.current
-                if (isbn.length >= 10 && /^\d+$/.test(isbn)) {
-                    console.log("Batch Scan:", isbn)
-                    await handleScan(isbn)
-                }
-                bufferRef.current = ''
-            } else if (e.key.length === 1) {
-                bufferRef.current += e.key
-            }
-        }
-
-        window.addEventListener('keydown', handleKeyDown)
-        return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [])
-
     // --- Logic ---
-    const handleScan = async (isbn: string) => {
+    const handleScan = useCallback(async (isbn: string) => {
         const id = crypto.randomUUID()
         dispatch({ type: 'ADD_ITEM', payload: { id, isbn } })
         setLastScannedId(id) // Highlight effect?
@@ -156,13 +129,40 @@ export function BatchScan() {
                 })
                 new Audio('/sounds/error.mp3').play().catch(() => { })
             }
-        } catch (e) {
+        } catch {
             dispatch({
                 type: 'UPDATE_ITEM',
                 payload: { id, data: { title: 'Lookup Error', status: 'error' } }
             })
         }
-    }
+    }, [dispatch])
+
+    // --- Scanner Listener ---
+    useEffect(() => {
+        const handleKeyDown = async (e: KeyboardEvent) => {
+            // Allow typing in inputs
+            const target = e.target as HTMLElement
+            if (['INPUT', 'TEXTAREA'].includes(target.tagName) || target.isContentEditable) return
+
+            const now = Date.now()
+            if (now - lastKeystrokeRef.current > 50) bufferRef.current = ''
+            lastKeystrokeRef.current = now
+
+            if (e.key === 'Enter') {
+                const isbn = bufferRef.current
+                if (isbn.length >= 10 && /^\d+$/.test(isbn)) {
+                    console.log("Batch Scan:", isbn)
+                    await handleScan(isbn)
+                }
+                bufferRef.current = ''
+            } else if (e.key.length === 1) {
+                bufferRef.current += e.key
+            }
+        }
+
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
+    }, [handleScan])
 
     const handleDraftAll = async () => {
         setIsProcessing(true)
@@ -177,7 +177,7 @@ export function BatchScan() {
                 await new Promise(r => setTimeout(r, 800))
 
                 dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { status: 'drafted', listingId: 'DRAFT-' + item.isbn } } })
-            } catch (e) {
+            } catch {
                 dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { status: 'error' } } })
             }
             processed++

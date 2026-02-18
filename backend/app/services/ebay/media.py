@@ -5,26 +5,23 @@ Based on validation via eBay API Test Tool (apim.ebay.com exists, api.ebay.com i
 import requests
 import json
 from pathlib import Path
+from backend.app.core.logger import get_logger
+
+logger = get_logger('ebay_media')
+
+import os
+from dotenv import load_dotenv, find_dotenv
 
 def load_env():
-    # Robust .env lookup
-    current_path = Path(__file__).resolve()
-    env_path = None
-    for parent in [current_path] + list(current_path.parents):
-        check_path = parent / ".env"
-        if check_path.exists():
-            env_path = check_path
-            break
-    if not env_path:
-         env_path = Path.cwd() / ".env"
-    credentials = {}
-    with open(env_path, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith('#') and '=' in line:
-                key, value = line.split('=', 1)
-                credentials[key.strip()] = value.strip()
-    return credentials
+    """Load credentials from .env file using python-dotenv"""
+    env_path = find_dotenv()
+    if env_path:
+        load_dotenv(env_path)
+    
+    # Return a dict for compatibility with existing code
+    return {key: os.environ.get(key) for key in [
+        'EBAY_USER_TOKEN'
+    ]}
 
 credentials = load_env()
 USER_TOKEN = credentials.get('EBAY_USER_TOKEN')
@@ -39,7 +36,7 @@ def check_endpoint_reachability():
     If it returns 404, the path/host is unresolved/wrong.
     """
     url = f'{BASE_URL}/image/create_image_from_file'
-    print(f"📡 Reachability Test: {url}")
+    logger.info(f"📡 Reachability Test: {url}")
     
     headers = {
         'Authorization': 'Bearer ' + USER_TOKEN,
@@ -49,20 +46,20 @@ def check_endpoint_reachability():
     
     try:
         r = requests.post(url, headers=headers, json={"test": "ping"})
-        print(f"   Status: {r.status_code}")
+        logger.info(f"   Status: {r.status_code}")
         
         if r.status_code == 415:
-            print("   ✅ Endpoint is REACHABLE (Correctly rejected JSON)")
+            logger.info("   ✅ Endpoint is REACHABLE (Correctly rejected JSON)")
             return True
         elif r.status_code == 404:
-            print("   ❌ Endpoint NOT FOUND (404)")
+            logger.error("   ❌ Endpoint NOT FOUND (404)")
             return False
         else:
-            print(f"   ⚠️ Unexpected status: {r.status_code} (But not 404, so likely reachable)")
+            logger.warning(f"   ⚠️ Unexpected status: {r.status_code} (But not 404, so likely reachable)")
             return True
             
     except Exception as e:
-        print(f"   ❌ Network/SSL Error: {e}")
+        logger.error(f"   ❌ Network/SSL Error: {e}")
         return False
 
 def upload_image_to_eps(image_path):
@@ -71,11 +68,11 @@ def upload_image_to_eps(image_path):
     """
     image_path = Path(image_path)
     if not image_path.exists():
-        print(f"❌ File not found: {image_path}")
+        logger.error(f"❌ File not found: {image_path}")
         return None
         
     url = f'{BASE_URL}/image/create_image_from_file'
-    print(f"📷 Uploading {image_path.name} to {url}")
+    logger.info(f"📷 Uploading {image_path.name} to {url}")
     
     # MIME type detection
     suffix = image_path.suffix.lower()
@@ -102,11 +99,11 @@ def upload_image_to_eps(image_path):
             max_retries = 2
             for attempt in range(max_retries):
                 r = requests.post(url, headers=headers, files=files, timeout=30)
-                print(f"   Status: {r.status_code}")
+                logger.info(f"   Status: {r.status_code}")
                 
                 # Check for Token Expiry (401)
                 if r.status_code == 401 and attempt == 0:
-                    print("   ⚠️ Token expired (401) during upload. Refreshing...")
+                    logger.warning("   ⚠️ Token expired (401) during upload. Refreshing...")
                     try:
                         from backend.app.services.ebay.auth import eBayOAuth
                         oauth = eBayOAuth(use_sandbox=False)
@@ -118,10 +115,10 @@ def upload_image_to_eps(image_path):
                                 headers['Authorization'] = f'Bearer {new_token}'
                                 # Rewind file for retry
                                 f.seek(0)
-                                print("   🔄 Retrying upload with new token...")
+                                logger.info("   🔄 Retrying upload with new token...")
                                 continue # Loop to retry
                     except Exception as e:
-                        print(f"   ❌ Refresh failed: {e}")
+                        logger.error(f"   ❌ Refresh failed: {e}")
                 
                 # If we're here, it's either success, a non-401 error, or retry failed
                 break
@@ -133,7 +130,7 @@ def upload_image_to_eps(image_path):
                 
                 # Sometimes it might be in Location header without body
                 if not eps_url and 'Location' in r.headers:
-                    print(f"   Found Location header, fetching details...")
+                    logger.info(f"   Found Location header, fetching details...")
                     image_id = r.headers['Location'].split('/')[-1]
                     # Fetch details
                     r2 = requests.get(f'{BASE_URL}/image/{image_id}', headers=headers)
@@ -141,17 +138,17 @@ def upload_image_to_eps(image_path):
                         eps_url = r2.json().get('imageUrl')
 
                 if eps_url:
-                    print(f"   ✅ SUCCESS: {eps_url}")
+                    logger.info(f"   ✅ SUCCESS: {eps_url}")
                     return eps_url
                 else:
-                    print(f"   ⚠️ Upload seemingly success but no URL found. Resp: {r.text}")
+                    logger.warning(f"   ⚠️ Upload seemingly success but no URL found. Resp: {r.text}")
                     return None
             else:
-                print(f"   ❌ Failed. Response: {r.text}")
+                logger.error(f"   ❌ Failed. Response: {r.text}")
                 return None
                 
         except Exception as e:
-            print(f"   ❌ Exception: {e}")
+            logger.error(f"   ❌ Exception: {e}")
             return None
 
 def upload_folder(folder_path, max_images=12):
@@ -162,14 +159,14 @@ def upload_folder(folder_path, max_images=12):
         
     # Check reachability first
     if not check_endpoint_reachability():
-        print("❌ API Endpoint unreachable. Aborting upload.")
+        logger.error("❌ API Endpoint unreachable. Aborting upload.")
         return []
         
     images = [p for p in folder_path.glob("*") if p.suffix.lower() in ['.jpg', '.jpeg', '.png', '.webp']]
     images = images[:max_images]
     
     urls = []
-    print(f"\nProcessing {len(images)} images from {folder_path}...")
+    logger.info(f"\nProcessing {len(images)} images from {folder_path}...")
     for img in images:
         url = upload_image_to_eps(img)
         if url:

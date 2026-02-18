@@ -1,3 +1,4 @@
+from typing import Dict, Any, List, Optional, Tuple, Union
 from backend.app.core.logger import get_logger
 from backend.app.services.ebay.policies import load_env, _get_headers, _refresh_token_if_needed
 import requests
@@ -29,7 +30,7 @@ class eBayService:
 
     # --- Connection Check --- 
     
-    def check_connection_status(self):
+    def check_connection_status(self) -> Tuple[Dict[str, str], int]:
         """Check if eBay API connection is valid by testing token"""
         try:
             creds = load_env()
@@ -68,7 +69,7 @@ class eBayService:
 
     # --- Listings (Hybrid Strategy) ---
 
-    def get_active_listings(self):
+    def get_active_listings(self) -> Tuple[Dict[str, Any], int]:
         """
         Fetch active listings using Inventory API (REST).
         Compliance Note: Legacy Trading API fallback has been removed for 2026 alignment.
@@ -107,5 +108,58 @@ class eBayService:
              if 'revenue' not in result:
                  result['revenue'] = sum(o['total'] for o in result['orders'])
         return result, status
-    def update_inventory_item(self, sku, update_data):
+    def update_inventory_item(self, sku: str, update_data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
         return self.inventory_service.update_inventory_item(sku, update_data)
+
+    def create_listing_bundle(self, sku: str, item_data: Dict[str, Any], offer_data: Dict[str, Any], auto_publish: bool = False) -> Dict[str, Any]:
+        """
+        Orchestrate the creation of an inventory item and an offer.
+        Optionally publishes the offer.
+        
+        Args:
+            sku: The SKU ID
+            item_data: Dict for create_inventory_item
+            offer_data: Dict for create_offer
+            auto_publish: Boolean, whether to publish immediately
+            
+        Returns:
+            Dict with 'listing_id', 'offer_id', 'status', 'success'
+        """
+        result = {
+            'success': False,
+            'sku': sku,
+            'offer_id': None,
+            'listing_id': None,
+            'status': 'error',
+            'details': []
+        }
+        
+        # 1. Create Inventory Item
+        resp, code = self.inventory_service.create_inventory_item(sku, item_data)
+        if code not in [200, 204]:
+            result['details'].append(f"Item Create Failed: {resp}")
+            return result
+            
+        # 2. Create Offer
+        resp, code = self.inventory_service.create_offer(offer_data)
+        if code not in [200, 201]:
+             result['details'].append(f"Offer Create Failed: {resp}")
+             return result
+        
+        offer_id = resp.get('offerId')
+        result['offer_id'] = offer_id
+        result['status'] = 'draft'
+        result['success'] = True
+        
+        # 3. Auto-Publish (Optional)
+        if auto_publish:
+            pub_resp, pub_code = self.publish_listing(offer_id)
+            if pub_code == 200:
+                result['listing_id'] = pub_resp.get('listingId')
+                result['status'] = 'active'
+                result['details'].append(f"Published Listing ID: {result['listing_id']}")
+            else:
+                 result['status'] = 'draft (publish_failed)'
+                 result['details'].append(f"Publish Failed: {pub_resp}")
+                 
+        return result

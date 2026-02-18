@@ -3,12 +3,15 @@ import os
 import json
 from pathlib import Path
 from typing import Optional, List
+from backend.app.core.logger import get_logger
+
+logger = get_logger('isbn_scanner')
 try:
     from google import genai
     from google.genai import types
     from PIL import Image
 except ImportError:
-    print("⚠️ google-genai or PIL not installed")
+    logger.warning("⚠️ google-genai or PIL not installed")
 
 class ISBNScanner:
     """
@@ -30,10 +33,10 @@ class ISBNScanner:
             
         if api_key:
             self.client = genai.Client(api_key=api_key)
-            print("✅ ISBN Scanner initialized (Gemini Vision)")
+            logger.info("✅ ISBN Scanner initialized (Gemini Vision)")
         else:
             self.client = None
-            print("⚠️ ISBN Scanner disabled (No API Key)")
+            logger.warning("⚠️ ISBN Scanner disabled (No API Key)")
 
     def scan_image(self, image_path: str) -> Optional[str]:
         """
@@ -51,7 +54,7 @@ class ISBNScanner:
             If no ISBN is visible, return 'None'."""
             
             response = self.client.models.generate_content(
-                model='gemini-2.0-flash',
+                model='gemini-3-flash-preview',
                 contents=[prompt, img]
             )
             
@@ -66,9 +69,9 @@ class ISBNScanner:
             return None
             
         except Exception as e:
-            print(f"❌ ISBN Scan failed: {e}")
+            logger.error(f"❌ ISBN Scan failed: {e}")
             return None
 
 if __name__ == "__main__":
     # Test needs a real image path
-    print("ISBN Scanner Service Ready")
+    logger.info("ISBN Scanner Service Ready")

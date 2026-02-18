@@ -46,6 +46,8 @@ env/
 *.log
 *.jsonl
 debug_output*.txt
+err.txt
+lint-report*.txt
 
 # Project specific noise
 inbox/
@@ -58,3 +60,33 @@ logs/
 *_log.txt
 debug_*.html
 pricing_test.txt
+
+# Frontend / Node
+node_modules/
+frontend/node_modules/
+frontend/node_modules_trash/
+*.db
+frontend/dist/
+frontend/dist-electron/
+frontend/release/
+.DS_Store
+thumbs.db
+
+# Backups
+*.bak
+*.bak2
+*_backup*
+
+# Logs and Debug
+git_*.txt
+*.log
+logs/*.jsonl
+
+# Tools archive
+tools/archive/
+
+# PyInstaller
+*.spec
+
+# PowerShell / Batch scripts (optional, but requested to utilize correct way)
+# Keeping them if they are useful, but ignoring temporary ones

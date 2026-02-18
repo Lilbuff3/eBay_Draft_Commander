@@ -1,0 +1,54 @@
+"""
+Global Constants for eBay Draft Commander
+"""
+
+# Condition Mapping from Folder Names/User Input to eBay Enum
+CONDITION_MAP = {
+    'New': 'NEW',
+    'New Open Box': 'NEW_OTHER',
+    'New With Defects': 'NEW_WITH_DEFECTS',
+    'New Old Stock': 'NEW_OTHER', # Special handling for NOS
+    'Like New': 'LIKE_NEW',
+    'Certified Refurbished': 'CERTIFIED_REFURBISHED',
+    'Excellent Refurbished': 'EXCELLENT_REFURBISHED',
+    'Very Good Refurbished': 'VERY_GOOD_REFURBISHED',
+    'Good Refurbished': 'GOOD_REFURBISHED',
+    'Seller Refurbished': 'SELLER_REFURBISHED',
+    'Used Excellent': 'USED_EXCELLENT',
+    'Used Very Good': 'USED_VERY_GOOD',
+    'Used Good': 'USED_GOOD',
+    'Used Acceptable': 'USED_ACCEPTABLE',
+    'Used': 'USED_GOOD',
+    'For Parts': 'FOR_PARTS_OR_NOT_WORKING'
+}
+
+# eBay API Limits and Defaults
+DEFAULT_CATEGORY_ID = "170599"  # Other > Everything Else (fallback category)
+MAX_IMAGES_PER_LISTING = 12  # eBay allows max 12 images per listing
+DEFAULT_CONDITION = "USED_EXCELLENT"  # Default if no condition specified
+TITLE_MAX_LENGTH = 80  # eBay title character limit
+ASPECT_VALUE_MAX_LENGTH = 65  # eBay item specific value character limit
+
+# AI Analysis Configuration
+MAX_AI_IMAGES = 8  # Gemini API limit per request
+AI_REQUIRED_KEYS = ['identification', 'listing']  # Required response fields
+
+# Auto-Publish Configuration
+DEFAULT_CONFIDENCE_THRESHOLD = 85  # Minimum AI confidence % to auto-publish
+DEFAULT_MIN_PRICE = 15.00  # Minimum price to auto-publish
+
+# Token Refresh Configuration
+TOKEN_REFRESH_INTERVAL = 1800  # 30 minutes in seconds (eBay tokens expire at 120min)
+TOKEN_RETRY_DELAY = 300  # 5 minutes in seconds
+
+# Rate Limiting Configuration (Issue #8)
+# Gemini Free Tier: 2 RPM (Requests Per Minute)
+GEMINI_RPM_LIMIT = 2
+GEMINI_REQ_INTERVAL = 60 / GEMINI_RPM_LIMIT # Seconds between calls
+
+# eBay API: 5 RPS (Requests Per Second) for burst management
+EBAY_BURST_LIMIT = 5
+EBAY_REFILL_RATE = 2 # Tokens per second
+
+# AI Models
+AI_MODEL_NAME = 'gemini-2.0-flash' # Updated to latest fast model

@@ -15,7 +15,7 @@ interface EditListingDialogProps {
     listing: Listing
     isOpen: boolean
     onClose: () => void
-    onSave: (sku: string, updates: any) => Promise<void>
+    onSave: (sku: string, updates: Partial<Listing> & { media?: File[] }) => Promise<void>
 }
 
 export function EditListingDialog({ listing, isOpen, onClose, onSave }: EditListingDialogProps) {
@@ -27,6 +27,7 @@ export function EditListingDialog({ listing, isOpen, onClose, onSave }: EditList
     const [isSaving, setIsSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [media, setMedia] = useState<any[]>([])
 
     // Fetch full details (description) on open
@@ -41,7 +42,8 @@ export function EditListingDialog({ listing, isOpen, onClose, onSave }: EditList
             setMedia([]) // Reset media
             fetchDescription()
         }
-    }, [isOpen, listing])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, listing.sku])
 
     const fetchDescription = async () => {
         setIsLoading(true)
@@ -82,7 +84,7 @@ export function EditListingDialog({ listing, isOpen, onClose, onSave }: EditList
             await onSave(listing.sku, {
                 title,
                 price: parseFloat(price),
-                quantity: parseInt(quantity),
+                availableQuantity: parseInt(quantity),
                 description: finalDescription !== '(Description loading not supported in this version)' ? finalDescription : undefined,
                 media: media.map(m => m.file), // Pass raw files to parent handler
                 offerId: listing.offerId

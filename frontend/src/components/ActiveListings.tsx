@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Package, RefreshCw, AlertCircle, Download, Edit } from 'lucide-react'
+import { Package, RefreshCw, AlertCircle, Download } from 'lucide-react'
 import { MigrationModal } from './MigrationModal'
 import { EditListingDialog } from './listings/EditListingDialog'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,7 @@ export interface Listing {
     currency: string
     availableQuantity: number // API returns this now
     availability?: number // Legacy mapping
+    description?: string
 }
 
 interface ListingsData {
@@ -64,7 +65,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
             // Map availability to availableQuantity if needed or normalize
             const normalized = {
                 ...json,
-                listings: json.listings.map((l: any) => ({
+                listings: json.listings.map((l: Listing & { availability?: number }) => ({
                     ...l,
                     availableQuantity: l.availableQuantity ?? l.availability ?? 0
                 }))
@@ -81,7 +82,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
         fetchListings()
     }, [])
 
-    const handleSave = async (sku: string, updates: any) => {
+    const handleSave = async (sku: string, updates: Partial<Listing> & { quantity?: number }) => {
         // Optimistic update
         const previousData = data
         if (data) {
@@ -176,7 +177,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                 const err = await res.json()
                 alert(`Failed: ${err.error}`)
             }
-        } catch (e) {
+        } catch {
             alert('Relist failed')
         }
     }

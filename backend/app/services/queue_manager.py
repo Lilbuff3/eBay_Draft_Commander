@@ -32,30 +32,41 @@ class QueueJob:
     folder_path: str
     folder_name: str
     status: JobStatus = JobStatus.PENDING
+    
+    # Core Data
     listing_id: Optional[str] = None
     offer_id: Optional[str] = None
     price: Optional[str] = None
+    
+    # User Overrides
+    user_title: Optional[str] = None
+    user_price: Optional[str] = None
+    user_description: Optional[str] = None
+    user_condition: Optional[str] = None
+    
+    # Rich Data
+    ai_data: Dict[str, Any] = field(default_factory=dict)
+    item_specifics: Dict[str, Any] = field(default_factory=dict)
+    
+    # Error Handling
     error_type: Optional[str] = None
     error_message: Optional[str] = None
     attempts: int = 0
     max_attempts: int = 3
+    
+    # Timing & Meta
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
     timing: Dict[str, float] = field(default_factory=dict)
+    job_metadata: Dict[str, Any] = field(default_factory=dict)
     
     def to_dict(self) -> dict:
         """Convert to JSON-serializable dict"""
         data = asdict(self)
         data['status'] = self.status.value
         return data
-    
-    @classmethod
-    def from_dict(cls, data: dict) -> 'QueueJob':
-        """Create from dict (for loading from JSON)"""
-        data['status'] = JobStatus(data['status'])
-        return cls(**data)
-    
+
     def can_retry(self) -> bool:
         """Check if job can be retried"""
         return self.status == JobStatus.FAILED and self.attempts < self.max_attempts
@@ -101,13 +112,10 @@ class QueueManager:
         # Initial sync of all existing jobs
         # self.load_state() will naturally handle this on startup
     
-    def emit_event(self, event: str, data: Any):
-        """Helper to emit events to frontend via Socket.IO"""
-        if self.socketio:
-            self.socketio.emit(event, data)
-        
         # Initialize logger
         self.logger = get_logger('queue_manager', level='DEBUG')
+        
+
         
         # Load any persisted state
         self.load_state()
@@ -115,10 +123,28 @@ class QueueManager:
         # Start Token Maintenance Thread (Heartbeat)
         self._token_thread = threading.Thread(target=self._token_maintainer, daemon=True)
         self._token_thread.start()
-    
+        
+        # Track current job
+        self._current_job: Optional[QueueJob] = None
+        
+        # Start Inbox Watcher Thread
+        self.inbox_path = self.base_path / "inbox"
+        self._watcher_thread = threading.Thread(target=self._watch_inbox, daemon=True)
+        self._watcher_thread.start()
+
+    @property
+    def current_job(self) -> Optional[QueueJob]:
+        """Get the currently processing job"""
+        return self._current_job
+
+    def emit_event(self, event: str, data: Any):
+        """Helper to emit events to frontend via Socket.IO"""
+        if self.socketio:
+            self.socketio.emit(event, data)
+
     def _token_maintainer(self):
         """Background thread to keep eBay token alive"""
-        self.logger.info("🔐 Token Maintenance Heartbeat started")
+        self.logger.info("Token Maintenance Heartbeat started")
         from backend.app.services.ebay.auth import eBayOAuth
         
         while True:
@@ -126,17 +152,44 @@ class QueueManager:
                 # Sleep for 60 minutes
                 time.sleep(3600)
                 
-                self.logger.info("💓 Running scheduled token refresh...")
+                self.logger.info("Running scheduled token refresh...")
                 oauth = eBayOAuth(use_sandbox=False)
                 if oauth.refresh_access_token():
-                    self.logger.info("✅ Token refreshed successfully (Background)")
+                    self.logger.info("Token refreshed successfully (Background)")
                 else:
-                    self.logger.warning("⚠️ Background token refresh failed")
+                    self.logger.warning("Background token refresh failed")
                     
             except Exception as e:
-                self.logger.error(f"❌ Token maintenance error: {e}")
+                self.logger.error(f"Token maintenance error: {e}")
                 time.sleep(300) # Retry sooner on error
-    
+
+    def _watch_inbox(self):
+        """Background thread to watch for new items in inbox"""
+        self.logger.info(f"Inbox Watcher started on: {self.inbox_path}")
+        
+        while True:
+            try:
+                time.sleep(10) # Check every 10 seconds
+                
+                if not self.inbox_path.exists():
+                    continue
+                    
+                # Import here to avoid circular dependency
+                from backend.app.services.scanner_service import ScannerService
+                
+                scanner = ScannerService(self.inbox_path)
+                result = scanner.scan_inbox(self)
+                
+                if result.get('added', 0) > 0:
+                    self.logger.info(f"Auto-detected {result['added']} new job(s) from inbox")
+                    # If we added jobs and aren't processing, start processing
+                    if not self.is_processing() and not self.is_paused():
+                         self.start_processing()
+                         
+            except Exception as e:
+                self.logger.error(f"Inbox watcher error: {e}")
+                time.sleep(60) # Back off on error
+
     def set_app(self, app):
         """Set Flask app instance for context pushing"""
         self.app = app
@@ -161,12 +214,14 @@ class QueueManager:
                     continue
                 
                 # Process it
+                self._current_job = job
                 if self.app:
                     with self.app.app_context():
                         self._process_job(job)
                 else:
                     self.logger.warning("No Flask App context available for QueueManager thread!")
                     self._process_job(job)
+                self._current_job = None
                 
                 # Update progress
                 stats = self.get_stats()
@@ -185,13 +240,14 @@ class QueueManager:
         for job in self.jobs:
             self._sync_to_supabase(job)
     
-    def add_folder(self, folder_path: str) -> QueueJob:
-        """Add a single folder to the queue"""
+    def add_folder(self, folder_path: str, metadata: Dict[str, Any] = None) -> QueueJob:
+        """Add a single folder to the queue with optional metadata"""
         path = Path(folder_path)
         job = QueueJob(
             id=uuid.uuid4().hex[:8].upper(),
             folder_path=str(path),
-            folder_name=path.name
+            folder_name=path.name,
+            job_metadata=metadata or {}
         )
         
         session = self.SessionFactory()
@@ -201,7 +257,13 @@ class QueueManager:
                 folder_path=job.folder_path,
                 folder_name=job.folder_name,
                 status=job.status.value,
-                created_at=datetime.fromisoformat(job.created_at)
+                created_at=datetime.fromisoformat(job.created_at),
+                job_metadata=job.job_metadata,
+                
+                # Init new fields
+                ai_data={},
+                item_specifics={},
+                timing={}
             )
             session.add(db_job)
             session.commit()
@@ -304,17 +366,21 @@ class QueueManager:
     
     def get_stats(self) -> dict:
         """Get queue statistics"""
-        stats = {
-            'total': len(self.jobs),
-            'pending': 0,
-            'processing': 0,
-            'completed': 0,
-            'failed': 0,
-            'skipped': 0
+        total = len(self.jobs)
+        pending = sum(1 for j in self.jobs if j.status == JobStatus.PENDING)
+        processing = sum(1 for j in self.jobs if j.status == JobStatus.PROCESSING)
+        completed = sum(1 for j in self.jobs if j.status == JobStatus.COMPLETED)
+        failed = sum(1 for j in self.jobs if j.status == JobStatus.FAILED)
+        skipped = sum(1 for j in self.jobs if j.status == JobStatus.SKIPPED)
+        
+        return {
+            'total': total,
+            'pending': pending,
+            'processing': processing,
+            'completed': completed,
+            'failed': failed,
+            'skipped': skipped
         }
-        for job in self.jobs:
-            stats[job.status.value] += 1
-        return stats
     
     def start_processing(self):
         """Start processing the queue in background thread"""
@@ -359,24 +425,60 @@ class QueueManager:
     
     def retry_failed(self):
         """Reset all failed jobs to pending for retry"""
-        with self._lock:
-            for job in self.jobs:
-                if job.can_retry():
-                    job.status = JobStatus.PENDING
-                    job.error_type = None
-                    job.error_message = None
-        self.save_state()
+        session = self.SessionFactory()
+        try:
+            with self._lock:
+                # 1. Update In-Memory
+                ids_to_retry = []
+                for job in self.jobs:
+                    if job.can_retry():
+                        job.status = JobStatus.PENDING
+                        job.error_type = None
+                        job.error_message = None
+                        ids_to_retry.append(job.id)
+                
+                # 2. Update Database
+                if ids_to_retry:
+                    session.query(self.JobModel).filter(
+                        self.JobModel.id.in_(ids_to_retry)
+                    ).update({
+                        'status': JobStatus.PENDING.value, 
+                        'error_type': None, 
+                        'error_message': None
+                    }, synchronize_session=False)
+                    session.commit()
+                    self.logger.info(f"Retrying {len(ids_to_retry)} failed jobs")
+        except Exception as e:
+            session.rollback()
+            self.logger.error(f"Failed to retry jobs in DB: {e}")
+        finally:
+            session.close()
     
     def retry_job(self, job_id: str) -> bool:
         """Retry a specific failed job"""
-        with self._lock:
-            for job in self.jobs:
-                if job.id == job_id and job.can_retry():
-                    job.status = JobStatus.PENDING
-                    job.error_type = None
-                    job.error_message = None
-                    self.save_state()
-                    return True
+        session = self.SessionFactory()
+        try:
+            with self._lock:
+                for job in self.jobs:
+                    if job.id == job_id and job.can_retry():
+                        job.status = JobStatus.PENDING
+                        job.error_type = None
+                        job.error_message = None
+                        
+                        # Update DB
+                        db_job = session.query(self.JobModel).filter_by(id=job_id).first()
+                        if db_job:
+                            db_job.status = JobStatus.PENDING.value
+                            db_job.error_type = None
+                            db_job.error_message = None
+                            session.commit()
+                        return True
+        except Exception as e:
+            session.rollback()
+            self.logger.error(f"Failed to retry job {job_id} in DB: {e}")
+        finally:
+            session.close()
+            
         return False
     
     def _get_next_pending(self) -> Optional[QueueJob]:
@@ -407,7 +509,13 @@ class QueueManager:
             # The service handles its own dependencies (eBayService, TemplateManager)
             from backend.app.services.processor_service import ProcessorService
             processor = ProcessorService()
-            result = processor.create_listing(job.folder_path)
+            
+            # Create callback for logging
+            def job_log_callback(msg, level='info'):
+                self.log_status(job.id, msg, level)
+            
+            # Pass job object directly to processor (New Architecture)
+            result = processor.create_listing(job, log_callback=job_log_callback)
             
             elapsed = time.time() - start_time
             
@@ -455,6 +563,12 @@ class QueueManager:
                 db_job.started_at = datetime.fromisoformat(job.started_at)
                 db_job.completed_at = datetime.fromisoformat(job.completed_at)
                 db_job.timing = job.timing
+                db_job.job_metadata = job.job_metadata
+                
+                # Persist Rich Data
+                db_job.ai_data = job.ai_data
+                db_job.item_specifics = job.item_specifics
+                
                 session.commit()
         except Exception as e:
             session.rollback()
@@ -472,8 +586,40 @@ class QueueManager:
                 self.on_job_error(job)
     
     def save_state(self):
-        """No-op: Database handles persistence immediately in data modification methods."""
-        pass
+        """Syncs all in-memory jobs to the database"""
+        session = self.SessionFactory()
+        try:
+            for job in self.jobs:
+                db_job = session.query(self.JobModel).filter_by(id=job.id).first()
+                if db_job:
+                    db_job.status = job.status.value
+                    db_job.listing_id = job.listing_id
+                    db_job.offer_id = job.offer_id
+                    db_job.price = job.price
+                    
+                    # Save New Fields
+                    db_job.user_title = job.user_title
+                    db_job.user_price = job.user_price
+                    db_job.user_description = job.user_description
+                    db_job.user_condition = job.user_condition
+                    db_job.ai_data = job.ai_data
+                    db_job.item_specifics = job.item_specifics
+                    
+                    db_job.error_type = job.error_type
+                    db_job.error_message = job.error_message
+                    db_job.attempts = job.attempts
+                    db_job.started_at = datetime.fromisoformat(job.started_at) if job.started_at else None
+                    db_job.completed_at = datetime.fromisoformat(job.completed_at) if job.completed_at else None
+                    db_job.timing = job.timing
+                    db_job.job_metadata = job.job_metadata
+            
+            session.commit()
+            # self.logger.info("Saved queue state to DB")
+        except Exception as e:
+            session.rollback()
+            self.logger.error(f"Failed to save state to DB: {e}")
+        finally:
+            session.close()
             
     def _sync_to_supabase(self, job: QueueJob):
         # ... (implementation remains same since it's an external sync)
@@ -495,6 +641,15 @@ class QueueManager:
                     listing_id=db_j.listing_id,
                     offer_id=db_j.offer_id,
                     price=db_j.price,
+                    
+                    # New Fields
+                    user_title=db_j.user_title,
+                    user_price=db_j.user_price,
+                    user_description=db_j.user_description,
+                    user_condition=db_j.user_condition,
+                    ai_data=db_j.ai_data,
+                    item_specifics=db_j.item_specifics,
+                    
                     error_type=db_j.error_type,
                     error_message=db_j.error_message,
                     attempts=db_j.attempts,
@@ -502,7 +657,8 @@ class QueueManager:
                     created_at=db_j.created_at.isoformat(),
                     started_at=db_j.started_at.isoformat() if db_j.started_at else None,
                     completed_at=db_j.completed_at.isoformat() if db_j.completed_at else None,
-                    timing=db_j.timing
+                    timing=db_j.timing,
+                    job_metadata=db_j.job_metadata
                 )
                 
                 # Reset any jobs that were processing when we closed

@@ -1,6 +1,6 @@
 import requests
 from backend.app.core.logger import get_logger
-from backend.app.services.ebay.policies import _get_headers, _refresh_token_if_needed
+from backend.app.services.ebay.policies import _get_headers, _refresh_token_if_needed, ebay_request
 
 logger = get_logger('ebay_inventory_service')
 
@@ -12,18 +12,7 @@ class InventoryService:
         try:
             INVENTORY_URL = 'https://api.ebay.com/sell/inventory/v1'
             
-            response = requests.get(
-                f'{INVENTORY_URL}/inventory_item',
-                headers=_get_headers(),
-                params={'limit': 100, 'offset': 0}
-            )
-            
-            if response.status_code in [401, 500] and _refresh_token_if_needed(response):
-                response = requests.get(
-                    f'{INVENTORY_URL}/inventory_item',
-                    headers=_get_headers(),
-                    params={'limit': 100, 'offset': 0}
-                )
+            response = ebay_request('GET', f'{INVENTORY_URL}/inventory_item', params={'limit': 100, 'offset': 0})
             
             if response.status_code != 200:
                 # GRACEFUL FALLBACK: If 401 (Unauthorized) persists, return empty list (Offline Mode)
@@ -92,18 +81,7 @@ class InventoryService:
         """Fetch details for a specific Offer ID"""
         try:
             INVENTORY_URL = 'https://api.ebay.com/sell/inventory/v1'
-            response = requests.get(
-                f'{INVENTORY_URL}/offer/{offer_id}',
-                headers=_get_headers(),
-                timeout=10
-            )
-            
-            if response.status_code in [401, 500] and _refresh_token_if_needed(response):
-                response = requests.get(
-                    f'{INVENTORY_URL}/offer/{offer_id}',
-                    headers=_get_headers(),
-                    timeout=10
-                )
+            response = ebay_request('GET', f'{INVENTORY_URL}/offer/{offer_id}', timeout=10)
             
             if response.status_code == 200:
                 return response.json(), 200
@@ -118,20 +96,7 @@ class InventoryService:
         try:
             # 1. Fetch Offer (Price, Qty, ListingId)
             INVENTORY_URL = 'https://api.ebay.com/sell/inventory/v1'
-            response = requests.get(
-                f'{INVENTORY_URL}/offer',
-                headers=_get_headers(),
-                params={'sku': sku},
-                timeout=10
-            )
-            
-            if response.status_code in [401, 500] and _refresh_token_if_needed(response):
-                response = requests.get(
-                    f'{INVENTORY_URL}/offer',
-                    headers=_get_headers(),
-                    params={'sku': sku},
-                    timeout=10
-                )
+            response = ebay_request('GET', f'{INVENTORY_URL}/offer', params={'sku': sku}, timeout=10)
             
             result_data = {}
             if response.status_code == 200:
@@ -188,19 +153,7 @@ class InventoryService:
         if not payload_requests:
             return {'success': True, 'message': 'No valid updates found'}, 200
 
-        response = requests.post(
-            f'{INVENTORY_URL}/bulk_update_price_quantity',
-            headers=_get_headers(),
-            json={'requests': payload_requests}
-        )
-        
-        if response.status_code in [401, 500]:
-            if _refresh_token_if_needed(response):
-                 response = requests.post(
-                    f'{INVENTORY_URL}/bulk_update_price_quantity',
-                    headers=_get_headers(),
-                    json={'requests': payload_requests}
-                )
+        response = ebay_request('POST', f'{INVENTORY_URL}/bulk_update_price_quantity', json={'requests': payload_requests})
         
         if response.status_code != 200:
              return {'error': f"eBay Update Failed: {response.text}"}, 500
@@ -223,11 +176,7 @@ class InventoryService:
 
     def withdraw_listing(self, offer_id):
         INVENTORY_URL = 'https://api.ebay.com/sell/inventory/v1'
-        response = requests.post(f'{INVENTORY_URL}/offer/{offer_id}/withdraw', headers=_get_headers())
-        
-        if response.status_code in [401, 500]:
-             if _refresh_token_if_needed(response):
-                response = requests.post(f'{INVENTORY_URL}/offer/{offer_id}/withdraw', headers=_get_headers())
+        response = ebay_request('POST', f'{INVENTORY_URL}/offer/{offer_id}/withdraw')
         
         if response.status_code in [200, 204]:
              return {'success': True, 'offerId': offer_id}, 200
@@ -235,11 +184,7 @@ class InventoryService:
 
     def publish_listing(self, offer_id):
         INVENTORY_URL = 'https://api.ebay.com/sell/inventory/v1'
-        response = requests.post(f'{INVENTORY_URL}/offer/{offer_id}/publish', headers=_get_headers())
-        
-        if response.status_code in [401, 500]:
-             if _refresh_token_if_needed(response):
-                response = requests.post(f'{INVENTORY_URL}/offer/{offer_id}/publish', headers=_get_headers())
+        response = ebay_request('POST', f'{INVENTORY_URL}/offer/{offer_id}/publish')
         
         if response.status_code in [200, 204]:
              result = response.json()
@@ -256,9 +201,7 @@ class InventoryService:
             
             try:
                 # GET offer
-                get_response = requests.get(f'{INVENTORY_URL}/offer/{offer_id}', headers=_get_headers())
-                if get_response.status_code == 401 and _refresh_token_if_needed(get_response):
-                     get_response = requests.get(f'{INVENTORY_URL}/offer/{offer_id}', headers=_get_headers())
+                get_response = ebay_request('GET', f'{INVENTORY_URL}/offer/{offer_id}')
                 
                 if get_response.status_code != 200:
                     results['failed'].append({'offerId': offer_id, 'error': f'GET failed: {get_response.status_code}'})
@@ -269,9 +212,7 @@ class InventoryService:
                 offer_data['listing']['listingTitle'] = new_title
                 
                 # PUT offer
-                put_response = requests.put(f'{INVENTORY_URL}/offer/{offer_id}', headers=_get_headers(), json=offer_data)
-                if put_response.status_code == 401 and _refresh_token_if_needed(put_response):
-                    put_response = requests.put(f'{INVENTORY_URL}/offer/{offer_id}', headers=_get_headers(), json=offer_data)
+                put_response = ebay_request('PUT', f'{INVENTORY_URL}/offer/{offer_id}', json=offer_data)
                 
                 if put_response.status_code in [200, 204]:
                     results['success'].append({'offerId': offer_id, 'title': new_title})
@@ -290,16 +231,7 @@ class InventoryService:
         """Fetch single inventory item raw data"""
         try:
             INVENTORY_URL = 'https://api.ebay.com/sell/inventory/v1'
-            response = requests.get(
-                f'{INVENTORY_URL}/inventory_item/{sku}',
-                headers=_get_headers()
-            )
-            
-            if response.status_code in [401, 500] and _refresh_token_if_needed(response):
-                response = requests.get(
-                    f'{INVENTORY_URL}/inventory_item/{sku}',
-                    headers=_get_headers()
-                )
+            response = ebay_request('GET', f'{INVENTORY_URL}/inventory_item/{sku}')
                 
             if response.status_code == 200:
                 return response.json(), 200
@@ -333,18 +265,7 @@ class InventoryService:
         # 3. PUT update
         INVENTORY_URL = 'https://api.ebay.com/sell/inventory/v1'
         try:
-            response = requests.put(
-                f'{INVENTORY_URL}/inventory_item/{sku}',
-                headers=_get_headers(),
-                json=current_data
-            )
-            
-            if response.status_code in [401, 500] and _refresh_token_if_needed(response):
-                response = requests.put(
-                    f'{INVENTORY_URL}/inventory_item/{sku}',
-                    headers=_get_headers(),
-                    json=current_data
-                )
+            response = ebay_request('PUT', f'{INVENTORY_URL}/inventory_item/{sku}', json=current_data)
                 
             if response.status_code in [200, 204]:
                 return {'success': True}, 200
@@ -363,18 +284,7 @@ class InventoryService:
         INVENTORY_URL = 'https://api.ebay.com/sell/inventory/v1'
         try:
             logger.info(f"Creating Inventory Item: {sku}")
-            response = requests.put(
-                f'{INVENTORY_URL}/inventory_item/{sku}',
-                headers=_get_headers(),
-                json=item_data
-            )
-            
-            if response.status_code in [401, 500] and _refresh_token_if_needed(response):
-                response = requests.put(
-                    f'{INVENTORY_URL}/inventory_item/{sku}',
-                    headers=_get_headers(),
-                    json=item_data
-                )
+            response = ebay_request('PUT', f'{INVENTORY_URL}/inventory_item/{sku}', json=item_data)
                 
             if response.status_code in [200, 204]:
                 return {'success': True}, 200
@@ -393,18 +303,7 @@ class InventoryService:
         INVENTORY_URL = 'https://api.ebay.com/sell/inventory/v1'
         try:
             logger.info(f"Creating Offer for SKU: {offer_data.get('sku')}")
-            response = requests.post(
-                f'{INVENTORY_URL}/offer',
-                headers=_get_headers(),
-                json=offer_data
-            )
-            
-            if response.status_code in [401, 500] and _refresh_token_if_needed(response):
-                response = requests.post(
-                    f'{INVENTORY_URL}/offer',
-                    headers=_get_headers(),
-                    json=offer_data
-                )
+            response = ebay_request('POST', f'{INVENTORY_URL}/offer', json=offer_data)
                 
             if response.status_code in [200, 201]:
                 result = response.json()

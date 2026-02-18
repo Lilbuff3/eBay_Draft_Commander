@@ -30,20 +30,21 @@ export function TemplateManager({ onClose, onApply }: TemplateManagerProps) {
     const [searchQuery, setSearchQuery] = useState('')
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
 
-    // Load templates on mount
-    useEffect(() => {
-        loadTemplates()
-    }, [])
-
     const loadTemplates = async () => {
         try {
             const res = await fetch('/api/tools/templates')
             const data = await res.json()
             setTemplates(data)
-        } catch (err) {
-            console.error('Failed to load templates:', err)
+        } catch {
+            loadTemplates() // Revert on error
         }
     }
+
+    // Load templates on mount
+    useEffect(() => {
+        loadTemplates()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     const categories = [...new Set(templates.map(t => t.category))]
 
@@ -103,7 +104,7 @@ export function TemplateManager({ onClose, onApply }: TemplateManagerProps) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updated)
             })
-        } catch (err) {
+        } catch {
             loadTemplates() // Revert on error
         }
     }
@@ -133,7 +134,7 @@ export function TemplateManager({ onClose, onApply }: TemplateManagerProps) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updated)
             })
-        } catch (e) {
+        } catch {
             // Ignore stats errors
         }
     }

@@ -38,7 +38,7 @@ export function Settings() {
             } else {
                 toast.error(result.error || 'Failed to save')
             }
-        } catch (error) {
+        } catch {
             toast.error('Error saving settings')
         } finally {
             setSaving(false)

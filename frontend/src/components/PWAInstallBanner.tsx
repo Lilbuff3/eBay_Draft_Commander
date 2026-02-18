@@ -6,6 +6,7 @@ import { isMobileDevice, isAppInstalled } from '@/lib/pwa'
 
 export function PWAInstallBanner() {
     const [showBanner, setShowBanner] = useState(false)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
 
     useEffect(() => {
@@ -52,6 +53,7 @@ export function PWAInstallBanner() {
             <button
                 onClick={() => setShowBanner(false)}
                 className="absolute top-2 right-2 p-1 rounded-full hover:bg-white/20"
+                aria-label="Dismiss"
             >
                 <X size={16} />
             </button>

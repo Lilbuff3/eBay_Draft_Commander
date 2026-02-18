@@ -42,6 +42,7 @@ export function registerServiceWorker() {
 
 // PWA Install Prompt
 export function usePWAInstall() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let deferredPrompt: any = null;
 
     window.addEventListener('beforeinstallprompt', (e) => {
@@ -82,7 +83,7 @@ export function usePWAInstall() {
 export function isAppInstalled(): boolean {
     // Check if running in standalone mode (installed PWA)
     return window.matchMedia('(display-mode: standalone)').matches ||
-        (window.navigator as any).standalone ||
+        (window.navigator as Navigator & { standalone?: boolean }).standalone ||
         document.referrer.includes('android-app://');
 }
 

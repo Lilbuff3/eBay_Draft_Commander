@@ -38,7 +38,6 @@ export function PhotoEditor({ imagePath, jobId, onClose, onSave }: PhotoEditorPr
     const [flipY, setFlipY] = useState(false)
     const [zoom, setZoom] = useState(100)
     const [adjustments, setAdjustments] = useState<Adjustment>(defaultAdjustments)
-    const [_isCropping, _setIsCropping] = useState(false)
     const [isEnhancing, setIsEnhancing] = useState(false)
     const [hasChanges, setHasChanges] = useState(false)
     const [images, setImages] = useState<{ name: string; url: string }[]>([])
@@ -51,6 +50,7 @@ export function PhotoEditor({ imagePath, jobId, onClose, onSave }: PhotoEditorPr
     useEffect(() => {
         if (!jobId) return
 
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setIsLoadingImages(true)
         fetch(`/api/job/${jobId}/images`)
             .then(res => res.json())
@@ -155,6 +155,11 @@ scaleY(${flipY ? - 1 : 1})
 scale(${zoom / 100})
     `.trim()
 
+    const imageStyle: React.CSSProperties = {
+        filter: imageFilter,
+        transform: imageTransform
+    }
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -193,7 +198,8 @@ scale(${zoom / 100})
                             <img
                                 src={displayImage}
                                 alt="Edit preview"
-                                style={{ filter: imageFilter, transform: imageTransform }}
+                                // eslint-disable-next-line react/forbid-dom-props
+                                style={imageStyle}
                                 className="max-w-full max-h-full object-contain transition-all duration-300"
                             />
                         ) : isLoadingImages ? (

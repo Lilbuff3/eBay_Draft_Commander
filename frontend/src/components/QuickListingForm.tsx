@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PhotoUpload } from '@/components/PhotoUpload'
+
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -75,10 +75,30 @@ export function QuickListingForm() {
                     </p>
                 </div>
 
-                <PhotoUpload
-                    onPhotosSelected={setPhotos}
-                    maxPhotos={12}
-                />
+                <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:bg-slate-50 transition-colors relative">
+                    <input
+                        id="photo-upload"
+                        title="Upload photos"
+                        aria-label="Upload photos"
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        onChange={(e) => {
+                            if (e.target.files) {
+                                setPhotos(Array.from(e.target.files))
+                            }
+                        }}
+                    />
+                    <div className="flex flex-col items-center gap-2">
+                        <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-500">
+                            <Sparkles size={24} />
+                        </div>
+                        <p className="font-medium text-slate-700">
+                            {photos.length > 0 ? `${photos.length} photos selected` : 'Drop photos here or click to browse'}
+                        </p>
+                    </div>
+                </div>
 
                 <Card className="p-6 space-y-4">
                     <div>

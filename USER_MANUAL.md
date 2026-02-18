@@ -1,82 +1,59 @@
 # eBay Draft Commander - User Manual
 
-Welcome to your daily selling tool. This guide covers how to start your day, process bulk items, and troubleshoot common issues.
+## 1. Installation
 
-## 🌅 Daily Selling Workflow
+1. Locate the installer: `eBay Draft Commander Setup 1.1.0.exe`.
+2. Double-click to install. The application will launch automatically.
+3. **First Run**: You will see a "Connection Status" badge. If it is **Red**, you need to authenticate.
 
-### 1. Start the Session
-Double-click `Start_Selling_Session.bat` on your desktop.
-- This will check for updates, run a health check, and launch the dashboard.
-- If everything is green, your browser will open to the **Dashboard**.
+## 2. Connecting to eBay
 
-### 2. Prepare Photos
-**Method A: Folder Prep (Traditional)**
-1. Transfer photos to your computer.
-2. Organize them into folders inside the `inbox` folder:
-   ```
-   /inbox
-     /Nike_Shoes_Sz10/ ...
-   ```
+1. The app needs permission to access your eBay account.
+2. On first launch, a browser window should open asking you to log in to eBay.
+3. Click "Agree" to grant permissions.
+4. Return to the app. The status badge should turn **Blue** (Connected).
 
-**Method B: Direct Mobile Upload (New!)**
-1. Open the **Draft Commander** app on your phone.
-2. Tap **"Step 1: Add Photos"** or the upload icon.
-3. Select photos from your Camera Roll.
-4. The app will automatically create a job folder and start processing.
-   *No computer transfer required!*
+## 3. Core Workflows
 
-### 3. Bulk Scan (Mobile or Desktop)
-**From your Phone:**
-1. Scan the QR code in the terminal window.
-2. Tap **"Add to Home Screen"** to install the app.
-3. Open the app and tap **"Scan 'inbox' Folder"**.
+### A. The "Drag & Drop" (Bulk Mode)
 
-**Result:**
-- The app will detect all new folders.
-- It will automatically create a Queue Job for each folder.
-- AI analysis will begin immediately.
+**Best for**: Processing entire folders of photos at once.
 
-### 4. Review & Create
-1. Go to the **Dashboard** (on Desktop for best experience).
-2. Click on a job in the **Queue** list.
-3. **Verify:**
-   - **Title**: Did AI capture the brand/model correctly?
-   - **Price**: Check the AI estimate vs. recent solds (Research Tab).
-   - **Condition**: Ensure graded correctly.
-4. **Create Listing**:
-   - Select a Shipping Policy.
-   - Click **"Create Listing"**.
-   - The item is now a draft in your eBay account!
+1. Organize your photos on your computer.
+   - *Option A (Single Item)*: A folder with 5-10 images of one shoe.
+   - *Option B (Batch)*: A "Today's Listing" folder containing 20 sub-folders, each with images.
+2. Drag the folder onto the **Queue Panel** (Right side of the app).
+3. The app will detect the images and create "Draft Jobs".
+4. **AI Analysis** starts automatically. Watch the progress bars!
 
----
+### B. "Hands-Free" Auto-Publish
 
-## 📱 Mobile App Tips
-- **Connectivity**: Your phone must be on the same Wi-Fi as your computer.
-- **PWA**: Using "Add to Home Screen" hides the browser bar, giving you more screen space.
-- **Photos**: You can upload photos directly from your phone into a new job using the "Upload" zone if you haven't prepared folders.
+**Best for**: High confidence items you trust the AI to list.
 
----
+1. Go to **Settings** (Gear Icon).
+2. Enable **"Auto-Publish"**.
+3. Set your thresholds:
+   - **Minimum Confidence**: e.g., 85% (AI must be very sure).
+   - **Minimum Price**: e.g., $15.00 (Don't waste time on cheap items).
+4. When you add items, if the AI is confident and the price is right, it will skip the "Draft" stage and go straight to "Active Listing" on eBay.
 
-## 🔧 Troubleshooting
+### C. Manual Review
 
-### "System Health Check Failed"
-- **API Error**: Your eBay token might have expired. Run `python ebay_auth.py` to re-login.
-- **Dependency**: If Python libraries are missing, run `pip install -r requirements.txt`.
+1. Click any item in the **Queue** to select it.
+2. Review the **AI Title**, **Price**, and **Specifics**.
+3. Edit anything that looks wrong.
+4. Click **"Post to eBay"** to finish.
 
-### "Scan Inbox" finds nothing
-- Ensure your folders are inside `PROJECT_ROOT/inbox`.
-- Ensure the folders contain `.jpg`, `.jpeg`, or `.png` images.
-- Ensure the folder isn't *already* in the queue (the system prevents duplicates).
+### D. Live Activity Logs
 
-### Mobile App won't connect
-- Check valid IP address in the terminal output.
-- Ensure Windows Firewall isn't blocking Python.
-- Confirm phone and PC are on the same network.
+**See what the AI is thinking.**
 
----
+1. Select any job in the queue.
+2. Scroll down to the **Live Activity Log** panel.
+3. You will see real-time updates as the AI analyzes images, checks prices, and maps categories.
 
-## 📊 Analytics
-Check the **Analytics** tab to see your:
-- Total items listed today.
-- Estimated potential revenue.
-- Sell-through rate of your active inventory.
+## 4. Troubleshooting
+
+- **Red Status**: Check your internet connection. Restart the app.
+- **AI Errors**: If an image is too blurry, the AI might fail. Check the **Live Activity Log** for specific error details.
+- **Logs**: Press `Ctrl+Shift+I` to open developer tools for detailed system logs if asked by support.

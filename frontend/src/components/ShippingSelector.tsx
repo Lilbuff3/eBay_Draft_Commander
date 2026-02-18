@@ -44,6 +44,7 @@ export function ShippingSelector({ value, onChange, className = '' }: ShippingSe
         }
 
         fetchPolicies()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     const handleSelect = (policyId: string) => {
