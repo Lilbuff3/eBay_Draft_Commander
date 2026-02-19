@@ -211,7 +211,9 @@ const DashboardContent = ({
                                         Condition
                                     </label>
                                     <Badge variant="secondary" className="bg-amber-100 text-amber-700">
-                                        {jobDetails.condition}
+                                        {typeof jobDetails.condition === 'string'
+                                            ? jobDetails.condition
+                                            : String((jobDetails.condition as Record<string, unknown>)?.grade ?? 'Unknown')}
                                     </Badge>
                                 </div>
                             )}

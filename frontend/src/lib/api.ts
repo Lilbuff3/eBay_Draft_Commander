@@ -1,14 +1,15 @@
 // API Types and Functions for eBay Draft Commander
 
-export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'scheduled'
+export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'paused' | 'skipped' | 'scheduled'
 
 export interface Job {
     id: string
     name: string
     status: JobStatus
+    folder_path: string
     listing_id: string | null
     offer_id: string | null
-    price: number | null
+    price: string | null
     error_type: string | null
     error_message: string | null
     started_at: string | null
@@ -28,7 +29,7 @@ export interface QueueStats {
 export interface QueueStatus {
     status: 'idle' | 'ready' | 'processing' | 'paused'
     stats: QueueStats
-    current_job: { name: string; started: string } | null
+    current_job: { id: string; name: string; status: string } | null
     progress: {
         current: number
         total: number
@@ -180,14 +181,21 @@ export interface JobDetails {
     user_description?: string
     category_id?: string
     category_name?: string
+    category_keywords?: string[]
     item_specifics: Record<string, string>
+    identification?: Record<string, unknown>
     suggested_price?: number
+    price_reasoning?: string
     pricing_data: {
         confidence?: string
         comparables: Array<{ title: string; price: number }>
         price_source: string
+        market_price?: Record<string, unknown>
     }
-    condition?: string
+    condition?: string | Record<string, unknown>
+    condition_id?: number
+    condition_description?: string
+    analysis_mode?: string
     images: Array<{ name: string; path: string; url: string }>
     image_count: number
     raw_metadata: Record<string, unknown>

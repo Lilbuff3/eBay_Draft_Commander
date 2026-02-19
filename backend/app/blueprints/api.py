@@ -294,8 +294,12 @@ def get_jobs():
                 'status': j.status.value if hasattr(j.status, 'value') else j.status,
                 'folder_path': str(j.folder_path),
                 'listing_id': getattr(j, 'listing_id', None),
+                'offer_id': getattr(j, 'offer_id', None),
                 'price': getattr(j, 'price', None),
                 'error_type': getattr(j, 'error_type', None),
+                'error_message': getattr(j, 'error_message', None),
+                'started_at': getattr(j, 'started_at', None),
+                'completed_at': getattr(j, 'completed_at', None),
                 # Add thumbnail URL if available
                 'thumbnail_url': f'/api/job/{j.id}/image/cover.jpg' if (Path(j.folder_path) / 'cover.jpg').exists() else (
                     f'/api/job/{j.id}/image/{next((f.name for f in Path(j.folder_path).iterdir() if f.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}), "")}'
