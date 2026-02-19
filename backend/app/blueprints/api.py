@@ -578,7 +578,10 @@ def update_job_metadata(job_id):
         if 'fulfillmentPolicy' in data:
             if job.job_metadata is None: job.job_metadata = {}
             job.job_metadata['fulfillment_policy'] = data['fulfillmentPolicy']
-            
+
+        if 'scheduled_time' in data:
+            job.scheduled_time = data['scheduled_time']
+
     except ValidationError as e:
         return error_response(e.args[0], 400)
     
