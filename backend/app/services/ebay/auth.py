@@ -54,8 +54,8 @@ class eBayOAuth:
         self.ru_name = os.getenv('EBAY_RU_NAME') # Corrected from EBAY_RUNAME to EBAY_RU_NAME
         self.refresh_token = os.getenv('EBAY_REFRESH_TOKEN')
         
-        if not all([self.app_id, self.cert_id, self.ru_name]):
-            logger.error("Missing required eBay credentials in .env file")
+        if not all([self.app_id, self.cert_id]):
+            logger.error("Missing required eBay credentials (APP_ID, CERT_ID) in .env file")
             raise ValueError("eBay credentials not found in environment")
         
         # Configure endpoints based on environment

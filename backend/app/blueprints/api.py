@@ -869,9 +869,15 @@ def search_prices():
 
 @api_bp.route('/settings', methods=['GET'])
 def get_app_settings():
-    """Get all application settings from .env"""
+    """Get all application settings from .env (sensitive values masked)"""
     settings_manager = get_settings_manager()
-    return jsonify(settings_manager.get_all())
+    all_settings = settings_manager.get_all()
+    # Mask sensitive keys — show only last 4 chars
+    for key in list(all_settings.keys()):
+        if settings_manager.is_sensitive(key) and all_settings[key]:
+            val = all_settings[key]
+            all_settings[key] = '••••' + val[-4:] if len(val) > 4 else '••••'
+    return jsonify(all_settings)
 
 @api_bp.route('/settings', methods=['POST'])
 def save_app_settings():

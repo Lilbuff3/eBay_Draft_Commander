@@ -1,5 +1,6 @@
 import requests
 import xml.etree.ElementTree as ET
+from xml.sax.saxutils import escape as xml_escape
 from datetime import datetime, timedelta
 from backend.app.core.logger import get_logger
 from backend.app.services.ebay.policies import load_env
@@ -165,9 +166,9 @@ class TradingService:
             # consider using ElementTree to avoid XML injection issues. 
             # However, our validator sanitizes most inputs.
             
-            # Helper for optional tags
+            # Helper for optional tags (XML-safe)
             def tag(name, value):
-                return f"<{name}>{value}</{name}>" if value else ""
+                return f"<{name}>{xml_escape(str(value))}</{name}>" if value else ""
 
             # Prepare Policy Profiles (Business Policies)
             # Trading API uses SellerProfiles for this
@@ -281,7 +282,7 @@ class TradingService:
         for name, value in specifics.items():
             val_list = value if isinstance(value, list) else [value]
             for v in val_list:
-                xml += f"<NameValueList><Name>{name}</Name><Value>{v}</Value></NameValueList>"
+                xml += f"<NameValueList><Name>{xml_escape(str(name))}</Name><Value>{xml_escape(str(v))}</Value></NameValueList>"
         return xml
 
     def _parse_item_xml(self, item, ns):

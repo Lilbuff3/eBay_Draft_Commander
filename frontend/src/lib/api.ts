@@ -37,7 +37,8 @@ export interface QueueStatus {
 }
 
 // API Functions
-const API_BASE = import.meta.env.DEV ? '/api' : 'http://127.0.0.1:5000/api'
+// Always use relative path — Flask serves both the SPA and API on the same origin
+const API_BASE = '/api'
 
 export async function fetchJobs(): Promise<Job[]> {
     const res = await fetch(`${API_BASE}/jobs`)
