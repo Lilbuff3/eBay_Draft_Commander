@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ItemCardGrid } from '@/components/ItemCardGrid'
 import { ItemDetailDrawer } from '@/components/ItemDetailDrawer'
 import { UploadZone } from '@/components/UploadZone'
@@ -12,6 +12,7 @@ interface DashboardProps {
     jobs: Job[]
     selectedJob: Job | null
     setSelectedJob: (job: Job | null) => void
+    setJobs: (jobs: Job[]) => void
     queueStats: QueueStats
     isProcessing: boolean
     ebayStatus: 'connected' | 'disconnected' | 'checking'
@@ -24,7 +25,11 @@ interface DashboardProps {
 }
 
 export function Dashboard(props: DashboardProps) {
-    const { selectedJob, jobs, setSelectedJob, queueStats, isProcessing, ebayStatus, handleScan, isScanning } = props
+    const { selectedJob, jobs, setSelectedJob, setJobs, queueStats, isProcessing, ebayStatus, handleScan, isScanning } = props
+
+    // Keep a ref to latest jobs for use in closures (avoids stale closure)
+    const jobsRef = useRef(jobs)
+    useEffect(() => { jobsRef.current = jobs }, [jobs])
 
     // Local UI State
     const [isScannerOpen, setIsScannerOpen] = useState(false)
@@ -56,12 +61,19 @@ export function Dashboard(props: DashboardProps) {
 
     const handleBulkDelete = async () => {
         if (!confirm(`Delete ${selectedJobIds.size} items?`)) return
+        const idsToDelete = new Set(selectedJobIds)
         try {
-            await fetch('/api/jobs/bulk-delete', {
+            const res = await fetch('/api/jobs/bulk-delete', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ jobIds: Array.from(selectedJobIds) })
+                body: JSON.stringify({ jobIds: Array.from(idsToDelete) })
             })
+            if (!res.ok) throw new Error(`HTTP ${res.status}`)
+            // Optimistically remove deleted jobs from state
+            setJobs(jobs.filter(j => !idsToDelete.has(j.id)))
+            if (selectedJob && idsToDelete.has(selectedJob.id)) {
+                setSelectedJob(null)
+            }
             clearSelection()
         } catch (e) {
             console.error(e)
@@ -96,6 +108,10 @@ export function Dashboard(props: DashboardProps) {
             setJobDetails(null)
             fetchJobDetails(selectedJob.id)
                 .then(details => {
+                    if (!details.success) {
+                        console.warn('fetchJobDetails returned success=false', details)
+                        return
+                    }
                     setJobDetails(details)
                     setListingTitle(details.user_title || details.ai_title || selectedJob.name)
                     if (details.suggested_price) {
@@ -196,11 +212,14 @@ export function Dashboard(props: DashboardProps) {
                             compact={hasItems}
                             onUploadComplete={(jobId) => {
                                 // Auto-select the newly created job once it appears via Socket.IO
+                                let attempts = 0
+                                const maxAttempts = 20
                                 const trySelect = () => {
-                                    const found = jobs.find(j => j.id === jobId)
+                                    const found = jobsRef.current.find(j => j.id === jobId)
                                     if (found) {
                                         setSelectedJob(found)
-                                    } else {
+                                    } else if (attempts < maxAttempts) {
+                                        attempts++
                                         setTimeout(trySelect, 300)
                                     }
                                 }

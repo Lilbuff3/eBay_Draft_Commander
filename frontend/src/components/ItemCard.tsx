@@ -1,3 +1,4 @@
+import { forwardRef, type MouseEvent } from 'react'
 import { motion } from 'framer-motion'
 import { Clock, Loader2, Check, AlertCircle, Image, Square, CheckSquare, CalendarClock, DollarSign } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -22,12 +23,15 @@ const statusConfig: Record<JobStatus, { icon: typeof Clock; color: string; bgCol
     scheduled: { icon: CalendarClock, color: 'text-blue-600', bgColor: 'bg-blue-100', badgeVariant: 'secondary' },
 }
 
-export function ItemCard({ job, isSelected, isSelectionMode, onToggleSelect, onClick }: ItemCardProps) {
+export const ItemCard = forwardRef<HTMLDivElement, ItemCardProps>(function ItemCard(
+    { job, isSelected, isSelectionMode, onToggleSelect, onClick },
+    ref
+) {
     const status = statusConfig[job.status] || statusConfig.pending
     const StatusIcon = status.icon
     const isProcessing = job.status === 'processing'
 
-    const handleCardClick = (e: React.MouseEvent) => {
+    const handleCardClick = (e: MouseEvent) => {
         if (isSelectionMode) {
             e.stopPropagation()
             onToggleSelect(job.id)
@@ -41,6 +45,7 @@ export function ItemCard({ job, isSelected, isSelectionMode, onToggleSelect, onC
 
     return (
         <motion.div
+            ref={ref}
             layout
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -152,4 +157,4 @@ export function ItemCard({ job, isSelected, isSelectionMode, onToggleSelect, onC
             </div>
         </motion.div>
     )
-}
+})

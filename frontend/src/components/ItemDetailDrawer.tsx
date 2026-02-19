@@ -7,6 +7,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { ImageGallery } from '@/components/ImageGallery'
 import { ShippingSelector } from '@/components/ShippingSelector'
 import { LogViewer, type LogEntry } from '@/components/LogViewer'
+import { sanitizeDescription } from '@/lib/sanitizer'
 import type { Job, JobDetails } from '@/lib/api'
 
 // Condition options matching backend CONDITION_MAP values
@@ -108,7 +109,7 @@ export function ItemDetailDrawer({
                                 {/* Title */}
                                 <div>
                                     <div className="flex justify-between items-center mb-1">
-                                        <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">
+                                        <label htmlFor="listing-title" className="text-xs font-bold text-stone-400 uppercase tracking-wider">
                                             Title
                                         </label>
                                         <span className={`text-[10px] font-bold ${listingTitle.length >= 80 ? 'text-red-500' : 'text-stone-300'}`}>
@@ -116,6 +117,7 @@ export function ItemDetailDrawer({
                                         </span>
                                     </div>
                                     <Input
+                                        id="listing-title"
                                         placeholder="Item Title..."
                                         value={listingTitle}
                                         onChange={(e) => setListingTitle(e.target.value)}
@@ -127,12 +129,13 @@ export function ItemDetailDrawer({
                                 {/* Price + Category */}
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1 block">
+                                        <label htmlFor="listing-price" className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1 block">
                                             Price
                                         </label>
                                         <div className="relative">
                                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">$</span>
                                             <Input
+                                                id="listing-price"
                                                 placeholder="0.00"
                                                 className="bg-stone-50 pl-7"
                                                 value={listingPrice}
@@ -157,7 +160,7 @@ export function ItemDetailDrawer({
 
                                 {/* Condition */}
                                 <div>
-                                    <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1 block">
+                                    <label htmlFor="listing-condition" className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1 block">
                                         Condition
                                     </label>
                                     <Select value={selectedCondition} onValueChange={setSelectedCondition}>
@@ -208,8 +211,10 @@ export function ItemDetailDrawer({
                                             <div
                                                 className="text-sm text-stone-600 prose prose-sm max-w-none"
                                                 dangerouslySetInnerHTML={{
-                                                    __html: jobDetails.ai_description.slice(0, 500) +
+                                                    __html: sanitizeDescription(
+                                                        jobDetails.ai_description.slice(0, 500) +
                                                         (jobDetails.ai_description.length > 500 ? '...' : '')
+                                                    ).html
                                                 }}
                                             />
                                         </div>
@@ -229,11 +234,12 @@ export function ItemDetailDrawer({
 
                                 {/* Schedule */}
                                 <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100">
-                                    <label className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1 block flex items-center gap-1">
+                                    <label htmlFor="listing-schedule" className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1 block flex items-center gap-1">
                                         <CalendarClock size={12} />
                                         Schedule (Optional)
                                     </label>
                                     <Input
+                                        id="listing-schedule"
                                         type="datetime-local"
                                         value={scheduledTime}
                                         onChange={(e) => setScheduledTime(e.target.value)}

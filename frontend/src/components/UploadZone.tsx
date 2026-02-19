@@ -47,6 +47,13 @@ export function UploadZone({ onUploadComplete, compact = false }: UploadZoneProp
                 method: 'POST',
                 body: formData
             })
+
+            if (!res.ok) {
+                const text = await res.text()
+                setUploadStatus({ success: false, message: `Upload failed (${res.status}): ${text.slice(0, 100)}` })
+                return
+            }
+
             const data = await res.json()
 
             if (data.success) {
