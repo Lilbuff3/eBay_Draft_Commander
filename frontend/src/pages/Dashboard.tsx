@@ -156,13 +156,19 @@ const DashboardContent = ({
                         <div className="space-y-4">
                             {/* Title Input */}
                             <div>
-                                <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1 block">
-                                    Listing Title
-                                </label>
+                                <div className="flex justify-between items-center mb-1">
+                                    <label className="text-xs font-bold text-stone-400 uppercase tracking-wider block">
+                                        Listing Title
+                                    </label>
+                                    <span className={`text-[10px] font-bold ${listingTitle.length >= 80 ? 'text-red-500' : 'text-stone-300'}`}>
+                                        {listingTitle.length}/80
+                                    </span>
+                                </div>
                                 <Input
                                     placeholder="Item Title..."
                                     value={listingTitle}
                                     onChange={(e) => setListingTitle(e.target.value)}
+                                    maxLength={80}
                                     className="bg-stone-50 font-medium"
                                 />
                             </div>

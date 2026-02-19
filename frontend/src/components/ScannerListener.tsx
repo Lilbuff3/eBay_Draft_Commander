@@ -53,7 +53,7 @@ export function ScannerListener({ onScan }: Omit<ScannerListenerProps, 'isScanni
             try {
                 const toastId = toast.loading(`Looking up Book: ${isbn}...`);
 
-                const res = await fetch(`http://localhost:5000/api/lookup/book?isbn=${isbn}`);
+                const res = await fetch(`/api/lookup/book?isbn=${isbn}`);
                 const data = await res.json();
 
                 toast.dismiss(toastId);

@@ -6,6 +6,7 @@ import os
 import requests
 import base64
 import time
+import threading
 from pathlib import Path
 from typing import Optional
 from dotenv import load_dotenv
@@ -31,6 +32,9 @@ class eBayOAuth:
         "https://api.ebay.com/oauth/api_scope/sell.account",
         "https://api.ebay.com/oauth/api_scope/sell.fulfillment",
     ]
+    
+    # Class-level lock to prevent race conditions between background thread and reactive 401 refresh
+    _refresh_lock = threading.Lock()
     
     def __init__(self, use_sandbox=True):
         """
@@ -143,42 +147,52 @@ class eBayOAuth:
             return False
     
     def refresh_access_token(self):
-        """Refresh expired access token"""
-        if not self.refresh_token:
-            logger.error("❌ No refresh token available")
-            return False
+        """Refresh expired access token (Thread-Safe)"""
+        # 1. Acquire Lock
+        with self._refresh_lock:
+            # 2. Re-load environment to get latest token (in case another thread just updated it)
+            load_dotenv(self.env_path, override=True)
+            self.refresh_token = os.getenv('EBAY_REFRESH_TOKEN')
             
-        credentials = f"{self.app_id}:{self.cert_id}"
-        encoded = base64.b64encode(credentials.encode()).decode()
-        
-        headers = {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': f'Basic {encoded}'
-        }
-        
-        data = {
-            'grant_type': 'refresh_token',
-            'refresh_token': self.refresh_token,
-            'scope': ' '.join(self.SCOPES)
-        }
-        
-        try:
-            response = requests.post(self.token_endpoint, headers=headers, data=data)
-            
-            if response.status_code == 200:
-                token_data = response.json()
-                self.user_token = token_data['access_token']
-                
-                logger.info("✅ Token refreshed successfully!")
-                self.save_tokens()
-                return True
-            else:
-                logger.error(f"❌ Refresh failed: {response.text}")
+            if not self.refresh_token:
+                logger.error("❌ No refresh token available")
                 return False
                 
-        except Exception as e:
-            logger.error(f"❌ Error refreshing: {e}")
-            return False
+            credentials = f"{self.app_id}:{self.cert_id}"
+            encoded = base64.b64encode(credentials.encode()).decode()
+            
+            headers = {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Authorization': f'Basic {encoded}'
+            }
+            
+            data = {
+                'grant_type': 'refresh_token',
+                'refresh_token': self.refresh_token,
+                'scope': ' '.join(self.SCOPES)
+            }
+            
+            try:
+                response = requests.post(self.token_endpoint, headers=headers, data=data)
+                
+                if response.status_code == 200:
+                    token_data = response.json()
+                    self.user_token = token_data['access_token']
+                    
+                    # Update refresh token if rotated
+                    if 'refresh_token' in token_data:
+                         self.refresh_token = token_data['refresh_token']
+                    
+                    logger.info("✅ Token refreshed successfully!")
+                    self.save_tokens()
+                    return True
+                else:
+                    logger.error(f"❌ Refresh failed: {response.text}")
+                    return False
+                    
+            except Exception as e:
+                logger.error(f"❌ Error refreshing: {e}")
+                return False
     
     def save_tokens(self):
         """Save tokens to .env file"""

@@ -73,6 +73,8 @@ class eBayBrowseAPI:
         """Get OAuth access token using Client Credentials Grant"""
         if self._access_token:
             return self._access_token
+            
+        logger.info("🔑 Requesting Client Credentials (App-Only) Token... (Independent of User Token)")
         
         credentials = f"{self.app_id}:{self.cert_id}"
         encoded_credentials = base64.b64encode(credentials.encode()).decode()

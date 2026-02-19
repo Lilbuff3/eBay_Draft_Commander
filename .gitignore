@@ -51,6 +51,8 @@ lint-report*.txt
 
 # Project specific noise
 inbox/
+data/inbox/
+posted/
 logs/
 *.png
 !frontend/public/logo.png  # Example: keep if there is a real logo
@@ -68,6 +70,7 @@ frontend/node_modules_trash/
 *.db
 frontend/dist/
 frontend/dist-electron/
+frontend/dist-python/
 frontend/release/
 .DS_Store
 thumbs.db

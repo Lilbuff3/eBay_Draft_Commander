@@ -103,7 +103,7 @@ export function BatchScan() {
         setLastScannedId(id) // Highlight effect?
 
         try {
-            const res = await fetch(`http://localhost:5000/api/lookup/book?isbn=${isbn}`)
+            const res = await fetch(`/api/lookup/book?isbn=${isbn}`)
             const data = await res.json()
 
             if (data.success) {
@@ -264,7 +264,7 @@ export function BatchScan() {
                                 <TableRow key={item.id} className={item.id === lastScannedId ? "bg-blue-50/50" : ""}>
                                     <TableCell>
                                         {item.stock_photo ? (
-                                            <img src={item.stock_photo} className="h-12 w-auto object-contain rounded" />
+                                            <img src={item.stock_photo} alt={item.title || "Book cover"} className="h-12 w-auto object-contain rounded" />
                                         ) : (
                                             <div className="h-12 w-8 bg-stone-100 rounded" />
                                         )}

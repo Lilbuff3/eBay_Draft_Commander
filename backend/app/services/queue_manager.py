@@ -221,7 +221,6 @@ class QueueManager:
             with self._lock:
                 self.jobs.append(job)
             
-            self._sync_to_supabase(job)
             self.emit_event('job_added', job.to_dict())
             return job
         except Exception as e:
@@ -395,12 +394,6 @@ class QueueManager:
             if self.on_queue_complete:
                 self.on_queue_complete()
         
-    def set_supabase_client(self, client):
-        """Set Supabase client for realtime sync"""
-        self.supabase = client
-        # Initial sync of all existing jobs
-        for job in self.jobs:
-            self._sync_to_supabase(job)
     
     def add_folder(self, folder_path: str, metadata: Dict[str, Any] = None) -> QueueJob:
         """Add a single folder to the queue with optional metadata"""
@@ -433,7 +426,6 @@ class QueueManager:
             with self._lock:
                 self.jobs.append(job)
             
-            self._sync_to_supabase(job)
             self.emit_event('job_added', job.to_dict())
             return job
         except Exception as e:
@@ -738,8 +730,6 @@ class QueueManager:
         finally:
             session.close()
 
-        self._sync_to_supabase(job)
-        
         if job.status == JobStatus.COMPLETED:
             if self.on_job_complete:
                 self.on_job_complete(job)
@@ -783,10 +773,6 @@ class QueueManager:
         finally:
             session.close()
             
-    def _sync_to_supabase(self, job: QueueJob):
-        # ... (implementation remains same since it's an external sync)
-        pass
-
     def load_state(self):
         """Load queue state from SQLite database"""
         session = self.SessionFactory()

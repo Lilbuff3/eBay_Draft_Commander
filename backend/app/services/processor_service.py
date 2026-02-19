@@ -90,10 +90,14 @@ class ProcessorService:
 
         try:
             # Check DB object for cached AI data
-            if job_obj.ai_data and job_obj.ai_data.get('listing'):
+            force_refresh = job_obj.job_metadata.get('force_ai_refresh', False) if job_obj.job_metadata else False
+            
+            if not force_refresh and job_obj.ai_data and job_obj.ai_data.get('listing'):
                 _log("Using cached AI analysis from Database")
                 ai_data = job_obj.ai_data
             else:
+                if force_refresh:
+                    _log("♻️ Forcing AI Refresh (Ignoring Cache)...")
                 _log(f"🧠 Analyzing {len(images)} images with Gemini Vision (Research Mode)...")
                 ai_data = self.ai_analyzer.analyze_with_research([str(img) for img in images])
                 
@@ -219,7 +223,11 @@ class ProcessorService:
         sku = 'DC-' + uuid.uuid4().hex[:8].upper()
         
         try:
-            # 0. Final Input Validation
+            # 0. Final Input Validation (with warnings)
+            if len(title) > TITLE_MAX_LENGTH:
+                logger.warning(f"⚠️ Title truncated to {TITLE_MAX_LENGTH} chars: '{title}'")
+                title = title[:TITLE_MAX_LENGTH]
+            
             title = validate_title(title)
             final_price = str(validate_price(final_price))
             condition = validate_condition(condition) # Returns enum string like 'USED_EXCELLENT'
@@ -234,9 +242,10 @@ class ProcessorService:
                 val = v[0] if isinstance(v, list) else v
                 val = str(val)
                 if k == 'Brand' and val.upper() == 'OEM': val = 'Unbranded'
-                # Trading API might be less strict or handle truncation differently, 
-                # but good to keep it clean.
+                
+                # Aspect Truncation Warning
                 if len(val) > ASPECT_VALUE_MAX_LENGTH:
+                     logger.warning(f"⚠️ Aspect '{k}' truncated: '{val}' -> '{val[:62]}...'")
                      val = val[:62] + "..."
                 cleaned_aspects[k] = [val]
 
