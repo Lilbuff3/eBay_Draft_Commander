@@ -230,6 +230,7 @@ export default function App() {
             jobs={jobs}
             selectedJob={selectedJob}
             setSelectedJob={setSelectedJob}
+            setJobs={setJobs}
             queueStats={queueStats}
             isProcessing={isProcessing}
             ebayStatus={ebayStatus}

@@ -1,12 +1,13 @@
 import { useState, useCallback } from 'react'
-import { Upload, X, Loader2 } from 'lucide-react'
+import { Upload, X, Loader2, Plus } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface UploadZoneProps {
     onUploadComplete?: (jobId: string) => void
+    compact?: boolean
 }
 
-export function UploadZone({ onUploadComplete }: UploadZoneProps) {
+export function UploadZone({ onUploadComplete, compact = false }: UploadZoneProps) {
     const [isDragging, setIsDragging] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
     const [uploadStatus, setUploadStatus] = useState<{ success: boolean; message: string } | null>(null)
@@ -46,6 +47,13 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
                 method: 'POST',
                 body: formData
             })
+
+            if (!res.ok) {
+                const text = await res.text()
+                setUploadStatus({ success: false, message: `Upload failed (${res.status}): ${text.slice(0, 100)}` })
+                return
+            }
+
             const data = await res.json()
 
             if (data.success) {
@@ -61,6 +69,82 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
         }
     }
 
+    // Compact mode — slim single-line bar
+    if (compact) {
+        return (
+            <div className="relative">
+                <motion.div
+                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={handleDrop}
+                    animate={{
+                        borderColor: isDragging ? '#84A98C' : '#e7e5e4'
+                    }}
+                    className={`
+                        border-2 border-dashed rounded-xl px-4 py-3 cursor-pointer
+                        transition-colors bg-white hover:bg-stone-50
+                        flex items-center justify-center gap-3
+                        ${isDragging ? 'border-sage-500 bg-sage-50' : 'border-stone-200'}
+                    `}
+                    onClick={() => document.getElementById('file-upload')?.click()}
+                >
+                    <input
+                        id="file-upload"
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleFileSelect}
+                        aria-label="Upload files"
+                    />
+
+                    {isUploading ? (
+                        <>
+                            <Loader2 size={18} className="text-sage-500 animate-spin" />
+                            <span className="text-sm text-stone-600 font-medium">Uploading...</span>
+                        </>
+                    ) : (
+                        <>
+                            <div className="w-8 h-8 rounded-full bg-sage-100 flex items-center justify-center flex-shrink-0">
+                                <Plus size={16} className="text-sage-600" />
+                            </div>
+                            <span className="text-sm text-stone-600">
+                                <span className="font-medium text-stone-700">Drop photos</span>
+                                {' '}or click to add more items
+                            </span>
+                        </>
+                    )}
+                </motion.div>
+
+                <AnimatePresence>
+                    {uploadStatus && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0 }}
+                            className={`
+                                mt-2 px-3 py-2 rounded-lg text-sm flex items-center justify-between
+                                ${uploadStatus.success
+                                    ? 'bg-green-50 text-green-700 border border-green-200'
+                                    : 'bg-red-50 text-red-700 border border-red-200'
+                                }
+                            `}
+                        >
+                            <span>{uploadStatus.message}</span>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setUploadStatus(null) }}
+                                aria-label="Dismiss upload status"
+                            >
+                                <X size={14} />
+                            </button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+        )
+    }
+
+    // Full expanded mode
     return (
         <div className="relative">
             <motion.div
@@ -76,10 +160,10 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
                     transition-colors bg-white hover:bg-stone-50
                     ${isDragging ? 'border-sage-500 bg-sage-50' : 'border-stone-200'}
                 `}
-                onClick={() => document.getElementById('file-upload')?.click()}
+                onClick={() => document.getElementById('file-upload-full')?.click()}
             >
                 <input
-                    id="file-upload"
+                    id="file-upload-full"
                     type="file"
                     multiple
                     accept="image/*"
