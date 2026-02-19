@@ -41,46 +41,47 @@ export interface QueueStatus {
 // Always use relative path — Flask serves both the SPA and API on the same origin
 const API_BASE = '/api'
 
-export async function fetchJobs(): Promise<Job[]> {
-    const res = await fetch(`${API_BASE}/jobs`)
+/** Thin wrapper around fetch that checks res.ok and throws on HTTP errors */
+async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
+    const res = await fetch(url, init)
+    if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        throw new Error(`API ${init?.method ?? 'GET'} ${url} failed (${res.status}): ${body}`)
+    }
     return res.json()
+}
+
+export async function fetchJobs(): Promise<Job[]> {
+    return apiFetch(`${API_BASE}/jobs`)
 }
 
 export async function fetchStatus(): Promise<QueueStatus> {
-    const res = await fetch(`${API_BASE}/status`)
-    return res.json()
+    return apiFetch(`${API_BASE}/status`)
 }
 
-
 export async function fetchStats(): Promise<QueueStats> {
-    // Helper to get stats from status if needed, or deprecate
     const status = await fetchStatus()
     return status.stats
 }
 
 export async function startQueue(): Promise<{ success: boolean; message?: string }> {
-    const res = await fetch(`${API_BASE}/start`, { method: 'POST' })
-    return res.json()
+    return apiFetch(`${API_BASE}/start`, { method: 'POST' })
 }
 
 export async function pauseQueue(): Promise<{ success: boolean; message?: string }> {
-    const res = await fetch(`${API_BASE}/pause`, { method: 'POST' })
-    return res.json()
+    return apiFetch(`${API_BASE}/pause`, { method: 'POST' })
 }
 
 export async function resumeQueue(): Promise<{ success: boolean; message?: string }> {
-    const res = await fetch(`${API_BASE}/resume`, { method: 'POST' })
-    return res.json()
+    return apiFetch(`${API_BASE}/resume`, { method: 'POST' })
 }
 
 export async function retryFailed(): Promise<{ success: boolean; retried?: number }> {
-    const res = await fetch(`${API_BASE}/retry`, { method: 'POST' })
-    return res.json()
+    return apiFetch(`${API_BASE}/retry`, { method: 'POST' })
 }
 
 export async function clearCompleted(): Promise<{ success: boolean; message?: string }> {
-    const res = await fetch(`${API_BASE}/clear`, { method: 'POST' })
-    return res.json()
+    return apiFetch(`${API_BASE}/clear`, { method: 'POST' })
 }
 
 export interface CreateListingParams {
@@ -103,69 +104,60 @@ export interface CreateListingResult {
 }
 
 export async function createListing(params: CreateListingParams): Promise<CreateListingResult> {
-    // Use the job update endpoint to set metadata and trigger processing
     const payload = {
         title: params.title,
         price: params.price,
         description: params.description,
         condition: params.condition,
         fulfillmentPolicy: params.fulfillmentPolicy,
-        process_now: true, // Always trigger if called via "Create Listing" button
+        process_now: true,
         scheduled_time: params.scheduledTime
     }
-
-    const res = await fetch(`${API_BASE}/job/${params.jobId}/update`, {
+    return apiFetch(`${API_BASE}/job/${params.jobId}/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
     })
-    return res.json()
 }
 
 export async function scanInbox(): Promise<{ success: boolean; added: number; total: number; message: string }> {
-    const res = await fetch(`${API_BASE}/scan`, { method: 'POST' })
-    return res.json()
+    return apiFetch(`${API_BASE}/scan`, { method: 'POST' })
 }
 
 export async function addFolderToQueue(path: string): Promise<{ success: boolean; count: number; message: string }> {
-    const res = await fetch(`${API_BASE}/queue/add-folder`, {
+    return apiFetch(`${API_BASE}/queue/add-folder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path })
     })
-    return res.json()
 }
 
 export async function getSettings(): Promise<Record<string, string>> {
-    const res = await fetch(`${API_BASE}/settings`)
-    return res.json()
+    return apiFetch(`${API_BASE}/settings`)
 }
 
 export async function saveSettings(settings: Record<string, string>): Promise<{ success: boolean; error?: string }> {
-    const res = await fetch(`${API_BASE}/settings`, {
+    return apiFetch(`${API_BASE}/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings)
     })
-    return res.json()
 }
 
 export async function lookupBook(isbn: string): Promise<unknown> {
-    const res = await fetch(`${API_BASE}/lookup/book`, {
+    return apiFetch(`${API_BASE}/lookup/book`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isbn })
     })
-    return res.json()
 }
 
 export async function createJobFromMetadata(data: Record<string, unknown>): Promise<{ success: boolean; jobId?: string; error?: string }> {
-    const res = await fetch(`${API_BASE}/jobs/create-from-metadata`, {
+    return apiFetch(`${API_BASE}/jobs/create-from-metadata`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
     })
-    return res.json()
 }
 
 export interface JobDetails {
@@ -202,6 +194,5 @@ export interface JobDetails {
 }
 
 export async function fetchJobDetails(jobId: string): Promise<JobDetails> {
-    const res = await fetch(`${API_BASE}/job/${jobId}/details`)
-    return res.json()
+    return apiFetch(`${API_BASE}/job/${jobId}/details`)
 }
