@@ -1,6 +1,6 @@
 // API Types and Functions for eBay Draft Commander
 
-export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'scheduled'
+export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'paused' | 'skipped' | 'scheduled'
 
 export interface Job {
     id: string
