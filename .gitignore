@@ -40,6 +40,10 @@ env/
 # Test outputs
 *.json
 !package.json
+!package-lock.json
+!frontend/tsconfig*.json
+!frontend/components.json
+!frontend/public/manifest.json
 
 # Temporary files
 *.tmp

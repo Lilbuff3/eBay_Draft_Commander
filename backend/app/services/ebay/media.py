@@ -23,14 +23,10 @@ def load_env():
         'EBAY_USER_TOKEN'
     ]}
 
-def get_user_token():
-    """Get the current user token, reloading from .env each time to avoid stale tokens."""
+def _get_token():
+    """Get a fresh eBay user token from .env (handles token rotation)"""
     creds = load_env()
     return creds.get('EBAY_USER_TOKEN', '')
-
-# Keep module-level for backward compatibility but prefer get_user_token()
-credentials = load_env()
-USER_TOKEN = credentials.get('EBAY_USER_TOKEN')
 
 # CONFIRMED via API Explorer: apim.ebay.com is the correct host for Media API
 BASE_URL = 'https://apim.ebay.com/commerce/media/v1_beta'
@@ -44,9 +40,8 @@ def check_endpoint_reachability():
     url = f'{BASE_URL}/image/create_image_from_file'
     logger.info(f"Reachability Test: {url}")
 
-    token = get_user_token()
     headers = {
-        'Authorization': 'Bearer ' + token,
+        'Authorization': 'Bearer ' + _get_token(),
         'Content-Type': 'application/json',  # Deliberately wrong
         'Accept': 'application/json'
     }
@@ -95,9 +90,8 @@ def upload_image_to_eps(image_path):
             'image': (image_path.name, f, content_type)
         }
         
-        token = get_user_token()
         headers = {
-            'Authorization': 'Bearer ' + token,
+            'Authorization': 'Bearer ' + _get_token(),
             'Accept': 'application/json',
         }
         
@@ -116,7 +110,7 @@ def upload_image_to_eps(image_path):
                         oauth = eBayOAuth(use_sandbox=False)
                         if oauth.refresh_access_token():
                             # Reload fresh token from .env
-                            new_token = get_user_token()
+                            new_token = _get_token()
                             if new_token:
                                 headers['Authorization'] = f'Bearer {new_token}'
                                 # Rewind file for retry

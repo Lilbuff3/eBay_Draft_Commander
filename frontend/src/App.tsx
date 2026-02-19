@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { AnalyticsDashboard } from '@/components/AnalyticsDashboard'
 import { ActiveListings } from '@/components/ActiveListings'
 import { Sidebar } from '@/components/Sidebar'
@@ -16,7 +16,8 @@ import { PriceResearch } from '@/components/PriceResearch'
 import { TemplateManager } from '@/components/TemplateManager'
 import { PreviewPanel } from '@/components/PreviewPanel'
 import { fetchJobs, fetchStatus, startQueue, pauseQueue, scanInbox, type Job, type QueueStats } from '@/lib/api'
-import { io } from 'socket.io-client'
+import { io, type Socket } from 'socket.io-client'
+import { toast } from 'sonner'
 import type { LogEntry } from '@/components/LogViewer'
 
 export default function App() {
@@ -38,23 +39,39 @@ export default function App() {
   const [isScanning, setIsScanning] = useState(false)
   const [scanMessage, setScanMessage] = useState<string | null>(null)
   const [jobLogs, setJobLogs] = useState<Record<string, LogEntry[]>>({})
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const socketRef = useRef<Socket | null>(null)
+
+  // Shared data refresh — used on initial load, reconnect, and polling fallback
+  const refreshData = useCallback(async () => {
+    try {
+      const [jobsData, statusData] = await Promise.all([
+        fetchJobs(),
+        fetchStatus()
+      ])
+      setJobs(jobsData)
+      setQueueStats(statusData.stats)
+      setIsProcessing(statusData.status === 'processing')
+    } catch (err) {
+      console.error('Fetch error:', err)
+    }
+  }, [])
+
+  // Start/stop polling fallback
+  const startPolling = useCallback(() => {
+    if (pollIntervalRef.current) return // already polling
+    pollIntervalRef.current = setInterval(refreshData, 5000)
+  }, [refreshData])
+
+  const stopPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current)
+      pollIntervalRef.current = null
+    }
+  }, [])
 
   // Initial fetch and Realtime (Socket.IO) setup
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [jobsData, statusData] = await Promise.all([
-          fetchJobs(),
-          fetchStatus()
-        ])
-        setJobs(jobsData)
-        setQueueStats(statusData.stats)
-        setIsProcessing(statusData.status === 'processing')
-      } catch (err) {
-        console.error('Fetch error:', err)
-      }
-    }
-
     const checkEbay = async () => {
       try {
         const res = await fetch('/api/ebay/status')
@@ -66,15 +83,33 @@ export default function App() {
     }
 
     // Initial load
-    fetchData()
+    refreshData()
     checkEbay()
 
-    // Socket.IO Connection
-    const socketUrl = import.meta.env.DEV ? '/' : 'http://127.0.0.1:5000'
-    const socket = io(socketUrl)
+    // Socket.IO Connection with reconnection
+    const socket = io('/', {
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+    })
+    socketRef.current = socket
 
     socket.on('connect', () => {
       console.log('Connected to Event Bus ⚡')
+      stopPolling()
+      // Re-fetch full state on reconnect to catch anything missed
+      refreshData()
+    })
+
+    socket.on('disconnect', (reason) => {
+      console.warn('Socket.IO disconnected:', reason)
+      toast.warning('Live updates disconnected — polling for changes')
+      startPolling()
+    })
+
+    socket.on('reconnect_failed', () => {
+      toast.error('Unable to reconnect to server')
     })
 
     socket.on('job_added', (newJob: Job) => {
@@ -83,8 +118,7 @@ export default function App() {
 
     socket.on('job_update', (updatedJob: Job) => {
       setJobs(prev => prev.map(j => j.id === updatedJob.id ? updatedJob : j))
-      // Update stats if status changed
-      fetchStatus().then(data => setQueueStats(data.stats))
+      fetchStatus().then(data => setQueueStats(data.stats)).catch(() => {})
     })
 
     socket.on('job_log', (log: unknown) => {
@@ -103,21 +137,27 @@ export default function App() {
     const ebayInterval = setInterval(checkEbay, 60000)
 
     return () => {
+      socket.off('connect')
+      socket.off('disconnect')
+      socket.off('reconnect_failed')
       socket.off('job_added')
       socket.off('job_update')
       socket.off('job_log')
       socket.disconnect()
+      stopPolling()
       clearInterval(ebayInterval)
     }
-  }, [])
+  }, [refreshData, startPolling, stopPolling])
 
   // Global Actions
   const handleStart = async () => {
     try {
       await startQueue()
       setIsProcessing(true)
-    } catch (_e) {
-      console.error(_e)
+      toast.success('Queue started')
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to start queue')
     }
   }
 
@@ -125,8 +165,10 @@ export default function App() {
     try {
       await pauseQueue()
       setIsProcessing(false)
+      toast.info('Queue paused')
     } catch (err) {
       console.error(err)
+      toast.error('Failed to pause queue')
     }
   }
 
@@ -137,7 +179,7 @@ export default function App() {
       const result = await scanInbox()
       if (result.success) {
         setScanMessage(`${result.added} new folders queued!`)
-        // Fetch will happen via realtime or manual re-fetch
+        toast.success(`Scan complete — ${result.added} new items`)
         const jobsData = await fetchJobs()
         setJobs(jobsData)
         if (jobsData.length > 0 && !selectedJob) {
@@ -145,9 +187,11 @@ export default function App() {
         }
       } else {
         setScanMessage('Scan failed')
+        toast.error('Scan failed')
       }
     } catch {
       setScanMessage('Scan error')
+      toast.error('Scan error — is the backend running?')
     } finally {
       setIsScanning(false)
       setTimeout(() => setScanMessage(null), 3000)
