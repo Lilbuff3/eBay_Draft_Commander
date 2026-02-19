@@ -17,6 +17,8 @@ const statusConfig: Record<JobStatus, { icon: typeof Clock; color: string; badge
     processing: { icon: Loader2, color: 'bg-clay-400 text-white', badgeVariant: 'default' },
     completed: { icon: Check, color: 'bg-sage-100 text-sage-700', badgeVariant: 'outline' },
     failed: { icon: AlertCircle, color: 'bg-red-100 text-red-600', badgeVariant: 'destructive' },
+    paused: { icon: Clock, color: 'bg-amber-100 text-amber-600', badgeVariant: 'secondary' },
+    skipped: { icon: Clock, color: 'bg-stone-100 text-stone-400', badgeVariant: 'outline' },
     scheduled: { icon: CalendarClock, color: 'bg-blue-100 text-blue-600', badgeVariant: 'secondary' },
 }
 
