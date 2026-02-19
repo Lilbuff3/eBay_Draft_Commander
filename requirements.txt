@@ -6,5 +6,5 @@ python-dotenv
 sqlalchemy
 flask-socketio
 click
-
 eventlet
+mcp

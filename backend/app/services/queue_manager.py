@@ -149,8 +149,10 @@ class QueueManager:
         # Track current job
         self._current_job: Optional[QueueJob] = None
         
-        # Start Inbox Watcher Thread
-        self.inbox_path = self.base_path / "inbox"
+        # Start Inbox Watcher Thread — respect INBOX_PATH env var if set
+        import os
+        custom_inbox = os.environ.get('INBOX_PATH')
+        self.inbox_path = Path(custom_inbox) if custom_inbox else self.base_path / "inbox"
         self._watcher_thread = threading.Thread(target=self._watch_inbox, daemon=True)
         self._watcher_thread.start()
 
