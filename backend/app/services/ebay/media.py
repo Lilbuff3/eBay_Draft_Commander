@@ -16,13 +16,19 @@ def load_env():
     """Load credentials from .env file using python-dotenv"""
     env_path = find_dotenv()
     if env_path:
-        load_dotenv(env_path)
-    
+        load_dotenv(env_path, override=True)
+
     # Return a dict for compatibility with existing code
     return {key: os.environ.get(key) for key in [
         'EBAY_USER_TOKEN'
     ]}
 
+def get_user_token():
+    """Get the current user token, reloading from .env each time to avoid stale tokens."""
+    creds = load_env()
+    return creds.get('EBAY_USER_TOKEN', '')
+
+# Keep module-level for backward compatibility but prefer get_user_token()
 credentials = load_env()
 USER_TOKEN = credentials.get('EBAY_USER_TOKEN')
 
@@ -36,10 +42,11 @@ def check_endpoint_reachability():
     If it returns 404, the path/host is unresolved/wrong.
     """
     url = f'{BASE_URL}/image/create_image_from_file'
-    logger.info(f"📡 Reachability Test: {url}")
-    
+    logger.info(f"Reachability Test: {url}")
+
+    token = get_user_token()
     headers = {
-        'Authorization': 'Bearer ' + USER_TOKEN,
+        'Authorization': 'Bearer ' + token,
         'Content-Type': 'application/json',  # Deliberately wrong
         'Accept': 'application/json'
     }
@@ -88,10 +95,10 @@ def upload_image_to_eps(image_path):
             'image': (image_path.name, f, content_type)
         }
         
+        token = get_user_token()
         headers = {
-            'Authorization': 'Bearer ' + USER_TOKEN,
+            'Authorization': 'Bearer ' + token,
             'Accept': 'application/json',
-            # 'Connection': 'keep-alive'
         }
         
         try:
@@ -108,14 +115,13 @@ def upload_image_to_eps(image_path):
                         from backend.app.services.ebay.auth import eBayOAuth
                         oauth = eBayOAuth(use_sandbox=False)
                         if oauth.refresh_access_token():
-                            # Reload creds/token from file
-                            new_creds = load_env()
-                            new_token = new_creds.get('EBAY_USER_TOKEN')
+                            # Reload fresh token from .env
+                            new_token = get_user_token()
                             if new_token:
                                 headers['Authorization'] = f'Bearer {new_token}'
                                 # Rewind file for retry
                                 f.seek(0)
-                                logger.info("   🔄 Retrying upload with new token...")
+                                logger.info("   Retrying upload with new token...")
                                 continue # Loop to retry
                     except Exception as e:
                         logger.error(f"   ❌ Refresh failed: {e}")
