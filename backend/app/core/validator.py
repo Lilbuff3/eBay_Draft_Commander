@@ -113,7 +113,10 @@ def validate_condition(condition):
         'VERY_GOOD': 'USED_VERY_GOOD',
         'GOOD': 'USED_GOOD',
         'ACCEPTABLE': 'USED_ACCEPTABLE',
-        'PARTS': 'FOR_PARTS_OR_NOT_WORKING'
+        'PARTS': 'FOR_PARTS_OR_NOT_WORKING',
+        'FOR_PARTS': 'FOR_PARTS_OR_NOT_WORKING',
+        'NOT_WORKING': 'FOR_PARTS_OR_NOT_WORKING',
+        'USED': 'USED_GOOD',
     }
     
     final_cond = mapping.get(cond_norm, cond_norm)
