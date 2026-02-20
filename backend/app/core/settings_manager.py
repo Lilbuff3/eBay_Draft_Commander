@@ -40,6 +40,7 @@ class SettingsManager:
             'EBAY_PAYMENT_POLICY',
             'EBAY_RETURN_POLICY',
             'EBAY_MERCHANT_LOCATION',
+            'EBAY_POSTAL_CODE',
         ],
         'AI Settings': [
             'GOOGLE_API_KEY',

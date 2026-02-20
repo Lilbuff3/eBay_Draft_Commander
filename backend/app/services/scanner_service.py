@@ -54,12 +54,8 @@ class ScannerService:
                      list(folder.glob('*.png')) + list(folder.glob('*.JPG'))
             
             if images:
-                # Check if already in queue
-                # Use folder name for uniqueness. 
-                # WARNING: If user names folders same in different categories, this might collision.
-                # Ideally queue_manager should use full path, but existing logic uses name.
-                # We will trust folder names are unique for now or acceptable collision.
-                existing = queue_manager.get_job_by_folder(folder.name)
+                # Check if already in queue (by full path, falls back to name)
+                existing = queue_manager.get_job_by_folder(folder.name, folder_path=str(folder))
                 
                 if not existing:
                     try:

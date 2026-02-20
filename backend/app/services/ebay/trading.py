@@ -170,18 +170,24 @@ class TradingService:
             def tag(name, value):
                 return f"<{name}>{xml_escape(str(value))}</{name}>" if value else ""
 
-            # Prepare Policy Profiles (Business Policies)
-            # Trading API uses SellerProfiles for this
-            seller_profiles = ""
-            if item_data.get('payment_policy_id') or item_data.get('return_policy_id') or item_data.get('fulfillment_policy_id'):
-                seller_profiles = "<SellerProfiles>"
-                if item_data.get('payment_policy_id'):
-                    seller_profiles += f"""<SellerPaymentProfile><PaymentProfileID>{item_data['payment_policy_id']}</PaymentProfileID></SellerPaymentProfile>"""
-                if item_data.get('return_policy_id'):
-                    seller_profiles += f"""<SellerReturnProfile><ReturnProfileID>{item_data['return_policy_id']}</ReturnProfileID></SellerReturnProfile>"""
-                if item_data.get('fulfillment_policy_id'):
-                    seller_profiles += f"""<SellerShippingProfile><ShippingProfileID>{item_data['fulfillment_policy_id']}</ShippingProfileID></SellerShippingProfile>"""
-                seller_profiles += "</SellerProfiles>"
+            # Inline Return Policy (SellerProfiles not supported for all accounts)
+            return_policy = """<ReturnPolicy>
+                        <ReturnsAcceptedOption>ReturnsAccepted</ReturnsAcceptedOption>
+                        <ReturnsWithinOption>Days_30</ReturnsWithinOption>
+                        <RefundOption>MoneyBack</RefundOption>
+                        <ShippingCostPaidByOption>Buyer</ShippingCostPaidByOption>
+                    </ReturnPolicy>"""
+
+            # Inline Shipping Details
+            shipping_details = """<ShippingDetails>
+                        <ShippingType>Flat</ShippingType>
+                        <ShippingServiceOptions>
+                            <ShippingServicePriority>1</ShippingServicePriority>
+                            <ShippingService>USPSPriority</ShippingService>
+                            <ShippingServiceCost>0.00</ShippingServiceCost>
+                            <FreeShipping>true</FreeShipping>
+                        </ShippingServiceOptions>
+                    </ShippingDetails>"""
 
             # Prepare Images
             picture_details = ""
@@ -205,6 +211,7 @@ class TradingService:
                 </RequesterCredentials>
                 <ErrorLanguage>en_US</ErrorLanguage>
                 <WarningLevel>High</WarningLevel>
+                {schedule_tag}
                 <Item>
                     {tag('Title', item_data.get('title'))}
                     {tag('Description', f"<![CDATA[{item_data.get('description')}]]>")}
@@ -219,10 +226,11 @@ class TradingService:
                     <DispatchTimeMax>3</DispatchTimeMax>
                     <ListingDuration>GTC</ListingDuration>
                     <ListingType>FixedPriceItem</ListingType>
-                    {schedule_tag}
                     {picture_details}
-                    {seller_profiles}
+                    {return_policy}
+                    {shipping_details}
                     {tag('PostalCode', item_data.get('postal_code'))}
+                    {tag('Location', item_data.get('item_location', 'Clovis, CA'))}
                     <ItemSpecifics>
                         {self._build_item_specifics_xml(item_data.get('item_specifics', {}))}
                     </ItemSpecifics>

@@ -705,11 +705,34 @@ class QueueManager:
                 return job
         return None
     
-    def get_job_by_folder(self, folder_name: str) -> Optional[QueueJob]:
-        """Get a job by folder name"""
+    def get_job_by_folder(self, folder_name: str, folder_path: str = None) -> Optional[QueueJob]:
+        """Get a job by folder path (preferred) or folder name.
+
+        Checks both in-memory jobs AND the database to prevent
+        re-adding folders that were already processed.
+        """
+        # Check in-memory jobs first
         for job in self.jobs:
+            if folder_path and job.folder_path == folder_path:
+                return job
             if job.folder_name == folder_name:
                 return job
+
+        # Also check database for completed/removed jobs
+        session = self.SessionFactory()
+        try:
+            query = session.query(self.JobModel)
+            if folder_path:
+                db_job = query.filter_by(folder_path=folder_path).first()
+            else:
+                db_job = query.filter_by(folder_name=folder_name).first()
+            if db_job:
+                return QueueJob(db_job.folder_path, db_job.id)
+        except Exception:
+            pass
+        finally:
+            session.close()
+
         return None
 
 

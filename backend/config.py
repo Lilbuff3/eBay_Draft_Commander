@@ -83,4 +83,5 @@ class Config:
     EBAY_PAYMENT_POLICY = os.environ.get('EBAY_PAYMENT_POLICY')
     EBAY_RETURN_POLICY = os.environ.get('EBAY_RETURN_POLICY')
     EBAY_MERCHANT_LOCATION = os.environ.get('EBAY_MERCHANT_LOCATION')
+    EBAY_POSTAL_CODE = os.environ.get('EBAY_POSTAL_CODE')
     GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')

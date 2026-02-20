@@ -47,8 +47,27 @@ def update_env_policies():
          if policies:
             policies_found['EBAY_FULFILLMENT_POLICY'] = policies[0].get('fulfillmentPolicyId')
 
-    # Add Location Key
-    policies_found['EBAY_MERCHANT_LOCATION'] = 'TEST-LOC-US'
+    # Inventory Location + Postal Code
+    resp = requests.get("https://api.ebay.com/sell/inventory/v1/location", headers=headers)
+    if resp.status_code == 200:
+        locations = resp.json().get('locations', [])
+        if locations:
+            loc = locations[0]
+            loc_key = loc.get('merchantLocationKey', 'TEST-LOC-US')
+            policies_found['EBAY_MERCHANT_LOCATION'] = loc_key
+            print(f"  📍 Found location: {loc.get('name', loc_key)}")
+            # Extract postal code from address
+            address = loc.get('location', {}).get('address', {})
+            postal = address.get('postalCode')
+            if postal:
+                policies_found['EBAY_POSTAL_CODE'] = postal
+                print(f"  📮 Postal code: {postal}")
+        else:
+            policies_found['EBAY_MERCHANT_LOCATION'] = 'TEST-LOC-US'
+            print("  ⚠️ No inventory locations found, using placeholder")
+    else:
+        policies_found['EBAY_MERCHANT_LOCATION'] = 'TEST-LOC-US'
+        print(f"  ⚠️ Location fetch failed ({resp.status_code}), using placeholder")
 
     # Update .env
     env_path = Path('.env')

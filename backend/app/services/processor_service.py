@@ -249,6 +249,21 @@ class ProcessorService:
                      val = val[:62] + "..."
                 cleaned_aspects[k] = [val]
 
+            # 1b. Parse Dimensions into Item Length/Width/Height if needed
+            dim_keys = {'Item Length', 'Item Width', 'Item Height'}
+            has_dimensions = any(k in cleaned_aspects for k in dim_keys)
+            if not has_dimensions and 'Dimensions' in cleaned_aspects:
+                import re
+                dim_str = cleaned_aspects['Dimensions'][0] if isinstance(cleaned_aspects['Dimensions'], list) else str(cleaned_aspects['Dimensions'])
+                # Match patterns like "11.25" x 13.75" x 6.5"" or "7 x 11 x 16"
+                nums = re.findall(r'[\d]+(?:\.[\d]+)?', dim_str)
+                if len(nums) >= 3:
+                    cleaned_aspects['Item Length'] = [f"{nums[0]} in"]
+                    cleaned_aspects['Item Width'] = [f"{nums[1]} in"]
+                    cleaned_aspects['Item Height'] = [f"{nums[2]} in"]
+                    del cleaned_aspects['Dimensions']
+                    logger.info(f"Parsed dimensions: L={nums[0]}, W={nums[1]}, H={nums[2]} in")
+
             # 2. Get Policies
             payment_id = current_app.config.get('EBAY_PAYMENT_POLICY')
             return_id = current_app.config.get('EBAY_RETURN_POLICY')
@@ -267,7 +282,8 @@ class ProcessorService:
                 'return_policy_id': return_id,
                 'fulfillment_policy_id': fulfillment_id,
                 'item_specifics': cleaned_aspects,
-                'postal_code': current_app.config.get('EBAY_POSTAL_CODE')
+                'postal_code': current_app.config.get('EBAY_POSTAL_CODE'),
+                'item_location': 'Clovis, CA'
             }
 
             # 4. Call Trading Service
@@ -402,8 +418,13 @@ class ProcessorService:
         if job_obj.job_metadata:
              shipping_policy = job_obj.job_metadata.get('fulfillment_policy')
         
-        # Pull schedule time from job if present
-        scheduled_time = job_obj.scheduled_time if job_obj.scheduled_time else None
+        # Always schedule listings 1 week from now unless explicitly set
+        if job_obj.scheduled_time:
+            scheduled_time = job_obj.scheduled_time
+        else:
+            from datetime import datetime, timedelta, timezone
+            one_week = datetime.now(timezone.utc) + timedelta(weeks=1)
+            scheduled_time = one_week.strftime('%Y-%m-%dT%H:%M:%S.000Z')
 
         bundle = self._create_trading_api_listing(
             title=title,
