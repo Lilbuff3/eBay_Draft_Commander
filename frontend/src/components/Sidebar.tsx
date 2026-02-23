@@ -1,10 +1,8 @@
 import { LayoutTemplate, Package, BarChart3, Settings, Camera, Search, Eye, PlusCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-// Tooltip imports removed
+import { useCommanderStore } from '@/store/useCommanderStore'
 
 interface SidebarProps {
-    activeTab: string
-    setActiveTab: (tab: string) => void
     className?: string
 }
 
@@ -41,7 +39,10 @@ const navGroups = [
     }
 ]
 
-export function Sidebar({ activeTab, setActiveTab, className }: SidebarProps) {
+export function Sidebar({ className }: SidebarProps) {
+    const activeTab = useCommanderStore(state => state.activeTab)
+    const setActiveTab = useCommanderStore(state => state.setActiveTab)
+
     return (
         <div className={cn("w-64 bg-white border-r border-stone-200 flex flex-col py-6 h-full z-20 shadow-sm transition-all duration-300", className)}>
             {/* Logo */}
@@ -82,8 +83,6 @@ export function Sidebar({ activeTab, setActiveTab, className }: SidebarProps) {
                     </div>
                 ))}
             </div>
-
-            {/* User / Footer could go here */}
         </div>
     )
 }

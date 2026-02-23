@@ -1,6 +1,6 @@
 // API Types and Functions for eBay Draft Commander
 
-export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'paused' | 'skipped' | 'scheduled'
+export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'paused' | 'skipped' | 'scheduled' | 'needs_review'
 
 export interface Job {
     id: string
@@ -84,6 +84,10 @@ export async function clearCompleted(): Promise<{ success: boolean; message?: st
     return apiFetch(`${API_BASE}/clear`, { method: 'POST' })
 }
 
+export async function clearFailed(): Promise<{ success: boolean; message?: string }> {
+    return apiFetch(`${API_BASE}/clear-failed`, { method: 'POST' })
+}
+
 export interface CreateListingParams {
     jobId: string
     price?: string
@@ -95,6 +99,16 @@ export interface CreateListingParams {
     returnPolicy?: string
     processNow?: boolean
     scheduledTime?: string
+    itemSpecifics?: Record<string, string>
+}
+
+export interface ItemDraft {
+    title: string;
+    price: string;
+    condition: string;
+    shipping: string | null;
+    scheduledTime: string;
+    itemSpecifics: Record<string, string>;
 }
 
 export interface CreateListingResult {
@@ -110,6 +124,7 @@ export async function createListing(params: CreateListingParams): Promise<Create
         description: params.description,
         condition: params.condition,
         fulfillmentPolicy: params.fulfillmentPolicy,
+        item_specifics: params.itemSpecifics,
         process_now: true,
         scheduled_time: params.scheduledTime
     }
@@ -130,6 +145,10 @@ export async function addFolderToQueue(path: string): Promise<{ success: boolean
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path })
     })
+}
+
+export async function softRestart(): Promise<{ success: boolean; message: string }> {
+    return apiFetch(`${API_BASE}/sys/restart`, { method: 'POST' })
 }
 
 export async function getSettings(): Promise<Record<string, string>> {
@@ -171,6 +190,7 @@ export interface JobDetails {
     user_title?: string
     user_price?: string
     user_description?: string
+    scheduled_time?: string | null
     category_id?: string
     category_name?: string
     category_keywords?: string[]

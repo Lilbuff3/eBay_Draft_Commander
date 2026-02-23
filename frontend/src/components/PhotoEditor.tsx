@@ -155,11 +155,6 @@ scaleY(${flipY ? - 1 : 1})
 scale(${zoom / 100})
     `.trim()
 
-    const imageStyle: React.CSSProperties = {
-        filter: imageFilter,
-        transform: imageTransform
-    }
-
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -195,13 +190,19 @@ scale(${zoom / 100})
                 <div className="flex-1 p-6 min-h-[400px] bg-stone-50 flex flex-col">
                     <div className="flex-1 rounded-2xl bg-stone-100 overflow-hidden flex items-center justify-center relative">
                         {displayImage ? (
-                            <img
-                                src={displayImage}
-                                alt="Edit preview"
-                                // eslint-disable-next-line react/forbid-dom-props
-                                style={imageStyle}
-                                className="max-w-full max-h-full object-contain transition-all duration-300"
-                            />
+                            <>
+                                <style>{`
+                                    .dynamic-preview-image {
+                                        filter: ${imageFilter};
+                                        transform: ${imageTransform};
+                                    }
+                                `}</style>
+                                <img
+                                    src={displayImage}
+                                    alt="Edit preview"
+                                    className="max-w-full max-h-full object-contain transition-all duration-300 dynamic-preview-image"
+                                />
+                            </>
                         ) : isLoadingImages ? (
                             <div className="text-stone-400 flex flex-col items-center">
                                 <Crop size={48} className="animate-pulse" />
@@ -322,7 +323,7 @@ scale(${zoom / 100})
                                     value={[adjustments.brightness]}
                                     max={100}
                                     step={1}
-                                    onValueChange={(v) => handleAdjustment('brightness', v)}
+                                    onValueChange={(v: number[]) => handleAdjustment('brightness', v)}
                                 />
                             </div>
 
@@ -338,7 +339,7 @@ scale(${zoom / 100})
                                     value={[adjustments.contrast]}
                                     max={100}
                                     step={1}
-                                    onValueChange={(v) => handleAdjustment('contrast', v)}
+                                    onValueChange={(v: number[]) => handleAdjustment('contrast', v)}
                                 />
                             </div>
 
@@ -354,7 +355,7 @@ scale(${zoom / 100})
                                     value={[adjustments.saturation]}
                                     max={100}
                                     step={1}
-                                    onValueChange={(v) => handleAdjustment('saturation', v)}
+                                    onValueChange={(v: number[]) => handleAdjustment('saturation', v)}
                                 />
                             </div>
 
@@ -370,7 +371,7 @@ scale(${zoom / 100})
                                     value={[adjustments.sharpness]}
                                     max={100}
                                     step={1}
-                                    onValueChange={(v) => handleAdjustment('sharpness', v)}
+                                    onValueChange={(v: number[]) => handleAdjustment('sharpness', v)}
                                 />
                             </div>
                         </TabsContent>
