@@ -24,6 +24,7 @@ class JobStatus(Enum):
     PAUSED = "paused"
     SKIPPED = "skipped"
     SCHEDULED = "scheduled"
+    NEEDS_REVIEW = "needs_review"
 
 
 @dataclass
@@ -100,8 +101,7 @@ class QueueManager:
         
         # Auto-Migration: Ensure scheduled_time exists
         self._ensure_schema()
-        
-        self.jobs: List[QueueJob] = []
+
         self._processing = False
         self._paused = False
         self._thread: Optional[threading.Thread] = None
@@ -116,10 +116,9 @@ class QueueManager:
         
         # Socket.IO instance (injected from create_app)
         self.socketio = None
-        
-        
-        # Initial sync of all existing jobs
-        # self.load_state() will naturally handle this on startup
+
+        # Load state and start background threads
+        self._init_background_services()
         
     def _ensure_schema(self):
         """Simple migration helper to add columns if missing"""
@@ -131,24 +130,25 @@ class QueueManager:
             cursor.execute("PRAGMA table_info(jobs)")
             columns = [info[1] for info in cursor.fetchall()]
             if 'scheduled_time' not in columns:
-                print("Migrating DB: Adding scheduled_time column...")
+                self.logger.info("Migrating DB: Adding scheduled_time column...")
                 cursor.execute("ALTER TABLE jobs ADD COLUMN scheduled_time TIMESTAMP")
                 conn.commit()
             conn.close()
         except Exception as e:
-            print(f"Schema migration warning: {e}")
+            self.logger.warning(f"Schema migration warning: {e}")
 
-        
+    def _init_background_services(self):
+        """Start background threads and load persisted state. Called from __init__."""
         # Load any persisted state
         self.load_state()
-        
+
+        # Track current job
+        self._current_job: Optional[QueueJob] = None
+
         # Start Token Maintenance Thread (Heartbeat)
         self._token_thread = threading.Thread(target=self._token_maintainer, daemon=True)
         self._token_thread.start()
-        
-        # Track current job
-        self._current_job: Optional[QueueJob] = None
-        
+
         # Start Inbox Watcher Thread — respect INBOX_PATH env var if set
         import os
         custom_inbox = os.environ.get('INBOX_PATH')
@@ -162,9 +162,12 @@ class QueueManager:
         return self._current_job
 
     def emit_event(self, event: str, data: Any):
-        """Helper to emit events to frontend via Socket.IO"""
+        """Helper to emit events to frontend via Socket.IO (thread-safe)"""
         if self.socketio:
-            self.socketio.emit(event, data)
+            try:
+                self.socketio.emit(event, data)
+            except Exception as e:
+                self.logger.warning(f"Socket.IO emit failed for '{event}': {e}")
 
     def _token_maintainer(self):
         """Background thread to keep eBay token alive"""
@@ -220,9 +223,6 @@ class QueueManager:
             session.add(db_job)
             session.commit()
             
-            with self._lock:
-                self.jobs.append(job)
-            
             self.emit_event('job_added', job.to_dict())
             return job
         except Exception as e:
@@ -232,44 +232,11 @@ class QueueManager:
         finally:
             session.close()
 
-    # ... existing methods ...
-
     def save_state(self):
         """Syncs all in-memory jobs to the database"""
-        session = self.SessionFactory()
-        try:
-            for job in self.jobs:
-                db_job = session.query(self.JobModel).filter_by(id=job.id).first()
-                if db_job:
-                    db_job.status = job.status.value
-                    db_job.listing_id = job.listing_id
-                    db_job.offer_id = job.offer_id
-                    db_job.price = job.price
-                    
-                    # Save New Fields
-                    db_job.user_title = job.user_title
-                    db_job.user_price = job.user_price
-                    db_job.user_description = job.user_description
-                    db_job.user_condition = job.user_condition
-                    db_job.ai_data = job.ai_data
-                    db_job.item_specifics = job.item_specifics
-                    
-                    db_job.error_type = job.error_type
-                    db_job.error_message = job.error_message
-                    db_job.attempts = job.attempts
-                    db_job.started_at = datetime.fromisoformat(job.started_at) if job.started_at else None
-                    db_job.completed_at = datetime.fromisoformat(job.completed_at) if job.completed_at else None
-                    db_job.scheduled_time = datetime.fromisoformat(job.scheduled_time) if job.scheduled_time else None
-                    db_job.timing = job.timing
-                    db_job.job_metadata = job.job_metadata
-            
-            session.commit()
-            # self.logger.info("Saved queue state to DB")
-        except Exception as e:
-            session.rollback()
-            self.logger.error(f"Failed to save state to DB: {e}")
-        finally:
-            session.close()
+        # No-op: Since QueueManager is now 100% database-driven, 
+        # changes are persisted directly to SQLite and this is no longer needed.
+        pass
             
     # ... existing methods ...
 
@@ -281,34 +248,7 @@ class QueueManager:
             self.jobs = []
             for db_j in db_jobs:
                 # Map DB model to QueueJob dataclass
-                job = QueueJob(
-                    id=db_j.id,
-                    folder_path=db_j.folder_path,
-                    folder_name=db_j.folder_name,
-                    status=JobStatus(db_j.status),
-                    listing_id=db_j.listing_id,
-                    offer_id=db_j.offer_id,
-                    price=db_j.price,
-                    
-                    # New Fields
-                    user_title=db_j.user_title,
-                    user_price=db_j.user_price,
-                    user_description=db_j.user_description,
-                    user_condition=db_j.user_condition,
-                    ai_data=db_j.ai_data,
-                    item_specifics=db_j.item_specifics,
-                    
-                    error_type=db_j.error_type,
-                    error_message=db_j.error_message,
-                    attempts=db_j.attempts,
-                    max_attempts=db_j.max_attempts,
-                    created_at=db_j.created_at.isoformat(),
-                    started_at=db_j.started_at.isoformat() if db_j.started_at else None,
-                    completed_at=db_j.completed_at.isoformat() if db_j.completed_at else None,
-                    scheduled_time=db_j.scheduled_time.isoformat() if db_j.scheduled_time else None,
-                    timing=db_j.timing,
-                    job_metadata=db_j.job_metadata
-                )
+                job = self._db_to_queue_job(db_j)
                 
                 # Reset any jobs that were processing when we closed
                 if job.status == JobStatus.PROCESSING:
@@ -325,6 +265,45 @@ class QueueManager:
             self.jobs = []
         finally:
             session.close()
+
+    def get_all_jobs(self) -> List[QueueJob]:
+        """Fetch all jobs directly from DB"""
+        session = self.SessionFactory()
+        try:
+            db_jobs = session.query(self.JobModel).all()
+            return [self._db_to_queue_job(j) for j in db_jobs]
+        except Exception as e:
+            self.logger.error(f"Error getting jobs from DB: {e}")
+            return []
+        finally:
+            session.close()
+
+    def _db_to_queue_job(self, db_j) -> QueueJob:
+        return QueueJob(
+            id=db_j.id,
+            folder_path=db_j.folder_path,
+            folder_name=db_j.folder_name,
+            status=JobStatus(db_j.status),
+            listing_id=db_j.listing_id,
+            offer_id=db_j.offer_id,
+            price=db_j.price,
+            user_title=db_j.user_title,
+            user_price=db_j.user_price,
+            user_description=db_j.user_description,
+            user_condition=db_j.user_condition,
+            ai_data=db_j.ai_data or {},
+            item_specifics=db_j.item_specifics or {},
+            error_type=db_j.error_type,
+            error_message=db_j.error_message,
+            attempts=db_j.attempts,
+            max_attempts=db_j.max_attempts,
+            created_at=db_j.created_at.isoformat() if db_j.created_at else datetime.now().isoformat(),
+            started_at=db_j.started_at.isoformat() if db_j.started_at else None,
+            completed_at=db_j.completed_at.isoformat() if db_j.completed_at else None,
+            scheduled_time=db_j.scheduled_time.isoformat() if db_j.scheduled_time else None,
+            timing=db_j.timing or {},
+            job_metadata=db_j.job_metadata or {}
+        )
 
     def _watch_inbox(self):
         """Background thread to watch for new items in inbox"""
@@ -363,8 +342,8 @@ class QueueManager:
         
     def _process_queue(self):
         """Background worker to process jobs sequentially"""
-        try:
-            while True:
+        while True:
+            try:
                 # Check for pause
                 if self._paused:
                     time.sleep(0.1)
@@ -373,6 +352,10 @@ class QueueManager:
                 # Get next pending job
                 job = self._get_next_pending()
                 if not job:
+                    # No pending jobs — check if we should exit
+                    stats = self.get_stats()
+                    if stats['pending'] == 0 and stats['processing'] == 0:
+                        break  # Queue is done
                     time.sleep(1)
                     continue
                 
@@ -391,10 +374,14 @@ class QueueManager:
                 done = stats['completed'] + stats['failed'] + stats['skipped']
                 if self.on_progress:
                     self.on_progress(done, stats['total'])
-        finally:
-            self._processing = False
-            if self.on_queue_complete:
-                self.on_queue_complete()
+            except Exception as e:
+                self.logger.error(f"Queue worker error (will retry): {e}", exc_info=True)
+                self._current_job = None
+                time.sleep(5)  # Back off before retrying
+        
+        self._processing = False
+        if self.on_queue_complete:
+            self.on_queue_complete()
         
     def add_batch(self, folder_paths: List[str]) -> List[QueueJob]:
         """Add multiple folders to the queue"""
@@ -411,9 +398,6 @@ class QueueManager:
             if db_job and db_job.status in [JobStatus.PENDING.value, JobStatus.FAILED.value, JobStatus.SKIPPED.value]:
                 session.delete(db_job)
                 session.commit()
-                
-                with self._lock:
-                    self.jobs = [j for j in self.jobs if j.id != job_id]
                 return True
         except Exception as e:
             session.rollback()
@@ -430,11 +414,6 @@ class QueueManager:
             if db_job and db_job.status == JobStatus.PENDING.value:
                 db_job.status = JobStatus.SKIPPED.value
                 session.commit()
-                
-                with self._lock:
-                    for job in self.jobs:
-                        if job.id == job_id:
-                            job.status = JobStatus.SKIPPED
                 return True
         except Exception as e:
             session.rollback()
@@ -450,9 +429,19 @@ class QueueManager:
                 self.JobModel.status.in_([JobStatus.COMPLETED.value, JobStatus.SKIPPED.value])
             ).delete(synchronize_session=False)
             session.commit()
+        except Exception as e:
+            session.rollback()
+        finally:
+            session.close()
             
-            with self._lock:
-                self.jobs = [j for j in self.jobs if j.status not in [JobStatus.COMPLETED, JobStatus.SKIPPED]]
+    def clear_failed(self):
+        """Remove all failed jobs from the queue"""
+        session = self.SessionFactory()
+        try:
+            session.query(self.JobModel).filter(
+                self.JobModel.status == JobStatus.FAILED.value
+            ).delete(synchronize_session=False)
+            session.commit()
         except Exception as e:
             session.rollback()
         finally:
@@ -464,8 +453,6 @@ class QueueManager:
         try:
             session.query(self.JobModel).delete()
             session.commit()
-            with self._lock:
-                self.jobs = []
         except Exception as e:
             session.rollback()
         finally:
@@ -473,29 +460,45 @@ class QueueManager:
     
     def get_pending_jobs(self) -> List[QueueJob]:
         """Get all pending jobs"""
-        return [j for j in self.jobs if j.status == JobStatus.PENDING]
+        session = self.SessionFactory()
+        try:
+            db_jobs = session.query(self.JobModel).filter_by(status=JobStatus.PENDING.value).all()
+            return [self._db_to_queue_job(j) for j in db_jobs]
+        finally:
+            session.close()
     
     def get_failed_jobs(self) -> List[QueueJob]:
         """Get all failed jobs"""
-        return [j for j in self.jobs if j.status == JobStatus.FAILED]
+        session = self.SessionFactory()
+        try:
+            db_jobs = session.query(self.JobModel).filter_by(status=JobStatus.FAILED.value).all()
+            return [self._db_to_queue_job(j) for j in db_jobs]
+        finally:
+            session.close()
     
     def get_stats(self) -> dict:
-        """Get queue statistics"""
-        total = len(self.jobs)
-        pending = sum(1 for j in self.jobs if j.status == JobStatus.PENDING)
-        processing = sum(1 for j in self.jobs if j.status == JobStatus.PROCESSING)
-        completed = sum(1 for j in self.jobs if j.status == JobStatus.COMPLETED)
-        failed = sum(1 for j in self.jobs if j.status == JobStatus.FAILED)
-        skipped = sum(1 for j in self.jobs if j.status == JobStatus.SKIPPED)
-        
-        return {
-            'total': total,
-            'pending': pending,
-            'processing': processing,
-            'completed': completed,
-            'failed': failed,
-            'skipped': skipped
-        }
+        """Get queue statistics directly from DB"""
+        session = self.SessionFactory()
+        try:
+            from sqlalchemy import func
+            results = session.query(
+                self.JobModel.status, 
+                func.count(self.JobModel.id)
+            ).group_by(self.JobModel.status).all()
+            
+            stats = {
+                'total': 0, 'pending': 0, 'processing': 0, 
+                'completed': 0, 'failed': 0, 'skipped': 0
+            }
+            
+            for status, count in results:
+                if status in stats:
+                    stats[status] = count
+                stats['total'] += count
+                
+            return stats
+        finally:
+            session.close()
     
     def start_processing(self):
         """Start processing the queue in background thread"""
@@ -538,34 +541,30 @@ class QueueManager:
             'timestamp': datetime.now().isoformat()
         })
     
-    def retry_failed(self):
-        """Reset all failed jobs to pending for retry"""
+    def retry_failed(self) -> int:
+        """Reset all failed jobs to pending"""
         session = self.SessionFactory()
         try:
-            with self._lock:
-                # 1. Update In-Memory
-                ids_to_retry = []
-                for job in self.jobs:
-                    if job.can_retry():
-                        job.status = JobStatus.PENDING
-                        job.error_type = None
-                        job.error_message = None
-                        ids_to_retry.append(job.id)
-                
-                # 2. Update Database
-                if ids_to_retry:
-                    session.query(self.JobModel).filter(
-                        self.JobModel.id.in_(ids_to_retry)
-                    ).update({
-                        'status': JobStatus.PENDING.value, 
-                        'error_type': None, 
-                        'error_message': None
-                    }, synchronize_session=False)
-                    session.commit()
-                    self.logger.info(f"Retrying {len(ids_to_retry)} failed jobs")
+            # Note: We rely on the frontend to refresh the view
+            # In a DB-only system, we just update the rows directly
+            updated_count = session.query(self.JobModel).filter(
+                self.JobModel.status == JobStatus.FAILED.value,
+                self.JobModel.attempts < self.JobModel.max_attempts
+            ).update({
+                'status': JobStatus.PENDING.value,
+                'error_type': None,
+                'error_message': None
+            }, synchronize_session=False)
+            
+            if updated_count > 0:
+                session.commit()
+                self.logger.info(f"Retrying {updated_count} failed jobs")
+            
+            return updated_count
         except Exception as e:
             session.rollback()
             self.logger.error(f"Failed to retry jobs in DB: {e}")
+            return 0
         finally:
             session.close()
     
@@ -573,21 +572,13 @@ class QueueManager:
         """Retry a specific failed job"""
         session = self.SessionFactory()
         try:
-            with self._lock:
-                for job in self.jobs:
-                    if job.id == job_id and job.can_retry():
-                        job.status = JobStatus.PENDING
-                        job.error_type = None
-                        job.error_message = None
-                        
-                        # Update DB
-                        db_job = session.query(self.JobModel).filter_by(id=job_id).first()
-                        if db_job:
-                            db_job.status = JobStatus.PENDING.value
-                            db_job.error_type = None
-                            db_job.error_message = None
-                            session.commit()
-                        return True
+            db_job = session.query(self.JobModel).filter_by(id=job_id).first()
+            if db_job and db_job.status == JobStatus.FAILED.value and db_job.attempts < db_job.max_attempts:
+                db_job.status = JobStatus.PENDING.value
+                db_job.error_type = None
+                db_job.error_message = None
+                session.commit()
+                return True
         except Exception as e:
             session.rollback()
             self.logger.error(f"Failed to retry job {job_id} in DB: {e}")
@@ -597,12 +588,15 @@ class QueueManager:
         return False
     
     def _get_next_pending(self) -> Optional[QueueJob]:
-        """Get next pending job (thread-safe)"""
-        with self._lock:
-            for job in self.jobs:
-                if job.status == JobStatus.PENDING:
-                    return job
-        return None
+        """Get next pending job from the database"""
+        session = self.SessionFactory()
+        try:
+            db_job = session.query(self.JobModel).filter_by(status=JobStatus.PENDING.value).first()
+            if db_job:
+                return self._db_to_queue_job(db_job)
+            return None
+        finally:
+            session.close()
     
     def _process_job(self, job: QueueJob):
         """Process a single job"""
@@ -657,9 +651,18 @@ class QueueManager:
                 job.error_message = 'Processor returned None'
             
         except Exception as e:
-            job.status = JobStatus.FAILED
-            job.error_type = type(e).__name__
-            job.error_message = str(e)
+            # Check if this is a NeedsReview exception from the processor service
+            if type(e).__name__ == 'NeedsReviewException':
+                self.log_status(job.id, f"⚠️ Needs Review: {str(e)}", "warning")
+                job.status = JobStatus.NEEDS_REVIEW
+                job.error_message = str(e)
+                job.error_type = "needs_review"
+                # Prevent automatic retries for this state
+                job.attempts = job.max_attempts
+            else:
+                job.status = JobStatus.FAILED
+                job.error_type = type(e).__name__
+                job.error_message = str(e)
         
         job.completed_at = datetime.now().isoformat()
         
@@ -700,25 +703,17 @@ class QueueManager:
     
     def get_job_by_id(self, job_id: str) -> Optional[QueueJob]:
         """Get a job by its ID"""
-        for job in self.jobs:
-            if job.id == job_id:
-                return job
-        return None
+        session = self.SessionFactory()
+        try:
+            db_job = session.query(self.JobModel).filter_by(id=job_id).first()
+            if db_job:
+                return self._db_to_queue_job(db_job)
+            return None
+        finally:
+            session.close()
     
     def get_job_by_folder(self, folder_name: str, folder_path: str = None) -> Optional[QueueJob]:
-        """Get a job by folder path (preferred) or folder name.
-
-        Checks both in-memory jobs AND the database to prevent
-        re-adding folders that were already processed.
-        """
-        # Check in-memory jobs first
-        for job in self.jobs:
-            if folder_path and job.folder_path == folder_path:
-                return job
-            if job.folder_name == folder_name:
-                return job
-
-        # Also check database for completed/removed jobs
+        """Get a job by folder path (preferred) or folder name."""
         session = self.SessionFactory()
         try:
             query = session.query(self.JobModel)
@@ -727,7 +722,7 @@ class QueueManager:
             else:
                 db_job = query.filter_by(folder_name=folder_name).first()
             if db_job:
-                return QueueJob(db_job.folder_path, db_job.id)
+                return self._db_to_queue_job(db_job)
         except Exception:
             pass
         finally:

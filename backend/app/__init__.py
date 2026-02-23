@@ -3,8 +3,13 @@ from flask_socketio import SocketIO
 from backend.config import Config
 import logging
 
-# Primary Socket.IO instance
-socketio = SocketIO(cors_allowed_origins="*")
+# Primary Socket.IO instance — restrict CORS to known origins
+socketio = SocketIO(cors_allowed_origins=[
+    "http://localhost:5000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5000",
+    "http://127.0.0.1:5173",
+])
 
 def create_app(config_class=Config, queue_manager=None):
     """
@@ -26,7 +31,7 @@ def create_app(config_class=Config, queue_manager=None):
     # Log Data Directory (Fix for frozen path confusion)
     from backend.app.core.paths import get_data_dir
     startup_logger = get_logger('startup')
-    startup_logger.info(f"📂 Data Directory: {get_data_dir()}")
+    startup_logger.info(f"Data Directory: {get_data_dir()}")
     
     # Inject Dependencies
     if queue_manager:

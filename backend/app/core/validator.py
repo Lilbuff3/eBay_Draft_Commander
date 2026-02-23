@@ -74,7 +74,7 @@ def validate_safe_path(path_str, base_dir=None):
         # Fallback to INBOX_DIR if in Flask context
         try:
             base_dir = Path(current_app.config['INBOX_DIR']).resolve()
-        except:
+        except Exception:
             raise ValidationError("Base directory for path validation not configured", "path")
     else:
         base_dir = Path(base_dir).resolve()
@@ -91,10 +91,14 @@ def validate_safe_path(path_str, base_dir=None):
 def validate_condition(condition):
     """
     Check against allowed eBay condition strings.
+    Synced with CONDITION_MAP in constants.py.
     """
     allowed = {
         'NEW', 'NEW_OTHER', 'NEW_WITH_DEFECTS', 
-        'USED_EXCELLENT', 'USED_VERY_GOOD', 'USED_GOOD', 'USED_ACCEPTABLE', 'FOR_PARTS_OR_NOT_WORKING'
+        'CERTIFIED_REFURBISHED', 'EXCELLENT_REFURBISHED', 'VERY_GOOD_REFURBISHED',
+        'GOOD_REFURBISHED', 'SELLER_REFURBISHED',
+        'LIKE_NEW', 'USED_EXCELLENT', 'USED_VERY_GOOD', 'USED_GOOD', 'USED_ACCEPTABLE',
+        'FOR_PARTS_OR_NOT_WORKING'
     }
     
     if not condition:
@@ -117,11 +121,12 @@ def validate_condition(condition):
         'FOR_PARTS': 'FOR_PARTS_OR_NOT_WORKING',
         'NOT_WORKING': 'FOR_PARTS_OR_NOT_WORKING',
         'USED': 'USED_GOOD',
+        'REFURBISHED': 'SELLER_REFURBISHED',
     }
     
     final_cond = mapping.get(cond_norm, cond_norm)
     
     if final_cond not in allowed:
-         raise ValidationError(f"Invalid condition: {condition}. Must be one of: {', '.join(allowed)}", "condition")
+         raise ValidationError(f"Invalid condition: {condition}. Must be one of: {', '.join(sorted(allowed))}", "condition")
          
     return final_cond

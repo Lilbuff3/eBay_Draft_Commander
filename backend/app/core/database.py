@@ -113,7 +113,17 @@ class TemplateModel(Base):
 
 # Database Setup
 def get_db_engine(db_path: Path):
-    return create_engine(f"sqlite:///{db_path}")
+    from sqlalchemy import event
+    engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+    
+    # Enable WAL mode for better concurrent access from background threads
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_conn, connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.close()
+    
+    return engine
 
 def init_db(db_path: Path):
     engine = get_db_engine(db_path)

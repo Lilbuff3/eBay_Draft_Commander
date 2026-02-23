@@ -8,23 +8,19 @@ ROOT_DIR = Path(__file__).parent.parent
 sys.path.append(str(ROOT_DIR))
 
 # Setup Boot Logging (Critical for Frozen App Debugging)
-import builtins
-def log_to_file(*args, **kwargs):
-    try:
-        log_path = Path("backend_boot.log")
-        if getattr(sys, 'frozen', False):
+# Only monkey-patch print in frozen mode where stdout/stderr may be None
+if getattr(sys, 'frozen', False):
+    import builtins
+    _original_print = builtins.print
+    def log_to_file(*args, **kwargs):
+        try:
             log_path = Path(sys.executable).parent / "backend_boot.log"
-        
-        # Construct message like print does
-        msg = " ".join(map(str, args))
-        
-        with open(log_path, "a") as f:
-            f.write(msg + "\n")
-    except:
-        pass
-
-# Monkey patch print to log to file
-builtins.print = log_to_file
+            msg = " ".join(map(str, args))
+            with open(log_path, "a") as f:
+                f.write(msg + "\n")
+        except:
+            pass
+    builtins.print = log_to_file
 
 # Redirect Stdout/Stderr to prevent crashes in frozen mode (where they are None)
 if getattr(sys, 'frozen', False):
@@ -46,7 +42,7 @@ def setup_boot_logger():
         boot_logger.setLevel(logging.DEBUG)
         
         # File handler only (no console - console may not exist in packaged app)
-        handler = logging.FileHandler(log_file, mode='w', encoding='utf-8')
+        handler = logging.FileHandler(log_file, mode='a', encoding='utf-8')
         handler.setFormatter(logging.Formatter(
             '%(asctime)s [%(levelname)s] %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'

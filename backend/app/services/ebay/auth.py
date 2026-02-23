@@ -7,6 +7,8 @@ import requests
 import base64
 import time
 import threading
+import urllib.parse
+import webbrowser
 from pathlib import Path
 from typing import Optional
 from dotenv import load_dotenv
@@ -128,11 +130,11 @@ class eBayOAuth:
                 self.refresh_token = token_data.get('refresh_token')
                 
                 logger.info("✅ Successfully obtained user token!")
-                logger.info(f"   Access Token: {self.user_token[:50]}...")
+                logger.info(f"   Access Token: ****...{self.user_token[-4:]}")
                 logger.info(f"   Expires in: {token_data.get('expires_in', 'unknown')} seconds")
                 
                 if self.refresh_token:
-                    logger.info(f"   Refresh Token: {self.refresh_token[:30]}...")
+                    logger.info(f"   Refresh Token: ****...{self.refresh_token[-4:]}")
                 
                 # Save tokens
                 self.save_tokens()
@@ -302,7 +304,7 @@ def main():
     
     if oauth.has_valid_token():
         print("\n✅ User token already configured!")
-        print(f"   Token: {oauth.user_token[:30]}...")
+        print(f"   Token: ****...{oauth.user_token[-4:]}")
         
         refresh = input("\nRefresh token? (y/n): ").strip().lower()
         if refresh == 'y':

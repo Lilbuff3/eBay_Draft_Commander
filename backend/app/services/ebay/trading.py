@@ -1,3 +1,4 @@
+import os
 import requests
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape as xml_escape
@@ -167,27 +168,34 @@ class TradingService:
             # However, our validator sanitizes most inputs.
             
             # Helper for optional tags (XML-safe)
-            def tag(name, value):
-                return f"<{name}>{xml_escape(str(value))}</{name}>" if value else ""
+            def tag(name, value, cdata=False):
+                if not value: return ""
+                val_str = str(value)
+                if cdata:
+                    # Safely wrap in CDATA, neutralizing any internal CDATA closing tags
+                    safe_val = val_str.replace("]]>", "]]]]><![CDATA[>")
+                    return f"<{name}><![CDATA[{safe_val}]]></{name}>"
+                else:
+                    return f"<{name}>{xml_escape(val_str)}</{name}>"
 
-            # Inline Return Policy (SellerProfiles not supported for all accounts)
-            return_policy = """<ReturnPolicy>
-                        <ReturnsAcceptedOption>ReturnsAccepted</ReturnsAcceptedOption>
-                        <ReturnsWithinOption>Days_30</ReturnsWithinOption>
-                        <RefundOption>MoneyBack</RefundOption>
-                        <ShippingCostPaidByOption>Buyer</ShippingCostPaidByOption>
-                    </ReturnPolicy>"""
-
-            # Inline Shipping Details
-            shipping_details = """<ShippingDetails>
-                        <ShippingType>Flat</ShippingType>
-                        <ShippingServiceOptions>
-                            <ShippingServicePriority>1</ShippingServicePriority>
-                            <ShippingService>USPSPriority</ShippingService>
-                            <ShippingServiceCost>0.00</ShippingServiceCost>
-                            <FreeShipping>true</FreeShipping>
-                        </ShippingServiceOptions>
-                    </ShippingDetails>"""
+            # Seller Profiles (Business Policies)
+            payment_policy_id = item_data.get('payment_policy_id')
+            return_policy_id = item_data.get('return_policy_id')
+            fulfillment_policy_id = item_data.get('fulfillment_policy_id')
+            
+            seller_profiles = ""
+            if payment_policy_id and return_policy_id and fulfillment_policy_id:
+                seller_profiles = f"""<SellerProfiles>
+                        <SellerPaymentProfile>
+                            <PaymentProfileID>{payment_policy_id}</PaymentProfileID>
+                        </SellerPaymentProfile>
+                        <SellerReturnProfile>
+                            <ReturnProfileID>{return_policy_id}</ReturnProfileID>
+                        </SellerReturnProfile>
+                        <SellerShippingProfile>
+                            <ShippingProfileID>{fulfillment_policy_id}</ShippingProfileID>
+                        </SellerShippingProfile>
+                    </SellerProfiles>"""
 
             # Prepare Images
             picture_details = ""
@@ -197,12 +205,19 @@ class TradingService:
                     picture_details += f"<PictureURL>{url}</PictureURL>"
                 picture_details += "</PictureDetails>"
 
-            # Prepare Schedule Time
+            # Prepare Schedule Time (must be UTC: YYYY-MM-DDTHH:MM:SS.000Z)
             schedule_tag = ""
             if schedule_time:
-                # Ensure format is YYYY-MM-DDTHH:MM:SS.000Z
-                # Simple check/conversion might be needed if frontend sends something else
-                schedule_tag = f"<ScheduleTime>{schedule_time}</ScheduleTime>"
+                try:
+                    from datetime import timezone as tz
+                    parsed = datetime.fromisoformat(schedule_time.replace('Z', '+00:00'))
+                    utc_time = parsed.astimezone(tz.utc)
+                    formatted = utc_time.strftime('%Y-%m-%dT%H:%M:%S.000Z')
+                    schedule_tag = f"<ScheduleTime>{formatted}</ScheduleTime>"
+                    logger.info(f"Schedule time normalized to UTC: {formatted}")
+                except Exception as e:
+                    logger.warning(f"Could not parse schedule_time '{schedule_time}': {e}. Skipping schedule.")
+                    schedule_tag = ""
 
             xml_request = f"""<?xml version="1.0" encoding="utf-8"?>
             <AddFixedPriceItemRequest xmlns="{xmlns}">
@@ -211,10 +226,10 @@ class TradingService:
                 </RequesterCredentials>
                 <ErrorLanguage>en_US</ErrorLanguage>
                 <WarningLevel>High</WarningLevel>
-                {schedule_tag}
                 <Item>
+                    {schedule_tag}
                     {tag('Title', item_data.get('title'))}
-                    {tag('Description', f"<![CDATA[{item_data.get('description')}]]>")}
+                    {tag('Description', item_data.get('description'), cdata=True)}
                     <PrimaryCategory>
                         <CategoryID>{item_data.get('category_id', '1')}</CategoryID>
                     </PrimaryCategory>
@@ -227,10 +242,9 @@ class TradingService:
                     <ListingDuration>GTC</ListingDuration>
                     <ListingType>FixedPriceItem</ListingType>
                     {picture_details}
-                    {return_policy}
-                    {shipping_details}
+                    {seller_profiles}
                     {tag('PostalCode', item_data.get('postal_code'))}
-                    {tag('Location', item_data.get('item_location', 'Clovis, CA'))}
+                    {tag('Location', item_data.get('item_location', os.environ.get('EBAY_ITEM_LOCATION', 'Clovis, CA')))}
                     <ItemSpecifics>
                         {self._build_item_specifics_xml(item_data.get('item_specifics', {}))}
                     </ItemSpecifics>

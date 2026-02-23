@@ -7,6 +7,9 @@ interface UploadZoneProps {
     compact?: boolean
 }
 
+// Note: We intentionally do NOT set capture="environment" on mobile
+// because it prevents users from selecting photos from their gallery.
+
 export function UploadZone({ onUploadComplete, compact = false }: UploadZoneProps) {
     const [isDragging, setIsDragging] = useState(false)
     const [isUploading, setIsUploading] = useState(false)

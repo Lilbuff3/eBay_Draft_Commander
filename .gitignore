@@ -99,3 +99,6 @@ tools/archive/
 # PowerShell / Batch scripts (optional, but requested to utilize correct way)
 # Keeping them if they are useful, but ignoring temporary ones
 .claude/
+
+# Large debug logs
+backend_boot.log
