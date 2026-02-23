@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react'
-import { getSettings, saveSettings } from '@/lib/api'
+import { getSettings, saveSettings, softRestart } from '@/lib/api'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, Save } from 'lucide-react'
+import { Loader2, Save, RefreshCw } from 'lucide-react'
 
 export function Settings() {
     const [settings, setSettings] = useState<Record<string, string>>({})
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
+    const [restarting, setRestarting] = useState(false)
 
     useEffect(() => {
         loadSettings()
@@ -49,6 +50,50 @@ export function Settings() {
         setSettings(prev => ({ ...prev, [key]: value }))
     }
 
+    async function handleRestart() {
+        if (!confirm("Are you sure you want to reboot the backend? Current operations may be interrupted.")) return
+        setRestarting(true)
+        try {
+            await softRestart()
+            toast.info("Reboot command sent. Waiting for server to come back...")
+
+            // Wait 3 seconds then start polling
+            setTimeout(pollHeartbeat, 3000)
+        } catch {
+            toast.error("Failed to trigger reboot")
+            setRestarting(false)
+        }
+    }
+
+    async function pollHeartbeat() {
+        let attempts = 0
+        const maxAttempts = 15
+
+        const check = async () => {
+            try {
+                const res = await fetch('/api/health')
+                if (res.ok) {
+                    toast.success("Server is back online!")
+                    // Small delay to ensure everything is ready
+                    setTimeout(() => window.location.reload(), 1000)
+                    return
+                }
+            } catch {
+                // Ignore connection errors during reboot
+            }
+
+            if (attempts < maxAttempts) {
+                attempts++
+                setTimeout(check, 1000)
+            } else {
+                toast.error("Server took too long to respond. Please check the terminal manually.")
+                setRestarting(false)
+            }
+        }
+
+        check()
+    }
+
     if (loading) {
         return (
             <div className="flex h-full items-center justify-center text-stone-500">
@@ -61,22 +106,31 @@ export function Settings() {
     return (
         <div className="h-full overflow-auto bg-stone-50 p-6">
             <div className="mx-auto max-w-4xl space-y-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div>
                         <h1 className="text-2xl font-bold text-stone-800">Settings</h1>
-                        <p className="text-stone-500">Configure API keys and application defaults</p>
+                        <p className="text-stone-500 text-sm">Configure API keys and application defaults</p>
                     </div>
-                    <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+                    <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto">
                         {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                         Save Changes
                     </Button>
                 </div>
 
                 <Tabs defaultValue="ebay-policies" className="w-full">
-                    <TabsList className="grid w-full grid-cols-3 bg-white p-1 shadow-sm rounded-lg border border-stone-200">
-                        <TabsTrigger value="ebay-policies">eBay Policies</TabsTrigger>
-                        <TabsTrigger value="ebay-auth">eBay Authentication</TabsTrigger>
-                        <TabsTrigger value="ai">AI & Other</TabsTrigger>
+                    <TabsList className="w-full bg-white p-1 shadow-sm rounded-lg border border-stone-200 flex overflow-x-auto">
+                        <TabsTrigger value="ebay-policies" className="flex-1 min-w-0 text-xs sm:text-sm">
+                            <span className="hidden sm:inline">eBay Policies</span>
+                            <span className="sm:hidden">Policies</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="ebay-auth" className="flex-1 min-w-0 text-xs sm:text-sm">
+                            <span className="hidden sm:inline">eBay Authentication</span>
+                            <span className="sm:hidden">Auth</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="ai" className="flex-1 min-w-0 text-xs sm:text-sm">
+                            <span className="hidden sm:inline">AI & Other</span>
+                            <span className="sm:hidden">AI</span>
+                        </TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="ebay-policies" className="mt-6">
@@ -212,6 +266,30 @@ export function Settings() {
                                         onChange={e => handleChange('GOOGLE_API_KEY', e.target.value)}
                                         placeholder="AIza..."
                                     />
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="border-red-100 shadow-sm mt-6">
+                            <CardHeader>
+                                <CardTitle className="text-red-700">System Controls</CardTitle>
+                                <CardDescription>Advanced actions for the application host.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="flex flex-col gap-3">
+                                    <p className="text-sm text-stone-500">
+                                        If the backend server is behaving unexpectedly, you can trigger a soft reboot.
+                                        The app will become unavailable for a few seconds while the process restarts.
+                                    </p>
+                                    <Button
+                                        variant="destructive"
+                                        onClick={handleRestart}
+                                        disabled={restarting}
+                                        className="w-full sm:w-auto"
+                                    >
+                                        {restarting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                                        Reboot Backend Server
+                                    </Button>
                                 </div>
                             </CardContent>
                         </Card>

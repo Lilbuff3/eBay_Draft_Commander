@@ -81,6 +81,88 @@ const initBatchState = (): BatchItem[] => {
     }
 }
 
+// --- Status Badge Component ---
+function StatusBadge({ status }: { status: BatchItem['status'] }) {
+    switch (status) {
+        case 'loading': return <Badge variant="outline" className="animate-pulse">Loading</Badge>
+        case 'found': return <Badge className="bg-green-100 text-green-700 border-green-200">Ready</Badge>
+        case 'not_found': return <Badge variant="destructive">Not Found</Badge>
+        case 'drafting': return <Badge className="bg-blue-100 text-blue-700">Drafting...</Badge>
+        case 'drafted': return <Badge className="bg-stone-800 text-white">Drafted</Badge>
+        case 'error': return <Badge variant="destructive">Error</Badge>
+        default: return null
+    }
+}
+
+// --- Mobile Card Component ---
+function BatchItemCard({
+    item,
+    isHighlighted,
+    onUpdateCondition,
+    onUpdatePrice,
+    onRemove,
+}: {
+    item: BatchItem
+    isHighlighted: boolean
+    onUpdateCondition: (val: string) => void
+    onUpdatePrice: (val: string) => void
+    onRemove: () => void
+}) {
+    return (
+        <div className={`bg-white rounded-xl border p-3 transition-colors ${isHighlighted ? 'border-blue-300 bg-blue-50/50' : 'border-stone-200'}`}>
+            <div className="flex gap-3">
+                {/* Cover Image */}
+                <div className="flex-shrink-0">
+                    {item.stock_photo ? (
+                        <img src={item.stock_photo} alt={item.title || "Book cover"} className="h-16 w-12 object-cover rounded-lg" />
+                    ) : (
+                        <div className="h-16 w-12 bg-stone-100 rounded-lg" />
+                    )}
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                            <h4 className="font-medium text-sm text-stone-800 line-clamp-2 leading-snug">{item.title}</h4>
+                            <p className="text-xs text-stone-400 mt-0.5 truncate">{item.isbn} {item.author && `• ${item.author}`}</p>
+                        </div>
+                        <StatusBadge status={item.status} />
+                    </div>
+
+                    {/* Price + Condition row */}
+                    <div className="flex items-center gap-2 mt-2">
+                        <div className="relative flex-1">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-stone-400">$</span>
+                            <Input
+                                className="h-8 pl-5 text-sm"
+                                value={item.price}
+                                onChange={(e) => onUpdatePrice(e.target.value)}
+                                placeholder="0.00"
+                            />
+                        </div>
+                        <Select value={item.condition} onValueChange={onUpdateCondition}>
+                            <SelectTrigger className="h-8 flex-1 text-xs">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="Like New">Like New</SelectItem>
+                                <SelectItem value="Very Good">Very Good</SelectItem>
+                                <SelectItem value="Good">Good</SelectItem>
+                                <SelectItem value="Acceptable">Acceptable</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" onClick={onRemove}>
+                            <Trash2 size={14} className="text-stone-400" />
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+
 export function BatchScan() {
     const [items, dispatch] = useReducer(batchReducer, [], initBatchState)
     const [isProcessing, setIsProcessing] = useState(false)
@@ -186,38 +268,41 @@ export function BatchScan() {
         toast.success(`Processed ${processed} items!`)
     }
 
+    const foundCount = items.filter(i => i.status === 'found').length
+
     // --- Render ---
     return (
-        <div className="flex flex-col h-full bg-stone-50 p-6">
+        <div className="flex flex-col h-full bg-stone-50 p-4 sm:p-6">
             {/* Header */}
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 sm:mb-6">
                 <div>
-                    <h1 className="text-2xl font-bold text-stone-800 flex items-center gap-2">
+                    <h1 className="text-xl sm:text-2xl font-bold text-stone-800 flex items-center gap-2">
                         <Package className="text-blue-600" />
                         Batch Scanner
                     </h1>
                     <p className="text-sm text-stone-500">Scan books rapidly to build your queue.</p>
                 </div>
 
-                <div className="flex gap-3">
-                    <Button variant="outline" onClick={() => dispatch({ type: 'CLEAR_ALL' })}>
-                        <Trash2 size={16} className="mr-2" /> Clear
+                <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => dispatch({ type: 'CLEAR_ALL' })}>
+                        <Trash2 size={14} className="mr-1.5" /> Clear
                     </Button>
                     <Button
+                        size="sm"
                         onClick={handleDraftAll}
-                        disabled={isProcessing || items.filter(i => i.status === 'found').length === 0}
+                        disabled={isProcessing || foundCount === 0}
                         className="bg-blue-600 hover:bg-blue-700 text-white"
                     >
-                        {isProcessing ? 'Processing...' : `Draft All (${items.filter(i => i.status === 'found').length})`}
+                        {isProcessing ? 'Processing...' : `Draft All (${foundCount})`}
                     </Button>
                 </div>
             </div>
 
             {/* Toolbar */}
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-stone-100 mb-6 flex gap-4 items-center">
+            <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-stone-100 mb-4 sm:mb-6 flex flex-wrap gap-3 items-center">
                 <span className="text-sm font-medium text-stone-600">Bulk Actions:</span>
                 <Select onValueChange={(val) => dispatch({ type: 'SET_ALL_CONDITION', payload: val })}>
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="w-[160px] sm:w-[180px] h-8">
                         <SelectValue placeholder="Set Condition" />
                     </SelectTrigger>
                     <SelectContent>
@@ -235,8 +320,34 @@ export function BatchScan() {
                 </div>
             </div>
 
-            {/* Grid */}
-            <div className="flex-1 bg-white rounded-xl shadow-sm border border-stone-100 overflow-hidden flex flex-col">
+            {/* Mobile Card List (visible on small screens) */}
+            <div className="flex-1 overflow-auto md:hidden">
+                {items.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-stone-400">
+                        <Search size={48} className="opacity-20 mb-2" />
+                        <p>Scan an ISBN to start...</p>
+                    </div>
+                ) : (
+                    <div className="space-y-2 pb-4">
+                        {items.map((item) => (
+                            <BatchItemCard
+                                key={item.id}
+                                item={item}
+                                isHighlighted={item.id === lastScannedId}
+                                onUpdateCondition={(val) => dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { condition: val } } })}
+                                onUpdatePrice={(val) => dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { price: val } } })}
+                                onRemove={() => dispatch({ type: 'REMOVE_ITEM', payload: item.id })}
+                            />
+                        ))}
+                    </div>
+                )}
+                <div className="py-2 text-xs text-center text-stone-400">
+                    {items.length} items in batch
+                </div>
+            </div>
+
+            {/* Desktop Table (visible on md+) */}
+            <div className="hidden md:flex flex-1 bg-white rounded-xl shadow-sm border border-stone-100 overflow-hidden flex-col">
                 <div className="overflow-auto flex-1">
                     <Table>
                         <TableHeader>
@@ -300,11 +411,7 @@ export function BatchScan() {
                                         </div>
                                     </TableCell>
                                     <TableCell>
-                                        {item.status === 'loading' && <Badge variant="outline" className="animate-pulse">Loading</Badge>}
-                                        {item.status === 'found' && <Badge className="bg-green-100 text-green-700 border-green-200">Ready</Badge>}
-                                        {item.status === 'not_found' && <Badge variant="destructive">Not Found</Badge>}
-                                        {item.status === 'drafting' && <Badge className="bg-blue-100 text-blue-700">Drafting...</Badge>}
-                                        {item.status === 'drafted' && <Badge className="bg-stone-800 text-white">Drafted</Badge>}
+                                        <StatusBadge status={item.status} />
                                     </TableCell>
                                     <TableCell>
                                         <Button variant="ghost" size="icon" onClick={() => dispatch({ type: 'REMOVE_ITEM', payload: item.id })}>
