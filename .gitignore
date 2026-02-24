@@ -27,6 +27,7 @@ wheels/
 *.egg
 
 # Virtual environments
+.venv/
 venv/
 ENV/
 env/
@@ -37,13 +38,11 @@ env/
 *.swp
 *.swo
 
-# Test outputs
-*.json
-!package.json
-!package-lock.json
-!frontend/tsconfig*.json
-!frontend/components.json
-!frontend/public/manifest.json
+# Test/debug JSON output (not blanket *.json — that breaks config files)
+data/*.json
+tests/**/*.json
+scripts/**/*.json
+*.tmp.json
 
 # Temporary files
 *.tmp
@@ -73,6 +72,8 @@ node_modules/
 frontend/node_modules/
 frontend/node_modules_trash/
 *.db
+*.db-shm
+*.db-wal
 frontend/dist/
 frontend/dist-electron/
 frontend/dist-python/
