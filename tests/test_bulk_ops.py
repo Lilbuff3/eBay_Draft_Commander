@@ -32,7 +32,7 @@ def test_add_single_folder(test_client, tmp_path):
     (item_folder / "photo1.jpg").touch()
     
     # Call Endpoint
-    resp = test_client.post('/api/queue/add-folder', json={
+    resp = test_client.post('/api/add-folder', json={
         'path': str(item_folder)
     })
     
@@ -63,7 +63,7 @@ def test_add_batch_folder(test_client, tmp_path):
     item_c.mkdir()
     
     # Call Endpoint
-    resp = test_client.post('/api/queue/add-folder', json={
+    resp = test_client.post('/api/add-folder', json={
         'path': str(batch_folder)
     })
     
@@ -75,7 +75,7 @@ def test_add_batch_folder(test_client, tmp_path):
     
 def test_add_invalid_path(test_client):
     # Path outside of authorized root should return 403 Forbidden now
-    resp = test_client.post('/api/queue/add-folder', json={
+    resp = test_client.post('/api/add-folder', json={
         'path': "C:/fake/path/does/not/exist"
     })
     assert resp.status_code == 403

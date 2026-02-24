@@ -1,121 +1,155 @@
+"""
+Tests for the AI-driven listing creation pipeline in ProcessorService.
+
+Tests verify: successful end-to-end listing, AI failure handling,
+and missing image handling through the current Trading API path.
+"""
 
 import pytest
-import json
-from unittest.mock import MagicMock, patch, ANY
+from unittest.mock import MagicMock, patch
 from backend.app.services.processor_service import ProcessorService
 from backend.app import create_app
 from backend.app.services.queue_manager import QueueManager
 
+
+def _make_mock_job(folder_path, **overrides):
+    """Create a mock QueueJob object for testing."""
+    job = MagicMock()
+    job.folder_path = str(folder_path)
+    job.job_metadata = overrides.get('job_metadata', {})
+    job.user_condition = overrides.get('user_condition', None)
+    job.user_price = overrides.get('user_price', None)
+    job.user_title = overrides.get('user_title', None)
+    job.scheduled_time = overrides.get('scheduled_time', None)
+    job.ai_data = overrides.get('ai_data', {})
+    return job
+
+
 @pytest.fixture
 def mock_deps():
     with patch('backend.app.services.processor_service.eBayService') as mock_ebay, \
-         patch('backend.app.services.processor_service.AIAnalyzer') as mock_ai, \
-         patch('backend.app.services.processor_service.PricingEngine') as mock_pricing, \
-         patch('backend.app.services.processor_service.upload_folder') as mock_upload, \
-         patch('backend.app.services.processor_service.get_template_manager') as mock_tmpl:
-        
-        # Setup basic successes
-        mock_inventory = MagicMock()
-        mock_inventory.create_inventory_item.return_value = ({}, 200)
-        mock_inventory.create_offer.return_value = ({'offerId': 'OFFER_ABC'}, 200)
-        mock_ebay.return_value.inventory_service = mock_inventory
-        mock_ebay.return_value.publish_listing.return_value = ({'listingId': 'LIST_XYZ'}, 200)
-        
-        # Configure create_listing_bundle defaults (can be overridden in tests via side_effect or specific return_value)
-        mock_ebay.return_value.create_listing_bundle.return_value = {
+         patch('backend.app.services.processor_service.ListingAIAgent') as mock_ai_agent, \
+         patch('backend.app.services.processor_service.ImageProcessor') as mock_img_proc, \
+         patch('backend.app.services.processor_service.get_template_manager') as mock_tmpl, \
+         patch('backend.app.services.processor_service.CategoryMapper') as mock_cat:
+
+        # AI Agent defaults
+        agent = mock_ai_agent.return_value
+        agent.analyze_item.return_value = {
             'success': True,
-            'listing_id': 'LIST_XYZ',
-            'offer_id': 'OFFER_ABC',
+            'title': 'Test Item Title',
+            'raw_description': 'A quality test item in good condition.',
+            'item_specifics': {'Brand': 'TestBrand'},
+            'ai_suggested_price': '50.00'
+        }
+        agent.get_final_pricing.return_value = {
+            'price': '50.00',
+            'timing': 0.1
+        }
+
+        # Category mapper
+        mock_cat.return_value.get_category.return_value = {
+            'id': '170599',
+            'name': 'Other'
+        }
+
+        # Image processor
+        mock_img_proc.return_value.upload_images.return_value = {
+            'urls': ['https://eps.ebay.com/img1.jpg'],
+            'timing': 0.2
+        }
+
+        # Template manager
+        mock_tmpl.return_value.render_description.return_value = '<html><body>Test</body></html>'
+
+        # eBay Trading API
+        mock_ebay.return_value.create_trading_api_listing.return_value = {
+            'success': True,
+            'item_id': 'LIST_12345',
             'status': 'active'
         }
-        
-        mock_pricing.return_value.get_price_with_comps.return_value = {"suggested_price": "25.00"}
-        mock_upload.return_value = ["img.jpg"]
-        
+
         yield {
-            'ai': mock_ai.return_value,
+            'ai_agent': agent,
             'ebay': mock_ebay.return_value,
-            'pricing': mock_pricing.return_value
+            'img_proc': mock_img_proc.return_value,
+            'template': mock_tmpl.return_value,
+            'category': mock_cat.return_value
         }
+
 
 @pytest.fixture
 def test_app(tmp_path):
     qm = QueueManager(base_path=tmp_path)
     app = create_app(queue_manager=qm)
-    app.config['AUTO_PUBLISH'] = True
-    app.config['CONFIDENCE_THRESHOLD'] = 80
-    app.config['AUTO_PUBLISH_MIN_PRICE'] = 20.00
     return app
 
-def test_auto_publish_success(test_app, mock_deps, tmp_path):
-    """Test that HIGH confidence + HIGH price triggers auto-publish"""
-    # Setup High Confidence AI
-    mock_deps['ai'].analyze_with_research.return_value = {
-        "identification": {"confidence_score": 90}, 
-        "listing": {"suggested_title": "Good Item", "suggested_price": "50.00"},
-        "item_specifics": {"Brand": "Test"}
-    }
-    
-    # Run
-    service = ProcessorService()
-    job_folder = tmp_path / "test_job_success"
-    job_folder.mkdir()
-    (job_folder / "img.jpg").touch()
-    
-    with test_app.app_context():
-        result = service.create_listing(str(job_folder))
-        
-    # We verify the INTENT to auto-publish by checking the call args
-    mock_deps['ebay'].create_listing_bundle.assert_called_with(
-        sku=ANY, 
-        item_data=ANY, 
-        offer_data=ANY, 
-        auto_publish=True
-    )
 
-def test_auto_publish_low_confidence(test_app, mock_deps, tmp_path):
-    """Test that LOW confidence prevents auto-publish (Draft)"""
-    mock_deps['ai'].analyze_with_research.return_value = {
-        "identification": {"confidence_score": 50}, # Below 80
-        "listing": {"suggested_title": "Ambiguous Item", "suggested_price": "50.00"},
-        "item_specifics": {"Brand": "Test"}
-    }
-    
-    service = ProcessorService()
-    job_folder = tmp_path / "test_job_low_conf"
+def test_successful_listing_creation(test_app, mock_deps, tmp_path):
+    """Test full pipeline: AI analysis -> category -> pricing -> upload -> listing"""
+    job_folder = tmp_path / "test_item"
     job_folder.mkdir()
-    (job_folder / "img.jpg").touch()
-    
-    with test_app.app_context():
-        result = service.create_listing(str(job_folder))
-        
-    # Verify we requested auto_publish=False (Draft Mode)
-    args = mock_deps['ebay'].create_listing_bundle.call_args
-    assert args is not None
-    assert args.kwargs['auto_publish'] == False
+    (job_folder / "photo1.jpg").touch()
 
-def test_auto_publish_low_price(test_app, mock_deps, tmp_path):
-    """Test that LOW price prevents auto-publish (Draft)"""
-    # High Confidence but Low Price
-    mock_deps['ai'].analyze_with_research.return_value = {
-        "identification": {"confidence_score": 95}, 
-        "listing": {"suggested_title": "Cheap Item", "suggested_price": "10.00"},
-        "item_specifics": {"Brand": "Test"}
-    }
-    
-    # Force Pricing Engine to return $10.00
-    mock_deps['pricing'].get_price_with_comps.return_value = {"suggested_price": "10.00"}
-    
+    mock_job = _make_mock_job(job_folder)
     service = ProcessorService()
-    job_folder = tmp_path / "test_job_cheap"
-    job_folder.mkdir()
-    (job_folder / "img.jpg").touch()
-    
-    with test_app.app_context():
-        result = service.create_listing(str(job_folder))
-    
-    # Verify we requested auto_publish=False (Draft Mode)
-    args = mock_deps['ebay'].create_listing_bundle.call_args
-    assert args is not None
-    assert args.kwargs['auto_publish'] == False
 
+    with test_app.app_context():
+        result = service.create_listing(mock_job)
+
+    assert result['success'] is True
+    assert result['listing_id'] == 'LIST_12345'
+    assert result['price'] == '50.00'
+    assert 'timing' in result
+
+    # Verify pipeline stages were called
+    mock_deps['ai_agent'].analyze_item.assert_called_once()
+    mock_deps['category'].get_category.assert_called_once()
+    mock_deps['ai_agent'].get_final_pricing.assert_called_once()
+    mock_deps['img_proc'].upload_images.assert_called_once()
+    mock_deps['ebay'].create_trading_api_listing.assert_called_once()
+
+
+def test_ai_failure_stops_pipeline(test_app, mock_deps, tmp_path):
+    """Test that AI analysis failure returns error and stops further processing"""
+    mock_deps['ai_agent'].analyze_item.return_value = {
+        'success': False,
+        'error': 'Gemini API timeout'
+    }
+
+    job_folder = tmp_path / "test_item_ai_fail"
+    job_folder.mkdir()
+    (job_folder / "photo1.jpg").touch()
+
+    mock_job = _make_mock_job(job_folder)
+    service = ProcessorService()
+
+    with test_app.app_context():
+        result = service.create_listing(mock_job)
+
+    assert result['success'] is False
+    assert 'Gemini API timeout' in result['error_message']
+
+    # Pipeline should stop — no category/pricing/upload/listing calls
+    mock_deps['category'].get_category.assert_not_called()
+    mock_deps['ai_agent'].get_final_pricing.assert_not_called()
+    mock_deps['ebay'].create_trading_api_listing.assert_not_called()
+
+
+def test_no_images_returns_error(test_app, mock_deps, tmp_path):
+    """Test that a folder with no images returns an error"""
+    job_folder = tmp_path / "empty_folder"
+    job_folder.mkdir()
+    # No image files
+
+    mock_job = _make_mock_job(job_folder)
+    service = ProcessorService()
+
+    with test_app.app_context():
+        result = service.create_listing(mock_job)
+
+    assert result['success'] is False
+    assert 'No images' in result['error_message']
+
+    # Nothing should be called if no images
+    mock_deps['ai_agent'].analyze_item.assert_not_called()
