@@ -57,6 +57,9 @@ class JobModel(Base):
     timing_json = Column(Text)
     scheduled_time = Column(DateTime)
     
+    # Cached thumbnail filename (avoids filesystem scan on every /jobs request)
+    thumbnail_name = Column(String(255))
+
     # Legacy / Generic Metadata (Keep for backward compatibility during migration)
     metadata_json = Column(Text)
 

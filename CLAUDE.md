@@ -29,14 +29,14 @@ python manage.py fix_publish <offer_id>   # Fix policies and publish offer
 
 # Frontend
 cd frontend && npm install
-npm run dev                               # Vite dev server (port 5175, proxies /api to 5001)
+npm run dev                               # Vite dev server (port 5175, proxies /api to 5000)
 npm run build                             # Build to ../static/app/
 npm run test                              # Vitest
 npm run electron:dev                      # Electron + Vite dev
 npm run electron:build                    # Package Electron distributable
 
 # Full stack dev
-# Terminal 1: python backend/wsgi.py (or set PORT=5001)
+# Terminal 1: python backend/wsgi.py
 # Terminal 2: cd frontend && npm run dev
 ```
 
@@ -170,7 +170,7 @@ Settings UI writes directly to .env via SettingsManager singleton.
 ## Ports
 
 - Production: Flask on 5000, serves API + React SPA at /app/
-- Dev: Vite on 5175 proxies /api to 127.0.0.1:5001
+- Dev: Vite on 5175 proxies /api to 127.0.0.1:5000
 
 ## Testing
 

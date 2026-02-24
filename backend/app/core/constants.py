@@ -40,6 +40,9 @@ CONDITION_ID_MAP = {
     'FOR_PARTS_OR_NOT_WORKING': '7000'
 }
 
+# Supported Image Formats
+SUPPORTED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff', '.tif'}
+
 # eBay API Limits and Defaults
 DEFAULT_CATEGORY_ID = "170599"  # Other > Everything Else (fallback category)
 MAX_IMAGES_PER_LISTING = 12  # eBay allows max 12 images per listing

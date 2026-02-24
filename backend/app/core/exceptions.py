@@ -83,6 +83,11 @@ class QueueStateCorruptedError(QueueError):
     pass
 
 
+class NeedsReviewException(QueueError):
+    """Job requires manual review before it can proceed (e.g. missing item specifics)"""
+    pass
+
+
 # ============================================================================
 # Template & Settings Exceptions
 # ============================================================================

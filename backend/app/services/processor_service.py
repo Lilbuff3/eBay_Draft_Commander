@@ -15,7 +15,7 @@ from backend.app.services.template_manager import get_template_manager
 from backend.app.services.image_processor import ImageProcessor
 from backend.app.services.listing_ai_agent import ListingAIAgent
 from backend.app.services.category_mapper import CategoryMapper
-from backend.app.services.queue_manager import NeedsReviewException
+from backend.app.core.exceptions import NeedsReviewException
 from backend.app.core.constants import (
     CONDITION_MAP,
     CONDITION_ID_MAP,

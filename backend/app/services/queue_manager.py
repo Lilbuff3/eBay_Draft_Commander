@@ -63,6 +63,9 @@ class QueueJob:
     scheduled_time: Optional[str] = None
     timing: Dict[str, float] = field(default_factory=dict)
     job_metadata: Dict[str, Any] = field(default_factory=dict)
+
+    # Cached thumbnail (avoids N+1 filesystem scan on /jobs list)
+    thumbnail_name: Optional[str] = None
     
     def to_dict(self) -> dict:
         """Convert to JSON-serializable dict"""
@@ -73,6 +76,33 @@ class QueueJob:
     def can_retry(self) -> bool:
         """Check if job can be retried"""
         return self.status == JobStatus.FAILED and self.attempts < self.max_attempts
+
+
+def resolve_thumbnail(folder_path: str) -> Optional[str]:
+    """Resolve the thumbnail filename for a job folder (single filesystem scan).
+
+    Priority: cover.jpg > cover.png > first supported image file.
+    Returns just the filename (e.g. 'cover.jpg', 'IMG_001.png'), or None if no images.
+    """
+    from backend.app.core.constants import SUPPORTED_IMAGE_EXTENSIONS
+    folder = Path(folder_path)
+    if not folder.exists():
+        return None
+
+    # Fast path: check for explicit cover files
+    for cover_name in ('cover.jpg', 'cover.jpeg', 'cover.png'):
+        if (folder / cover_name).exists():
+            return cover_name
+
+    # Single-pass scan for first supported image
+    try:
+        for f in sorted(folder.iterdir()):
+            if f.is_file() and f.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
+                return f.name
+    except OSError:
+        pass
+
+    return None
 
 
 class QueueManager:
@@ -126,13 +156,18 @@ class QueueManager:
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            # Check if scheduled_time exists
             cursor.execute("PRAGMA table_info(jobs)")
             columns = [info[1] for info in cursor.fetchall()]
+
             if 'scheduled_time' not in columns:
                 self.logger.info("Migrating DB: Adding scheduled_time column...")
                 cursor.execute("ALTER TABLE jobs ADD COLUMN scheduled_time TIMESTAMP")
-                conn.commit()
+
+            if 'thumbnail_name' not in columns:
+                self.logger.info("Migrating DB: Adding thumbnail_name column...")
+                cursor.execute("ALTER TABLE jobs ADD COLUMN thumbnail_name VARCHAR(255)")
+
+            conn.commit()
             conn.close()
         except Exception as e:
             self.logger.warning(f"Schema migration warning: {e}")
@@ -195,15 +230,19 @@ class QueueManager:
         """Add a single folder to the queue with optional metadata"""
         path = Path(folder_path)
         meta = metadata or {}
-        
+
+        # Resolve thumbnail once at creation time
+        thumb = resolve_thumbnail(str(path))
+
         job = QueueJob(
             id=uuid.uuid4().hex[:8].upper(),
             folder_path=str(path),
             folder_name=path.name,
             job_metadata=meta,
-            scheduled_time=meta.get('scheduled_time') # Extract from metadata if present
+            scheduled_time=meta.get('scheduled_time'),
+            thumbnail_name=thumb,
         )
-        
+
         session = self.SessionFactory()
         try:
             db_job = self.JobModel(
@@ -214,7 +253,8 @@ class QueueManager:
                 created_at=datetime.fromisoformat(job.created_at),
                 job_metadata=job.job_metadata,
                 scheduled_time=datetime.fromisoformat(job.scheduled_time) if job.scheduled_time else None,
-                
+                thumbnail_name=thumb,
+
                 # Init new fields
                 ai_data={},
                 item_specifics={},
@@ -222,7 +262,7 @@ class QueueManager:
             )
             session.add(db_job)
             session.commit()
-            
+
             self.emit_event('job_added', job.to_dict())
             return job
         except Exception as e:
@@ -233,36 +273,95 @@ class QueueManager:
             session.close()
 
     def save_state(self):
-        """Syncs all in-memory jobs to the database"""
-        # No-op: Since QueueManager is now 100% database-driven, 
-        # changes are persisted directly to SQLite and this is no longer needed.
-        pass
+        """Deprecated: No longer needed. Use update_job() for direct DB writes."""
+        self.logger.warning("save_state() called but is deprecated — use update_job() instead")
+
+    def update_job(self, job_id: str, updates: Dict[str, Any]) -> bool:
+        """Update a job's fields directly in the database.
+
+        This is the single source of truth for job mutations.
+        Handles type conversion for datetime fields, status enums, and JSON properties.
+
+        Args:
+            job_id: The job ID to update
+            updates: Dict of field names to new values. Supports:
+                - Simple fields: user_title, user_price, user_description, user_condition,
+                  price, listing_id, offer_id, error_type, error_message, attempts
+                - JSON fields: item_specifics, ai_data, job_metadata, timing
+                - DateTime fields: scheduled_time, started_at, completed_at (accepts ISO strings)
+                - Status: status (accepts JobStatus enum or string)
+
+        Returns:
+            True if update succeeded, False otherwise
+        """
+        session = self.SessionFactory()
+        try:
+            db_job = session.query(self.JobModel).filter_by(id=job_id).first()
+            if not db_job:
+                self.logger.warning(f"update_job: job {job_id} not found")
+                return False
+
+            # Fields that need datetime conversion (ISO string → datetime object)
+            datetime_fields = {'scheduled_time', 'started_at', 'completed_at'}
+
+            for field_name, value in updates.items():
+                # Handle status enum → string
+                if field_name == 'status':
+                    if isinstance(value, JobStatus):
+                        value = value.value
+                    db_job.status = value
+                # Handle datetime fields (accept ISO strings, convert to datetime)
+                elif field_name in datetime_fields:
+                    if value and isinstance(value, str):
+                        db_job.__setattr__(field_name, datetime.fromisoformat(value.replace('Z', '+00:00')))
+                    elif value is None:
+                        setattr(db_job, field_name, None)
+                    else:
+                        setattr(db_job, field_name, value)
+                # JSON property fields (ai_data, item_specifics, timing, job_metadata)
+                # These have @property setters that handle json.dumps
+                elif field_name in ('ai_data', 'item_specifics', 'timing', 'job_metadata'):
+                    setattr(db_job, field_name, value)
+                # Simple scalar fields
+                elif hasattr(db_job, field_name):
+                    setattr(db_job, field_name, value)
+                else:
+                    self.logger.warning(f"update_job: unknown field '{field_name}' for job {job_id}")
+
+            session.commit()
+
+            # Emit update event for real-time UI sync
+            updated_job = self._db_to_queue_job(db_job)
+            self.emit_event('job_update', updated_job.to_dict())
+
+            return True
+        except Exception as e:
+            session.rollback()
+            self.logger.error(f"Failed to update job {job_id}: {e}", exc_info=True)
+            return False
+        finally:
+            session.close()
             
     # ... existing methods ...
 
     def load_state(self):
-        """Load queue state from SQLite database"""
+        """Recover from unclean shutdown: reset any stuck 'processing' jobs back to 'pending'."""
         session = self.SessionFactory()
         try:
-            db_jobs = session.query(self.JobModel).all()
-            self.jobs = []
-            for db_j in db_jobs:
-                # Map DB model to QueueJob dataclass
-                job = self._db_to_queue_job(db_j)
-                
-                # Reset any jobs that were processing when we closed
-                if job.status == JobStatus.PROCESSING:
-                    job.status = JobStatus.PENDING
-                    db_j.status = JobStatus.PENDING.value
-                
-                self.jobs.append(job)
-            
-            session.commit()
-            self.logger.info(f"Loaded {len(self.jobs)} jobs from SQLite database")
-            
+            # Reset any jobs that were processing when we closed
+            stuck_count = session.query(self.JobModel).filter_by(
+                status=JobStatus.PROCESSING.value
+            ).update({'status': JobStatus.PENDING.value}, synchronize_session=False)
+
+            if stuck_count > 0:
+                session.commit()
+                self.logger.info(f"Reset {stuck_count} stuck 'processing' job(s) to 'pending'")
+
+            total = session.query(self.JobModel).count()
+            self.logger.info(f"Database contains {total} jobs")
+
         except Exception as e:
-            self.logger.error(f"Error loading queue state from database: {e}")
-            self.jobs = []
+            self.logger.error(f"Error during startup recovery: {e}")
         finally:
             session.close()
 
@@ -302,7 +401,8 @@ class QueueManager:
             completed_at=db_j.completed_at.isoformat() if db_j.completed_at else None,
             scheduled_time=db_j.scheduled_time.isoformat() if db_j.scheduled_time else None,
             timing=db_j.timing or {},
-            job_metadata=db_j.job_metadata or {}
+            job_metadata=db_j.job_metadata or {},
+            thumbnail_name=getattr(db_j, 'thumbnail_name', None),
         )
 
     def _watch_inbox(self):
@@ -344,11 +444,13 @@ class QueueManager:
         """Background worker to process jobs sequentially"""
         while True:
             try:
-                # Check for pause
-                if self._paused:
+                # Check for pause (thread-safe)
+                with self._lock:
+                    paused = self._paused
+                if paused:
                     time.sleep(0.1)
                     continue
-                
+
                 # Get next pending job
                 job = self._get_next_pending()
                 if not job:
@@ -358,7 +460,7 @@ class QueueManager:
                         break  # Queue is done
                     time.sleep(1)
                     continue
-                
+
                 # Process it
                 self._current_job = job
                 if self.app:
@@ -368,7 +470,7 @@ class QueueManager:
                     self.logger.warning("No Flask App context available for QueueManager thread!")
                     self._process_job(job)
                 self._current_job = None
-                
+
                 # Update progress
                 stats = self.get_stats()
                 done = stats['completed'] + stats['failed'] + stats['skipped']
@@ -378,8 +480,9 @@ class QueueManager:
                 self.logger.error(f"Queue worker error (will retry): {e}", exc_info=True)
                 self._current_job = None
                 time.sleep(5)  # Back off before retrying
-        
-        self._processing = False
+
+        with self._lock:
+            self._processing = False
         if self.on_queue_complete:
             self.on_queue_complete()
         
@@ -502,34 +605,39 @@ class QueueManager:
     
     def start_processing(self):
         """Start processing the queue in background thread"""
-        if self._processing:
-            return
-        
-        # Self-contained processing now
-        
-        self._processing = True
-        self._paused = False
+        with self._lock:
+            if self._processing:
+                return
+            self._processing = True
+            self._paused = False
         self._thread = threading.Thread(target=self._process_queue, daemon=True)
         self._thread.start()
-    
+
     def pause(self):
         """Pause processing after current job completes"""
-        self._paused = True
-    
+        with self._lock:
+            self._paused = True
+
     def resume(self):
         """Resume processing"""
-        if self._paused:
-            self._paused = False
-            if not self._processing:
-                self.start_processing()
-    
+        with self._lock:
+            if self._paused:
+                self._paused = False
+                should_start = not self._processing
+            else:
+                should_start = False
+        if should_start:
+            self.start_processing()
+
     def is_processing(self) -> bool:
         """Check if queue is actively processing"""
-        return self._processing and not self._paused
-    
+        with self._lock:
+            return self._processing and not self._paused
+
     def is_paused(self) -> bool:
         """Check if queue is paused"""
-        return self._paused
+        with self._lock:
+            return self._paused
     
     def log_status(self, job_id: str, message: str, level: str = 'info'):
         """Broadcast a micro-log update for a specific job"""
@@ -600,34 +708,39 @@ class QueueManager:
     
     def _process_job(self, job: QueueJob):
         """Process a single job"""
+        started_at = datetime.now().isoformat()
         job.status = JobStatus.PROCESSING
-        job.started_at = datetime.now().isoformat()
+        job.started_at = started_at
         job.attempts += 1
-        self.save_state()
-        self.emit_event('job_update', job.to_dict())
+
+        # Persist "processing" state immediately to DB
+        self.update_job(job.id, {
+            'status': JobStatus.PROCESSING,
+            'started_at': started_at,
+            'attempts': job.attempts,
+        })
         self.log_status(job.id, "🚀 Starting processing pipeline...")
-        
+
         if self.on_job_start:
             self.on_job_start(job)
-        
+
         try:
             start_time = time.time()
             self.log_status(job.id, "🔍 Analyzing images with AI...")
-            
+
             # Instantiate ProcessorService (Phase 3 Architecture)
-            # The service handles its own dependencies (eBayService, TemplateManager)
             from backend.app.services.processor_service import ProcessorService
             processor = ProcessorService()
-            
+
             # Create callback for logging
             def job_log_callback(msg, level='info'):
                 self.log_status(job.id, msg, level)
-            
-            # Pass job object directly to processor (New Architecture)
+
+            # Pass job object directly to processor
             result = processor.create_listing(job, log_callback=job_log_callback)
-            
+
             elapsed = time.time() - start_time
-            
+
             # Handle result
             if isinstance(result, dict):
                 if result.get('success', False) or result.get('listing_id') or result.get('offer_id'):
@@ -649,7 +762,7 @@ class QueueManager:
                 job.status = JobStatus.FAILED
                 job.error_type = 'null_result'
                 job.error_message = 'Processor returned None'
-            
+
         except Exception as e:
             # Check if this is a NeedsReview exception from the processor service
             if type(e).__name__ == 'NeedsReviewException':
@@ -657,42 +770,30 @@ class QueueManager:
                 job.status = JobStatus.NEEDS_REVIEW
                 job.error_message = str(e)
                 job.error_type = "needs_review"
-                # Prevent automatic retries for this state
                 job.attempts = job.max_attempts
             else:
                 job.status = JobStatus.FAILED
                 job.error_type = type(e).__name__
                 job.error_message = str(e)
-        
+
         job.completed_at = datetime.now().isoformat()
-        
-        # PERSIST TO DATABASE
-        session = self.SessionFactory()
-        try:
-            db_job = session.query(self.JobModel).filter_by(id=job.id).first()
-            if db_job:
-                db_job.status = job.status.value
-                db_job.listing_id = job.listing_id
-                db_job.offer_id = job.offer_id
-                db_job.price = job.price
-                db_job.error_type = job.error_type
-                db_job.error_message = job.error_message
-                db_job.attempts = job.attempts
-                db_job.started_at = datetime.fromisoformat(job.started_at)
-                db_job.completed_at = datetime.fromisoformat(job.completed_at)
-                db_job.timing = job.timing
-                db_job.job_metadata = job.job_metadata
-                
-                # Persist Rich Data
-                db_job.ai_data = job.ai_data
-                db_job.item_specifics = job.item_specifics
-                
-                session.commit()
-        except Exception as e:
-            session.rollback()
-            self.logger.error(f"Failed to persist job result to database: {e}")
-        finally:
-            session.close()
+
+        # Persist final result to database via update_job()
+        self.update_job(job.id, {
+            'status': job.status,
+            'listing_id': job.listing_id,
+            'offer_id': job.offer_id,
+            'price': job.price,
+            'error_type': job.error_type,
+            'error_message': job.error_message,
+            'attempts': job.attempts,
+            'started_at': job.started_at,
+            'completed_at': job.completed_at,
+            'timing': job.timing,
+            'job_metadata': job.job_metadata,
+            'ai_data': job.ai_data,
+            'item_specifics': job.item_specifics,
+        })
 
         if job.status == JobStatus.COMPLETED:
             if self.on_job_complete:
@@ -729,38 +830,3 @@ class QueueManager:
             session.close()
 
         return None
-
-
-# Test the queue manager
-if __name__ == "__main__":
-    print("Testing Queue Manager...\n")
-    
-    qm = QueueManager()
-    
-    # Clear any previous state for clean test
-    qm.clear_all()
-    
-    # Add some test jobs
-    test_folders = [
-        r"C:\Users\adam\Desktop\eBay_Draft_Commander\inbox\cletop_cleaner",
-        r"C:\Users\adam\Desktop\eBay_Draft_Commander\inbox\svbony_scope",
-        r"C:\Users\adam\Desktop\eBay_Draft_Commander\inbox\user_test_item"
-    ]
-    
-    for folder in test_folders:
-        if Path(folder).exists():
-            job = qm.add_folder(folder)
-            print(f"Added: {job.folder_name} (ID: {job.id})")
-    
-    print(f"\nQueue stats: {qm.get_stats()}")
-    
-    # Test state persistence
-    print("\nSaving and reloading state...")
-    qm.save_state()
-    
-    qm2 = QueueManager()
-    print(f"Reloaded {len(qm2.jobs)} jobs")
-    for job in qm2.jobs:
-        print(f"  - {job.folder_name}: {job.status.value}")
-    
-    print("\n✅ Queue Manager test complete!")

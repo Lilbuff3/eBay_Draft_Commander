@@ -49,7 +49,7 @@ eBay Draft Commander is a full-stack application that automates eBay listing cre
 ┌──────────────────────────────────────────────────────┐
 │                   Frontend (React)                   │
 │          Vite Dev Server / Built Static Files        │
-│              (Port 5173 dev / 5000 prod)             │
+│              (Port 5175 dev / 5000 prod)             │
 └─────────────────────┬────────────────────────────────┘
                       │
                       │ HTTP REST + Socket.IO
@@ -637,7 +637,7 @@ python backend/wsgi.py
 ```bash
 cd frontend
 npm install
-npm run dev  # Vite dev server on port 5173
+npm run dev  # Vite dev server on port 5175
 ```
 
 **Production Build:**

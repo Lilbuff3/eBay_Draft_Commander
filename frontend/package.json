@@ -11,7 +11,7 @@
     "build:backend": "powershell -ExecutionPolicy Bypass -File ../scripts/build_backend.ps1",
     "lint": "eslint .",
     "preview": "vite preview",
-    "electron:dev": "concurrently -k \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:dev": "concurrently -k \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:5175 && electron .\"",
     "electron:build": "npm run build:backend && npm run build && electron-builder"
   },
   "dependencies": {

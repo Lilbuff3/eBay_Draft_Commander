@@ -31,11 +31,7 @@ def get_jobs():
             'error_message': getattr(j, 'error_message', None),
             'started_at': getattr(j, 'started_at', None),
             'completed_at': getattr(j, 'completed_at', None),
-            'thumbnail_url': f'/api/job/{j.id}/image/cover.jpg' if (Path(j.folder_path) / 'cover.jpg').exists() else (
-                f'/api/job/{j.id}/image/{next((f.name for f in Path(j.folder_path).iterdir() if f.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS), "")}'
-                if Path(j.folder_path).exists() and any(f.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS for f in Path(j.folder_path).iterdir())
-                else None
-            ),
+            'thumbnail_url': f'/api/job/{j.id}/image/{j.thumbnail_name}' if getattr(j, 'thumbnail_name', None) else None,
             'condition': j.job_metadata.get('condition') if hasattr(j, 'job_metadata') else None,
             'scheduled_time': getattr(j, 'scheduled_time', None)
         })
@@ -107,18 +103,29 @@ def get_job_details(job_id):
 def update_job_metadata(job_id):
     qm = current_app.queue_manager
     data = request.json
+
+    # Verify job exists
     job = qm.get_job_by_id(job_id)
     if not job:
         return error_response('Job not found', 404)
+
+    # Build validated updates dict
+    updates = {}
     try:
-        if 'title' in data: job.user_title = validate_title(data['title'])
-        if 'price' in data: job.user_price = str(validate_price(data['price']))
-        if 'description' in data: job.user_description = data['description']
-        if 'condition' in data: job.user_condition = data['condition']
-        if 'item_specifics' in data: job.item_specifics = data['item_specifics']
+        if 'title' in data:
+            updates['user_title'] = validate_title(data['title'])
+        if 'price' in data:
+            updates['user_price'] = str(validate_price(data['price']))
+        if 'description' in data:
+            updates['user_description'] = data['description']
+        if 'condition' in data:
+            updates['user_condition'] = data['condition']
+        if 'item_specifics' in data:
+            updates['item_specifics'] = data['item_specifics']
         if 'fulfillmentPolicy' in data:
-            if job.job_metadata is None: job.job_metadata = {}
-            job.job_metadata['fulfillment_policy'] = data['fulfillmentPolicy']
+            metadata = job.job_metadata or {}
+            metadata['fulfillment_policy'] = data['fulfillmentPolicy']
+            updates['job_metadata'] = metadata
         if 'scheduled_time' in data:
             s_time_str = data['scheduled_time']
             if s_time_str:
@@ -126,20 +133,29 @@ def update_job_metadata(job_id):
                 try:
                     s_time = datetime.fromisoformat(s_time_str.replace('Z', '+00:00'))
                     now = datetime.now(timezone.utc)
-                    if s_time < now: raise ValidationError("Scheduled time cannot be in the past.")
-                    if s_time > now + timedelta(days=21): raise ValidationError("Scheduled time cannot be more than 21 days in the future.")
-                    job.scheduled_time = s_time_str
-                except ValueError: raise ValidationError("Invalid scheduled_time format. Must be ISO 8601.")
-            else: job.scheduled_time = None
+                    if s_time < now:
+                        raise ValidationError("Scheduled time cannot be in the past.")
+                    if s_time > now + timedelta(days=21):
+                        raise ValidationError("Scheduled time cannot be more than 21 days in the future.")
+                    updates['scheduled_time'] = s_time_str
+                except ValueError:
+                    raise ValidationError("Invalid scheduled_time format. Must be ISO 8601.")
+            else:
+                updates['scheduled_time'] = None
     except ValidationError as e:
         return error_response(e.args[0], 400)
-    
-    qm.save_state()
+
+    # Persist directly to database
+    if updates:
+        qm.update_job(job_id, updates)
+
     if data.get('process_now'):
         from backend.app.services.queue_manager import JobStatus
         if job.status in [JobStatus.FAILED, JobStatus.PENDING, JobStatus.COMPLETED, JobStatus.NEEDS_REVIEW]:
-             qm.retry_job(job_id)
-        if not qm.is_processing(): qm.start_processing()
+            qm.retry_job(job_id)
+        if not qm.is_processing():
+            qm.start_processing()
+
     return jsonify({'success': True, 'message': 'Job updated'})
 
 @jobs_bp.route('/jobs/bulk-update', methods=['POST'])
@@ -148,22 +164,33 @@ def bulk_update_jobs():
     data = request.json
     job_ids = data.get('jobIds', [])
     updates = data.get('updates', {})
-    if not job_ids: return error_response('No jobIds provided', 400)
+    if not job_ids:
+        return error_response('No jobIds provided', 400)
+
     updated_count = 0
     errors = []
     for job_id in job_ids:
-        job = qm.get_job_by_id(job_id)
-        if not job: errors.append(f"Job {job_id} not found"); continue
         try:
-            if 'condition' in updates: job.user_condition = updates['condition']
-            if 'price' in updates: job.user_price = str(validate_price(updates['price']))
+            # Build per-job update dict
+            job_updates = {}
+            if 'condition' in updates:
+                job_updates['user_condition'] = updates['condition']
+            if 'price' in updates:
+                job_updates['user_price'] = str(validate_price(updates['price']))
             if updates.get('reset_status'):
-                 from backend.app.services.queue_manager import JobStatus
-                 job.status = JobStatus.PENDING
-                 job.error_type = None; job.error_message = None
-            updated_count += 1
-        except Exception as e: errors.append(f"Failed to update {job_id}: {e}")
-    qm.save_state()
+                from backend.app.services.queue_manager import JobStatus
+                job_updates['status'] = JobStatus.PENDING
+                job_updates['error_type'] = None
+                job_updates['error_message'] = None
+
+            if job_updates:
+                if qm.update_job(job_id, job_updates):
+                    updated_count += 1
+                else:
+                    errors.append(f"Job {job_id} not found")
+        except Exception as e:
+            errors.append(f"Failed to update {job_id}: {e}")
+
     return jsonify({'success': True, 'count': updated_count, 'errors': errors})
 
 @jobs_bp.route('/jobs/bulk-delete', methods=['POST'])
