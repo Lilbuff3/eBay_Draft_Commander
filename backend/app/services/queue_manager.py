@@ -1,108 +1,23 @@
 """
-Queue Manager for eBay Draft Commander
-Handles batch job processing with state persistence, pause/resume, and error recovery.
+Queue Manager for eBay Draft Commander.
+
+Orchestration layer: threading, DB persistence, Socket.IO events, pause/resume.
+For the data model (JobStatus, QueueJob, resolve_thumbnail), see queue_job.py.
+
+All three are re-exported here so existing imports keep working:
+    from backend.app.services.queue_manager import QueueManager, QueueJob, JobStatus
 """
-import json
 import uuid
 import threading
 import time
 from pathlib import Path
 from datetime import datetime
-from enum import Enum
-from dataclasses import dataclass, field, asdict
 from typing import Optional, List, Callable, Dict, Any
 from backend.app.core.logger import get_logger
 from backend.app.core.paths import get_data_dir
 
-
-class JobStatus(Enum):
-    """Status of a queue job"""
-    PENDING = "pending"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    PAUSED = "paused"
-    SKIPPED = "skipped"
-    SCHEDULED = "scheduled"
-    NEEDS_REVIEW = "needs_review"
-
-
-@dataclass
-class QueueJob:
-    """Represents a single listing job in the queue"""
-    id: str
-    folder_path: str
-    folder_name: str
-    status: JobStatus = JobStatus.PENDING
-    
-    # Core Data
-    listing_id: Optional[str] = None
-    offer_id: Optional[str] = None
-    price: Optional[str] = None
-    
-    # User Overrides
-    user_title: Optional[str] = None
-    user_price: Optional[str] = None
-    user_description: Optional[str] = None
-    user_condition: Optional[str] = None
-    
-    # Rich Data
-    ai_data: Dict[str, Any] = field(default_factory=dict)
-    item_specifics: Dict[str, Any] = field(default_factory=dict)
-    
-    # Error Handling
-    error_type: Optional[str] = None
-    error_message: Optional[str] = None
-    attempts: int = 0
-    max_attempts: int = 3
-    
-    # Timing & Meta
-    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
-    started_at: Optional[str] = None
-    completed_at: Optional[str] = None
-    scheduled_time: Optional[str] = None
-    timing: Dict[str, float] = field(default_factory=dict)
-    job_metadata: Dict[str, Any] = field(default_factory=dict)
-
-    # Cached thumbnail (avoids N+1 filesystem scan on /jobs list)
-    thumbnail_name: Optional[str] = None
-    
-    def to_dict(self) -> dict:
-        """Convert to JSON-serializable dict"""
-        data = asdict(self)
-        data['status'] = self.status.value
-        return data
-
-    def can_retry(self) -> bool:
-        """Check if job can be retried"""
-        return self.status == JobStatus.FAILED and self.attempts < self.max_attempts
-
-
-def resolve_thumbnail(folder_path: str) -> Optional[str]:
-    """Resolve the thumbnail filename for a job folder (single filesystem scan).
-
-    Priority: cover.jpg > cover.png > first supported image file.
-    Returns just the filename (e.g. 'cover.jpg', 'IMG_001.png'), or None if no images.
-    """
-    from backend.app.core.constants import SUPPORTED_IMAGE_EXTENSIONS
-    folder = Path(folder_path)
-    if not folder.exists():
-        return None
-
-    # Fast path: check for explicit cover files
-    for cover_name in ('cover.jpg', 'cover.jpeg', 'cover.png'):
-        if (folder / cover_name).exists():
-            return cover_name
-
-    # Single-pass scan for first supported image
-    try:
-        for f in sorted(folder.iterdir()):
-            if f.is_file() and f.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
-                return f.name
-    except OSError:
-        pass
-
-    return None
+# Re-export data model so existing imports don't break
+from backend.app.services.queue_job import JobStatus, QueueJob, resolve_thumbnail  # noqa: F401
 
 
 class QueueManager:
