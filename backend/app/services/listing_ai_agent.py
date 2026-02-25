@@ -24,8 +24,8 @@ class ListingAIAgent:
                 ai_data = job_obj.ai_data
             else:
                 if force_refresh:
-                    _log("♻️ Forcing AI Refresh (Ignoring Cache)...")
-                _log(f"🧠 Analyzing {len(images)} images with AI (Research Mode)...")
+                    _log("Forcing AI Refresh (Ignoring Cache)...")
+                _log(f"Analyzing {len(images)} images with AI (Research Mode)...")
                 ai_data = self.ai_analyzer.analyze_with_research(images)
                 
                 if ai_data.get('error'):
@@ -69,14 +69,14 @@ class ListingAIAgent:
         import time
         pricing_start = time.time()
         try:
-            _log("💰 Researching pricing & comps...")
+            _log("Researching pricing & comps...")
             price_result = self.pricing_engine.get_price_with_comps(
                 title, 
                 condition=condition, 
                 ai_suggested_price=ai_suggested_price
             )
             final_price = str(price_result['suggested_price']) if price_result['suggested_price'] else "0.00"
-            _log(f"💵 Suggested Price: ${final_price}")
+            _log(f"Suggested Price: ${final_price}")
             return {"price": final_price, "timing": time.time() - pricing_start}
         except Exception as e:
             _log(f"Pricing Logic Failed: {e}", level='error')

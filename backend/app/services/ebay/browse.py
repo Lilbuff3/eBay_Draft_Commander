@@ -74,7 +74,7 @@ class eBayBrowseAPI:
         if self._access_token:
             return self._access_token
             
-        logger.info("🔑 Requesting Client Credentials (App-Only) Token... (Independent of User Token)")
+        logger.info("Requesting Client Credentials (App-Only) Token... (Independent of User Token)")
         
         credentials = f"{self.app_id}:{self.cert_id}"
         encoded_credentials = base64.b64encode(credentials.encode()).decode()
@@ -97,7 +97,7 @@ class eBayBrowseAPI:
             self._access_token = token_data['access_token']
             return self._access_token
         except requests.exceptions.RequestException as e:
-            logger.error(f"❌ Browse API auth failed: {e}")
+            logger.error(f"Browse API auth failed: {e}")
             return None
     
     def search_items(self, query: str, limit: int = 30) -> Dict:
@@ -146,7 +146,7 @@ class eBayBrowseAPI:
                 'source': 'browse_api'
             }
         except requests.exceptions.RequestException as e:
-            logger.error(f"❌ Browse API search failed: {e}")
+            logger.error(f"Browse API search failed: {e}")
             if hasattr(e, 'response') and e.response:
                 logger.error(f"   Response: {e.response.text[:500]}")
             return self._empty_result()
@@ -257,11 +257,11 @@ if __name__ == "__main__":
         
         # Test search
         query = "vintage camera"
-        logger.info(f"\n🔍 Searching for: '{query}'")
+        logger.info(f"\nSearching for: '{query}'")
         
         results = client.search_items(query, limit=10)
         
-        logger.info(f"\n📊 Statistics:")
+        logger.info(f"\nStatistics:")
         stats = results['stats']
         logger.info(f"   Average: ${stats['average']:.2f}")
         logger.info(f"   Median:  ${stats['median']:.2f}")
@@ -270,12 +270,12 @@ if __name__ == "__main__":
         logger.info(f"   Count:   {stats['sold']}")
         logger.info(f"   Trend:   {stats['trend']} ({stats['trendPercent']}%)")
         
-        logger.info(f"\n📦 Sample Items:")
+        logger.info(f"\nSample Items:")
         for i, item in enumerate(results['items'][:5], 1):
             logger.info(f"   {i}. {item['title'][:50]}...")
             logger.info(f"      ${item['price']:.2f} - {item['condition']}")
         
-        logger.info(f"\n✅ Browse API test complete! Source: {results['source']}")
+        logger.info(f"\nBrowse API test complete! Source: {results['source']}")
         
     except Exception as e:
-        logger.error(f"❌ Test failed: {e}")
+        logger.error(f"Test failed: {e}")

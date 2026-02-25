@@ -39,7 +39,7 @@ def get_suggested_category(query: str, limit: int = 1) -> dict:
                     'path': _format_category_path(suggestions[0].get('categoryTreeNodeAncestors', []))
                 }
     except Exception as e:
-        logger.warning(f"⚠️ Category suggestion failed: {e}")
+        logger.warning(f"Category suggestion failed: {e}")
         
     return None
 
@@ -131,7 +131,7 @@ def get_category_suggestions(query: str) -> list:
                 })
             return results
     except Exception as e:
-        logger.warning(f"⚠️ get_category_suggestions failed: {e}")
+        logger.warning(f"get_category_suggestions failed: {e}")
         
     return []
 
@@ -171,6 +171,6 @@ def get_item_aspects(category_id: str) -> dict:
                     
             return {"required": required, "optional": optional}
     except Exception as e:
-        logger.warning(f"⚠️ get_item_aspects failed: {e}")
+        logger.warning(f"get_item_aspects failed: {e}")
         
     return {"required": [], "optional": []}

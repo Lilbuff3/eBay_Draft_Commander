@@ -87,6 +87,33 @@ class QueueManager:
         except Exception as e:
             self.logger.warning(f"Schema migration warning: {e}")
 
+        # Always backfill thumbnail_name for jobs that have NULL
+        self._backfill_thumbnails()
+
+    def _backfill_thumbnails(self):
+        """One-time backfill: resolve thumbnail_name for jobs that have NULL."""
+        session = self.SessionFactory()
+        try:
+            jobs_missing = session.query(self.JobModel).filter(
+                self.JobModel.thumbnail_name.is_(None)
+            ).all()
+            if not jobs_missing:
+                return
+            count = 0
+            for db_job in jobs_missing:
+                thumb = resolve_thumbnail(db_job.folder_path)
+                if thumb:
+                    db_job.thumbnail_name = thumb
+                    count += 1
+            if count:
+                session.commit()
+                self.logger.info(f"Backfilled thumbnail_name for {count}/{len(jobs_missing)} jobs")
+        except Exception as e:
+            session.rollback()
+            self.logger.warning(f"Thumbnail backfill warning: {e}")
+        finally:
+            session.close()
+
     def _init_background_services(self):
         """Start background threads and load persisted state. Called from __init__."""
         # Load any persisted state

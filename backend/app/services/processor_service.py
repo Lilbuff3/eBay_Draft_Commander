@@ -53,7 +53,7 @@ class ProcessorService:
         parent_name = folder_path.parent.name
         if parent_name in CONDITION_MAP:
             condition = CONDITION_MAP[parent_name]
-            _log(f"⚡ Condition: Folder Name '{parent_name}' → {condition}")
+            _log(f"Condition: Folder Name '{parent_name}' → {condition}")
             return condition
         
         _log(f"Condition: Default → {DEFAULT_CONDITION}")
@@ -166,7 +166,7 @@ class ProcessorService:
              return {"success": False, "error_message": analysis.get('error')}
 
         # 4. Taxonomy & Specifics
-        _log("📚 Mapping category taxonomy...")
+        _log("Mapping category taxonomy...")
         cat_result = self.category_mapper.get_category(analysis['title'], analysis['raw_description'])
         self._validate_mandatory_specifics(cat_result.get('name', 'Unknown'), analysis['item_specifics'])
 
@@ -200,5 +200,5 @@ class ProcessorService:
             "success": True, "listing_id": bundle['listing_id'], "status": bundle['status'],
             "price": pricing_result["price"], "timing": {**result["timing"], "api": bundle["timing"], "total": time.time() - start_time}
         })
-        _log(f"🚀 Listing Created: {result['status']}", level='success')
+        _log(f"Listing Created: {result['status']}", level='success')
         return result

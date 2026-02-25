@@ -129,7 +129,7 @@ class eBayOAuth:
                 self.user_token = token_data['access_token']
                 self.refresh_token = token_data.get('refresh_token')
                 
-                logger.info("✅ Successfully obtained user token!")
+                logger.info("Successfully obtained user token!")
                 logger.info(f"   Access Token: ****...{self.user_token[-4:]}")
                 logger.info(f"   Expires in: {token_data.get('expires_in', 'unknown')} seconds")
                 
@@ -140,12 +140,12 @@ class eBayOAuth:
                 self.save_tokens()
                 return True
             else:
-                logger.error(f"❌ Failed to get token: {response.status_code}")
+                logger.error(f"Failed to get token: {response.status_code}")
                 logger.error(f"   Error: {response.text}")
                 return False
                 
         except Exception as e:
-            logger.error(f"❌ Error exchanging code: {e}")
+            logger.error(f"Error exchanging code: {e}")
             return False
     
     def refresh_access_token(self):
@@ -157,7 +157,7 @@ class eBayOAuth:
             self.refresh_token = os.getenv('EBAY_REFRESH_TOKEN')
             
             if not self.refresh_token:
-                logger.error("❌ No refresh token available")
+                logger.error("No refresh token available")
                 return False
                 
             credentials = f"{self.app_id}:{self.cert_id}"
@@ -185,15 +185,15 @@ class eBayOAuth:
                     if 'refresh_token' in token_data:
                          self.refresh_token = token_data['refresh_token']
                     
-                    logger.info("✅ Token refreshed successfully!")
+                    logger.info("Token refreshed successfully!")
                     self.save_tokens()
                     return True
                 else:
-                    logger.error(f"❌ Refresh failed: {response.text}")
+                    logger.error(f"Refresh failed: {response.text}")
                     return False
                     
             except Exception as e:
-                logger.error(f"❌ Error refreshing: {e}")
+                logger.error(f"Error refreshing: {e}")
                 return False
     
     def save_tokens(self):
@@ -240,7 +240,7 @@ class eBayOAuth:
         with open(self.env_path, 'w') as f:
             f.writelines(new_lines)
         
-        logger.info("✅ Tokens saved to .env")
+        logger.info("Tokens saved to .env")
     
     def has_valid_token(self):
         """Check if we have a user token"""
@@ -292,7 +292,7 @@ class eBayOAuth:
             auth_code = auth_code.split('&')[0]  # Remove any trailing params
             return self.exchange_code_for_token(auth_code)
         else:
-            logger.error("❌ No code provided")
+            logger.error("No code provided")
             return False
 
 

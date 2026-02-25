@@ -245,23 +245,23 @@ def get_current_defaults() -> Dict:
 if __name__ == "__main__":
     logger.info("Testing eBay Policies API...")
     
-    logger.info("\n📦 Fulfillment Policies:")
+    logger.info("\nFulfillment Policies:")
     for p in get_fulfillment_policies():
         logger.info(f"  - {p['name']} ({p['id'][:20]}...): {p['description']}")
     
-    logger.info("\n💳 Payment Policies:")
+    logger.info("\nPayment Policies:")
     for p in get_payment_policies():
         logger.info(f"  - {p['name']} ({p['id'][:20]}...)")
     
-    logger.info("\n🔄 Return Policies:")
+    logger.info("\nReturn Policies:")
     for p in get_return_policies():
         logger.info(f"  - {p['name']} ({p['id'][:20]}...): {p['description']}")
     
-    logger.info("\n📍 Locations:")
+    logger.info("\nLocations:")
     for loc in get_inventory_locations():
         logger.info(f"  - {loc['name']} ({loc['id']}): {loc['description']}")
     
-    logger.info("\n⚙️ Current Defaults:")
+    logger.info("\nCurrent Defaults:")
     defaults = get_current_defaults()
     for key, val in defaults.items():
         logger.info(f"  - {key}: {val[:20] if val else 'Not set'}...")

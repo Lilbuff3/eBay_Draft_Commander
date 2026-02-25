@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { fetchJobs, fetchStatus, type Job, type QueueStats } from '@/lib/api'
+import { fetchJobs, fetchStatus, type Job } from '@/lib/api'
 import { io, type Socket } from 'socket.io-client'
 import { toast } from 'sonner'
 import type { LogEntry } from '@/components/LogViewer'

@@ -1,4 +1,4 @@
-import { LayoutTemplate, Package, BarChart3, Settings, Camera, Search, Eye, PlusCircle } from 'lucide-react'
+import { LayoutTemplate, Package, BarChart3, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCommanderStore } from '@/store/useCommanderStore'
 
@@ -11,22 +11,6 @@ const navGroups = [
         title: "Workspace",
         items: [
             { id: 'dashboard', icon: LayoutTemplate, label: 'Queue' },
-            { id: 'create', icon: PlusCircle, label: 'New Listing' },
-        ]
-    },
-    {
-        title: "Tools",
-        items: [
-            { id: 'batch-scan', icon: Package, label: 'Batch Scan' },
-            { id: 'photo-editor', icon: Camera, label: 'Photo Editor' },
-            { id: 'price-research', icon: Search, label: 'Price Research' },
-            { id: 'preview', icon: Eye, label: 'Preview' },
-            { id: 'templates', icon: LayoutTemplate, label: 'Templates' },
-        ]
-    },
-    {
-        title: "Business",
-        items: [
             { id: 'inventory', icon: Package, label: 'Inventory' },
             { id: 'analytics', icon: BarChart3, label: 'Analytics' },
         ]
