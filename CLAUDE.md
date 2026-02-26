@@ -123,7 +123,7 @@ frontend/                   React 18 + Vite + TypeScript
 - **Zustand for state** — Single store (`useCommanderStore.ts`) manages jobs, queue status, settings, selected job, UI state. Accessed via selectors.
 - **Typed HTTP client** — `apiFetch<T>()` in `src/lib/api.ts` wraps fetch with generics and error handling.
 - **Socket.IO events**: `job_added`, `job_update`, `job_log` — emitted by QueueService, consumed via `useJobSync` hook.
-- **Condition from folder structure** — `inbox/{condition_folder}/{item_folder}/` maps via CONDITION_MAP
+- **Condition priority chain** — user_override > metadata > folder_name (CONDITION_MAP) > **AI-detected** > DEFAULT_CONDITION. AI refinement in `_refine_condition_from_ai()` only fires when no explicit override exists.
 - **SKU format**: `DC-{8 uppercase hex}` generated in listing pipeline
 - **Listing creation uses Trading API** — `AddFixedPriceItem` (XML), not Inventory API. Supports `ScheduleTime` for scheduled listings.
 - **Scheduled listings** — Dashboard has datetime picker; `scheduled_time` stored on job, passed through to Trading API `ScheduleTime` field.
@@ -145,12 +145,12 @@ SQLite pragmas: `journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=5000`
 
 1. Images in `inbox/` → ScannerService detects → creates job
 2. ListingAIAgent orchestrates:
-   - Condition: user_override > metadata > folder_name > DEFAULT_CONDITION
+   - Condition: user_override > metadata > folder_name > AI-detected > DEFAULT_CONDITION
    - AI: Gemini 2.0 Flash vision analysis (cached in ai_json to avoid re-analysis)
-   - Category: CategoryMapper → eBay Taxonomy API (fallback: 170599)
-   - Price: PricingEngine cascade: ISBN search → keyword search → Gemini grounding → AI estimate
+   - Category: CategoryMapper → taxonomy.py `get_safe_category()` (hardware guards with context awareness) → eBay Taxonomy API (fallback: 170599)
+   - Price: PricingEngine cascade: ISBN search → keyword search → Gemini grounding → AI estimate. All paths add `ESTIMATED_SHIPPING_COST` buffer ($6.50 default) for free shipping.
    - Images: upload to eBay EPS (max 12)
-   - Template: TemplateManager renders HTML description
+   - Template: TemplateManager renders inline-styled HTML (eBay strips `<style>`/`<head>` on mobile)
    - eBay: Trading API `AddFixedPriceItem` (XML) → active or scheduled listing
 3. Real-time status via Socket.IO → frontend updates via useJobSync
 
@@ -163,7 +163,7 @@ SQLite pragmas: `journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=5000`
 
 Required: `EBAY_APP_ID`, `EBAY_CERT_ID`, `EBAY_USER_TOKEN`, `GOOGLE_API_KEY`
 Business policies: `EBAY_FULFILLMENT_POLICY`, `EBAY_PAYMENT_POLICY`, `EBAY_RETURN_POLICY`, `EBAY_MERCHANT_LOCATION`
-Optional: `DEFAULT_CONDITION` (USED_EXCELLENT), `DEFAULT_PRICE` (29.99), `AUTO_PUBLISH` (false), `CONFIDENCE_THRESHOLD` (85), `PORT` (5000)
+Optional: `DEFAULT_CONDITION` (USED_EXCELLENT), `DEFAULT_PRICE` (29.99), `AUTO_PUBLISH` (false), `CONFIDENCE_THRESHOLD` (85), `PORT` (5000), `ESTIMATED_SHIPPING_COST` (6.50 — baked into listing price since fulfillment policy is free shipping)
 
 Settings UI writes directly to .env via SettingsManager singleton.
 
@@ -195,3 +195,10 @@ Test conventions: `test_*.py` files, `Test*` classes, `test_*` functions.
 - **Trading API XML** — Used for ALL new listings (`AddFixedPriceItem`). Also used as read fallback (`GetSellerList`) when Inventory API returns 0 items. Inventory API still used for existing listing management (update, withdraw, publish).
 - **CONDITION_ID_MAP** — Maps condition enum strings to numeric eBay condition IDs (needed for Trading API XML)
 - **@supabase/supabase-js** in package.json but unused in source — safe to remove
+- **Config .env loading** — `backend/config.py` loads `.env` via `load_dotenv_manually()` in BOTH dev and frozen mode. Without this, `os.environ` / `app.config` won't have eBay policies and ALL listings fail with missing return policy errors.
+- **eBay description template** — `templates/ebay_master.html` uses inline styles ONLY. eBay strips `<head>`, `<style>`, and `<link>` tags on mobile. Never use CSS classes or `<style>` blocks.
+- **Category taxonomy guards** — `taxonomy.py` has keyword guards for printer parts (fuser, drum, hardware). The `drum` guard requires printer context (laser/printer/toner). A `non_hardware_context` word list prevents board games, toys, etc. from hitting the printer guard. If items get wrong categories, check `get_safe_category()`.
+- **Windows cp1252 emoji encoding** — Logger calls with emoji characters fail on Windows console (cp1252 codec). Emojis in log messages cause `UnicodeEncodeError` but don't crash the pipeline — they're cosmetic logging errors only.
+- **Free shipping pricing** — Fulfillment policy uses free shipping. `ESTIMATED_SHIPPING_COST` (default $6.50) is added to suggested price so seller margin isn't eaten by shipping. The buffer is applied in `pricing_engine.py` after the condition multiplier.
+- **Git worktrees** — Avoid for this project. Worktrees don't share `.env` (not tracked by git), causing policy loading failures. Use feature branches on the main clone instead.
+- **Queue API routes** — Queue control is at `/api/start`, `/api/pause`, `/api/skip` (no `/queue/` prefix) because `queue_bp` is registered with `url_prefix=''`.
