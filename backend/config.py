@@ -45,6 +45,8 @@ class Config:
     else:
         # Dev: __file__ is backend/config.py -> parent=backend -> parent=root
         BASE_DIR = Path(__file__).parent.parent
+        # Load .env into os.environ for dev mode too
+        load_dotenv_manually(BASE_DIR)
 
     # Paths
     # In frozen mode, PyInstaller extracts resources to _MEI temporary folder
