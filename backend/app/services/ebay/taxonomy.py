@@ -64,8 +64,9 @@ def get_safe_category(title: str) -> dict:
             'path': 'Computers/Tablets & Networking > Printers, Scanners & Supplies > Printer & Scanner Parts & Accs > Fusers',
             'source': 'guard_forced_fuser'
         }
-        
-    if "drum" in title_lower:
+
+    # "drum" is ambiguous (laser drum vs musical drum) — check for printer context
+    if "drum" in title_lower and ("laser" in title_lower or "printer" in title_lower or "toner" in title_lower or "imaging" in title_lower):
         return {
             'id': '51288',
             'name': 'Laser Drums',
@@ -73,8 +74,18 @@ def get_safe_category(title: str) -> dict:
             'source': 'guard_forced_drum'
         }
     
-    hardware_keywords = ['belt', 'sensor', 'motor', 'gear', 'board', 'roller', 'assembly', 'maintenance kit', 'panel', 'guide']
-    if any(word in title_lower for word in hardware_keywords):
+    # Context words that indicate the item is NOT a printer part
+    non_hardware_context = ['game', 'toy', 'book', 'collectible', 'vintage', 'antique',
+                            'shirt', 'shoe', 'clothing', 'figure', 'lego', 'card',
+                            'vinyl', 'record', 'guitar', 'camera', 'phone', 'tablet',
+                            'watch', 'jewelry', 'art', 'craft', 'kitchen', 'garden',
+                            'sport', 'fishing', 'hunting', 'golf', 'bike', 'skateboard']
+    has_non_hw_context = any(word in title_lower for word in non_hardware_context)
+
+    # Only apply hardware guard if no contradicting context is present
+    # Removed 'board' — too generic (matches board games, skateboards, etc.)
+    hardware_keywords = ['belt', 'sensor', 'motor', 'gear', 'roller', 'assembly', 'maintenance kit', 'panel', 'guide']
+    if not has_non_hw_context and any(word in title_lower for word in hardware_keywords):
         return {
             'id': '170599',
             'name': 'Other Printer & Scanner Accs',

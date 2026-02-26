@@ -36,28 +36,73 @@ class ProcessorService:
         self.image_processor = ImageProcessor(self.ebay_service)
         self.ai_agent = ListingAIAgent()
         
+    # Map AI condition states to our internal condition enum values
+    AI_CONDITION_MAP = {
+        'new': 'NEW',
+        'brand new': 'NEW',
+        'new open box': 'NEW_OTHER',
+        'new other': 'NEW_OTHER',
+        'new old stock': 'NEW_OTHER',
+        'new with defects': 'NEW_WITH_DEFECTS',
+        'used - like new': 'LIKE_NEW',
+        'like new': 'LIKE_NEW',
+        'used - good': 'USED_GOOD',
+        'used - excellent': 'USED_EXCELLENT',
+        'used - acceptable': 'USED_ACCEPTABLE',
+        'used': 'USED_GOOD',
+        'for parts': 'FOR_PARTS_OR_NOT_WORKING',
+        'for parts or not working': 'FOR_PARTS_OR_NOT_WORKING',
+    }
+
     def _determine_condition(self, folder_path: Path, metadata_condition: str, user_condition: str, log_callback=None) -> str:
         """Determine item condition with explicit priority"""
         def _log(msg, level='info'):
             if log_callback: log_callback(msg, level)
             logger.debug(msg)
-        
+
         if user_condition:
-            _log(f"Condition: User Override → {user_condition}")
+            _log(f"Condition: User Override -> {user_condition}")
             return user_condition
-        
+
         if metadata_condition:
-            _log(f"Condition: Queue Metadata → {metadata_condition}")
+            _log(f"Condition: Queue Metadata -> {metadata_condition}")
             return metadata_condition
-        
+
         parent_name = folder_path.parent.name
         if parent_name in CONDITION_MAP:
             condition = CONDITION_MAP[parent_name]
-            _log(f"Condition: Folder Name '{parent_name}' → {condition}")
+            _log(f"Condition: Folder Name '{parent_name}' -> {condition}")
             return condition
-        
-        _log(f"Condition: Default → {DEFAULT_CONDITION}")
+
+        _log(f"Condition: Default -> {DEFAULT_CONDITION}")
         return DEFAULT_CONDITION
+
+    def _refine_condition_from_ai(self, current_condition: str, ai_data: dict, has_user_override: bool, has_metadata: bool, has_folder_match: bool, log_callback=None) -> str:
+        """Refine condition using AI-detected state, if no explicit override exists.
+
+        Only upgrades/changes condition when it came from DEFAULT_CONDITION
+        (i.e. no user override, no metadata, no folder match).
+        """
+        def _log(msg, level='info'):
+            if log_callback: log_callback(msg, level)
+            logger.debug(msg)
+
+        # Don't override explicit user/metadata/folder conditions
+        if has_user_override or has_metadata or has_folder_match:
+            return current_condition
+
+        condition_data = ai_data.get('condition', {})
+        ai_state = condition_data.get('state', '').strip().lower()
+
+        if not ai_state:
+            return current_condition
+
+        mapped = self.AI_CONDITION_MAP.get(ai_state)
+        if mapped and mapped != current_condition:
+            _log(f"Condition: AI detected '{condition_data.get('state')}' -> {mapped}")
+            return mapped
+
+        return current_condition
 
     def _validate_mandatory_specifics(self, category_name: str, specifics: dict):
         """Check if mandatory eBay Item Specifics are present"""
@@ -150,9 +195,13 @@ class ProcessorService:
         if not folder_path.exists():
             return {"success": False, "error_message": f"Folder not found: {folder_path}"}
 
-        # 1. Condition
-        condition = self._determine_condition(folder_path, job_obj.job_metadata.get('condition') if job_obj.job_metadata else None, job_obj.user_condition, log_callback)
-        
+        # 1. Initial Condition (may be refined after AI analysis)
+        metadata_condition = job_obj.job_metadata.get('condition') if job_obj.job_metadata else None
+        condition = self._determine_condition(folder_path, metadata_condition, job_obj.user_condition, log_callback)
+        has_user_override = bool(job_obj.user_condition)
+        has_metadata = bool(metadata_condition)
+        has_folder_match = folder_path.parent.name in CONDITION_MAP
+
         # 2. Images
         images = sorted([f for f in folder_path.iterdir() if f.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS])
         if not images:
@@ -164,6 +213,12 @@ class ProcessorService:
         result["timing"]["ai_analysis"] = time.time() - ai_start
         if not analysis.get('success'):
              return {"success": False, "error_message": analysis.get('error')}
+
+        # 3b. Refine condition using AI detection (only if no explicit override)
+        condition = self._refine_condition_from_ai(
+            condition, analysis.get('ai_data', {}),
+            has_user_override, has_metadata, has_folder_match, log_callback
+        )
 
         # 4. Taxonomy & Specifics
         _log("Mapping category taxonomy...")
