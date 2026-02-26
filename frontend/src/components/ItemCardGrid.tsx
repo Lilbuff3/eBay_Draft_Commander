@@ -25,6 +25,7 @@ interface ItemCardGridProps {
     onBulkDelete: () => void
     onClearFailed?: () => void
     onClearCompleted?: () => void
+    onDeleteJob?: (id: string) => void
 }
 
 export function ItemCardGrid({
@@ -42,6 +43,7 @@ export function ItemCardGrid({
     onBulkDelete,
     onClearFailed,
     onClearCompleted,
+    onDeleteJob,
 }: ItemCardGridProps) {
     const [activeFilter, setActiveFilter] = useState<FilterTab>('all')
     const [showOverflow, setShowOverflow] = useState(false)
@@ -326,6 +328,7 @@ export function ItemCardGrid({
                                 isSelectionMode={isSelectionMode}
                                 onToggleSelect={onToggleSelect}
                                 onClick={() => onSelectJob(job)}
+                                onDelete={onDeleteJob}
                             />
                         ))}
                     </div>

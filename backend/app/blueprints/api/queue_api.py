@@ -65,14 +65,18 @@ def retry_failed():
 @queue_bp.route('/clear', methods=['POST'])
 def clear_completed():
     qm = current_app.queue_manager
-    qm.clear_completed()
-    return jsonify({'success': True})
+    data = request.get_json(silent=True) or {}
+    delete_folders = data.get('deleteFolders', False)
+    result = qm.clear_completed(delete_folders=delete_folders)
+    return jsonify({'success': True, **result})
 
 @queue_bp.route('/clear-failed', methods=['POST'])
 def clear_failed():
     qm = current_app.queue_manager
-    qm.clear_failed()
-    return jsonify({'success': True})
+    data = request.get_json(silent=True) or {}
+    delete_folders = data.get('deleteFolders', False)
+    result = qm.clear_failed(delete_folders=delete_folders)
+    return jsonify({'success': True, **result})
 
 @queue_bp.route('/scan', methods=['POST'])
 def scan_inbox_endpoint():

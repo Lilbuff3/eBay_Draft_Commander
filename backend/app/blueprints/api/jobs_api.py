@@ -8,10 +8,37 @@ from backend.app.services.image_service import ImageService
 from backend.app.core.constants import SUPPORTED_IMAGE_EXTENSIONS
 from backend.app.core.validator import validate_price, validate_title, validate_isbn, ValidationError
 from backend.app.core.logger import get_logger
+from backend.app.services.queue_job import resolve_thumbnail
 
 jobs_bp = Blueprint('jobs', __name__)
 logger = get_logger('api.jobs')
 image_service = ImageService()
+
+
+def _resolve_display_name(j) -> str:
+    """Extract the best available display name from AI data, falling back to folder name."""
+    ai_data = j.ai_data if hasattr(j, 'ai_data') and j.ai_data else {}
+    listing = ai_data.get('listing', {})
+    return (
+        getattr(j, 'user_title', None)
+        or listing.get('suggested_title')
+        or ai_data.get('seo_title')
+        or j.folder_name
+    )
+
+
+def _resolve_thumb_url(j, qm) -> str | None:
+    """Get thumbnail URL, with on-demand resolution and caching for cache misses."""
+    thumb = getattr(j, 'thumbnail_name', None)
+    if not thumb:
+        thumb = resolve_thumbnail(j.folder_path)
+        if thumb:
+            try:
+                qm.update_thumbnail(j.id, thumb)
+            except Exception:
+                pass
+    return f'/api/job/{j.id}/image/{thumb}' if thumb else None
+
 
 @jobs_bp.route('/jobs')
 def get_jobs():
@@ -22,6 +49,7 @@ def get_jobs():
         jobs_data.append({
             'id': j.id,
             'name': j.folder_name,
+            'display_name': _resolve_display_name(j),
             'status': j.status.value if hasattr(j.status, 'value') else j.status,
             'folder_path': str(j.folder_path),
             'listing_id': getattr(j, 'listing_id', None),
@@ -31,7 +59,7 @@ def get_jobs():
             'error_message': getattr(j, 'error_message', None),
             'started_at': getattr(j, 'started_at', None),
             'completed_at': getattr(j, 'completed_at', None),
-            'thumbnail_url': f'/api/job/{j.id}/image/{j.thumbnail_name}' if getattr(j, 'thumbnail_name', None) else None,
+            'thumbnail_url': _resolve_thumb_url(j, qm),
             'condition': j.job_metadata.get('condition') if hasattr(j, 'job_metadata') else None,
             'scheduled_time': getattr(j, 'scheduled_time', None)
         })
@@ -198,11 +226,12 @@ def bulk_delete_jobs():
     qm = current_app.queue_manager
     data = request.json
     job_ids = data.get('jobIds', [])
+    delete_folders = data.get('deleteFolders', False)
     if not job_ids: return error_response('No jobIds provided', 400)
     deleted_count = 0
     errors = []
     for job_id in job_ids:
-        if qm.remove_job(job_id): deleted_count += 1
+        if qm.remove_job(job_id, delete_folder=delete_folders): deleted_count += 1
         else: errors.append(f"Failed to delete {job_id}")
     return jsonify({'success': True, 'count': deleted_count, 'errors': errors})
 

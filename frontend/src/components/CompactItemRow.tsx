@@ -1,5 +1,5 @@
-import { type MouseEvent } from 'react'
-import { Clock, Loader2, Check, AlertCircle, Image, ChevronRight, CalendarClock, DollarSign, Square, CheckSquare } from 'lucide-react'
+import { useState, useRef, type MouseEvent, type TouchEvent } from 'react'
+import { Clock, Loader2, Check, AlertCircle, Image, ChevronRight, CalendarClock, DollarSign, Square, CheckSquare, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Job, JobStatus } from '@/lib/api'
 
@@ -9,6 +9,7 @@ interface CompactItemRowProps {
     isSelectionMode: boolean
     onToggleSelect: (id: string) => void
     onClick: () => void
+    onDelete?: (id: string) => void
 }
 
 const statusConfig: Record<JobStatus, { icon: typeof Clock; label: string; color: string; bg: string }> = {
@@ -22,12 +23,27 @@ const statusConfig: Record<JobStatus, { icon: typeof Clock; label: string; color
     needs_review: { icon: AlertCircle, label: 'Review', color: 'text-amber-600', bg: 'bg-amber-50' },
 }
 
-export function CompactItemRow({ job, isSelected, isSelectionMode, onToggleSelect, onClick }: CompactItemRowProps) {
+const SWIPE_THRESHOLD = 80
+
+export function CompactItemRow({ job, isSelected, isSelectionMode, onToggleSelect, onClick, onDelete }: CompactItemRowProps) {
     const status = statusConfig[job.status] || statusConfig.pending
     const StatusIcon = status.icon
     const isProcessing = job.status === 'processing'
 
+    // Swipe state
+    const [swipeX, setSwipeX] = useState(0)
+    const [isSwiping, setIsSwiping] = useState(false)
+    const [showDelete, setShowDelete] = useState(false)
+    const touchStartRef = useRef({ x: 0, y: 0, time: 0 })
+    const rowRef = useRef<HTMLDivElement>(null)
+
     const handleClick = (e: MouseEvent) => {
+        if (showDelete) {
+            // Tapping on the row when delete is revealed should close it
+            setShowDelete(false)
+            setSwipeX(0)
+            return
+        }
         if (isSelectionMode) {
             e.stopPropagation()
             onToggleSelect(job.id)
@@ -43,6 +59,59 @@ export function CompactItemRow({ job, isSelected, isSelectionMode, onToggleSelec
         }
     }
 
+    // Touch handlers for swipe-to-delete
+    const handleTouchStart = (e: TouchEvent) => {
+        if (isSelectionMode) return
+        const touch = e.touches[0]
+        touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() }
+        setIsSwiping(false)
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+        if (isSelectionMode) return
+        const touch = e.touches[0]
+        const dx = touch.clientX - touchStartRef.current.x
+        const dy = touch.clientY - touchStartRef.current.y
+
+        // Only allow left swipe, require more horizontal than vertical movement
+        if (!isSwiping && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+            setIsSwiping(true)
+        }
+
+        if (isSwiping) {
+            // Clamp: allow left swipe up to -120px, slight right spring back
+            const clampedX = showDelete
+                ? Math.min(0, Math.max(-120, dx - SWIPE_THRESHOLD))
+                : Math.min(10, Math.max(-120, dx))
+            setSwipeX(clampedX)
+        }
+    }
+
+    const handleTouchEnd = () => {
+        if (!isSwiping) return
+        setIsSwiping(false)
+
+        if (swipeX < -SWIPE_THRESHOLD) {
+            // Commit: lock at delete position
+            setSwipeX(-SWIPE_THRESHOLD)
+            setShowDelete(true)
+        } else {
+            // Snap back
+            setSwipeX(0)
+            setShowDelete(false)
+        }
+    }
+
+    const handleDeleteClick = () => {
+        if (onDelete) {
+            onDelete(job.id)
+        }
+        setSwipeX(0)
+        setShowDelete(false)
+    }
+
+    const displayName = job.display_name || job.name
+
     const subtitle = job.condition
         ? job.error_type
             ? `${job.condition} · ${job.error_type}`
@@ -55,76 +124,103 @@ export function CompactItemRow({ job, isSelected, isSelectionMode, onToggleSelec
         )
 
     return (
-        <button
-            type="button"
-            onClick={handleClick}
-            onContextMenu={handleLongPress}
-            className={cn(
-                'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors',
-                'active:bg-stone-100 border-b border-stone-100 last:border-b-0',
-                isSelected && !isSelectionMode && 'bg-sage-50/60',
-                isSelectionMode && isSelected && 'bg-blue-50/60',
-            )}
-        >
-            {/* Selection checkbox */}
-            {isSelectionMode && (
-                <div className="flex-shrink-0" onClick={(e) => { e.stopPropagation(); onToggleSelect(job.id) }}>
-                    {isSelected ? (
-                        <CheckSquare size={20} className="text-blue-600" />
-                    ) : (
-                        <Square size={20} className="text-stone-300" />
-                    )}
+        <div className="relative overflow-hidden" ref={rowRef}>
+            {/* Delete action behind the row */}
+            {onDelete && (
+                <div className="absolute inset-y-0 right-0 flex items-center">
+                    <button
+                        onClick={handleDeleteClick}
+                        className="h-full px-6 bg-red-500 text-white flex items-center gap-1.5 text-sm font-medium active:bg-red-600 transition-colors"
+                        style={{ width: SWIPE_THRESHOLD }}
+                    >
+                        <Trash2 size={16} />
+                        Delete
+                    </button>
                 </div>
             )}
 
-            {/* Thumbnail */}
-            <div className="w-12 h-12 rounded-lg bg-stone-100 flex-shrink-0 overflow-hidden">
-                {job.thumbnail_url ? (
-                    <img
-                        src={job.thumbnail_url}
-                        alt=""
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                    />
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center text-stone-300">
-                        <Image size={20} />
+            {/* Swipeable content */}
+            <div
+                style={{
+                    transform: `translateX(${swipeX}px)`,
+                    transition: isSwiping ? 'none' : 'transform 0.25s ease-out',
+                }}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+            >
+                <button
+                    type="button"
+                    onClick={handleClick}
+                    onContextMenu={handleLongPress}
+                    className={cn(
+                        'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors bg-white',
+                        'active:bg-stone-100 border-b border-stone-100 last:border-b-0',
+                        isSelected && !isSelectionMode && 'bg-sage-50/60',
+                        isSelectionMode && isSelected && 'bg-blue-50/60',
+                    )}
+                >
+                    {/* Selection checkbox */}
+                    {isSelectionMode && (
+                        <div className="flex-shrink-0" onClick={(e) => { e.stopPropagation(); onToggleSelect(job.id) }}>
+                            {isSelected ? (
+                                <CheckSquare size={20} className="text-blue-600" />
+                            ) : (
+                                <Square size={20} className="text-stone-300" />
+                            )}
+                        </div>
+                    )}
+
+                    {/* Thumbnail */}
+                    <div className="w-12 h-12 rounded-lg bg-stone-100 flex-shrink-0 overflow-hidden">
+                        {job.thumbnail_url ? (
+                            <img
+                                src={job.thumbnail_url}
+                                alt=""
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                            />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center text-stone-300">
+                                <Image size={20} />
+                            </div>
+                        )}
                     </div>
-                )}
-            </div>
 
-            {/* Content */}
-            <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                    <h4 className="text-sm font-medium text-stone-800 truncate">
-                        {job.name}
-                    </h4>
-                    {/* Status pill */}
-                    <span className={cn(
-                        'flex-shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md',
-                        status.bg, status.color,
-                    )}>
-                        <StatusIcon size={10} className={isProcessing ? 'animate-spin' : ''} />
-                        {status.label}
-                    </span>
-                </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                    <p className="text-xs text-stone-400 truncate flex-1">
-                        {subtitle}
-                    </p>
-                    {job.price && (
-                        <span className="text-xs font-semibold text-green-700 flex items-center flex-shrink-0">
-                            <DollarSign size={10} className="mr-0.5" />
-                            {job.price}
-                        </span>
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                            <h4 className="text-sm font-medium text-stone-800 truncate">
+                                {displayName}
+                            </h4>
+                            {/* Status pill */}
+                            <span className={cn(
+                                'flex-shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md',
+                                status.bg, status.color,
+                            )}>
+                                <StatusIcon size={10} className={isProcessing ? 'animate-spin' : ''} />
+                                {status.label}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                            <p className="text-xs text-stone-400 truncate flex-1">
+                                {subtitle}
+                            </p>
+                            {job.price && (
+                                <span className="text-xs font-semibold text-green-700 flex items-center flex-shrink-0">
+                                    <DollarSign size={10} className="mr-0.5" />
+                                    {job.price}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Chevron */}
+                    {!isSelectionMode && (
+                        <ChevronRight size={16} className="text-stone-300 flex-shrink-0" />
                     )}
-                </div>
+                </button>
             </div>
-
-            {/* Chevron */}
-            {!isSelectionMode && (
-                <ChevronRight size={16} className="text-stone-300 flex-shrink-0" />
-            )}
-        </button>
+        </div>
     )
 }

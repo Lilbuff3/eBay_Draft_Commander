@@ -8,6 +8,7 @@ All three are re-exported here so existing imports keep working:
     from backend.app.services.queue_manager import QueueManager, QueueJob, JobStatus
 """
 import uuid
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -435,14 +436,42 @@ class QueueManager:
             jobs.append(self.add_folder(path))
         return jobs
     
-    def remove_job(self, job_id: str) -> bool:
+    def _delete_folder(self, folder_path: str) -> bool:
+        """Safely delete a job's inbox folder from disk."""
+        try:
+            p = Path(folder_path)
+            if p.exists() and p.is_dir():
+                shutil.rmtree(p)
+                self.logger.info(f"Deleted folder: {p}")
+                return True
+        except Exception as e:
+            self.logger.warning(f"Failed to delete folder {folder_path}: {e}")
+        return False
+
+    def update_thumbnail(self, job_id: str, thumb_name: str):
+        """Cache a resolved thumbnail filename for a job."""
+        session = self.SessionFactory()
+        try:
+            db_job = session.query(self.JobModel).filter_by(id=job_id).first()
+            if db_job:
+                db_job.thumbnail_name = thumb_name
+                session.commit()
+        except Exception as e:
+            session.rollback()
+        finally:
+            session.close()
+
+    def remove_job(self, job_id: str, delete_folder: bool = False) -> bool:
         """Remove a job from the queue (only if pending or failed)"""
         session = self.SessionFactory()
         try:
             db_job = session.query(self.JobModel).filter_by(id=job_id).first()
             if db_job and db_job.status in [JobStatus.PENDING.value, JobStatus.FAILED.value, JobStatus.SKIPPED.value]:
+                folder_path = db_job.folder_path
                 session.delete(db_job)
                 session.commit()
+                if delete_folder and folder_path:
+                    self._delete_folder(folder_path)
                 return True
         except Exception as e:
             session.rollback()
@@ -466,29 +495,51 @@ class QueueManager:
             session.close()
         return False
     
-    def clear_completed(self):
-        """Remove all completed and skipped jobs from the queue"""
+    def clear_completed(self, delete_folders: bool = False) -> dict:
+        """Remove all completed and skipped jobs from the queue.
+        Returns {'count': N, 'folders_deleted': M}."""
         session = self.SessionFactory()
         try:
-            session.query(self.JobModel).filter(
+            jobs = session.query(self.JobModel).filter(
                 self.JobModel.status.in_([JobStatus.COMPLETED.value, JobStatus.SKIPPED.value])
-            ).delete(synchronize_session=False)
+            ).all()
+            count = len(jobs)
+            folders_deleted = 0
+            if delete_folders:
+                for db_job in jobs:
+                    if self._delete_folder(db_job.folder_path):
+                        folders_deleted += 1
+            for db_job in jobs:
+                session.delete(db_job)
             session.commit()
+            return {'count': count, 'folders_deleted': folders_deleted}
         except Exception as e:
             session.rollback()
+            return {'count': 0, 'folders_deleted': 0}
         finally:
             session.close()
-            
-    def clear_failed(self):
-        """Remove all failed jobs from the queue"""
+
+    def clear_failed(self, delete_folders: bool = False) -> dict:
+        """Remove all failed jobs from the queue.
+        Returns {'count': N, 'folders_deleted': M}."""
         session = self.SessionFactory()
         try:
-            session.query(self.JobModel).filter(
+            jobs = session.query(self.JobModel).filter(
                 self.JobModel.status == JobStatus.FAILED.value
-            ).delete(synchronize_session=False)
+            ).all()
+            count = len(jobs)
+            folders_deleted = 0
+            if delete_folders:
+                for db_job in jobs:
+                    if self._delete_folder(db_job.folder_path):
+                        folders_deleted += 1
+            for db_job in jobs:
+                session.delete(db_job)
             session.commit()
+            return {'count': count, 'folders_deleted': folders_deleted}
         except Exception as e:
             session.rollback()
+            return {'count': 0, 'folders_deleted': 0}
         finally:
             session.close()
     

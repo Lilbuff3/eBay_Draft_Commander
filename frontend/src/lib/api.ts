@@ -5,6 +5,7 @@ export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'pau
 export interface Job {
     id: string
     name: string
+    display_name?: string
     status: JobStatus
     folder_path: string
     listing_id: string | null
@@ -80,12 +81,35 @@ export async function retryFailed(): Promise<{ success: boolean; retried?: numbe
     return apiFetch(`${API_BASE}/retry`, { method: 'POST' })
 }
 
-export async function clearCompleted(): Promise<{ success: boolean; message?: string }> {
-    return apiFetch(`${API_BASE}/clear`, { method: 'POST' })
+export interface ClearResult {
+    success: boolean
+    count?: number
+    folders_deleted?: number
+    message?: string
 }
 
-export async function clearFailed(): Promise<{ success: boolean; message?: string }> {
-    return apiFetch(`${API_BASE}/clear-failed`, { method: 'POST' })
+export async function clearCompleted(deleteFolders = false): Promise<ClearResult> {
+    return apiFetch(`${API_BASE}/clear`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deleteFolders })
+    })
+}
+
+export async function clearFailed(deleteFolders = false): Promise<ClearResult> {
+    return apiFetch(`${API_BASE}/clear-failed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deleteFolders })
+    })
+}
+
+export async function deleteJob(jobId: string, deleteFolder = false): Promise<{ success: boolean }> {
+    return apiFetch(`${API_BASE}/jobs/bulk-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobIds: [jobId], deleteFolders: deleteFolder })
+    })
 }
 
 export interface CreateListingParams {

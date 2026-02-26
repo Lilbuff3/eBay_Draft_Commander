@@ -117,7 +117,7 @@ export const ItemCard = forwardRef<HTMLDivElement, ItemCardProps>(function ItemC
             {/* Info */}
             <div className="p-3">
                 <h4 className="font-medium text-stone-800 text-sm line-clamp-2 leading-snug min-h-[2.5em]">
-                    {job.name}
+                    {job.display_name || job.name}
                 </h4>
 
                 <div className="flex items-center justify-between mt-2">

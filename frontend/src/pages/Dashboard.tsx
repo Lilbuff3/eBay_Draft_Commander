@@ -3,7 +3,8 @@ import { ItemCardGrid } from '@/components/ItemCardGrid'
 import { ItemDetailDrawer } from '@/components/ItemDetailDrawer'
 import { UploadZone } from '@/components/UploadZone'
 import { InstallPrompt } from '@/components/InstallPrompt'
-import { createListing, fetchJobDetails, type JobDetails, type ItemDraft, clearCompleted, clearFailed } from '@/lib/api'
+import { createListing, fetchJobDetails, type JobDetails, type ItemDraft, clearCompleted, clearFailed, deleteJob } from '@/lib/api'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ScannerListener } from '@/components/ScannerListener'
 import { ScannerModal } from '@/components/ScannerModal'
 import { useCommanderStore } from '@/store/useCommanderStore'
@@ -90,23 +91,52 @@ export function Dashboard() {
         }
     }
 
-    const handleClearCompleted = async () => {
-        try {
-            await clearCompleted()
-            setJobs(jobs.filter(j => j.status !== 'completed'))
-        } catch (e) {
-            console.error(e)
-            alert("Failed to clear completed jobs")
-        }
+    // Confirmation dialog state
+    const [confirmDialog, setConfirmDialog] = useState<{
+        type: 'clear-completed' | 'clear-failed' | 'delete-single' | null
+        jobId?: string
+        jobName?: string
+    }>({ type: null })
+
+    const failedCount = jobs.filter(j => j.status === 'failed').length
+    const completedCount = jobs.filter(j => j.status === 'completed').length
+
+    const handleClearCompleted = () => {
+        setConfirmDialog({ type: 'clear-completed' })
     }
 
-    const handleClearFailed = async () => {
+    const handleClearFailed = () => {
+        setConfirmDialog({ type: 'clear-failed' })
+    }
+
+    const handleDeleteSingleJob = (jobId: string) => {
+        const job = jobs.find(j => j.id === jobId)
+        setConfirmDialog({
+            type: 'delete-single',
+            jobId,
+            jobName: job?.display_name || job?.name || jobId
+        })
+    }
+
+    const executeConfirm = async (deleteFolders: boolean) => {
+        const { type, jobId } = confirmDialog
+        setConfirmDialog({ type: null })
+
         try {
-            await clearFailed()
-            setJobs(jobs.filter(j => j.status !== 'failed'))
+            if (type === 'clear-completed') {
+                await clearCompleted(deleteFolders)
+                setJobs(jobs.filter(j => j.status !== 'completed'))
+            } else if (type === 'clear-failed') {
+                await clearFailed(deleteFolders)
+                setJobs(jobs.filter(j => j.status !== 'failed'))
+            } else if (type === 'delete-single' && jobId) {
+                await deleteJob(jobId, deleteFolders)
+                setJobs(jobs.filter(j => j.id !== jobId))
+                if (selectedJob?.id === jobId) setSelectedJob(null)
+            }
         } catch (e) {
             console.error(e)
-            alert("Failed to clear failed jobs")
+            alert(`Failed to ${type === 'clear-completed' ? 'clear completed' : type === 'clear-failed' ? 'clear failed' : 'delete'} jobs`)
         }
     }
 
@@ -329,6 +359,7 @@ export function Dashboard() {
                         onBulkDelete={handleBulkDelete}
                         onClearCompleted={handleClearCompleted}
                         onClearFailed={handleClearFailed}
+                        onDeleteJob={handleDeleteSingleJob}
                     />
                 </div>
             </div>
@@ -354,6 +385,37 @@ export function Dashboard() {
                 isOpen={isScannerOpen}
                 onOpenChange={setIsScannerOpen}
                 onJobCreated={() => { }}
+            />
+
+            {/* Confirmation Dialogs */}
+            <ConfirmDialog
+                open={confirmDialog.type === 'clear-failed'}
+                onOpenChange={(open) => !open && setConfirmDialog({ type: null })}
+                title="Clear Failed Items"
+                description="Remove all failed items from the app. You can also delete their folders from the inbox to prevent re-import."
+                count={failedCount}
+                showFolderOption
+                onConfirm={executeConfirm}
+                confirmLabel="Clear Failed"
+            />
+            <ConfirmDialog
+                open={confirmDialog.type === 'clear-completed'}
+                onOpenChange={(open) => !open && setConfirmDialog({ type: null })}
+                title="Clear Completed Items"
+                description="Remove all completed items from the app. You can also delete their folders from the inbox."
+                count={completedCount}
+                showFolderOption
+                onConfirm={executeConfirm}
+                confirmLabel="Clear Done"
+            />
+            <ConfirmDialog
+                open={confirmDialog.type === 'delete-single'}
+                onOpenChange={(open) => !open && setConfirmDialog({ type: null })}
+                title={`Delete "${confirmDialog.jobName || 'item'}"`}
+                description="Remove this item from the app. You can also delete its folder from the inbox."
+                showFolderOption
+                onConfirm={executeConfirm}
+                confirmLabel="Delete"
             />
         </div>
     )
