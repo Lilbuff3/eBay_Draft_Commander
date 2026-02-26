@@ -28,11 +28,17 @@ export function useJobSync() {
     const { data: jobs = [], refetch: refetchJobs } = useQuery({
         queryKey: ['jobs'],
         queryFn: fetchJobs,
+        initialData: [] as Job[],
         refetchInterval: isSocketConnected ? false : 5000,
     })
 
+    // Sync React Query data → Zustand store (stable ref from initialData prevents infinite loops)
+    const prevJobsRef = useRef(jobs)
     useEffect(() => {
-        storeSetJobs(jobs)
+        if (prevJobsRef.current !== jobs) {
+            prevJobsRef.current = jobs
+            storeSetJobs(jobs)
+        }
     }, [jobs, storeSetJobs])
 
     // 2. We expose a setJobs wrapper so existing components can optimistically update

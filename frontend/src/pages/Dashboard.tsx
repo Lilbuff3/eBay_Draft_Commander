@@ -225,8 +225,41 @@ export function Dashboard() {
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                    {/* Header */}
-                    <header className="mb-6">
+                    {/* ── Mobile Header: Compact title with status dot ── */}
+                    <header className="md:hidden mb-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                            <h1 className="font-display font-bold text-lg text-stone-800">Workspace</h1>
+                            {queueStats.total > 0 && (
+                                <span className="text-xs text-stone-400 font-medium bg-stone-100 px-2 py-0.5 rounded-full">
+                                    {queueStats.total}
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {/* Status dot: green pulse = processing, red = eBay offline, gray = idle */}
+                            <div className="flex items-center gap-1.5" title={
+                                isProcessing ? 'Processing queue'
+                                    : ebayStatus === 'connected' ? 'eBay connected'
+                                        : 'eBay offline'
+                            }>
+                                <div className={`w-2 h-2 rounded-full ${
+                                    isProcessing ? 'bg-green-500 animate-pulse'
+                                        : ebayStatus === 'connected' ? 'bg-green-500'
+                                            : ebayStatus === 'disconnected' ? 'bg-red-500'
+                                                : 'bg-stone-300'
+                                }`} />
+                                <span className="text-[10px] text-stone-400 font-medium">
+                                    {isProcessing ? 'Active'
+                                        : ebayStatus === 'connected' ? 'Linked'
+                                            : ebayStatus === 'disconnected' ? 'Offline'
+                                                : '...'}
+                                </span>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* ── Desktop Header: Full display with badges ── */}
+                    <header className="hidden md:block mb-6">
                         <div className="flex justify-between items-start">
                             <div>
                                 <h1 className="font-display font-bold text-2xl sm:text-3xl text-stone-800">Workspace</h1>
@@ -236,7 +269,7 @@ export function Dashboard() {
                                         : 'Drop photos to get started'}
                                 </p>
                             </div>
-                            <div className="hidden md:block">
+                            <div>
                                 <InstallPrompt />
                             </div>
                         </div>
@@ -259,8 +292,8 @@ export function Dashboard() {
                         </div>
                     </header>
 
-                    {/* Upload Zone */}
-                    <div className="mb-6">
+                    {/* Upload Zone — desktop only (mobile uses FAB) */}
+                    <div className="hidden md:block mb-6">
                         <UploadZone
                             compact={hasItems}
                             onUploadComplete={(jobId) => {

@@ -106,7 +106,7 @@ export function ItemDetailDrawer({
                     </SheetDescription>
                 </SheetHeader>
 
-                <ScrollArea className="flex-1">
+                <ScrollArea className="flex-1 min-h-0">
                     <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
                         {/* Needs Review Alert */}
                         {job?.status === 'needs_review' && (
@@ -259,46 +259,9 @@ export function ItemDetailDrawer({
                             </div>
                         )}
 
-                        {/* Create Listing Button */}
-                        {job && (
-                            <div>
-                                <button
-                                    onClick={onCreateListing}
-                                    disabled={isCreating}
-                                    className={`w-full py-3 px-4 rounded-xl font-medium text-white transition-all ${isCreating
-                                        ? 'bg-stone-400 cursor-wait'
-                                        : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/25'
-                                        }`}
-                                >
-                                    {isCreating ? (
-                                        <span className="flex items-center justify-center gap-2">
-                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                            Creating...
-                                        </span>
-                                    ) : createResult?.success ? (
-                                        <span className="flex items-center justify-center gap-2">
-                                            <Check className="w-4 h-4" />
-                                            Listed Successfully
-                                        </span>
-                                    ) : (
-                                        draft.scheduledTime ? 'Schedule Listing' : 'Create eBay Listing'
-                                    )}
-                                </button>
-
-                                {createResult && (
-                                    <div className={`mt-2 p-2 rounded-lg text-sm ${createResult.success
-                                        ? 'bg-green-50 text-green-700 border border-green-200'
-                                        : 'bg-red-50 text-red-700 border border-red-200'
-                                        }`}>
-                                        {createResult.message}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
                         {/* Collapsible Logs */}
                         {job && (
-                            <div>
+                            <div className="pb-2">
                                 <button
                                     onClick={() => setShowLogs(!showLogs)}
                                     className="flex items-center gap-2 text-xs font-bold text-stone-400 uppercase tracking-wider hover:text-stone-600 transition-colors w-full"
@@ -315,6 +278,43 @@ export function ItemDetailDrawer({
                         )}
                     </div>
                 </ScrollArea>
+
+                {/* Sticky CTA — always visible at bottom of drawer */}
+                {job && (
+                    <div className="flex-shrink-0 border-t border-stone-100 px-6 py-3 bg-white pb-safe">
+                        <button
+                            onClick={onCreateListing}
+                            disabled={isCreating}
+                            className={`w-full py-3 px-4 rounded-xl font-medium text-white transition-all ${isCreating
+                                ? 'bg-stone-400 cursor-wait'
+                                : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/25'
+                                }`}
+                        >
+                            {isCreating ? (
+                                <span className="flex items-center justify-center gap-2">
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Creating...
+                                </span>
+                            ) : createResult?.success ? (
+                                <span className="flex items-center justify-center gap-2">
+                                    <Check className="w-4 h-4" />
+                                    Listed Successfully
+                                </span>
+                            ) : (
+                                draft.scheduledTime ? 'Schedule Listing' : 'Create eBay Listing'
+                            )}
+                        </button>
+
+                        {createResult && (
+                            <div className={`mt-2 p-2 rounded-lg text-sm ${createResult.success
+                                ? 'bg-green-50 text-green-700 border border-green-200'
+                                : 'bg-red-50 text-red-700 border border-red-200'
+                                }`}>
+                                {createResult.message}
+                            </div>
+                        )}
+                    </div>
+                )}
             </SheetContent>
         </Sheet>
     )

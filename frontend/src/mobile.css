@@ -89,16 +89,16 @@ a {
     }
 }
 
-/* Hide scrollbar on mobile for cleaner UI */
-@media (max-width: 768px) {
-    .hide-scrollbar::-webkit-scrollbar {
-        display: none;
-    }
+/* Hide scrollbar for cleaner UI */
+.hide-scrollbar::-webkit-scrollbar,
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
 
-    .hide-scrollbar {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
-    }
+.hide-scrollbar,
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
 }
 
 /* Touch-friendly form inputs */

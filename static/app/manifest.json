@@ -1,0 +1,59 @@
+{
+    "short_name": "DraftCmdr",
+    "name": "eBay Draft Commander",
+    "description": "Manage your eBay listings with AI-powered automation",
+    "icons": [
+        {
+            "src": "/icons/icon-192.png",
+            "type": "image/png",
+            "sizes": "192x192",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icons/icon-512.png",
+            "type": "image/png",
+            "sizes": "512x512",
+            "purpose": "any maskable"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "Quick Upload",
+            "short_name": "Upload",
+            "description": "Upload photos to create a new listing",
+            "url": "/app/#create",
+            "icons": [
+                {
+                    "src": "/icons/icon-192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        },
+        {
+            "name": "Scan Item",
+            "short_name": "Scan",
+            "description": "Batch scan books with barcode reader",
+            "url": "/app/#batch-scan",
+            "icons": [
+                {
+                    "src": "/icons/icon-192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        }
+    ],
+    "start_url": "/app/",
+    "scope": "/",
+    "display": "standalone",
+    "display_override": [
+        "standalone",
+        "minimal-ui"
+    ],
+    "orientation": "portrait-primary",
+    "theme_color": "#3B82F6",
+    "background_color": "#0F172A",
+    "categories": [
+        "productivity",
+        "business"
+    ]
+}

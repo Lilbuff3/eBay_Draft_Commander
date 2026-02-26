@@ -12,6 +12,7 @@ import { PriceResearch } from '@/components/PriceResearch'
 import { TemplateManager } from '@/components/TemplateManager'
 import { PreviewPanel } from '@/components/PreviewPanel'
 import { MobileNavBar } from '@/components/MobileNavBar'
+import { MobileUploadFAB } from '@/components/MobileUploadFAB'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Toaster } from 'sonner'
 import { PullToRefreshIndicator } from '@/components/PullToRefreshIndicator'
@@ -101,6 +102,25 @@ export default function App() {
           {activeTab === 'settings' && <Settings />}
         </ErrorBoundary>
       </main>
+
+      {/* Mobile Upload FAB — only on dashboard tab */}
+      {activeTab === 'dashboard' && (
+        <MobileUploadFAB
+          onFilesSelected={(files) => {
+            // Trigger upload via the same mechanism as UploadZone
+            const formData = new FormData()
+            Array.from(files).forEach(f => formData.append('files', f))
+            fetch('/api/upload', { method: 'POST', body: formData })
+              .then(res => res.json())
+              .then(data => {
+                if (data.job_id) {
+                  console.log('Upload started, job:', data.job_id)
+                }
+              })
+              .catch(err => console.error('Upload failed:', err))
+          }}
+        />
+      )}
 
       {/* Mobile Bottom Navigation */}
       <MobileNavBar />
