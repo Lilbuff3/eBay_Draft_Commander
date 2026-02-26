@@ -20,6 +20,7 @@ class SettingsManager:
         'DEFAULT_PRICE': '29.99',
         'AUTO_MOVE_POSTED': 'true',
         'AUTO_PUBLISH': 'true',  # If false, creates drafts instead of live listings
+        'ESTIMATED_SHIPPING_COST': '6.50',  # Baked into price for free-shipping listings
     }
     
     # All known setting keys organized by category
@@ -50,6 +51,7 @@ class SettingsManager:
             'DEFAULT_PRICE',
             'AUTO_MOVE_POSTED',
             'AUTO_PUBLISH',
+            'ESTIMATED_SHIPPING_COST',
         ],
     }
     

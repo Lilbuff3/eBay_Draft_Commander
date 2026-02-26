@@ -115,18 +115,21 @@ class PricingEngine:
             logger.error(f"❌ Pricing engine error (using Researcher): {e}")
             return []
     
-    def calculate_suggested_price(self, sold_items: List[Dict], our_condition: str = "Used - Good", acquisition_cost: float = 0.0) -> Dict[str, Any]:
+    def calculate_suggested_price(self, sold_items: List[Dict], our_condition: str = "Used - Good", acquisition_cost: float = 0.0, shipping_cost: float = 0.0) -> Dict[str, Any]:
         """
         Calculate a suggested price based on sold items data.
-        
+
         Uses median price (robust to outliers) with condition adjustment.
         Also performs margin protection check against acquisition cost.
-        
+        When shipping_cost > 0 (free shipping mode), the cost is added to
+        the suggested price so the seller doesn't eat shipping margin.
+
         Args:
             sold_items: List of dicts from search_sold_listings()
             our_condition: The condition of our item
             acquisition_cost: Cost of goods sold (default 0.0)
-        
+            shipping_cost: Estimated shipping cost to bake into price (default 0.0)
+
         Returns:
             Dict with: suggested_price, comp_count, median_price, reasoning, margin_data
         """
@@ -161,11 +164,18 @@ class PricingEngine:
         
         # Calculate suggested price
         suggested_price = round(median_price * multiplier, 2)
-        
+
+        # --- Free Shipping Buffer ---
+        # When offering free shipping, bake the estimated shipping cost into the price
+        shipping_buffered = False
+        if shipping_cost > 0:
+            suggested_price = round(suggested_price + shipping_cost, 2)
+            shipping_buffered = True
+
         # --- Margin Protection ---
         # Estimated eBay Fees: ~13.25% + $0.30
         est_fees = (suggested_price * 0.1325) + 0.30
-        projected_profit = suggested_price - est_fees - acquisition_cost
+        projected_profit = suggested_price - est_fees - acquisition_cost - shipping_cost
         
         min_margin = 10.00 # Minimum desired profit per item
         margin_boost = False
@@ -182,6 +192,8 @@ class PricingEngine:
             suggested_price = round(suggested_price) - 0.01  # e.g., 45.00 -> 44.99
         
         reasoning = f"Median of {len(prices)} sales (${median_price:.2f}) × {multiplier:.0%} condition"
+        if shipping_buffered:
+            reasoning += f" + ${shipping_cost:.2f} shipping"
         if margin_boost:
             reasoning += f" (Boosted for ${min_margin} min margin)"
             
@@ -220,9 +232,11 @@ class PricingEngine:
             # We must use TEXT mode and parse the JSON out manually.
             
             prompt = f"""You are a High-End Industrial Appraiser and eBay Pricing Strategist.
-            The user has an item that may be rare, industrial, or undervalued. 
+            The user has an item that may be rare, industrial, or undervalued.
             Do NOT default to a low price just because direct sales data is scarce.
-            
+            IMPORTANT: This listing uses FREE SHIPPING. The price must cover the seller's
+            estimated shipping cost (~$5-$12 USPS depending on weight/size). Factor this in.
+
             Item Title: {title}
             Condition: {condition}
             
@@ -333,10 +347,13 @@ class PricingEngine:
 
         return None
 
-    def get_price_with_comps(self, title: str, condition: str = "Used - Good", category_id: Optional[str] = None, ai_suggested_price: Optional[str] = None, acquisition_cost: float = 0.0, isbn: Optional[str] = None) -> Dict[str, Any]:
+    def get_price_with_comps(self, title: str, condition: str = "Used - Good", category_id: Optional[str] = None, ai_suggested_price: Optional[str] = None, acquisition_cost: float = 0.0, isbn: Optional[str] = None, shipping_cost: float = 0.0) -> Dict[str, Any]:
         """
         Main entry point: Get suggested price and comparable sales data.
         Falls back to AI suggestion if API fails.
+
+        Args:
+            shipping_cost: Estimated shipping cost to bake into price when using free shipping (default 0.0)
         """
         # Generate research link for user
         research_link = self.generate_ebay_search_link(title)
@@ -349,7 +366,7 @@ class PricingEngine:
              sold_items = self.search_sold_listings(isbn, category_id, limit=15)
              
              if sold_items:
-                 price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost)
+                 price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost)
                  logger.info(f"   💰 Market price (ISBN): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
                  
                  return {
@@ -372,7 +389,7 @@ class PricingEngine:
         sold_items = self.search_sold_listings(search_query, category_id, limit=15)
         
         if sold_items:
-            price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost)
+            price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost)
             logger.info(f"   💰 Market price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
             
             return {
@@ -389,22 +406,32 @@ class PricingEngine:
         grounded_result = self.get_ai_price_estimate(title, condition)
         
         if grounded_result:
-            logger.info(f"   🌐 AI Research Price: ${grounded_result['price']:.2f}")
+            ai_price = grounded_result['price']
+            ai_reasoning = grounded_result.get('reasoning', "Researched via Gemini 3")
+            if shipping_cost > 0:
+                ai_price = round(ai_price + shipping_cost, 2)
+                ai_reasoning += f" + ${shipping_cost:.2f} free shipping buffer"
+            logger.info(f"   🌐 AI Research Price: ${ai_price:.2f}")
             return {
-                "suggested_price": grounded_result['price'],
+                "suggested_price": ai_price,
                 "comps": [],
-                "reasoning": grounded_result.get('reasoning', "Researched via Gemini 3"),
+                "reasoning": ai_reasoning,
                 "source": "ai_grounded_research",
                 "research_link": research_link
             }
         
         # Fallback to AI suggestion from analyzer (image-based) ONLY if valid
         if ai_suggested_price:
-            logger.info(f"   💡 Using AI image estimate: ${ai_suggested_price}")
+            fallback_price = float(ai_suggested_price)
+            fallback_reasoning = "Based on logical inference from visual analysis (No market data found)"
+            if shipping_cost > 0:
+                fallback_price = round(fallback_price + shipping_cost, 2)
+                fallback_reasoning += f" + ${shipping_cost:.2f} free shipping buffer"
+            logger.info(f"   💡 Using AI image estimate: ${fallback_price}")
             return {
-                "suggested_price": float(ai_suggested_price),
+                "suggested_price": fallback_price,
                 "comps": [],
-                "reasoning": "Based on logical inference from visual analysis (No market data found)",
+                "reasoning": fallback_reasoning,
                 "source": "ai_estimate",
                 "research_link": research_link
             }

@@ -6,6 +6,9 @@ EBAY_LISTING_PROMPT = """Analyze these product photos for a high-end eBay listin
 
 ROLE: You are an expert e-commerce specialist.
 GOAL: Extract structured data for eBay Inventory API.
+NOTE: This listing uses FREE SHIPPING. When suggesting a price, factor in an
+estimated shipping cost of $5-$12 (USPS Ground Advantage) so the seller's margin
+is preserved. Do NOT suggest a price that would be unprofitable after shipping.
 
 CRITICAL INSTRUCTIONS:
 1. IDENTIFICATION: Find Brand, Model, MPN (Part Number), and Serial Number.
@@ -52,6 +55,8 @@ OUTPUT FORMAT: Return a JSON object with this EXACT structure:
 INDUSTRIAL_RESEARCH_PROMPT = """Research this industrial equipment part for eBay listing:
 
 Item: {search_terms}
+NOTE: This listing uses FREE SHIPPING, so the market price should account for
+the seller covering shipping costs (~$5-$12 USPS depending on size/weight).
 
 Find and return:
 1. EXACT product specifications (capacity, speed, interface, voltage)
