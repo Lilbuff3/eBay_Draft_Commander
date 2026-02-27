@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from backend.app.services.ai_analyzer import AIAnalyzer
 from backend.app.services.pricing_engine import PricingEngine
+from backend.app.services.ebay import taxonomy
 from backend.app.core.logger import get_logger
 
 logger = get_logger('processor.ai')
@@ -75,7 +76,20 @@ class ListingAIAgent:
                 if force_refresh:
                     _log("Forcing AI Refresh (Ignoring Cache)...")
                 _log(f"Analyzing {len(images)} images with AI (Research Mode)...")
-                ai_data = self.ai_analyzer.analyze_with_research(images)
+
+                # Step A: Get a preliminary title or use folder name for suggestions
+                temp_title = job_obj.user_title or folder_path.name
+                suggestions = taxonomy.get_category_suggestions(temp_title)
+                
+                # Format suggestions for the prompt
+                if suggestions:
+                    sug_text = "Suggested eBay Categories:\n"
+                    for s in suggestions[:5]:
+                        sug_text += f"- ID: {s['category_id']} | Path: {s['full_path']}\n"
+                else:
+                    sug_text = "No eBay category suggestions found. Use your best judgment."
+
+                ai_data = self.ai_analyzer.analyze_with_research(images, category_suggestions=sug_text)
 
                 if ai_data.get('error'):
                     raise Exception(f"AI Analyzer Error: {ai_data['error']}")
@@ -92,6 +106,10 @@ class ListingAIAgent:
             item_specifics = ai_data.get('item_specifics', ai_data.get('identification', {}))
             ai_suggested_price = listing_data.get('suggested_price', 0)
             
+            # Extract category selection from AI
+            ident = ai_data.get('identification', {})
+            selected_category_id = ident.get('category_id')
+            
             # Calculate dynamic shipping cost
             shipping_cost = self._calculate_shipping_cost(ai_data)
 
@@ -103,6 +121,7 @@ class ListingAIAgent:
                 "item_specifics": item_specifics,
                 "ai_suggested_price": ai_suggested_price,
                 "shipping_cost": shipping_cost,
+                "category_id": selected_category_id,
                 "confidence_score": listing_data.get('confidence_score', 0.85)
             }
 

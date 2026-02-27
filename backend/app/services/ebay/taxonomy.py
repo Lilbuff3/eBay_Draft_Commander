@@ -45,7 +45,8 @@ def get_suggested_category(query: str, limit: int = 1) -> dict:
 
 def get_safe_category(title: str) -> dict:
     """
-    Get category with 'Toner Trap' safety guard.
+    [DEPRECATED] Get category with 'Toner Trap' safety guard.
+    AI now handles selection from eBay suggestions.
     Intercepts known hardware keywords and forces correct category.
     """
     title_lower = title.lower()

@@ -226,7 +226,21 @@ class ProcessorService:
 
         # 4. Taxonomy & Specifics
         _log("Mapping category taxonomy...")
-        cat_result = self.category_mapper.get_category(analysis['title'], analysis['raw_description'])
+        # Use AI-provided category if available
+        ai_category_id = analysis.get('category_id')
+        
+        if ai_category_id:
+            # If we have an AI-selected ID, we still want to get the name for validation/logging
+            # We can mock a cat_result or update category_mapper to handle IDs
+            cat_result = {
+                'id': ai_category_id,
+                'name': analysis.get('item_specifics', {}).get('category_name', 'AI Selected'),
+                'source': 'ai_selection'
+            }
+        else:
+            # Fallback to legacy mapper if AI didn't provide one (though mapper now returns None too)
+            cat_result = self.category_mapper.get_category(analysis['title'], analysis['raw_description'])
+        
         self._validate_mandatory_specifics(cat_result.get('name', 'Unknown'), analysis['item_specifics'])
 
         # 5. Final Pricing
@@ -255,8 +269,17 @@ class ProcessorService:
         auto_publish = str(os.environ.get('AUTO_PUBLISH', 'false')).lower() == 'true'
         threshold = float(os.environ.get('CONFIDENCE_THRESHOLD', 0.85))
         
-        if not auto_publish or confidence_score < threshold:
-            reason = "AUTO_PUBLISH=false" if not auto_publish else f"Low Confidence ({confidence_score:.2f} < {threshold})"
+        # CATEGORY GUARD: Force review if category is missing
+        missing_category = not cat_result.get('id')
+        
+        if not auto_publish or confidence_score < threshold or missing_category:
+            if missing_category:
+                reason = "Missing Category (AI could not determine accurate eBay category)"
+            elif not auto_publish:
+                reason = "AUTO_PUBLISH=false"
+            else:
+                reason = f"Low Confidence ({confidence_score:.2f} < {threshold})"
+            
             _log(f"Routing to Review Queue: {reason}", level='warning')
             
             result.update({

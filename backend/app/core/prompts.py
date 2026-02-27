@@ -2,7 +2,7 @@
 Centralized storage for AI prompts used in eBay Draft Commander
 """
 
-EBAY_LISTING_PROMPT = """Analyze these product photos for a high-end eBay listing.
+EBAY_LISTING_PROMPT = """{category_suggestions}
 
 ROLE: You are an expert e-commerce specialist.
 GOAL: Extract structured data for eBay Inventory API.
@@ -14,10 +14,14 @@ CRITICAL INSTRUCTIONS:
 1. IDENTIFICATION: Find Brand, Model, MPN (Part Number), and Serial Number.
    - If multiple codes exist, list them all in `oem_part_numbers`.
    - Distinguish between the MANUFACTURER (Brand) and COMPATIBLE WITH (e.g. "For Dell").
-2. CONDITION: Assess condition strictly based on visual evidence.
+2. CATEGORY: Review the `category_suggestions` provided above. 
+   - Choose the single most accurate `category_id` that matches the item.
+   - Consider technical differences (e.g., a printer drum is NOT a musical drum).
+   - If NONE of the suggestions are accurate, return `null` for the `category_id`.
+3. CONDITION: Assess condition strictly based on visual evidence.
    - Look for factory seals -> "New Old Stock" or "New".
    - Look for scratches/wear -> "Used".
-3. SPECIFICS: Extract technical specs (Voltage, Amps, Capacity, Size, Color).
+4. SPECIFICS: Extract technical specs (Voltage, Amps, Capacity, Size, Color).
 
 OUTPUT FORMAT: Return a JSON object with this EXACT structure:
 {
@@ -31,7 +35,8 @@ OUTPUT FORMAT: Return a JSON object with this EXACT structure:
         "compatible_systems": ["System 1", "System 2"],
         "estimated_weight_lbs": 0.0,
         "package_size": "small|medium|large|heavy",
-        "confidence_score": 95
+        "confidence_score": 95,
+        "category_id": "Chosen Category ID or null"
     },
     "condition": {
         "state": "New|New Open Box|New Old Stock|Used - Like New|Used - Good|Used - Acceptable|For Parts",
@@ -49,8 +54,7 @@ OUTPUT FORMAT: Return a JSON object with this EXACT structure:
         "MPN": "Value",
         "Type": "Value"
         // Add any other relevant specifics found (e.g. 'Connectivity', 'Voltage')
-    },
-    "category_suggestion": "Best eBay Category Name path"
+    }
 }
 """
 

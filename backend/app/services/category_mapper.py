@@ -11,8 +11,8 @@ logger = get_logger('category_mapper')
 
 class CategoryMapper:
     def __init__(self):
-        # Fallback category (Everything Else > Other)
-        self.DEFAULT_CATEGORY_ID = "99" 
+        pass
+        
         
     def get_category(self, title: str, description: str = None) -> dict:
         """
@@ -30,9 +30,9 @@ class CategoryMapper:
             - warning: Optional warning message if a dangerous category was avoided
         """
         result = {
-            'id': self.DEFAULT_CATEGORY_ID,
-            'name': 'Everything Else > Other',
-            'source': 'default',
+            'id': None,
+            'name': None,
+            'source': 'none',
             'warning': None
         }
         

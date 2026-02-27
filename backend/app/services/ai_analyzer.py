@@ -75,12 +75,13 @@ class AIAnalyzer:
         images = sorted(set(images))[:max_images]
         return [str(img) for img in images]
     
-    def analyze_item(self, image_paths):
+    def analyze_item(self, image_paths, category_suggestions: str = ""):
         """
         Analyze images and extract structured listing data
         
         Args:
             image_paths: List of paths to item images
+            category_suggestions: Optional text string of eBay category suggestions
             
         Returns:
             Dict with all extracted listing data
@@ -99,7 +100,7 @@ class AIAnalyzer:
             return {"error": "Could not encode any images"}
         
         # Build the prompt
-        prompt = EBAY_LISTING_PROMPT
+        prompt = EBAY_LISTING_PROMPT.format(category_suggestions=category_suggestions)
 
         # Prepare content: Modern GenAI SDK accepts text strings and PIL images directly
         from PIL import Image as PILImage
@@ -323,7 +324,7 @@ class AIAnalyzer:
             logger.warning(f"Research failed: {e}")
             return {"error": str(e), "researched": False}
 
-    def analyze_with_research(self, image_paths: list) -> dict:
+    def analyze_with_research(self, image_paths: list, category_suggestions: str = "") -> dict:
         """
         Two-phase analysis: 
         1. Basic image analysis to extract identifiers
@@ -334,7 +335,7 @@ class AIAnalyzer:
         """
         # Phase 1: Basic analysis
         logger.info("Phase 1: Analyzing images...")
-        basic_result = self.analyze_item(image_paths)
+        basic_result = self.analyze_item(image_paths, category_suggestions=category_suggestions)
         
         if basic_result.get('error'):
             return basic_result
