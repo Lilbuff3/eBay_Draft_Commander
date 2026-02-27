@@ -9,20 +9,23 @@ logger = get_logger('processor.ai')
 # Default estimated shipping cost for free-shipping listings (USPS Ground Advantage ~1-2 lbs)
 DEFAULT_SHIPPING_COST = 6.50
 
+# AI-Estimated Shipping Tiers
+SHIPPING_LOOKUP = {
+    'small': 4.50,   # < 1lb
+    'medium': 6.50,  # 1-3lb
+    'large': 10.00,  # 3-10lb
+    'heavy': 15.00,  # 10+lb
+}
+
 
 class ListingAIAgent:
     def __init__(self):
         self.ai_analyzer = AIAnalyzer()
         self.pricing_engine = PricingEngine()
-        self._shipping_cost = self._resolve_shipping_cost()
+        self._default_shipping_cost = self._resolve_default_shipping_cost()
 
-    def _resolve_shipping_cost(self) -> float:
-        """Determine estimated shipping cost to bake into the listing price.
-
-        Reads ESTIMATED_SHIPPING_COST from .env if set, otherwise uses
-        DEFAULT_SHIPPING_COST.  Set to 0 in .env to disable the buffer
-        (e.g. if using a paid-shipping fulfillment policy).
-        """
+    def _resolve_default_shipping_cost(self) -> float:
+        """Determine default estimated shipping cost from .env or constants."""
         env_path = Path(__file__).resolve().parents[3] / ".env"
         if env_path.exists():
             with open(env_path, 'r') as f:
@@ -34,6 +37,26 @@ class ListingAIAgent:
                         except ValueError:
                             pass
         return DEFAULT_SHIPPING_COST
+
+    def _calculate_shipping_cost(self, ai_data: dict) -> float:
+        """Calculate shipping cost based on AI identifiers or weight."""
+        ident = ai_data.get('identification', {})
+        package_size = ident.get('package_size', '').lower()
+        weight = ident.get('estimated_weight_lbs')
+
+        # 1. Primary: Explicit package size from AI
+        if package_size in SHIPPING_LOOKUP:
+            return SHIPPING_LOOKUP[package_size]
+
+        # 2. Secondary: Calculate from weight if size is missing/invalid
+        if isinstance(weight, (int, float)):
+            if weight < 1: return SHIPPING_LOOKUP['small']
+            if weight <= 3: return SHIPPING_LOOKUP['medium']
+            if weight <= 10: return SHIPPING_LOOKUP['large']
+            return SHIPPING_LOOKUP['heavy']
+
+        # 3. Fallback to .env/Default
+        return self._default_shipping_cost
 
     def analyze_item(self, job_obj, images, condition, log_callback=None):
         """Perform AI vision analysis and initial pricing suggestion"""
@@ -68,6 +91,9 @@ class ListingAIAgent:
             raw_description = job_obj.user_description or listing_data.get('description_html') or listing_data.get('description') or f"Item {job_obj.id}"
             item_specifics = ai_data.get('item_specifics', ai_data.get('identification', {}))
             ai_suggested_price = listing_data.get('suggested_price', 0)
+            
+            # Calculate dynamic shipping cost
+            shipping_cost = self._calculate_shipping_cost(ai_data)
 
             return {
                 "success": True,
@@ -75,14 +101,15 @@ class ListingAIAgent:
                 "title": title,
                 "raw_description": raw_description,
                 "item_specifics": item_specifics,
-                "ai_suggested_price": ai_suggested_price
+                "ai_suggested_price": ai_suggested_price,
+                "shipping_cost": shipping_cost
             }
 
         except Exception as e:
             logger.error(f"AI Analysis failed: {e}")
             return {"success": False, "error": str(e)}
 
-    def get_final_pricing(self, title, condition, ai_suggested_price, user_price, log_callback=None):
+    def get_final_pricing(self, title, condition, ai_suggested_price, user_price, shipping_cost=None, log_callback=None):
         """Determine the final price using research engine and user overrides.
 
         When free shipping is active (shipping_cost > 0), the estimated
@@ -100,14 +127,18 @@ class ListingAIAgent:
         import time
         pricing_start = time.time()
         try:
-            if self._shipping_cost > 0:
-                _log(f"Free shipping mode: adding ${self._shipping_cost:.2f} shipping buffer to price")
+            # Use dynamic shipping cost if provided, else fallback to default
+            resolved_shipping = shipping_cost if shipping_cost is not None else self._default_shipping_cost
+            
+            if resolved_shipping > 0:
+                _log(f"Free shipping mode: adding ${resolved_shipping:.2f} shipping buffer to price")
+            
             _log("Researching pricing & comps...")
             price_result = self.pricing_engine.get_price_with_comps(
                 title,
                 condition=condition,
                 ai_suggested_price=ai_suggested_price,
-                shipping_cost=self._shipping_cost,
+                shipping_cost=resolved_shipping,
             )
             final_price = str(price_result['suggested_price']) if price_result['suggested_price'] else "0.00"
             _log(f"Suggested Price: ${final_price}")

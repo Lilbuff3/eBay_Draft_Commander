@@ -29,6 +29,8 @@ OUTPUT FORMAT: Return a JSON object with this EXACT structure:
         "serial_number": "SNString or null",
         "product_type": "Noun (e.g. Switch, Router, Lens)",
         "compatible_systems": ["System 1", "System 2"],
+        "estimated_weight_lbs": 0.0,
+        "package_size": "small|medium|large|heavy",
         "confidence_score": 95
     },
     "condition": {

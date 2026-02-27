@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useCallback } from 'react'
 import { AnalyticsDashboard } from '@/components/AnalyticsDashboard'
 import { ActiveListings } from '@/components/ActiveListings'
 import { Sidebar } from '@/components/Sidebar'
@@ -18,6 +18,7 @@ import { Toaster } from 'sonner'
 import { PullToRefreshIndicator } from '@/components/PullToRefreshIndicator'
 import { PWAInstallBanner } from '@/components/PWAInstallBanner'
 import { useJobSync } from '@/hooks/useJobSync'
+import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 
 export default function App() {
   const activeTab = useCommanderStore(state => state.activeTab)
@@ -25,7 +26,15 @@ export default function App() {
   const selectedJob = useCommanderStore(state => state.selectedJob)
 
   // Real-time job sync initialization
-  useJobSync()
+  const { refreshData } = useJobSync()
+
+  // Pull-to-refresh on mobile
+  const { pullDistance, isRefreshing } = usePullToRefresh({
+    onRefresh: useCallback(async () => {
+      await refreshData()
+    }, [refreshData]),
+    isEnabled: activeTab === 'dashboard',
+  })
 
   // Android back button handling
   useEffect(() => {
@@ -47,7 +56,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-stone-50">
-      <PullToRefreshIndicator pullDistance={0} isRefreshing={false} />
+      <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
 
       {/* Desktop Sidebar */}
       <Sidebar className="hidden md:block" />

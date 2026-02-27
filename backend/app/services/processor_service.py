@@ -226,7 +226,15 @@ class ProcessorService:
         self._validate_mandatory_specifics(cat_result.get('name', 'Unknown'), analysis['item_specifics'])
 
         # 5. Final Pricing
-        pricing_result = self.ai_agent.get_final_pricing(analysis['title'], condition, analysis['ai_suggested_price'], job_obj.user_price, log_callback)
+        shipping_cost = analysis.get('shipping_cost')
+        pricing_result = self.ai_agent.get_final_pricing(
+            analysis['title'], 
+            condition, 
+            analysis['ai_suggested_price'], 
+            job_obj.user_price, 
+            shipping_cost=shipping_cost,
+            log_callback=log_callback
+        )
         result["timing"]["pricing"] = pricing_result["timing"]
 
         # 6. Image Upload
