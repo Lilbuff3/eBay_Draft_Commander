@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify, request, current_app
+from datetime import datetime
 from backend.app.blueprints.api.helpers import error_response
 from backend.app.core.validator import validate_safe_path, ValidationError
 from backend.app.core.logger import get_logger
@@ -86,10 +87,23 @@ def scan_inbox_endpoint():
         inbox_dir = current_app.config['INBOX_DIR']
         scanner = ScannerService(inbox_dir)
         qm = current_app.queue_manager
-        result = scanner.scan_inbox(qm)
-        return jsonify(result)
+        batch_id = f"inbox_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        result = scanner.scan_inbox(qm, batch_id=batch_id)
+        return jsonify({
+            'success': True,
+            'count': result.get('added_count', 0),
+            'batch_id': batch_id,
+            'message': f"Scanned inbox. Added {result.get('added_count', 0)} jobs to queue (Batch: {batch_id})"
+        })
     except Exception as e:
         return error_response(str(e))
+
+@queue_bp.route('/batch-summary/<batch_id>')
+def get_batch_summary(batch_id):
+    """Retrieve summary statistics for a specific batch processing run."""
+    qm = current_app.queue_manager
+    summary = qm.get_batch_summary(batch_id)
+    return jsonify(summary)
 
 @queue_bp.route('/add-folder', methods=['POST'])
 def add_folder_to_queue():
@@ -108,16 +122,17 @@ def add_folder_to_queue():
     from backend.app.core.constants import SUPPORTED_IMAGE_EXTENSIONS
     qm = current_app.queue_manager
     added_jobs = []
+    batch_id = f"manual_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     has_images = any(f.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS for f in path_obj.iterdir() if f.is_file())
     
     if has_images:
-        job = qm.add_folder(str(path_obj))
+        job = qm.add_folder(str(path_obj), batch_id=batch_id)
         added_jobs.append(job.id)
     else:
         subfolders = [f for f in path_obj.iterdir() if f.is_dir()]
         for sub in subfolders:
             if any(f.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS for f in sub.iterdir() if f.is_file()):
-                job = qm.add_folder(str(sub))
+                job = qm.add_folder(str(sub), batch_id=batch_id)
                 added_jobs.append(job.id)
     if not added_jobs:
         return error_response('No valid item folders found', 400)
@@ -125,5 +140,6 @@ def add_folder_to_queue():
         'success': True,
         'count': len(added_jobs),
         'jobIds': added_jobs,
-        'message': f"Added {len(added_jobs)} jobs to queue"
+        'batch_id': batch_id,
+        'message': f"Added {len(added_jobs)} jobs to queue (Batch: {batch_id})"
     })

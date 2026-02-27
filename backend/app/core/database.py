@@ -15,6 +15,7 @@ class JobModel(Base):
     folder_path = Column(Text, nullable=False)
     folder_name = Column(String(255), nullable=False)
     status = Column(String(20), default='pending')
+    batch_id = Column(String(50))
     
     # Core Listing Data
     title = Column(String(255))  # Final title used for listing

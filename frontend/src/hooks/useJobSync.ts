@@ -137,6 +137,21 @@ export function useJobSync() {
             addLog(entry.job_id, entry)
         })
 
+        socket.on('batch_complete', (summary: {
+            succeeded: number;
+            failed: number;
+            total_value: number;
+            avg_time: number;
+            total_duration: number;
+        }) => {
+            console.log('Batch complete:', summary)
+            useCommanderStore.getState().setBatchSummary(summary)
+            toast.success(`Batch Processed: ${summary.succeeded} succeeded, ${summary.failed} failed`, {
+                description: `Total Value: $${summary.total_value.toFixed(2)} | Avg Time: ${summary.avg_time}s`,
+                duration: 15000,
+            })
+        })
+
         return () => {
             socket.off('connect')
             socket.off('disconnect')
@@ -144,6 +159,7 @@ export function useJobSync() {
             socket.off('job_added')
             socket.off('job_update')
             socket.off('job_log')
+            socket.off('batch_complete')
             socket.disconnect()
         }
     }, [queryClient, refreshData, addLog])

@@ -11,8 +11,8 @@ logger = get_logger('category_mapper')
 
 class CategoryMapper:
     def __init__(self):
-        # Fallback category (Other Printer Parts)
-        self.DEFAULT_CATEGORY_ID = "170599" 
+        # Fallback category (Everything Else > Other)
+        self.DEFAULT_CATEGORY_ID = "99" 
         
     def get_category(self, title: str, description: str = None) -> dict:
         """
@@ -31,7 +31,7 @@ class CategoryMapper:
         """
         result = {
             'id': self.DEFAULT_CATEGORY_ID,
-            'name': 'Printers, Scanners & Supplies > Parts & Accessories > Other Parts & Accs',
+            'name': 'Everything Else > Other',
             'source': 'default',
             'warning': None
         }

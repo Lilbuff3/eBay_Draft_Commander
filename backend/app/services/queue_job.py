@@ -45,6 +45,7 @@ class QueueJob:
     folder_path: str
     folder_name: str
     status: JobStatus = JobStatus.PENDING
+    batch_id: Optional[str] = None
 
     # Core Data
     listing_id: Optional[str] = None

@@ -9,6 +9,7 @@ import { ScannerListener } from '@/components/ScannerListener'
 import { ScannerModal } from '@/components/ScannerModal'
 import { useCommanderStore } from '@/store/useCommanderStore'
 import { useJobSync } from '@/hooks/useJobSync'
+import { BatchSummaryDialog } from '@/components/BatchSummaryDialog'
 
 export function Dashboard() {
     // Store State
@@ -21,6 +22,8 @@ export function Dashboard() {
     const ebayStatus = useCommanderStore(state => state.ebayStatus)
     const isScanning = useCommanderStore(state => state.isScanning)
     const jobLogs = useCommanderStore(state => state.jobLogs)
+    const batchSummary = useCommanderStore(state => state.batchSummary)
+    const setBatchSummary = useCommanderStore(state => state.setBatchSummary)
 
     // Store Actions
     const handleStart = useCommanderStore(state => state.handleStart)
@@ -272,12 +275,11 @@ export function Dashboard() {
                                     : ebayStatus === 'connected' ? 'eBay connected'
                                         : 'eBay offline'
                             }>
-                                <div className={`w-2 h-2 rounded-full ${
-                                    isProcessing ? 'bg-green-500 animate-pulse'
+                                <div className={`w-2 h-2 rounded-full ${isProcessing ? 'bg-green-500 animate-pulse'
                                         : ebayStatus === 'connected' ? 'bg-green-500'
                                             : ebayStatus === 'disconnected' ? 'bg-red-500'
                                                 : 'bg-stone-300'
-                                }`} />
+                                    }`} />
                                 <span className="text-[10px] text-stone-400 font-medium">
                                     {isProcessing ? 'Active'
                                         : ebayStatus === 'connected' ? 'Linked'
@@ -416,6 +418,13 @@ export function Dashboard() {
                 showFolderOption
                 onConfirm={executeConfirm}
                 confirmLabel="Delete"
+            />
+
+            {/* Batch Summary */}
+            <BatchSummaryDialog
+                open={!!batchSummary}
+                onOpenChange={(open) => !open && setBatchSummary(null)}
+                summary={batchSummary}
             />
         </div>
     )

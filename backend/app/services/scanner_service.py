@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import datetime
 from typing import List, Dict, Any
 from backend.app.services.queue_manager import QueueManager
 from backend.app.core.logger import get_logger
@@ -21,7 +22,7 @@ class ScannerService:
         'Very Good Refurbished', 'Good Refurbished', 'For Parts'
     }
 
-    def scan_inbox(self, queue_manager: QueueManager) -> Dict[str, Any]:
+    def scan_inbox(self, queue_manager: QueueManager, batch_id: str = None) -> Dict[str, Any]:
         """
         Scan inbox folder for new items and add them to the queue.
         Supports both flat structure and Condition Category subfolders.
@@ -47,6 +48,8 @@ class ScannerService:
         
         added_count = 0
         skipped_count = 0
+        if not batch_id:
+            batch_id = f"scan_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
         for folder in candidate_folders:
             # Check for images (case insensitive extensions)
@@ -64,7 +67,7 @@ class ScannerService:
                         if folder.parent.name in self.CONDITION_FOLDERS:
                             metadata['condition'] = folder.parent.name
                             
-                        queue_manager.add_folder(str(folder), metadata=metadata)
+                        queue_manager.add_folder(str(folder), metadata=metadata, batch_id=batch_id)
                         added_count += 1
                         logger.info(f"Added new job from folder: {folder.name} (Condition: {metadata.get('condition', 'Default')})")
                     except Exception as e:
@@ -78,5 +81,6 @@ class ScannerService:
             'success': True,
             'added': added_count,
             'skipped': skipped_count,
-            'total_scanned': len(candidate_folders)
+            'total_scanned': len(candidate_folders),
+            'batch_id': batch_id
         }

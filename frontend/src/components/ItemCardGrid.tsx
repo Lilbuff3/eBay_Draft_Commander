@@ -6,6 +6,7 @@ import { ItemCard } from '@/components/ItemCard'
 import { CompactItemRow } from '@/components/CompactItemRow'
 import { cn } from '@/lib/utils'
 import type { Job } from '@/lib/api'
+import { useCommanderStore } from '@/store/useCommanderStore'
 
 type FilterTab = 'all' | 'inbox' | 'processing' | 'action' | 'history'
 
@@ -45,7 +46,8 @@ export function ItemCardGrid({
     onClearCompleted,
     onDeleteJob,
 }: ItemCardGridProps) {
-    const [activeFilter, setActiveFilter] = useState<FilterTab>('all')
+    const activeFilter = useCommanderStore(state => state.activeFilter) as FilterTab
+    const setActiveFilter = useCommanderStore(state => state.setActiveFilter)
     const [showOverflow, setShowOverflow] = useState(false)
     const [isScrolled, setIsScrolled] = useState(false)
     const overflowRef = useRef<HTMLDivElement>(null)

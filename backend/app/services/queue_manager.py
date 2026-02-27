@@ -57,6 +57,7 @@ class QueueManager:
         self.on_job_start: Optional[Callable[[QueueJob], None]] = None
         self.on_job_complete: Optional[Callable[[QueueJob], None]] = None
         self.on_job_error: Optional[Callable[[QueueJob], None]] = None
+        self.on_job_added: Optional[Callable[[QueueJob], None]] = None
         self.on_queue_complete: Optional[Callable[[], None]] = None
         self.on_progress: Optional[Callable[[int, int], None]] = None  # (current, total)
         
@@ -65,6 +66,27 @@ class QueueManager:
 
         # Load state and start background threads
         self._init_background_services()
+
+        # Batch statistics
+        self._batch_stats = {
+            'active': False,
+            'succeeded': 0,
+            'failed': 0,
+            'total_value': 0.0,
+            'item_times': [],
+            'start_time': None
+        }
+        
+    def _reset_batch_stats(self):
+        """Reset statistics for a new batch run"""
+        self._batch_stats = {
+            'active': True,
+            'succeeded': 0,
+            'failed': 0,
+            'total_value': 0.0,
+            'item_times': [],
+            'start_time': time.time()
+        }
         
     def _ensure_schema(self):
         """Simple migration helper to add columns if missing"""
@@ -86,6 +108,10 @@ class QueueManager:
             if 'confidence_score' not in columns:
                 self.logger.info("Migrating DB: Adding confidence_score column...")
                 cursor.execute("ALTER TABLE jobs ADD COLUMN confidence_score FLOAT")
+
+            if 'batch_id' not in columns:
+                self.logger.info("Migrating DB: Adding batch_id column...")
+                cursor.execute("ALTER TABLE jobs ADD COLUMN batch_id VARCHAR(50)")
 
             conn.commit()
             conn.close()
@@ -173,51 +199,54 @@ class QueueManager:
                 time.sleep(300) # Retry sooner on error
     # ... existing methods ...
 
-    def add_folder(self, folder_path: str, metadata: Dict[str, Any] = None) -> QueueJob:
-        """Add a single folder to the queue with optional metadata"""
-        path = Path(folder_path)
-        meta = metadata or {}
-
-        # Resolve thumbnail once at creation time
-        thumb = resolve_thumbnail(str(path))
-
+    def add_folder(self, folder_path: str, metadata: dict = None, batch_id: str = None) -> QueueJob:
+        """
+        Add a folder to the queue.
+        
+        Args:
+            folder_path: Path to the item folder
+            metadata: Optional job metadata (e.g. condition)
+            batch_id: Optional ID to group this job into a batch
+            
+        Returns:
+            The created QueueJob
+        """
+        path_obj = Path(folder_path)
+        job_id = str(uuid.uuid4())[:8]
+        
         job = QueueJob(
-            id=uuid.uuid4().hex[:8].upper(),
-            folder_path=str(path),
-            folder_name=path.name,
-            job_metadata=meta,
-            scheduled_time=meta.get('scheduled_time'),
-            thumbnail_name=thumb,
+            id=job_id,
+            folder_path=str(path_obj),
+            folder_name=path_obj.name,
+            batch_id=batch_id
         )
-
+        if metadata:
+            job.job_metadata.update(metadata)
+            if 'condition' in metadata:
+                job.condition = metadata['condition']
+        
+        # Resolve thumbnail once at creation
+        job.thumbnail_name = resolve_thumbnail(job.folder_path)
+        
         session = self.SessionFactory()
         try:
-            db_job = self.JobModel(
-                id=job.id,
-                folder_path=job.folder_path,
-                folder_name=job.folder_name,
-                status=job.status.value,
-                created_at=datetime.fromisoformat(job.created_at),
-                job_metadata=job.job_metadata,
-                scheduled_time=datetime.fromisoformat(job.scheduled_time) if job.scheduled_time else None,
-                thumbnail_name=thumb,
-
-                # Init new fields
-                ai_data={},
-                item_specifics={},
-                timing={}
-            )
+            db_job = self._queue_job_to_db(job)
             session.add(db_job)
             session.commit()
-
-            self.emit_event('job_added', job.to_dict())
-            return job
+            
+            # Re-read to ensure everything is synced
+            job = self._db_to_queue_job(db_job)
         except Exception as e:
             session.rollback()
             self.logger.error(f"Failed to add job to database: {e}")
             raise
         finally:
             session.close()
+            
+        if self.on_job_added:
+            self.on_job_added(job)
+            
+        return job
 
     def save_state(self):
         """Deprecated: No longer needed. Use update_job() for direct DB writes."""
@@ -234,7 +263,7 @@ class QueueManager:
             updates: Dict of field names to new values. Supports:
                 - Simple fields: user_title, user_price, user_description, user_condition,
                   price, listing_id, offer_id, error_type, error_message, attempts,
-                  confidence_score
+                  confidence_score, batch_id
                 - JSON fields: item_specifics, ai_data, job_metadata, timing
                 - DateTime fields: scheduled_time, started_at, completed_at (accepts ISO strings)
                 - Status: status (accepts JobStatus enum or string)
@@ -325,7 +354,41 @@ class QueueManager:
         finally:
             session.close()
 
+    def _queue_job_to_db(self, job: QueueJob):
+        """Convert a QueueJob to a JobModel instance."""
+        return self.JobModel(
+            id=job.id,
+            folder_path=job.folder_path,
+            folder_name=job.folder_name,
+            status=job.status.value,
+            listing_id=job.listing_id,
+            offer_id=job.offer_id,
+            price=job.price,
+            title=job.title,
+            condition=job.condition,
+            user_title=job.user_title,
+            user_price=job.user_price,
+            user_description=job.user_description,
+            user_condition=job.user_condition,
+            ai_data=job.ai_data,
+            item_specifics=job.item_specifics,
+            error_type=job.error_type,
+            error_message=job.error_message,
+            attempts=job.attempts,
+            max_attempts=job.max_attempts,
+            created_at=datetime.fromisoformat(job.created_at),
+            started_at=datetime.fromisoformat(job.started_at) if job.started_at else None,
+            completed_at=datetime.fromisoformat(job.completed_at) if job.completed_at else None,
+            scheduled_time=datetime.fromisoformat(job.scheduled_time) if job.scheduled_time else None,
+            timing=job.timing,
+            job_metadata=job.job_metadata,
+            thumbnail_name=job.thumbnail_name,
+            confidence_score=job.confidence_score,
+            batch_id=job.batch_id
+        )
+
     def _db_to_queue_job(self, db_j) -> QueueJob:
+        """Convert a JobModel to a QueueJob."""
         return QueueJob(
             id=db_j.id,
             folder_path=db_j.folder_path,
@@ -408,6 +471,22 @@ class QueueManager:
                     # No pending jobs — check if we should exit
                     stats = self.get_stats()
                     if stats['pending'] == 0 and stats['processing'] == 0:
+                        # Batch complete! Emit stats before breaking
+                        if self._batch_stats['active']:
+                            duration = time.time() - self._batch_stats['start_time']
+                            avg_time = sum(self._batch_stats['item_times']) / len(self._batch_stats['item_times']) if self._batch_stats['item_times'] else 0
+                            
+                            summary = {
+                                'succeeded': self._batch_stats['succeeded'],
+                                'failed': self._batch_stats['failed'],
+                                'total_value': round(self._batch_stats['total_value'], 2),
+                                'avg_time': round(avg_time, 2),
+                                'total_duration': round(duration, 2)
+                            }
+                            self.logger.info(f"Batch Processing Complete: {summary}")
+                            self.emit_event('batch_complete', summary)
+                            self._batch_stats['active'] = False
+                            
                         break  # Queue is done
                     time.sleep(1)
                     continue
@@ -611,6 +690,7 @@ class QueueManager:
                 return
             self._processing = True
             self._paused = False
+            self._reset_batch_stats()
         self._thread = threading.Thread(target=self._process_queue, daemon=True)
         self._thread.start()
 
@@ -794,11 +874,23 @@ class QueueManager:
             'attempts': job.attempts,
             'started_at': job.started_at,
             'completed_at': job.completed_at,
-            'timing': job.timing,
             'job_metadata': job.job_metadata,
             'ai_data': job.ai_data,
             'item_specifics': job.item_specifics,
         })
+
+        # Update batch stats
+        if self._batch_stats['active']:
+            self._batch_stats['item_times'].append(elapsed)
+            if job.status == JobStatus.COMPLETED:
+                self._batch_stats['succeeded'] += 1
+                try:
+                    price_str = str(job.price or "0").replace('$', '').replace(',', '')
+                    self._batch_stats['total_value'] += float(price_str)
+                except (ValueError, TypeError):
+                    pass
+            elif job.status == JobStatus.FAILED:
+                self._batch_stats['failed'] += 1
 
         if job.status == JobStatus.COMPLETED:
             if self.on_job_complete:
@@ -835,3 +927,50 @@ class QueueManager:
             session.close()
 
         return None
+
+    def get_batch_summary(self, batch_id: str) -> Dict[str, Any]:
+        """Calculate summary statistics for a specific batch."""
+        session = self.SessionFactory()
+        try:
+            db_jobs = session.query(self.JobModel).filter_by(batch_id=batch_id).all()
+            if not db_jobs:
+                return {
+                    'batch_id': batch_id,
+                    'total_processed': 0,
+                    'succeeded': 0,
+                    'failed': 0,
+                    'total_value_listed': 0.0,
+                    'average_processing_time_seconds': 0.0
+                }
+                
+            jobs = [self._db_to_queue_job(db_job) for db_job in db_jobs]
+            
+            total = len(jobs)
+            succeeded = [j for j in jobs if j.status == JobStatus.COMPLETED]
+            failed = [j for j in jobs if j.status == JobStatus.FAILED]
+            
+            total_value = 0.0
+            for j in succeeded:
+                try:
+                    price_str = str(j.price or "0").replace('$', '').replace(',', '')
+                    total_value += float(price_str)
+                except (ValueError, TypeError):
+                    pass
+            
+            durations = []
+            for j in jobs:
+                if j.timing and 'total' in j.timing:
+                    durations.append(j.timing['total'])
+            
+            avg_time = sum(durations) / len(durations) if durations else 0.0
+            
+            return {
+                'batch_id': batch_id,
+                'total_processed': total,
+                'succeeded': len(succeeded),
+                'failed': len(failed),
+                'total_value_listed': round(total_value, 2),
+                'average_processing_time_seconds': round(avg_time, 2)
+            }
+        finally:
+            session.close()

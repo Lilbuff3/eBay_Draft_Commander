@@ -43,6 +43,18 @@ interface CommanderState {
     fetchPending: () => Promise<void>
     updatePending: (id: string, updates: { title?: string; price?: string; condition?: string }) => Promise<void>
     approvePending: (ids: string[]) => Promise<void>
+
+    // Filtering & UI
+    activeFilter: string
+    setActiveFilter: (filter: string) => void
+    batchSummary: {
+        succeeded: number;
+        failed: number;
+        total_value: number;
+        avg_time: number;
+        total_duration: number;
+    } | null
+    setBatchSummary: (summary: CommanderState['batchSummary']) => void
 }
 
 export const useCommanderStore = create<CommanderState>((set, get) => ({
@@ -180,5 +192,11 @@ export const useCommanderStore = create<CommanderState>((set, get) => ({
             console.error(err)
             toast.error('Approval failed')
         }
-    }
+    },
+
+    // Filtering & UI
+    activeFilter: 'all',
+    setActiveFilter: (activeFilter) => set({ activeFilter }),
+    batchSummary: null,
+    setBatchSummary: (batchSummary) => set({ batchSummary }),
 }))
