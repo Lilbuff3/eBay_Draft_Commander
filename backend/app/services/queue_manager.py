@@ -83,6 +83,10 @@ class QueueManager:
                 self.logger.info("Migrating DB: Adding thumbnail_name column...")
                 cursor.execute("ALTER TABLE jobs ADD COLUMN thumbnail_name VARCHAR(255)")
 
+            if 'confidence_score' not in columns:
+                self.logger.info("Migrating DB: Adding confidence_score column...")
+                cursor.execute("ALTER TABLE jobs ADD COLUMN confidence_score FLOAT")
+
             conn.commit()
             conn.close()
         except Exception as e:
@@ -229,7 +233,8 @@ class QueueManager:
             job_id: The job ID to update
             updates: Dict of field names to new values. Supports:
                 - Simple fields: user_title, user_price, user_description, user_condition,
-                  price, listing_id, offer_id, error_type, error_message, attempts
+                  price, listing_id, offer_id, error_type, error_message, attempts,
+                  confidence_score
                 - JSON fields: item_specifics, ai_data, job_metadata, timing
                 - DateTime fields: scheduled_time, started_at, completed_at (accepts ISO strings)
                 - Status: status (accepts JobStatus enum or string)
@@ -348,6 +353,7 @@ class QueueManager:
             timing=db_j.timing or {},
             job_metadata=db_j.job_metadata or {},
             thumbnail_name=getattr(db_j, 'thumbnail_name', None),
+            confidence_score=db_j.confidence_score,
         )
 
     def _watch_inbox(self):

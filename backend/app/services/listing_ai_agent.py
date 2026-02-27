@@ -102,7 +102,8 @@ class ListingAIAgent:
                 "raw_description": raw_description,
                 "item_specifics": item_specifics,
                 "ai_suggested_price": ai_suggested_price,
-                "shipping_cost": shipping_cost
+                "shipping_cost": shipping_cost,
+                "confidence_score": listing_data.get('confidence_score', 0.85)
             }
 
         except Exception as e:

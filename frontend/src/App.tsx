@@ -17,6 +17,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Toaster } from 'sonner'
 import { PullToRefreshIndicator } from '@/components/PullToRefreshIndicator'
 import { PWAInstallBanner } from '@/components/PWAInstallBanner'
+import { ReviewQueue } from '@/components/listings/ReviewQueue'
 import { useJobSync } from '@/hooks/useJobSync'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 
@@ -107,6 +108,7 @@ export default function App() {
 
           {/* Business Tools */}
           {activeTab === 'inventory' && <ActiveListings />}
+          {activeTab === 'review' && <ReviewQueue />}
           {activeTab === 'analytics' && <AnalyticsDashboard />}
           {activeTab === 'settings' && <Settings />}
         </ErrorBoundary>

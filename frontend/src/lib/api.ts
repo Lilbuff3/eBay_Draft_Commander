@@ -1,6 +1,6 @@
 // API Types and Functions for eBay Draft Commander
 
-export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'paused' | 'skipped' | 'scheduled' | 'needs_review'
+export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'paused' | 'skipped' | 'scheduled' | 'needs_review' | 'pending_review'
 
 export interface Job {
     id: string
@@ -16,8 +16,10 @@ export interface Job {
     started_at: string | null
     completed_at: string | null
     thumbnail_url?: string | null
+    thumbnail_name?: string | null
     condition?: string | null
     scheduled_time?: string | null
+    confidence_score?: number | null
 }
 
 export interface QueueStats {
@@ -54,6 +56,27 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
 
 export async function fetchJobs(): Promise<Job[]> {
     return apiFetch(`${API_BASE}/jobs`)
+}
+
+export async function fetchPendingListings(): Promise<Job[]> {
+    const res = await apiFetch<{ listings: Job[] }>(`${API_BASE}/listings/pending`)
+    return res.listings
+}
+
+export async function quickEditListing(jobId: string, updates: { title?: string; price?: string; condition?: string }): Promise<{ success: boolean }> {
+    return apiFetch(`${API_BASE}/listings/${jobId}/quick-edit`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+    })
+}
+
+export async function approvePendingListings(listingIds: string[]): Promise<{ success: boolean; approved_count: number }> {
+    return apiFetch(`${API_BASE}/listings/batch-approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listing_ids: listingIds })
+    })
 }
 
 export async function fetchStatus(): Promise<QueueStatus> {

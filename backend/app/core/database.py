@@ -22,6 +22,7 @@ class JobModel(Base):
     price = Column(String(20))   # Final price
     condition = Column(String(50))
     condition_description = Column(Text)
+    confidence_score = Column(Float)
     
     # IDs
     listing_id = Column(String(50))

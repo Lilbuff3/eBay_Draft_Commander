@@ -25,6 +25,7 @@ class JobStatus(Enum):
     SKIPPED = "skipped"
     SCHEDULED = "scheduled"
     NEEDS_REVIEW = "needs_review"
+    PENDING_REVIEW = "pending_review"
 
 
 @dataclass
@@ -51,6 +52,7 @@ class QueueJob:
     price: Optional[str] = None
     title: Optional[str] = None
     condition: Optional[str] = None
+    confidence_score: Optional[float] = None
 
     # User Overrides
     user_title: Optional[str] = None

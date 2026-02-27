@@ -1,7 +1,8 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from backend.app.services.ebay_service import eBayService
 from backend.app.services.ebay import policies as ebay_policies
 from backend.app.core.logger import get_logger
+from backend.app.services.queue_job import JobStatus
 
 listings_bp = Blueprint('listings', __name__)
 logger = get_logger('api.listings')
@@ -98,3 +99,77 @@ def get_inventory_locations():
     data = ebay_policies.get_inventory_locations()
     defaults = ebay_policies.get_current_defaults()
     return jsonify({'locations': data, 'default': defaults.get('location')})
+
+# --- PENDING REVIEW QUEUE ENDPOINTS ---
+
+@listings_bp.route('/listings/pending', methods=['GET'])
+def get_pending_listings():
+    """Fetch all listings with PENDING_REVIEW status"""
+    try:
+        queue_manager = current_app.config.get('QUEUE_MANAGER')
+        if not queue_manager:
+            return jsonify({'error': 'Queue manager not initialized'}), 500
+            
+        session = queue_manager.SessionFactory()
+        try:
+            db_jobs = session.query(queue_manager.JobModel).filter_by(
+                status=JobStatus.PENDING_REVIEW.value
+            ).all()
+            
+            jobs = [queue_manager._db_to_queue_job(j).to_dict() for j in db_jobs]
+            return jsonify({'listings': jobs, 'count': len(jobs)}), 200
+        finally:
+            session.close()
+    except Exception as e:
+        logger.error(f"Failed to fetch pending listings: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@listings_bp.route('/listings/<job_id>/quick-edit', methods=['PUT'])
+def quick_edit_listing(job_id):
+    """Update title, price, and condition for a pending listing"""
+    try:
+        data = request.json
+        queue_manager = current_app.config.get('QUEUE_MANAGER')
+        if not queue_manager:
+            return jsonify({'error': 'Queue manager not initialized'}), 500
+            
+        updates = {}
+        if 'title' in data: updates['user_title'] = data['title']
+        if 'price' in data: updates['user_price'] = data['price']
+        if 'condition' in data: updates['user_condition'] = data['condition']
+        
+        if queue_manager.update_job(job_id, updates):
+            return jsonify({'success': True}), 200
+        else:
+            return jsonify({'error': 'Job not found or update failed'}), 404
+    except Exception as e:
+        logger.error(f"Quick edit failed for job {job_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@listings_bp.route('/listings/batch-approve', methods=['POST'])
+def batch_approve_listings():
+    """Approve multiple listings and move them back to the active queue"""
+    try:
+        data = request.json
+        job_ids = data.get('listing_ids', [])
+        if not job_ids:
+            return jsonify({'error': 'No listing IDs provided'}), 400
+            
+        queue_manager = current_app.config.get('QUEUE_MANAGER')
+        if not queue_manager:
+            return jsonify({'error': 'Queue manager not initialized'}), 500
+            
+        success_count = 0
+        for job_id in job_ids:
+            if queue_manager.update_job(job_id, {'status': JobStatus.PENDING}):
+                success_count += 1
+        
+        # Trigger queue processing if needed
+        if success_count > 0:
+            if not queue_manager.is_processing() and not queue_manager.is_paused():
+                queue_manager.start_processing()
+                
+        return jsonify({'success': True, 'approved_count': success_count}), 200
+    except Exception as e:
+        logger.error(f"Batch approval failed: {e}")
+        return jsonify({'error': str(e)}), 500

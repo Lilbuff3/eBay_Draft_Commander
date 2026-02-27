@@ -214,6 +214,10 @@ class ProcessorService:
         if not analysis.get('success'):
              return {"success": False, "error_message": analysis.get('error')}
 
+        # Capture confidence score
+        confidence_score = analysis.get('confidence_score', 0.0)
+        job_obj.confidence_score = confidence_score
+
         # 3b. Refine condition using AI detection (only if no explicit override)
         condition = self._refine_condition_from_ai(
             condition, analysis.get('ai_data', {}),
@@ -247,7 +251,26 @@ class ProcessorService:
         template = self._render_listing_template(analysis['title'], analysis['raw_description'], upload["urls"], analysis['item_specifics'], condition)
         result["timing"]["templating"] = template["timing"]
 
-        # 8. Listing Creation
+        # 8. Hybrid Publishing Logic (Phase 2 Intercept)
+        auto_publish = str(os.environ.get('AUTO_PUBLISH', 'false')).lower() == 'true'
+        threshold = float(os.environ.get('CONFIDENCE_THRESHOLD', 0.85))
+        
+        if not auto_publish or confidence_score < threshold:
+            reason = "AUTO_PUBLISH=false" if not auto_publish else f"Low Confidence ({confidence_score:.2f} < {threshold})"
+            _log(f"Routing to Review Queue: {reason}", level='warning')
+            
+            result.update({
+                "success": True,
+                "status": "pending_review",
+                "price": pricing_result["price"],
+                "title": analysis['title'],
+                "condition": condition,
+                "confidence_score": confidence_score,
+                "timing": {**result["timing"], "total": time.time() - start_time}
+            })
+            return result
+
+        # 9. Listing Creation (Proceed if High Confidence & Auto-Publish)
         bundle = self._create_trading_api_listing(
             title=analysis['title'], final_price=pricing_result["price"], condition=condition,
             category_id=cat_result['id'], html_description=template["html"],

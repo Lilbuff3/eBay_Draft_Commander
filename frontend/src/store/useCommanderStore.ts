@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { type Job, type QueueStats, startQueue, pauseQueue, scanInbox, fetchJobs } from '@/lib/api'
+import { type Job, type QueueStats, startQueue, pauseQueue, scanInbox, fetchJobs, fetchPendingListings, quickEditListing, approvePendingListings } from '@/lib/api'
 import { type LogEntry } from '@/components/LogViewer'
 import { toast } from 'sonner'
 
@@ -13,6 +13,8 @@ interface CommanderState {
     setJobs: (jobs: Job[]) => void
     selectedJob: Job | null
     setSelectedJob: (job: Job | null) => void
+    pendingListings: Job[]
+    setPendingListings: (listings: Job[]) => void
 
     // Queue Status
     queueStats: QueueStats
@@ -38,6 +40,9 @@ interface CommanderState {
     handlePause: () => Promise<void>
     handleScan: () => Promise<void>
     refreshData: () => Promise<void>
+    fetchPending: () => Promise<void>
+    updatePending: (id: string, updates: { title?: string; price?: string; condition?: string }) => Promise<void>
+    approvePending: (ids: string[]) => Promise<void>
 }
 
 export const useCommanderStore = create<CommanderState>((set, get) => ({
@@ -53,6 +58,8 @@ export const useCommanderStore = create<CommanderState>((set, get) => ({
     setJobs: (jobs) => set({ jobs }),
     selectedJob: null,
     setSelectedJob: (job) => set({ selectedJob: job }),
+    pendingListings: [],
+    setPendingListings: (pendingListings) => set({ pendingListings }),
 
     // Queue Status
     queueStats: { pending: 0, completed: 0, failed: 0, total: 0 },
@@ -130,5 +137,48 @@ export const useCommanderStore = create<CommanderState>((set, get) => ({
     refreshData: async () => {
         // This will be triggered via refetch in useJobSync but we can expose a trigger here
         // Actually, it's better to just invalidate queries if we use react-query
+    },
+
+    fetchPending: async () => {
+        try {
+            const listings = await fetchPendingListings()
+            set({ pendingListings: listings })
+        } catch (err) {
+            console.error(err)
+            toast.error('Failed to fetch pending listings')
+        }
+    },
+
+    updatePending: async (id, updates) => {
+        try {
+            await quickEditListing(id, updates)
+            set((state) => ({
+                pendingListings: state.pendingListings.map(l =>
+                    l.id === id ? { ...l, ...updates } : l
+                )
+            }))
+            toast.success('Listing updated')
+        } catch (err) {
+            console.error(err)
+            toast.error('Update failed')
+        }
+    },
+
+    approvePending: async (ids) => {
+        try {
+            const result = await approvePendingListings(ids)
+            if (result.success) {
+                toast.success(`Approved ${result.approved_count} listings`)
+                set((state) => ({
+                    pendingListings: state.pendingListings.filter(l => !ids.includes(l.id))
+                }))
+                // Refresh main jobs list
+                const jobsData = await fetchJobs()
+                set({ jobs: jobsData })
+            }
+        } catch (err) {
+            console.error(err)
+            toast.error('Approval failed')
+        }
     }
 }))

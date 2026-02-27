@@ -205,6 +205,14 @@ class AIAnalyzer:
             if not isinstance(data.get('identification'), dict):
                 return {"error": "Invalid 'identification' structure (not a dict)", "data": data}
             
+            # Extract confidence_score if available, otherwise default to 0.85 
+            # (or calculate based on response completeness)
+            listing_sec = data.get('listing', {})
+            if 'confidence_score' not in listing_sec:
+                # Fallback: analyze response for basic completeness
+                score = 0.90 if data.get('identification', {}).get('brand') else 0.80
+                listing_sec['confidence_score'] = score
+
             # Add metadata
             data['image_paths'] = image_paths
             data['image_count'] = len(image_paths)
