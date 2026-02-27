@@ -202,14 +202,14 @@ class TokenManager:
                     os.environ['EBAY_REFRESH_TOKEN'] = new_refresh
                     logger.info("Refresh token rotated and saved to .env")
                 
-                logger.info(f"✅ Token refreshed (expires in {expires_in}s)")
+                logger.info(f"[OK] Token refreshed (expires in {expires_in}s)")
                 return True
             else:
-                logger.error(f"❌ Refresh failed ({response.status_code}): {response.text[:200]}")
+                logger.error(f"[FAIL] Refresh failed ({response.status_code}): {response.text[:200]}")
                 return False
                 
         except Exception as e:
-            logger.error(f"❌ Token refresh error: {e}")
+            logger.error(f"[FAIL] Token refresh error: {e}")
             return False
     
     def _save_to_db(self, token: str, expires_at: datetime):

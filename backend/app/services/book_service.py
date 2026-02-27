@@ -55,7 +55,7 @@ class BookService:
             return {'success': False, 'error': 'Book not found'}
             
         except Exception as e:
-            logger.error(f"⚠️ Google Books API failed: {e}")
+            logger.error(f"[WARN] Google Books API failed: {e}")
             return {'success': False, 'error': str(e)}
 
 if __name__ == "__main__":

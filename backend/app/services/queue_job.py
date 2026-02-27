@@ -49,6 +49,8 @@ class QueueJob:
     listing_id: Optional[str] = None
     offer_id: Optional[str] = None
     price: Optional[str] = None
+    title: Optional[str] = None
+    condition: Optional[str] = None
 
     # User Overrides
     user_title: Optional[str] = None

@@ -253,7 +253,9 @@ class ProcessorService:
             
         result.update({
             "success": True, "listing_id": bundle['listing_id'], "status": bundle['status'],
-            "price": pricing_result["price"], "timing": {**result["timing"], "api": bundle["timing"], "total": time.time() - start_time}
+            "price": pricing_result["price"], "title": analysis['title'],
+            "condition": condition,
+            "timing": {**result["timing"], "api": bundle["timing"], "total": time.time() - start_time}
         })
         _log(f"Listing Created: {result['status']}", level='success')
         return result

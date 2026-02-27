@@ -139,6 +139,6 @@ if __name__ == '__main__':
     print("=" * 60)
     
     if is_frozen():
-        print("✅ Running as packaged app - using user-writable directories")
+        print("[OK] Running as packaged app - using user-writable directories")
     else:
-        print("✅ Running from source - using project directories")
+        print("[OK] Running from source - using project directories")

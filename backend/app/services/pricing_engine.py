@@ -47,7 +47,7 @@ class PricingEngine:
                         break
         
         if not self.app_id:
-            logger.warning("⚠️ EBAY_APP_ID not found in .env - Pricing Intelligence disabled")
+            logger.warning("[WARN] EBAY_APP_ID not found in .env - Pricing Intelligence disabled")
             
         # Initialize Gemini 3 for Search Grounding (from Roadmap Phase 6)
         self.google_api_key = None
@@ -66,9 +66,9 @@ class PricingEngine:
             try:
                 from google import genai
                 self.ai_client = genai.Client(api_key=self.google_api_key)
-                logger.info("✅ Pricing AI initialized (Gemini 3 + Search Grounding)")
+                logger.info("[OK] Pricing AI initialized (Gemini 3 + Search Grounding)")
             except Exception as e:
-                logger.warning(f"⚠️ Could not initialize Pricing AI: {e}")
+                logger.warning(f"[WARN] Could not initialize Pricing AI: {e}")
     
     def search_sold_listings(self, keywords: str, category_id: Optional[str] = None, limit: int = 15) -> List[Dict[str, Any]]:
         """
@@ -109,10 +109,10 @@ class PricingEngine:
             return sold_items
 
         except ImportError:
-            logger.error("❌ Could not import eBayResearcher")
+            logger.error("[FAIL] Could not import eBayResearcher")
             return []
         except Exception as e:
-            logger.error(f"❌ Pricing engine error (using Researcher): {e}")
+            logger.error(f"[FAIL] Pricing engine error (using Researcher): {e}")
             return []
     
     def calculate_suggested_price(self, sold_items: List[Dict], our_condition: str = "Used - Good", acquisition_cost: float = 0.0, shipping_cost: float = 0.0) -> Dict[str, Any]:
@@ -307,11 +307,11 @@ class PricingEngine:
                 return {"price": price, "reasoning": reasoning}
                 
         except Exception as e:
-            logger.warning(f"   ⚠️ Gemini 3 Grounding failed: {e}")
+            logger.warning(f"   [WARN] Gemini 3 Grounding failed: {e}")
             
             # FALLBACK: Try Standard Inference (No Tools) if Grounding crashes
             try:
-                logger.info("   🔄 Retrying with robust logical inference (No Search Tools)...")
+                logger.info("   [RETRY] Retrying with robust logical inference (No Search Tools)...")
                 retry_prompt = f"""You are an expert appraiser. valid_price_prediction_required.
                 Item: {title}
                 Condition: {condition}
@@ -343,7 +343,7 @@ class PricingEngine:
                 data = json.loads(text)
                 return {"price": float(data.get('price', 0)), "reasoning": "Inferred: " + data.get('reasoning', '')}
             except Exception as e2:
-                logger.error(f"   ❌ Standard Inference also failed: {e2}")
+                logger.error(f"   [FAIL] Standard Inference also failed: {e2}")
 
         return None
 
@@ -362,12 +362,12 @@ class PricingEngine:
         
         # --- STRATEGY 1: ISBN SEARCH (Gold Standard for Books) ---
         if isbn:
-             logger.info(f"🔍 Searching sold listings by ISBN: {isbn}...")
+             logger.info(f"[SEARCH] Searching sold listings by ISBN: {isbn}...")
              sold_items = self.search_sold_listings(isbn, category_id, limit=15)
              
              if sold_items:
                  price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost)
-                 logger.info(f"   💰 Market price (ISBN): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
+                 logger.info(f"   [PRICE] Market price (ISBN): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
                  
                  return {
                     "suggested_price": price_data["suggested_price"],
@@ -378,19 +378,19 @@ class PricingEngine:
                     "research_link": self.generate_ebay_search_link(isbn) # Override link
                 }
              else:
-                 logger.info("   ⚠️ No sales found for exact ISBN, falling back to title...")
+                 logger.info("   [WARN] No sales found for exact ISBN, falling back to title...")
         
         # --- STRATEGY 2: KEYWORD SEARCH ---
         # Clean up title for search (remove special chars, limit length)
         search_query = " ".join(title.split()[:8])  # First 8 words
         
-        logger.info(f"🔍 Searching sold listings for: {search_query[:50]}...")
+        logger.info(f"[SEARCH] Searching sold listings for: {search_query[:50]}...")
         
         sold_items = self.search_sold_listings(search_query, category_id, limit=15)
         
         if sold_items:
             price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost)
-            logger.info(f"   💰 Market price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
+            logger.info(f"   [PRICE] Market price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
             
             return {
                 "suggested_price": price_data["suggested_price"],
@@ -402,7 +402,7 @@ class PricingEngine:
             }
         
         # Try Gemini 3 Grounding (Mandatory if no comps)
-        logger.info(f"🔍 Performing AI Market Research (Gemini 3 Grounding)...")
+        logger.info(f"[SEARCH] Performing AI Market Research (Gemini 3 Grounding)...")
         grounded_result = self.get_ai_price_estimate(title, condition)
         
         if grounded_result:
@@ -411,7 +411,7 @@ class PricingEngine:
             if shipping_cost > 0:
                 ai_price = round(ai_price + shipping_cost, 2)
                 ai_reasoning += f" + ${shipping_cost:.2f} free shipping buffer"
-            logger.info(f"   🌐 AI Research Price: ${ai_price:.2f}")
+            logger.info(f"   [WEB] AI Research Price: ${ai_price:.2f}")
             return {
                 "suggested_price": ai_price,
                 "comps": [],
@@ -427,7 +427,7 @@ class PricingEngine:
             if shipping_cost > 0:
                 fallback_price = round(fallback_price + shipping_cost, 2)
                 fallback_reasoning += f" + ${shipping_cost:.2f} free shipping buffer"
-            logger.info(f"   💡 Using AI image estimate: ${fallback_price}")
+            logger.info(f"   [INFO] Using AI image estimate: ${fallback_price}")
             return {
                 "suggested_price": fallback_price,
                 "comps": [],
@@ -438,7 +438,7 @@ class PricingEngine:
             
         # LAST RESORT: Fail Loudly (No Default)
         # User requested NO DEFAULT PRICING for undervalued items.
-        logger.warning("   ❌ Price discovery failed. Manual pricing required.")
+        logger.warning("   [FAIL] Price discovery failed. Manual pricing required.")
         return {
             "suggested_price": None, 
             "comps": [],
@@ -456,7 +456,7 @@ if __name__ == "__main__":
     engine = PricingEngine()
     
     if not engine.app_id:
-        logger.warning("⚠️ EBAY_APP_ID not configured - using AI fallback only")
+        logger.warning("[WARN] EBAY_APP_ID not configured - using AI fallback only")
     
     # Test with a known item
     test_title = "NTTAT CLETOP REEL TYPE A Optical Fiber Connector Cleaner"
@@ -465,13 +465,13 @@ if __name__ == "__main__":
     
     result = engine.get_price_with_comps(test_title, test_condition, ai_suggested_price=test_ai_price)
     
-    logger.info(f"\n📊 Results for: {test_title[:50]}...")
+    logger.info(f"\n[STATS] Results for: {test_title[:50]}...")
     logger.info(f"   Suggested Price: ${result['suggested_price']}" if result['suggested_price'] else "   No price suggestion")
     logger.info(f"   Source: {result['source']}")
     logger.info(f"   Reasoning: {result['reasoning']}")
-    logger.info(f"   🔗 Research: {result['research_link']}")
+    logger.info(f"   [LINK] Research: {result['research_link']}")
     
     if result['comps']:
-        logger.info(f"\n   📦 Recent Sales ({len(result['comps'])} shown):")
+        logger.info(f"\n   [COMPS] Recent Sales ({len(result['comps'])} shown):")
         for comp in result['comps']:
             logger.info(f"      ${comp['price']:.2f} - {comp['condition']} - {comp['end_date']}")

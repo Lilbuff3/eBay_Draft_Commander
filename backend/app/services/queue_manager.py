@@ -329,6 +329,8 @@ class QueueManager:
             listing_id=db_j.listing_id,
             offer_id=db_j.offer_id,
             price=db_j.price,
+            title=db_j.title,
+            condition=db_j.condition,
             user_title=db_j.user_title,
             user_price=db_j.user_price,
             user_description=db_j.user_description,
@@ -712,14 +714,14 @@ class QueueManager:
             'started_at': started_at,
             'attempts': job.attempts,
         })
-        self.log_status(job.id, "🚀 Starting processing pipeline...")
+        self.log_status(job.id, "[START] Starting processing pipeline...")
 
         if self.on_job_start:
             self.on_job_start(job)
 
         try:
             start_time = time.time()
-            self.log_status(job.id, "🔍 Analyzing images with AI...")
+            self.log_status(job.id, "[SEARCH] Analyzing images with AI...")
 
             # Instantiate ProcessorService (Phase 3 Architecture)
             from backend.app.services.processor_service import ProcessorService
@@ -741,6 +743,8 @@ class QueueManager:
                     job.listing_id = result.get('listing_id')
                     job.offer_id = result.get('offer_id')
                     job.price = result.get('price')
+                    job.title = result.get('title')
+                    job.condition = result.get('condition')
                     job.timing = result.get('timing', {'total': elapsed})
                 else:
                     job.status = JobStatus.FAILED
@@ -759,7 +763,7 @@ class QueueManager:
         except Exception as e:
             # Check if this is a NeedsReview exception from the processor service
             if type(e).__name__ == 'NeedsReviewException':
-                self.log_status(job.id, f"⚠️ Needs Review: {str(e)}", "warning")
+                self.log_status(job.id, f"[WARN] Needs Review: {str(e)}", "warning")
                 job.status = JobStatus.NEEDS_REVIEW
                 job.error_message = str(e)
                 job.error_type = "needs_review"
@@ -777,6 +781,8 @@ class QueueManager:
             'listing_id': job.listing_id,
             'offer_id': job.offer_id,
             'price': job.price,
+            'title': job.title,
+            'condition': job.condition,
             'error_type': job.error_type,
             'error_message': job.error_message,
             'attempts': job.attempts,

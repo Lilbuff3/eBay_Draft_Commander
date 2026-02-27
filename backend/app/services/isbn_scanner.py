@@ -11,7 +11,7 @@ try:
     from google.genai import types
     from PIL import Image
 except ImportError:
-    logger.warning("⚠️ google-genai or PIL not installed")
+    logger.warning("[WARN] google-genai or PIL not installed")
 
 class ISBNScanner:
     """
@@ -33,10 +33,10 @@ class ISBNScanner:
             
         if api_key:
             self.client = genai.Client(api_key=api_key)
-            logger.info("✅ ISBN Scanner initialized (Gemini Vision)")
+            logger.info("[OK] ISBN Scanner initialized (Gemini Vision)")
         else:
             self.client = None
-            logger.warning("⚠️ ISBN Scanner disabled (No API Key)")
+            logger.warning("[WARN] ISBN Scanner disabled (No API Key)")
 
     def scan_image(self, image_path: str) -> Optional[str]:
         """
@@ -69,7 +69,7 @@ class ISBNScanner:
             return None
             
         except Exception as e:
-            logger.error(f"❌ ISBN Scan failed: {e}")
+            logger.error(f"[FAIL] ISBN Scan failed: {e}")
             return None
 
 if __name__ == "__main__":

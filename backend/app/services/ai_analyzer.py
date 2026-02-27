@@ -49,7 +49,7 @@ class AIAnalyzer:
             with open(image_path, 'rb') as f:
                 return base64.b64encode(f.read()).decode('utf-8')
         except Exception as e:
-            logger.warning(f"⚠️ Could not encode {image_path}: {e}")
+            logger.warning(f"[WARN] Could not encode {image_path}: {e}")
             return None
     
     def get_images_from_folder(self, folder_path, max_images=None):
@@ -353,7 +353,7 @@ class AIAnalyzer:
                 for path in image_paths:
                     isbn = isbn_scanner.scan_image(path)
                     if isbn:
-                        logger.info(f"✅ Found ISBN: {isbn}")
+                        logger.info(f"[OK] Found ISBN: {isbn}")
                         break
                 
                 if isbn:
@@ -361,7 +361,7 @@ class AIAnalyzer:
                     book_data = book_service.lookup_isbn(isbn)
                     
                     if book_data.get('success'):
-                        logger.info(f"✅ Found Book Metadata: {book_data.get('title')}")
+                        logger.info(f"[OK] Found Book Metadata: {book_data.get('title')}")
                         basic_result['book_metadata'] = book_data
                         basic_result['analysis_mode'] = 'book_scan'
                         
@@ -402,7 +402,7 @@ class AIAnalyzer:
                     if research.get('compatible_with'):
                         basic_result['identification']['compatible_systems'] = research['compatible_with']
                     
-                    logger.info(f"✅ Enhanced with research data")
+                    logger.info(f"[OK] Enhanced with research data")
         
         # Phase 3: Map to eBay item specifics and generate SEO title
         try:
@@ -414,7 +414,7 @@ class AIAnalyzer:
             basic_result['seo_title'] = mapper.generate_seo_title(basic_result)
             basic_result['condition_id'] = mapper.get_condition_id(basic_result.get('condition', {}))
             basic_result['condition_description'] = mapper.generate_condition_description(basic_result.get('condition', {}))
-            logger.info(f"✅ Generated {len(basic_result['item_specifics'])} item specifics")
+            logger.info(f"[OK] Generated {len(basic_result['item_specifics'])} item specifics")
         except Exception as e:
             logger.warning(f"Item specifics mapping failed: {e}")
         

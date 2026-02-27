@@ -249,11 +249,11 @@ class eBayOAuth:
     def start_auth_flow(self):
         """Interactive authorization flow"""
         print("\n" + "="*70)
-        print("🔐 eBay OAuth User Authorization")
+        print("[AUTH] eBay OAuth User Authorization")
         print("="*70)
         
         if not self.ru_name:
-            print("\n⚠️  IMPORTANT: You need to set up your RuName first!")
+            print("\n[WARN]  IMPORTANT: You need to set up your RuName first!")
             print("\nSteps to get your RuName:")
             print("1. Go to: https://developer.ebay.com/my/keys")
             print("2. Click on your Production app (Image Lister)")
@@ -274,7 +274,7 @@ class eBayOAuth:
         
         url = self.get_authorization_url()
         
-        print(f"\n📌 Opening browser for authorization...")
+        print(f"\n[NOTE] Opening browser for authorization...")
         print(f"\nIf browser doesn't open, go to this URL manually:\n")
         print(url[:100] + "...\n")
         
@@ -303,14 +303,14 @@ def main():
     oauth = eBayOAuth(use_sandbox=False)  # Production
     
     if oauth.has_valid_token():
-        print("\n✅ User token already configured!")
+        print("\n[OK] User token already configured!")
         print(f"   Token: ****...{oauth.user_token[-4:]}")
         
         refresh = input("\nRefresh token? (y/n): ").strip().lower()
         if refresh == 'y':
             oauth.refresh_access_token()
     else:
-        print("\n⚠️ No user token found. Starting authorization...")
+        print("\n[WARN] No user token found. Starting authorization...")
         oauth.start_auth_flow()
 
 

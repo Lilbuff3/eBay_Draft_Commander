@@ -334,8 +334,8 @@ if __name__ == "__main__":
     # Validate
     errors = manager.validate()
     if errors:
-        logger.warning("\n⚠️ Validation errors:")
+        logger.warning("\n[WARN] Validation errors:")
         for error in errors:
             logger.warning(f"  - {error}")
     else:
-        logger.info("\n✅ All settings valid")
+        logger.info("\n[OK] All settings valid")

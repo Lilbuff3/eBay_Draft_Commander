@@ -199,4 +199,4 @@ if __name__ == '__main__':
     logger_json = get_logger('test_json', use_json=True, log_to_console=True, log_to_file=False)
     logger_json.info("Production log message", extra={'request_id': 'abc123'})
     
-    print("\n✅ Logger module working correctly!")
+    print("\n[OK] Logger module working correctly!")

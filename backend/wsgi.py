@@ -70,10 +70,10 @@ def main():
     try:
         boot_logger.info("Initializing QueueManager...")
         queue_manager = QueueManager()
-        boot_logger.info("✅ QueueManager initialized successfully")
+        boot_logger.info("[OK] QueueManager initialized successfully")
             
     except Exception as e:
-        boot_logger.error(f"❌ Failed to initialize QueueManager: {e}", exc_info=True)
+        boot_logger.error(f"[FAIL] Failed to initialize QueueManager: {e}", exc_info=True)
         queue_manager = None
 
     # Create App
@@ -82,7 +82,7 @@ def main():
     
     # Run Server
     port = int(os.environ.get('PORT', 5000))
-    boot_logger.info(f"🚀 Starting Backend Server on port {port}")
+    boot_logger.info(f"[START] Starting Backend Server on port {port}")
     
     # Debug=True is fine for dev, but we might want to toggle it
     socketio.run(app, host='0.0.0.0', port=port, debug=False, use_reloader=False)

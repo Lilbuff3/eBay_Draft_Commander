@@ -59,7 +59,7 @@ class RateLimiter:
 
         wait_time = bucket.consume()
         if wait_time > 0:
-            logger.info(f"⏳ Rate limit hit for '{service}'. Throttling for {wait_time:.2f}s...")
+            logger.info(f"[WAIT] Rate limit hit for '{service}'. Throttling for {wait_time:.2f}s...")
             time.sleep(wait_time)
 
 # Global Instance

@@ -16,7 +16,7 @@ class ImageProcessor:
 
         upload_start = time.time()
         try:
-            _log(f"☁️ Uploading images to eBay from {folder_path.name}...")
+            _log(f"[UPLOAD] Uploading images to eBay from {folder_path.name}...")
             image_urls = upload_folder(folder_path, max_images=max_images)
             if not image_urls:
                 raise Exception("No images were uploaded successfully")

@@ -30,7 +30,7 @@ if not HAS_NEW_GENAI:
         HAS_LEGACY_GENAI = True
     except ImportError:
         HAS_LEGACY_GENAI = False
-        logger.warning("⚠️ Neither google-genai nor google.generativeai installed")
+        logger.warning("[WARN] Neither google-genai nor google.generativeai installed")
 else:
     HAS_LEGACY_GENAI = False
 
@@ -62,26 +62,26 @@ class AIPriceEstimator:
             api_key = os.getenv('GOOGLE_API_KEY')
         
         if not api_key:
-            logger.warning("⚠️ GOOGLE_API_KEY not found")
+            logger.warning("[WARN] GOOGLE_API_KEY not found")
             return
         
         # Initialize with NEW google-genai SDK (preferred)
         if HAS_NEW_GENAI:
             try:
                 self.client = genai.Client(api_key=api_key)
-                logger.info("✅ AI Price Estimator initialized (google-genai SDK with Google Search)")
+                logger.info("[OK] AI Price Estimator initialized (google-genai SDK with Google Search)")
                 return
             except Exception as e:
-                logger.warning(f"⚠️ New SDK init failed: {e}, trying legacy...")
+                logger.warning(f"[WARN] New SDK init failed: {e}, trying legacy...")
         
         # Fall back to legacy SDK
         if HAS_LEGACY_GENAI:
             try:
                 genai_legacy.configure(api_key=api_key)
                 self.legacy_model = genai_legacy.GenerativeModel('gemini-3-flash-preview')
-                logger.info("✅ AI Price Estimator initialized (legacy SDK, no live search)")
+                logger.info("[OK] AI Price Estimator initialized (legacy SDK, no live search)")
             except Exception as e:
-                logger.error(f"❌ Legacy SDK init failed: {e}")
+                logger.error(f"[FAIL] Legacy SDK init failed: {e}")
     
     def estimate_price(
         self,
@@ -140,7 +140,7 @@ class AIPriceEstimator:
             return self._parse_response(response.text, query, sources)
             
         except Exception as e:
-            logger.error(f"❌ Google Search grounding failed: {e}")
+            logger.error(f"[FAIL] Google Search grounding failed: {e}")
             # Try without search tool
             try:
                 response = self.client.models.generate_content(
@@ -250,7 +250,7 @@ Be thorough. Base your estimate on real market data you find."""
             }
             
         except json.JSONDecodeError as e:
-            logger.warning(f"⚠️ Failed to parse AI response: {e}")
+            logger.warning(f"[WARN] Failed to parse AI response: {e}")
             return self._extract_from_text(text, query, sources)
         except Exception as e:
             return self._error_result(str(e))
@@ -315,33 +315,33 @@ if __name__ == "__main__":
     
     # Test with a unique/rare item
     item = "Vintage 1960s Polaroid Land Camera Model 100"
-    logger.info(f"\n🔍 Estimating price for: {item}")
+    logger.info(f"\n[SEARCH] Estimating price for: {item}")
     
     result = estimator.estimate_price(item, condition="Used - Good")
     
     if result.get('success'):
         stats = result['stats']
-        logger.info(f"\n💰 Price Estimate:")
+        logger.info(f"\n[PRICE] Price Estimate:")
         logger.info(f"   Low:    ${stats['low']:.2f}")
         logger.info(f"   Mid:    ${stats['average']:.2f}")
         logger.info(f"   High:   ${stats['high']:.2f}")
         
         ai = result.get('ai_analysis', {})
-        logger.info(f"\n📊 Confidence: {ai.get('confidence', 'unknown')}")
+        logger.info(f"\n[STATS] Confidence: {ai.get('confidence', 'unknown')}")
         
         if ai.get('reasoning'):
-            logger.info(f"\n💡 Reasoning: {ai.get('reasoning')[:300]}...")
+            logger.info(f"\n[INFO] Reasoning: {ai.get('reasoning')[:300]}...")
         
         if ai.get('comparable_items'):
-            logger.info(f"\n📦 Comparables:")
+            logger.info(f"\n[COMPS] Comparables:")
             for comp in ai['comparable_items'][:3]:
                 logger.info(f"   • {comp}")
         
         if ai.get('search_sources'):
-            logger.info(f"\n🔗 Sources:")
+            logger.info(f"\n[LINK] Sources:")
             for src in ai['search_sources'][:3]:
                 logger.info(f"   • {src}")
     else:
-        logger.error(f"❌ Error: {result.get('error')}")
+        logger.error(f"[FAIL] Error: {result.get('error')}")
     
-    logger.info("\n✅ Test complete!")
+    logger.info("\n[OK] Test complete!")
