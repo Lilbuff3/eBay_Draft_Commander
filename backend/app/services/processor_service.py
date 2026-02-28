@@ -209,7 +209,7 @@ class ProcessorService:
         result = {"success": False, "timing": {}}
         
         if not folder_path.exists():
-            return {"success": False, "error_message": f"Folder not found: {folder_path}"}
+            return {"success": False, "error_type": "folder_not_found", "error_message": f"Folder not found: {folder_path}"}
 
         # 1. Initial Condition (may be refined after AI analysis)
         metadata_condition = job_obj.job_metadata.get('condition') if job_obj.job_metadata else None
@@ -221,14 +221,14 @@ class ProcessorService:
         # 2. Images
         images = sorted([f for f in folder_path.iterdir() if f.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS])
         if not images:
-            return {"success": False, "error_message": "No images found"}
+            return {"success": False, "error_type": "no_images", "error_message": "No images found"}
 
         # 3. AI Analysis
         ai_start = time.time()
         analysis = self.ai_agent.analyze_item(job_obj, [str(img) for img in images], condition, log_callback)
         result["timing"]["ai_analysis"] = time.time() - ai_start
         if not analysis.get('success'):
-             return {"success": False, "error_message": analysis.get('error')}
+             return {"success": False, "error_type": "ai_analysis_failed", "error_message": analysis.get('error')}
 
         # Capture confidence score
         confidence_score = analysis.get('confidence_score', 0.0)
@@ -290,7 +290,7 @@ class ProcessorService:
         # 6. Image Upload
         upload = self.image_processor.upload_images(folder_path, log_callback=log_callback)
         if "error" in upload:
-            return {"success": False, "error_message": f"Image upload failed: {upload['error']}"}
+            return {"success": False, "error_type": "image_upload_failed", "error_message": f"Image upload failed: {upload['error']}"}
         result["timing"]["image_upload"] = upload["timing"]
 
         # 7. Rendering
@@ -335,7 +335,13 @@ class ProcessorService:
         )
         
         if "error" in bundle:
-            return {"success": False, "error_message": bundle["error"]}
+            error_msg = bundle["error"]
+            error_type = "trading_api_error"
+            if "return option" in error_msg.lower() or "shipping service" in error_msg.lower():
+                error_type = "missing_policy"
+            elif "token" in error_msg.lower() or "auth" in error_msg.lower():
+                error_type = "auth_error"
+            return {"success": False, "error_type": error_type, "error_message": error_msg}
             
         result.update({
             "success": True, "listing_id": bundle['listing_id'], "status": bundle['status'],

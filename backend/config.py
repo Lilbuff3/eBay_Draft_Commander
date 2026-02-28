@@ -3,19 +3,32 @@ import sys
 from pathlib import Path
 
 def load_dotenv_manually(base_path):
-    """Manually load .env file into os.environ"""
-    # Check multiple locations for .env
-    candidates = [
-        base_path / '.env',
-        base_path.parent / '.env', # One level up
-        base_path.parent.parent / '.env', # Two levels up (App Root)
-        Path.cwd() / '.env'
-    ]
-    
+    """Manually load .env file into os.environ.
+
+    Searches for .env starting at base_path and walking up every parent
+    directory until found or root is reached.  Also checks cwd() as a
+    final fallback.  This ensures git worktrees (which can be nested
+    several levels deep) still find the project-root .env.
+    """
+    candidates = []
+
+    # Walk up from base_path to filesystem root
+    current = base_path.resolve()
+    while True:
+        candidates.append(current / '.env')
+        parent = current.parent
+        if parent == current:
+            break  # Reached filesystem root
+        current = parent
+
+    # Also check cwd as a fallback (may differ from base_path)
+    cwd_env = Path.cwd().resolve() / '.env'
+    if cwd_env not in candidates:
+        candidates.append(cwd_env)
+
     for env_path in candidates:
         try:
             if env_path.exists():
-                # Structured logging is handled by core.logger
                 with open(env_path, 'r') as f:
                     for line in f:
                         line = line.strip()
@@ -26,7 +39,7 @@ def load_dotenv_manually(base_path):
                                 os.environ[key.strip()] = value.strip()
                 return True
         except Exception:
-            pass # Fail silently in config loader to prevent startup crashes
+            pass  # Fail silently in config loader to prevent startup crashes
     return False
 
 class Config:
