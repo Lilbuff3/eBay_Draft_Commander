@@ -24,8 +24,8 @@ CRITICAL INSTRUCTIONS:
 4. SPECIFICS: Extract technical specs (Voltage, Amps, Capacity, Size, Color).
 
 OUTPUT FORMAT: Return a JSON object with this EXACT structure:
-{
-    "identification": {
+{{
+    "identification": {{
         "brand": "Brand Name",
         "model": "Model Number",
         "mpn": "Manuf. Part Number",
@@ -37,25 +37,24 @@ OUTPUT FORMAT: Return a JSON object with this EXACT structure:
         "package_size": "small|medium|large|heavy",
         "confidence_score": 95,
         "category_id": "Chosen Category ID or null"
-    },
-    "condition": {
+    }},
+    "condition": {{
         "state": "New|New Open Box|New Old Stock|Used - Like New|Used - Good|Used - Acceptable|For Parts",
         "wear_details": "Description of any visible defects or 'pristine' if none",
         "accessories_found": ["Power Cord", "Manual", "Bracket"]
-    },
-    "listing": {
+    }},
+    "listing": {{
         "suggested_title": "Brand Model MPN Product Type Key Spec (Max 80 Chars)",
         "description_html": "<b>Brand:</b> ...<br><b>Model:</b> ...<br>...",
         "suggested_price": 0.00
-    },
-    "item_specifics": {
+    }},
+    "item_specifics": {{
         "Brand": "Value",
         "Model": "Value",
         "MPN": "Value",
         "Type": "Value"
-        // Add any other relevant specifics found (e.g. 'Connectivity', 'Voltage')
-    }
-}
+    }}
+}}
 """
 
 INDUSTRIAL_RESEARCH_PROMPT = """Research this industrial equipment part for eBay listing:

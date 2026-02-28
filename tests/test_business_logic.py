@@ -27,7 +27,10 @@ def _make_mock_job(folder_path, **overrides):
 
 
 @pytest.fixture
-def test_app(tmp_path):
+def test_app(tmp_path, monkeypatch):
+    # Enable auto-publish so pipeline reaches Trading API (not review queue)
+    monkeypatch.setenv('AUTO_PUBLISH', 'true')
+    monkeypatch.setenv('CONFIDENCE_THRESHOLD', '0')
     qm = QueueManager(base_path=tmp_path)
     app = create_app(queue_manager=qm)
     app.config['EBAY_MERCHANT_LOCATION'] = 'TEST_LOC'
