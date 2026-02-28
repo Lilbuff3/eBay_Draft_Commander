@@ -57,7 +57,7 @@ backend/                    Flask app factory
         analytics_api.py    /api/analytics endpoints
         system_api.py       /api/system (health, token status)
         helpers.py          Shared utilities for API routes
-      ui.py                 Serves React SPA at /app/, legacy templates at /
+      ui.py                 Serves React SPA at /app/, redirects / to /app/
     core/
       constants.py          CONDITION_MAP, CONDITION_ID_MAP, rate limits, model names
       database.py           SQLAlchemy models (JobModel, TemplateModel, OrphanedMedia, AppToken)
