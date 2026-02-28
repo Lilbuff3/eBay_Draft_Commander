@@ -1,22 +1,17 @@
-from flask import Blueprint, render_template, send_from_directory, current_app
+from flask import Blueprint, send_from_directory, current_app, redirect
 from pathlib import Path
 
 ui_bp = Blueprint('ui', __name__)
 
 @ui_bp.route('/')
 def index():
-    """Main mobile dashboard"""
-    return render_template('mobile.html')
-
-@ui_bp.route('/modern')
-def modern_dashboard():
-    """Legacy React+Tailwind Prototype"""
-    return render_template('modern_dashboard.html')
+    """Redirect root to React SPA"""
+    return redirect('/app/')
 
 @ui_bp.route('/app')
 def app_root():
     """Redirect /app to /app/ to ensure relative assets work"""
-    return current_app.redirect('/app/')
+    return redirect('/app/')
 
 @ui_bp.route('/app/')
 @ui_bp.route('/app/<path:path>')
