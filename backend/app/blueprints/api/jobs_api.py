@@ -121,6 +121,7 @@ def get_job_details(job_id):
         'condition_id': ai_data.get('condition_id'),
         'condition_description': ai_data.get('condition_description'),
         'analysis_mode': ai_data.get('analysis_mode'),
+        'ebay_required_aspects': ai_data.get('ebay_required_aspects', []),
         'images': images,
         'image_count': len(images),
         'raw_metadata': job.job_metadata
@@ -150,6 +151,19 @@ def update_job_metadata(job_id):
             updates['user_condition'] = data['condition']
         if 'item_specifics' in data:
             updates['item_specifics'] = data['item_specifics']
+        if 'category_id' in data and data['category_id']:
+            category_id = data['category_id']
+            category_name = data.get('category_name', '')
+            # Update ai_data with the corrected category
+            ai_data = job.ai_data or {}
+            ai_data['category_id'] = category_id
+            ai_data['category_name'] = category_name
+            ai_data['ebay_category_suggestion'] = category_name
+            updates['ai_data'] = ai_data
+            # Record correction for future items
+            title = data.get('title') or job.user_title or job.folder_name
+            from backend.app.services.category_correction_cache import get_correction_cache
+            get_correction_cache().record(title, category_id, category_name)
         if 'fulfillmentPolicy' in data:
             metadata = job.job_metadata or {}
             metadata['fulfillment_policy'] = data['fulfillmentPolicy']

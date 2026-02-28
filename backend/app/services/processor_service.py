@@ -104,30 +104,46 @@ class ProcessorService:
 
         return current_condition
 
-    def _validate_mandatory_specifics(self, category_name: str, specifics: dict):
-        """Check if mandatory eBay Item Specifics are present"""
-        if not category_name:
-            return
-            
-        cat_lower = category_name.lower()
-        missing = []
-        
-        if 'shoe' in cat_lower or 'sneaker' in cat_lower or 'boot' in cat_lower:
-            if 'US Shoe Size' not in specifics and 'US Shoe Size (Men\'s)' not in specifics and 'US Shoe Size (Women\'s)' not in specifics:
-                missing.append('US Shoe Size')
-            if 'Brand' not in specifics:
-                missing.append('Brand')
-                
-        elif 'clothing' in cat_lower or 'shirt' in cat_lower or 'pant' in cat_lower or 'jacket' in cat_lower:
-            if 'Brand' not in specifics:
-                missing.append('Brand')
-            if 'Size Type' not in specifics:
-                specifics['Size Type'] = 'Regular'
-            if not any('Size' in k for k in specifics.keys()):
-                missing.append('Size')
-                
-        if missing:
-            raise NeedsReviewException(f"Missing mandatory Item Specifics for category '{category_name}': {', '.join(missing)}")
+    def _validate_and_enrich_specifics(self, category_id: str, specifics: dict, _log=None) -> list:
+        """
+        Fetch eBay's required/recommended aspects for the category,
+        auto-fill single-value required aspects, and return metadata
+        about missing required aspects for the frontend.
+        """
+        if not category_id:
+            return []
+
+        from backend.app.services.ebay.taxonomy import get_item_aspects
+        aspects = get_item_aspects(category_id)
+        required_aspects = aspects.get('required', [])
+
+        if not required_aspects:
+            return []
+
+        missing_required = []
+        for aspect in required_aspects:
+            name = aspect.get('name')
+            if not name:
+                continue
+
+            if name in specifics and specifics[name]:
+                continue
+
+            # Auto-fill if there's exactly one allowed value
+            values = aspect.get('values', [])
+            if len(values) == 1:
+                specifics[name] = values[0]
+                if _log:
+                    _log(f"Auto-filled required aspect: {name} = {values[0]}")
+            else:
+                missing_required.append({
+                    'name': name,
+                    'values': values[:50]  # Cap at 50 to avoid bloating response
+                })
+                if _log:
+                    _log(f"Missing required aspect: {name}", level='warning')
+
+        return missing_required
 
     def _render_listing_template(self, title: str, description: str, images: list, aspects: dict, condition: str) -> dict:
         """Render the listing HTML"""
@@ -226,10 +242,18 @@ class ProcessorService:
 
         # 4. Taxonomy & Specifics
         _log("Mapping category taxonomy...")
+
+        # 4a. Check correction cache first (human feedback loop)
+        from backend.app.services.category_correction_cache import get_correction_cache
+        correction = get_correction_cache().lookup(analysis['title'])
+
         # Use AI-provided category if available
         ai_category_id = analysis.get('category_id')
-        
-        if ai_category_id:
+
+        if correction:
+            cat_result = correction
+            _log(f"Category from correction cache: {correction['name']} ({correction['id']})")
+        elif ai_category_id:
             # If we have an AI-selected ID, we still want to get the name for validation/logging
             # We can mock a cat_result or update category_mapper to handle IDs
             cat_result = {
@@ -241,7 +265,15 @@ class ProcessorService:
             # Fallback to legacy mapper if AI didn't provide one (though mapper now returns None too)
             cat_result = self.category_mapper.get_category(analysis['title'], analysis['raw_description'])
         
-        self._validate_mandatory_specifics(cat_result.get('name', 'Unknown'), analysis['item_specifics'])
+        # 4b. Fetch eBay required aspects and validate/enrich item specifics
+        missing_required_aspects = self._validate_and_enrich_specifics(
+            cat_result.get('id'), analysis['item_specifics'], _log=_log
+        )
+        if missing_required_aspects:
+            # Persist in ai_data so frontend can show required field indicators
+            ai_data = job_obj.ai_data or {}
+            ai_data['ebay_required_aspects'] = missing_required_aspects
+            job_obj.ai_data = ai_data
 
         # 5. Final Pricing
         shipping_cost = analysis.get('shipping_cost')

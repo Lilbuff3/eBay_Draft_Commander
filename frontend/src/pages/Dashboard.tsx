@@ -45,7 +45,9 @@ export function Dashboard() {
         condition: '',
         shipping: null,
         scheduledTime: '',
-        itemSpecifics: {}
+        itemSpecifics: {},
+        categoryId: '',
+        categoryName: ''
     })
 
     const updateDraft = (updates: Partial<ItemDraft>) => {
@@ -178,7 +180,9 @@ export function Dashboard() {
                     const newDraft: Partial<ItemDraft> = {
                         title: details.user_title || details.ai_title || selectedJob.name,
                         price: details.suggested_price ? String(details.suggested_price) : '29.99',
-                        condition: details.condition ? String(details.condition) : ''
+                        condition: details.condition ? String(details.condition) : '',
+                        categoryId: details.category_id || '',
+                        categoryName: details.category_name || ''
                     }
 
                     if (details.scheduled_time) {
@@ -207,7 +211,9 @@ export function Dashboard() {
                 condition: '',
                 shipping: null,
                 scheduledTime: '',
-                itemSpecifics: {}
+                itemSpecifics: {},
+                categoryId: '',
+                categoryName: ''
             })
         }
     }, [selectedJob])
@@ -226,6 +232,8 @@ export function Dashboard() {
                 price: draft.price,
                 title: draft.title,
                 condition: draft.condition || undefined,
+                categoryId: draft.categoryId || undefined,
+                categoryName: draft.categoryName || undefined,
                 fulfillmentPolicy: draft.shipping || undefined,
                 scheduledTime: draft.scheduledTime || undefined,
                 itemSpecifics: draft.itemSpecifics

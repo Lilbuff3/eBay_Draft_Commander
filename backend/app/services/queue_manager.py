@@ -113,6 +113,28 @@ class QueueManager:
                 self.logger.info("Migrating DB: Adding batch_id column...")
                 cursor.execute("ALTER TABLE jobs ADD COLUMN batch_id VARCHAR(50)")
 
+            # Taxonomy cache table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS taxonomy_cache (
+                    query_key TEXT PRIMARY KEY,
+                    response_json TEXT NOT NULL,
+                    created_at REAL NOT NULL
+                )
+            """)
+
+            # Category corrections table (human feedback loop)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS category_corrections (
+                    title_hash TEXT PRIMARY KEY,
+                    original_title TEXT NOT NULL,
+                    category_id TEXT NOT NULL,
+                    category_name TEXT DEFAULT '',
+                    use_count INTEGER DEFAULT 0,
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL
+                )
+            """)
+
             conn.commit()
             conn.close()
         except Exception as e:

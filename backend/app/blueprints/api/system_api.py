@@ -13,6 +13,13 @@ def health_check():
     """Lightweight health check for monitoring / load balancers"""
     return jsonify({'status': 'ok', 'service': 'ebay-draft-commander'}), 200
 
+@system_bp.route('/clear-taxonomy-cache', methods=['POST'])
+def clear_taxonomy_cache():
+    """Clear the taxonomy API response cache."""
+    from backend.app.services.ebay.taxonomy import clear_taxonomy_cache as _clear
+    _clear()
+    return jsonify({'success': True, 'message': 'Taxonomy cache cleared'}), 200
+
 @system_bp.route('/restart', methods=['POST'])
 def restart_server():
     """Soft reboot the backend server"""

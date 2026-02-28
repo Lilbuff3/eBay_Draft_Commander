@@ -46,6 +46,19 @@ def lookup_book():
         return jsonify(response)
     except Exception as e: return error_response(str(e))
 
+@lookup_bp.route('/lookup/category', methods=['GET'])
+def lookup_category():
+    """Search eBay category suggestions for a query string."""
+    query = request.args.get('q')
+    if not query:
+        return error_response('Query is required', 400)
+    try:
+        from backend.app.services.ebay.taxonomy import get_category_suggestions
+        results = get_category_suggestions(query)
+        return jsonify(results)
+    except Exception as e:
+        return error_response(str(e))
+
 @lookup_bp.route('/tools/research', methods=['GET'])
 def search_prices():
     query = request.args.get('q')
