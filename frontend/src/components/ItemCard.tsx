@@ -1,4 +1,4 @@
-import { forwardRef, type MouseEvent } from 'react'
+import { forwardRef, useState, type MouseEvent } from 'react'
 import { motion } from 'framer-motion'
 import { Clock, Loader2, Check, AlertCircle, Image, Square, CheckSquare, CalendarClock, DollarSign } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -41,6 +41,9 @@ export const ItemCard = forwardRef<HTMLDivElement, ItemCardProps>(function ItemC
             onClick()
         }
     }
+
+    const [imgLoaded, setImgLoaded] = useState(false)
+    const [imgError, setImgError] = useState(false)
 
     const scheduledDate = job.scheduled_time ? new Date(job.scheduled_time) : null
     const isScheduledFuture = scheduledDate && scheduledDate > new Date()
@@ -92,12 +95,14 @@ export const ItemCard = forwardRef<HTMLDivElement, ItemCardProps>(function ItemC
             </div>
 
             {/* Image */}
-            <div className="aspect-[5/4] bg-stone-100 overflow-hidden relative">
-                {job.thumbnail_url ? (
+            <div className={cn("aspect-[5/4] bg-stone-100 overflow-hidden relative", !imgLoaded && job.thumbnail_url && !imgError && "animate-pulse")}>
+                {job.thumbnail_url && !imgError ? (
                     <img
                         src={job.thumbnail_url}
                         alt={job.name}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        className={cn("w-full h-full object-cover transition-all duration-300 group-hover:scale-105", imgLoaded ? "opacity-100" : "opacity-0")}
+                        onLoad={() => setImgLoaded(true)}
+                        onError={() => setImgError(true)}
                     />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-stone-300">

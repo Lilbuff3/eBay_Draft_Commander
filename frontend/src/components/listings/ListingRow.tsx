@@ -35,6 +35,8 @@ export function ListingRow({
     const [editQty, setEditQty] = useState(listing.availableQuantity.toString())
     const [editPrice, setEditPrice] = useState(listing.price.toString())
     const [isSaving, setIsSaving] = useState(false)
+    const [imgLoaded, setImgLoaded] = useState(false)
+    const [imgError, setImgError] = useState(false)
 
     // Sync local state when entering edit mode
     // Note: In a real app we might want a useEffect here, but parent controls the mode
@@ -72,12 +74,18 @@ export function ListingRow({
 
             {/* Item Info */}
             <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 rounded bg-stone-100 overflow-hidden flex-shrink-0 border border-stone-200">
-                    {listing.imageUrl ? (
-                        <img src={listing.imageUrl} alt="" className="w-full h-full object-cover" />
+                <div className={`w-14 h-14 rounded-lg bg-stone-100 overflow-hidden flex-shrink-0 border border-stone-200 ${!imgLoaded && listing.imageUrl && !imgError ? 'animate-pulse' : ''}`}>
+                    {listing.imageUrl && !imgError ? (
+                        <img
+                            src={listing.imageUrl}
+                            alt=""
+                            className={`w-full h-full object-cover transition-opacity duration-200 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
+                            onLoad={() => setImgLoaded(true)}
+                            onError={() => setImgError(true)}
+                        />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center text-stone-300">
-                            <Package size={16} />
+                            <Package size={20} />
                         </div>
                     )}
                 </div>

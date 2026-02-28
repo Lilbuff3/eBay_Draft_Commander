@@ -31,6 +31,10 @@ export function CompactItemRow({ job, isSelected, isSelectionMode, onToggleSelec
     const StatusIcon = status.icon
     const isProcessing = job.status === 'processing'
 
+    // Image state
+    const [imgLoaded, setImgLoaded] = useState(false)
+    const [imgError, setImgError] = useState(false)
+
     // Swipe state
     const [swipeX, setSwipeX] = useState(0)
     const [isSwiping, setIsSwiping] = useState(false)
@@ -173,13 +177,15 @@ export function CompactItemRow({ job, isSelected, isSelectionMode, onToggleSelec
                     )}
 
                     {/* Thumbnail */}
-                    <div className="w-12 h-12 rounded-lg bg-stone-100 flex-shrink-0 overflow-hidden">
-                        {job.thumbnail_url ? (
+                    <div className={cn("w-12 h-12 rounded-lg bg-stone-100 flex-shrink-0 overflow-hidden", !imgLoaded && job.thumbnail_url && !imgError && "animate-pulse")}>
+                        {job.thumbnail_url && !imgError ? (
                             <img
                                 src={job.thumbnail_url}
                                 alt=""
-                                className="w-full h-full object-cover"
+                                className={cn("w-full h-full object-cover transition-opacity duration-200", imgLoaded ? "opacity-100" : "opacity-0")}
                                 loading="lazy"
+                                onLoad={() => setImgLoaded(true)}
+                                onError={() => setImgError(true)}
                             />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center text-stone-300">
