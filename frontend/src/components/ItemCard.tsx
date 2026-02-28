@@ -22,7 +22,8 @@ const statusConfig: Record<JobStatus, { icon: typeof Clock; color: string; bgCol
     skipped: { icon: Clock, color: 'text-stone-400', bgColor: 'bg-stone-100', badgeVariant: 'outline' },
     scheduled: { icon: CalendarClock, color: 'text-blue-600', bgColor: 'bg-blue-100', badgeVariant: 'secondary' },
     needs_review: { icon: AlertCircle, color: 'text-amber-600', bgColor: 'bg-amber-100', badgeVariant: 'secondary' },
-}
+    pending_review: { icon: AlertCircle, color: 'text-amber-600', bgColor: 'bg-amber-100', badgeVariant: 'secondary' },
+};
 
 export const ItemCard = forwardRef<HTMLDivElement, ItemCardProps>(function ItemCard(
     { job, isSelected, isSelectionMode, onToggleSelect, onClick },

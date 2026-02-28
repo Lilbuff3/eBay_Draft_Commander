@@ -3,13 +3,8 @@ from flask_socketio import SocketIO
 from backend.config import Config
 import logging
 
-# Primary Socket.IO instance — restrict CORS to known origins
-socketio = SocketIO(cors_allowed_origins=[
-    "http://localhost:5000",
-    "http://localhost:5175",
-    "http://127.0.0.1:5000",
-    "http://127.0.0.1:5175",
-])
+# Primary Socket.IO instance — allow all origins in development
+socketio = SocketIO(cors_allowed_origins="*")
 
 def create_app(config_class=Config, queue_manager=None):
     """

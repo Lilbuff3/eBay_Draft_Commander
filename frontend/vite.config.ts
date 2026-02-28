@@ -10,7 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/app/',
+  base: '/',
   plugins: [
     react(),
     tailwindcss(),
@@ -59,6 +59,9 @@ export default defineConfig({
   server: {
     host: true,
     port: 5175,
+    hmr: {
+      host: '192.168.1.142',
+    },
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:5000',

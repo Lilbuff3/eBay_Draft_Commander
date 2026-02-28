@@ -21,7 +21,8 @@ const statusConfig: Record<JobStatus, { icon: typeof Clock; label: string; color
     skipped: { icon: Clock, label: 'Skipped', color: 'text-stone-400', bg: 'bg-stone-50' },
     scheduled: { icon: CalendarClock, label: 'Scheduled', color: 'text-blue-600', bg: 'bg-blue-50' },
     needs_review: { icon: AlertCircle, label: 'Review', color: 'text-amber-600', bg: 'bg-amber-50' },
-}
+    pending_review: { icon: AlertCircle, label: 'Review', color: 'text-amber-600', bg: 'bg-amber-50' },
+};
 
 const SWIPE_THRESHOLD = 80
 

@@ -258,40 +258,8 @@ export function Dashboard() {
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                    {/* ── Mobile Header: Compact title with status dot ── */}
-                    <header className="md:hidden mb-3 flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                            <h1 className="font-display font-bold text-lg text-stone-800">Workspace</h1>
-                            {queueStats.total > 0 && (
-                                <span className="text-xs text-stone-400 font-medium bg-stone-100 px-2 py-0.5 rounded-full">
-                                    {queueStats.total}
-                                </span>
-                            )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                            {/* Status dot: green pulse = processing, red = eBay offline, gray = idle */}
-                            <div className="flex items-center gap-1.5" title={
-                                isProcessing ? 'Processing queue'
-                                    : ebayStatus === 'connected' ? 'eBay connected'
-                                        : 'eBay offline'
-                            }>
-                                <div className={`w-2 h-2 rounded-full ${isProcessing ? 'bg-green-500 animate-pulse'
-                                        : ebayStatus === 'connected' ? 'bg-green-500'
-                                            : ebayStatus === 'disconnected' ? 'bg-red-500'
-                                                : 'bg-stone-300'
-                                    }`} />
-                                <span className="text-[10px] text-stone-400 font-medium">
-                                    {isProcessing ? 'Active'
-                                        : ebayStatus === 'connected' ? 'Linked'
-                                            : ebayStatus === 'disconnected' ? 'Offline'
-                                                : '...'}
-                                </span>
-                            </div>
-                        </div>
-                    </header>
-
-                    {/* ── Desktop Header: Full display with badges ── */}
-                    <header className="hidden md:block mb-6">
+                    {/* Header: Mobile/Desktop layout */}
+                    <header className="mb-6">
                         <div className="flex justify-between items-start">
                             <div>
                                 <h1 className="font-display font-bold text-2xl sm:text-3xl text-stone-800">Workspace</h1>
@@ -301,7 +269,7 @@ export function Dashboard() {
                                         : 'Drop photos to get started'}
                                 </p>
                             </div>
-                            <div>
+                            <div className="flex items-center gap-2">
                                 <InstallPrompt />
                             </div>
                         </div>
@@ -310,13 +278,11 @@ export function Dashboard() {
                                 ? 'bg-blue-50 text-blue-700 border-blue-200'
                                 : 'bg-red-50 text-red-700 border-red-200'
                                 }`}>
-                                <div className={`w-1.5 h-1.5 rounded-full ${ebayStatus === 'connected' ? 'bg-blue-500' : 'bg-red-500'
-                                    }`} />
+                                <div className={`w-1.5 h-1.5 rounded-full ${ebayStatus === 'connected' ? 'bg-blue-500' : 'bg-red-500'}`} />
                                 {ebayStatus === 'connected' ? 'eBay Linked' : 'eBay Offline'}
                             </div>
                             <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-stone-100">
-                                <div className={`w-2 h-2 rounded-full ${isProcessing ? 'bg-green-500 animate-pulse' : 'bg-stone-300'
-                                    }`} />
+                                <div className={`w-2 h-2 rounded-full ${isProcessing ? 'bg-green-500 animate-pulse' : 'bg-stone-300'}`} />
                                 <span className="text-xs font-medium text-stone-600">
                                     {isProcessing ? 'Active' : 'Ready'}
                                 </span>
@@ -324,7 +290,7 @@ export function Dashboard() {
                         </div>
                     </header>
 
-                    {/* Upload Zone — desktop only (mobile uses FAB) */}
+                    {/* Upload Zone */}
                     <div className="hidden md:block mb-6">
                         <UploadZone
                             compact={hasItems}
@@ -394,7 +360,7 @@ export function Dashboard() {
                 open={confirmDialog.type === 'clear-failed'}
                 onOpenChange={(open) => !open && setConfirmDialog({ type: null })}
                 title="Clear Failed Items"
-                description="Remove all failed items from the app. You can also delete their folders from the inbox to prevent re-import."
+                description="Remove all failed items from the app."
                 count={failedCount}
                 showFolderOption
                 onConfirm={executeConfirm}
@@ -404,7 +370,7 @@ export function Dashboard() {
                 open={confirmDialog.type === 'clear-completed'}
                 onOpenChange={(open) => !open && setConfirmDialog({ type: null })}
                 title="Clear Completed Items"
-                description="Remove all completed items from the app. You can also delete their folders from the inbox."
+                description="Remove all completed items from the app."
                 count={completedCount}
                 showFolderOption
                 onConfirm={executeConfirm}
@@ -414,7 +380,7 @@ export function Dashboard() {
                 open={confirmDialog.type === 'delete-single'}
                 onOpenChange={(open) => !open && setConfirmDialog({ type: null })}
                 title={`Delete "${confirmDialog.jobName || 'item'}"`}
-                description="Remove this item from the app. You can also delete its folder from the inbox."
+                description="Remove this item from the app."
                 showFolderOption
                 onConfirm={executeConfirm}
                 confirmLabel="Delete"
