@@ -9,8 +9,8 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // https://vite.dev/config/
-export default defineConfig({
-  base: '/',
+export default defineConfig(({ mode }) => ({
+  base: mode === 'production' ? '/app/' : '/',
   plugins: [
     react(),
     tailwindcss(),
@@ -76,4 +76,4 @@ export default defineConfig({
     setupFiles: './src/test/setup.ts',
     css: true,
   },
-})
+}))
