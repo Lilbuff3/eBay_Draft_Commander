@@ -23,31 +23,58 @@ if __name__ == "__main__":
     print('-'*40)
     analyzer = AIAnalyzer()
 
-    # Use a test folder from 'posted' since inbox is empty
-    test_folder = project_parent / 'posted' / '20260120_204712_yonex'
+    # Use images from inbox
+    test_folder = project_parent / 'inbox' / 'web_upload_1772001574_d4d1'
     if not test_folder.exists():
         print(f'⚠️  Test folder not found: {test_folder}')
-        print('Please create a test item folder with images in inbox/test_item/')
         sys.exit(1)
 
-    result = analyzer.analyze_folder(str(test_folder))
+    # analyze_folder returns {'success': True, 'data': {...}}
+    response = analyzer.analyze_folder(str(test_folder))
+    print(f"RAW RESPONSE: {response}")
+    
+    if not isinstance(response, dict) or not response.get('success'):
+        print(f'❌ AI Analysis failed: {response}')
+        sys.exit(1)
+
+    # Robust JSON extraction
+    if isinstance(result, str):
+        print(f"DEBUG: result is string, length {len(result)}")
+        import re
+        json_match = re.search(r'(\{.*\})', result, re.DOTALL)
+        if json_match:
+            try:
+                result = json.loads(json_match.group(1))
+                print("✅ Successfully extracted and parsed JSON from string")
+            except Exception as e:
+                print(f"❌ Failed to parse extracted JSON: {e}")
+                sys.exit(1)
+        else:
+            print("❌ No JSON object found in result string")
+            sys.exit(1)
+
+    if not isinstance(result, dict):
+        print(f"❌ Result is not a dictionary after parsing: {type(result)}")
+        sys.exit(1)
 
     if 'error' in result:
-        print(f'❌ AI Analysis failed: {result["error"]}')
-    else:
-        print('✅ AI Analysis successful!')
-        listing = result.get("listing", {})
-        ident = result.get("identification", {})
-        print(f'   Title: {listing.get("suggested_title", "N/A")}')
-        print(f'   Price: ${listing.get("suggested_price", "N/A")}')
-        print(f'   Brand: {ident.get("brand", "N/A")}')
-        print(f'   MPN: {ident.get("mpn", "N/A")}')
+        print(f'❌ AI Analysis error in result: {result["error"]}')
+        sys.exit(1)
+    
+    print('✅ AI Analysis successful!')
+    listing = result.get("listing", {})
+    ident = result.get("identification", {})
+    print(f'   Title: {listing.get("suggested_title", "N/A")}')
+    print(f'   Price: ${listing.get("suggested_price", "N/A")}')
+    print(f'   Brand: {ident.get("brand", "N/A")}')
+    print(f'   MPN: {ident.get("mpn", "N/A")}')
 
     # Step 2: eBay API - Category Suggestions
     print('\n📂 STEP 2: eBay Category Suggestions')
     print('-'*40)
     from backend.app.services.ebay.taxonomy import get_category_suggestions, get_item_aspects
-    keywords = result.get('category_keywords', ['yonex racket'])
+    # In the new structure, category_keywords might be deep in the result or identifying info
+    keywords = ident.get('product_type', 'google pixel')
     query = ' '.join(keywords[:3]) if keywords else 'yonex'
     print(f'   Query: {query}')
 

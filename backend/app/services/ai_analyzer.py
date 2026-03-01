@@ -76,16 +76,10 @@ class AIAnalyzer:
         return [str(img) for img in images]
     
     def analyze_item(self, image_paths, category_suggestions: str = ""):
-        """
-        Analyze images and extract structured listing data
-        
-        Args:
-            image_paths: List of paths to item images
-            category_suggestions: Optional text string of eBay category suggestions
-            
-        Returns:
-            Dict with all extracted listing data
-        """
+        print("\n" + "!"*40)
+        print("DEBUG AI: analyze_item START")
+        print(f"DEBUG AI: image_paths={image_paths}")
+        print("!"*40 + "\n")
         if not image_paths:
             return {"error": "No images provided"}
         
@@ -152,6 +146,8 @@ class AIAnalyzer:
             if not response_text:
                 return {"error": "Empty response from AI", "raw": str(response)}
 
+            print(f"DEBUG AI: RAW RESPONSE TEXT: {response_text[:200]}...")
+
             # Robust Pattern Matching for JSON
             import re
             # Match { ... } blocks, including nested braces
@@ -163,6 +159,8 @@ class AIAnalyzer:
             if match:
                 clean_text = match.group(1)
             
+            print(f"DEBUG AI: CLEAN TEXT: {clean_text[:200]}...")
+
             # Remove markdown code blocks if present (common in AI responses)
             clean_text = clean_text.replace('```json', '').replace('```', '').strip()
 
@@ -171,6 +169,7 @@ class AIAnalyzer:
             except json.JSONDecodeError as e:
                 # If regex failed, try to repair common issues or just logging
                 logger.warning(f"JSON decode failed on cleaned text: {e}")
+                print(f"DEBUG AI: JSON LOAD FAILED: {e}")
                 # Try to find the first '{' and last '}' explicitly if regex failed
                 start = response_text.find('{')
                 end = response_text.rfind('}')
@@ -178,20 +177,23 @@ class AIAnalyzer:
                     try:
                         data = json.loads(response_text[start:end+1])
                     except:
+                         print(f"DEBUG AI: FALLBACK JSON LOAD FAILED")
                          return {"error": "Failed to parse JSON", "raw": response_text[:200]}
                 else:
                     return {"error": "No JSON found in response", "raw": response_text[:200]}
 
             # Validate response structure
             if not isinstance(data, dict):
-                if isinstance(data, list):
-                    data = data[0] if data else {}
-                else:
+                if isinstance(data, list) and data:
+                    data = data[0]
+                
+                # If STILL not a dict (or list was empty), it's invalid
+                if not isinstance(data, dict):
                     return {"error": "AI returned invalid format (not a dict or list)", "raw": str(data)[:200]}
             
             # Validate required keys
             required_keys = ['identification', 'listing']
-            missing = [k for k in required_keys if k not in data or not data[k]]
+            missing = [k for k in required_keys if k not in data]
             if missing:
                 logger.warning(f"AI response missing required keys: {missing}")
                 return {
