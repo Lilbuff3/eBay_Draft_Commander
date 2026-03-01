@@ -4,9 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import './index.css'
 import './mobile.css'
 import App from './App.tsx'
-import { registerServiceWorker } from './lib/pwa'
-
-registerServiceWorker()
+// VitePWA handles service worker registration automatically
 
 const queryClient = new QueryClient({
   defaultOptions: {

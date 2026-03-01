@@ -1,52 +1,28 @@
-// Service Worker Registration for PWA
+// PWA utilities for eBay Draft Commander
+// Service worker registration is handled automatically by VitePWA
+
 let updateAvailableCallback: (() => void) | null = null;
 
 export function onUpdateAvailable(callback: () => void) {
     updateAvailableCallback = callback;
-}
-
-export function registerServiceWorker() {
-    if (!('serviceWorker' in navigator)) {
-        return;
-    }
-
-    // Service workers require a secure context (HTTPS or localhost).
-    // On LAN HTTP (e.g. 192.168.x.x:5000) we skip registration gracefully.
-    if (!window.isSecureContext) {
-        console.log('[PWA] Skipping SW registration — not a secure context (HTTPS required)');
-        return;
-    }
-
-    window.addEventListener('load', () => {
-        navigator.serviceWorker
-            .register('/sw.js')
-            .then((registration) => {
-                console.log('[PWA] Service Worker registered:', registration.scope);
-
-                // Check for updates every hour
-                setInterval(() => {
-                    registration.update();
-                }, 60 * 60 * 1000);
-
-                // Listen for new service worker
-                registration.addEventListener('updatefound', () => {
-                    const newWorker = registration.installing;
-                    if (newWorker) {
-                        newWorker.addEventListener('statechange', () => {
-                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                console.log('[PWA] New version available');
-                                if (updateAvailableCallback) {
-                                    updateAvailableCallback();
-                                }
+    // Listen for VitePWA's update mechanism
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then((registration) => {
+            registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                if (newWorker) {
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            console.log('[PWA] New version available');
+                            if (updateAvailableCallback) {
+                                updateAvailableCallback();
                             }
-                        });
-                    }
-                });
-            })
-            .catch((error) => {
-                console.error('[PWA] Service Worker registration failed:', error);
+                        }
+                    });
+                }
             });
-    });
+        });
+    }
 }
 
 // PWA Install Prompt

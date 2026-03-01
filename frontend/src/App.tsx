@@ -17,6 +17,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Toaster } from 'sonner'
 import { PullToRefreshIndicator } from '@/components/PullToRefreshIndicator'
 import { InstallPrompt } from '@/components/InstallPrompt'
+import { OfflineIndicator } from '@/components/OfflineIndicator'
 import { ReviewQueue } from '@/components/listings/ReviewQueue'
 import { useJobSync } from '@/hooks/useJobSync'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
@@ -57,6 +58,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-stone-50">
+      <OfflineIndicator />
       <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
 
       {/* Desktop Sidebar */}
