@@ -103,3 +103,9 @@ tools/archive/
 
 # Large debug logs
 backend_boot.log
+
+# Tailscale TLS certs (sensitive!)
+.certs/
+
+# Auto-generated Caddyfile (created by start-https.ps1)
+Caddyfile
