@@ -174,6 +174,9 @@ def update_job_metadata(job_id):
                 from datetime import datetime, timedelta, timezone
                 try:
                     s_time = datetime.fromisoformat(s_time_str.replace('Z', '+00:00'))
+                    # Ensure timezone-aware for comparison
+                    if s_time.tzinfo is None:
+                        s_time = s_time.replace(tzinfo=timezone.utc)
                     now = datetime.now(timezone.utc)
                     if s_time < now:
                         raise ValidationError("Scheduled time cannot be in the past.")
