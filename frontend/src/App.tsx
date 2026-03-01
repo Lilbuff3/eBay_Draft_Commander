@@ -16,7 +16,7 @@ import { MobileUploadFAB } from '@/components/MobileUploadFAB'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Toaster } from 'sonner'
 import { PullToRefreshIndicator } from '@/components/PullToRefreshIndicator'
-import { PWAInstallBanner } from '@/components/PWAInstallBanner'
+import { InstallPrompt } from '@/components/InstallPrompt'
 import { ReviewQueue } from '@/components/listings/ReviewQueue'
 import { useJobSync } from '@/hooks/useJobSync'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
@@ -137,7 +137,7 @@ export default function App() {
       <MobileNavBar />
 
       <Toaster position={window.innerWidth < 768 ? "top-center" : "bottom-right"} richColors />
-      <PWAInstallBanner />
+      <InstallPrompt />
     </div>
   )
 }

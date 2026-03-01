@@ -93,11 +93,9 @@ async function cacheFirst(request) {
     const cachedResponse = await caches.match(request);
 
     if (cachedResponse) {
-        console.log('[SW] Serving from cache:', request.url);
         return cachedResponse;
     }
 
-    console.log('[SW] Not in cache, fetching:', request.url);
     try {
         const networkResponse = await fetch(request);
 

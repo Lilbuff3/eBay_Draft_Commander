@@ -4,9 +4,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import './index.css'
 import './mobile.css'
 import App from './App.tsx'
-// import { registerServiceWorker } from './lib/pwa'
+import { registerServiceWorker } from './lib/pwa'
 
-// registerServiceWorker() // Disabled for mobile troubleshooting over HTTP
+registerServiceWorker()
 
 const queryClient = new QueryClient({
   defaultOptions: {

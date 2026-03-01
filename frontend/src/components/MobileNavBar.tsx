@@ -1,10 +1,11 @@
-import { LayoutTemplate, Package, BarChart3, Settings } from 'lucide-react'
+import { LayoutTemplate, ShieldCheck, Package, BarChart3, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCommanderStore } from '@/store/useCommanderStore'
 import { useHaptics } from '@/hooks/useHaptics'
 
 const tabs = [
     { id: 'dashboard', label: 'Queue', icon: LayoutTemplate },
+    { id: 'review', label: 'Review', icon: ShieldCheck },
     { id: 'inventory', label: 'Inventory', icon: Package },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'settings', label: 'Settings', icon: Settings },

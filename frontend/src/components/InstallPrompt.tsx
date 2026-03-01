@@ -68,7 +68,7 @@ export function InstallPrompt() {
                     initial={{ opacity: 0, y: 50 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 50 }}
-                    className="fixed bottom-4 left-4 right-4 bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-2xl z-50 md:max-w-md md:left-auto md:right-8"
+                    className="fixed bottom-20 left-4 right-4 bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-2xl z-50 md:max-w-md md:left-auto md:right-8 md:bottom-4"
                 >
                     <div className="flex justify-between items-start mb-2">
                         <h3 className="text-white font-semibold text-sm">Install App</h3>

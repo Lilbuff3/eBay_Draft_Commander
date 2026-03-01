@@ -69,7 +69,6 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
-  // @ts-expect-error vitest types not automatically inferred
   test: {
     globals: true,
     environment: 'jsdom',
