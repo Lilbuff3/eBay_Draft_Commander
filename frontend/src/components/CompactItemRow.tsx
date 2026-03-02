@@ -135,8 +135,7 @@ export function CompactItemRow({ job, isSelected, isSelectionMode, onToggleSelec
                 <div className="absolute inset-y-0 right-0 flex items-center">
                     <button
                         onClick={handleDeleteClick}
-                        className="h-full px-6 bg-red-500 text-white flex items-center gap-1.5 text-sm font-medium active:bg-red-600 transition-colors"
-                        style={{ width: SWIPE_THRESHOLD }}
+                        className="h-full px-6 bg-red-500 text-white flex items-center gap-1.5 text-sm font-medium active:bg-red-600 transition-colors w-20"
                     >
                         <Trash2 size={16} />
                         Delete
@@ -146,10 +145,11 @@ export function CompactItemRow({ job, isSelected, isSelectionMode, onToggleSelec
 
             {/* Swipeable content */}
             <div
-                style={{
-                    transform: `translateX(${swipeX}px)`,
-                    transition: isSwiping ? 'none' : 'transform 0.25s ease-out',
-                }}
+                className={cn(
+                    'will-change-transform',
+                    !isSwiping && 'transition-transform duration-[250ms] ease-out'
+                )}
+                style={{ transform: `translateX(${swipeX}px)` }}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
