@@ -1,4 +1,5 @@
 import os
+import time
 import requests
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape as xml_escape
@@ -66,21 +67,41 @@ class TradingService:
                 retry_count = 0
                 max_retries = 2
                 response = None
-                
+
                 while retry_count <= max_retries:
                     try:
                         response = requests.post(TRADING_URL, headers=headers, data=xml_request, timeout=30)
                         if response.status_code == 200:
                             break
-                        elif response.status_code == 500:
+                        elif response.status_code == 401:
+                            logger.warning(f"GetSellerList: Token expired (401), refreshing... (attempt {retry_count + 1}/{max_retries + 1})")
+                            creds = load_env()
+                            token = creds.get('EBAY_USER_TOKEN')
+                            if not token:
+                                logger.error("GetSellerList: No token available after refresh")
+                                break
+                            # Rebuild XML with refreshed token
+                            xml_request = xml_request.replace(
+                                xml_request.split('<eBayAuthToken>')[1].split('</eBayAuthToken>')[0],
+                                token
+                            )
                             retry_count += 1
-                            import time
+                            time.sleep(1)
+                        elif response.status_code == 429:
+                            backoff = 2 ** retry_count
+                            logger.warning(f"GetSellerList: Rate limited by eBay (429), backing off {backoff}s... (attempt {retry_count + 1}/{max_retries + 1})")
+                            retry_count += 1
+                            time.sleep(backoff)
+                        elif response.status_code == 500:
+                            logger.warning(f"GetSellerList: Server error (500), retrying... (attempt {retry_count + 1}/{max_retries + 1})")
+                            retry_count += 1
                             time.sleep(1)
                         else:
+                            logger.warning(f"GetSellerList: Unexpected HTTP {response.status_code}, not retrying")
                             break
-                    except Exception:
+                    except Exception as e:
+                        logger.warning(f"GetSellerList: Request exception: {e} (attempt {retry_count + 1}/{max_retries + 1})")
                         retry_count += 1
-                        import time
                         time.sleep(1)
 
                 if not response or response.status_code != 200:
@@ -260,12 +281,52 @@ class TradingService:
             }
 
             logger.info(f"Sending AddFixedPriceItem for SKU {item_data.get('sku')}...")
-            
-            response = requests.post(TRADING_URL, headers=headers, data=xml_request.encode('utf-8'), timeout=60)
-            
-            if response.status_code != 200:
-                logger.error(f"Trading API HTTP Error: {response.status_code} - {response.text}")
-                return {'success': False, 'error': f"HTTP {response.status_code}"}
+
+            # Retry logic
+            retry_count = 0
+            max_retries = 2
+            response = None
+
+            while retry_count <= max_retries:
+                try:
+                    response = requests.post(TRADING_URL, headers=headers, data=xml_request.encode('utf-8'), timeout=60)
+                    if response.status_code == 200:
+                        break
+                    elif response.status_code == 401:
+                        logger.warning(f"AddFixedPriceItem: Token expired (401), refreshing... (attempt {retry_count + 1}/{max_retries + 1})")
+                        creds = load_env()
+                        token = creds.get('EBAY_USER_TOKEN')
+                        if not token:
+                            logger.error("AddFixedPriceItem: No token available after refresh")
+                            break
+                        # Rebuild XML with refreshed token
+                        xml_request = xml_request.replace(
+                            xml_request.split('<eBayAuthToken>')[1].split('</eBayAuthToken>')[0],
+                            token
+                        )
+                        retry_count += 1
+                        time.sleep(1)
+                    elif response.status_code == 429:
+                        backoff = 2 ** retry_count
+                        logger.warning(f"AddFixedPriceItem: Rate limited by eBay (429), backing off {backoff}s... (attempt {retry_count + 1}/{max_retries + 1})")
+                        retry_count += 1
+                        time.sleep(backoff)
+                    elif response.status_code == 500:
+                        logger.warning(f"AddFixedPriceItem: Server error (500), retrying... (attempt {retry_count + 1}/{max_retries + 1})")
+                        retry_count += 1
+                        time.sleep(1)
+                    else:
+                        logger.warning(f"AddFixedPriceItem: Unexpected HTTP {response.status_code}, not retrying")
+                        break
+                except Exception as e:
+                    logger.warning(f"AddFixedPriceItem: Request exception: {e} (attempt {retry_count + 1}/{max_retries + 1})")
+                    retry_count += 1
+                    time.sleep(1)
+
+            if not response or response.status_code != 200:
+                error_detail = response.text[:200] if response else 'No Response'
+                logger.error(f"Trading API HTTP Error: {response.status_code if response else 'N/A'} - {error_detail}")
+                return {'success': False, 'error': f"HTTP {response.status_code if response else 'No Response'}"}
 
             # Parse Response
             root = ET.fromstring(response.content)

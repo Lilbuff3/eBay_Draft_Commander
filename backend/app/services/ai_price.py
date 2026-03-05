@@ -8,7 +8,6 @@ Updated for 2026 google-genai SDK syntax.
 import os
 import json
 import base64
-from pathlib import Path
 from typing import Dict, List, Optional
 from backend.app.core.logger import get_logger
 
@@ -47,19 +46,8 @@ class AIPriceEstimator:
         self._load_api_key()
     
     def _load_api_key(self):
-        """Load Google API key from .env"""
-        env_path = Path(__file__).resolve().parents[3] / ".env"
-        api_key = None
-        
-        if env_path.exists():
-            with open(env_path, 'r') as f:
-                for line in f:
-                    if line.strip().startswith('GOOGLE_API_KEY='):
-                        api_key = line.split('=', 1)[1].strip()
-                        break
-        
-        if not api_key:
-            api_key = os.getenv('GOOGLE_API_KEY')
+        """Load Google API key from environment"""
+        api_key = os.getenv('GOOGLE_API_KEY')
         
         if not api_key:
             logger.warning("[WARN] GOOGLE_API_KEY not found")

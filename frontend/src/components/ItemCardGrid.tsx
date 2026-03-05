@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { Play, Pause, Search, Package, Trash2, MoreVertical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -75,23 +75,23 @@ export function ItemCardGrid({
     }, [showOverflow])
 
     // Filter jobs by status tab
-    const filteredJobs = jobs.filter(job => {
+    const filteredJobs = useMemo(() => jobs.filter(job => {
         if (activeFilter === 'all') return true
         if (activeFilter === 'inbox') return job.status === 'pending' || job.status === 'scheduled'
         if (activeFilter === 'processing') return job.status === 'processing'
         if (activeFilter === 'history') return job.status === 'completed'
         if (activeFilter === 'action') return job.status === 'failed' || job.status === 'needs_review'
         return true
-    })
+    }), [jobs, activeFilter])
 
     // Counts for tabs
-    const counts = {
+    const counts = useMemo(() => ({
         all: jobs.length,
         inbox: jobs.filter(j => j.status === 'pending' || j.status === 'scheduled').length,
         processing: jobs.filter(j => j.status === 'processing').length,
         history: jobs.filter(j => j.status === 'completed').length,
         action: jobs.filter(j => j.status === 'failed' || j.status === 'needs_review').length,
-    }
+    }), [jobs])
 
     const tabs: { key: FilterTab; label: string; mobileLabel: string; count: number }[] = [
         { key: 'all', label: 'All', mobileLabel: 'All', count: counts.all },

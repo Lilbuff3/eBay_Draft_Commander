@@ -13,6 +13,13 @@ def analyzer():
         ai.encode_image = MagicMock(return_value="dummy_base64")
         return ai
 
+@pytest.fixture(autouse=True)
+def mock_pil_open():
+    """Mock PIL Image.open so fake paths don't fail the image validation check"""
+    mock_img = MagicMock()
+    with patch('PIL.Image.open', return_value=mock_img):
+        yield
+
 def test_valid_ai_response(analyzer):
     """Test that valid properly structured response is accepted"""
     valid_data = {

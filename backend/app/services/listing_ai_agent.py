@@ -26,18 +26,11 @@ class ListingAIAgent:
         self._default_shipping_cost = self._resolve_default_shipping_cost()
 
     def _resolve_default_shipping_cost(self) -> float:
-        """Determine default estimated shipping cost from .env or constants."""
-        env_path = Path(__file__).resolve().parents[3] / ".env"
-        if env_path.exists():
-            with open(env_path, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith('ESTIMATED_SHIPPING_COST='):
-                        try:
-                            return float(line.split('=', 1)[1].strip())
-                        except ValueError:
-                            pass
-        return DEFAULT_SHIPPING_COST
+        """Determine default estimated shipping cost from environment or constants."""
+        try:
+            return float(os.getenv('ESTIMATED_SHIPPING_COST', DEFAULT_SHIPPING_COST))
+        except (ValueError, TypeError):
+            return DEFAULT_SHIPPING_COST
 
     def _calculate_shipping_cost(self, ai_data: dict) -> float:
         """Calculate shipping cost based on AI identifiers or weight."""
@@ -78,7 +71,7 @@ class ListingAIAgent:
                 _log(f"Analyzing {len(images)} images with AI (Research Mode)...")
 
                 # Step A: Get a preliminary title or use folder name for suggestions
-                temp_title = job_obj.user_title or folder_path.name
+                temp_title = job_obj.user_title or Path(job_obj.folder_path).name
                 suggestions = taxonomy.get_category_suggestions(temp_title)
                 
                 # Format suggestions for the prompt

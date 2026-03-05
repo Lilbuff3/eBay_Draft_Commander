@@ -1,7 +1,7 @@
 from datetime import datetime
 import json
 from pathlib import Path
-from sqlalchemy import create_engine, Column, String, Integer, DateTime, Text, Boolean, Float, ForeignKey
+from sqlalchemy import create_engine, Column, String, Integer, DateTime, Text, Boolean, Float, ForeignKey, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 
@@ -10,7 +10,13 @@ Base = declarative_base()
 class JobModel(Base):
     """Database model for queue jobs"""
     __tablename__ = 'jobs'
-    
+    __table_args__ = (
+        Index('idx_jobs_status', 'status'),
+        Index('idx_jobs_batch_id', 'batch_id'),
+        Index('idx_jobs_created_at', 'created_at'),
+        Index('idx_jobs_scheduled_time', 'scheduled_time'),
+    )
+
     id = Column(String(10), primary_key=True)
     folder_path = Column(Text, nullable=False)
     folder_name = Column(String(255), nullable=False)

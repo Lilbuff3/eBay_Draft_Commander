@@ -76,10 +76,6 @@ class AIAnalyzer:
         return [str(img) for img in images]
     
     def analyze_item(self, image_paths, category_suggestions: str = ""):
-        print("\n" + "!"*40)
-        print("DEBUG AI: analyze_item START")
-        print(f"DEBUG AI: image_paths={image_paths}")
-        print("!"*40 + "\n")
         if not image_paths:
             return {"error": "No images provided"}
         
@@ -107,7 +103,11 @@ class AIAnalyzer:
                 contents.append(img)
             except Exception as e:
                 logger.warning(f"Could not load image {path}: {e}")
-            
+
+        # Validate that at least one image was loaded (contents[0] is the prompt text)
+        if len(contents) <= 1:
+            return {"error": "No images could be loaded for analysis. Check that image files are valid."}
+
         try:
             if not self.client:
                  return {"error": "AI Client not initialized (Check API Key)"}
@@ -140,13 +140,13 @@ class AIAnalyzer:
                 # Fallback to accessing first candidate parts
                 try:
                      response_text = response.candidates[0].content.parts[0].text
-                except:
-                     pass
+                except (AttributeError, IndexError, KeyError) as e:
+                     logger.debug(f"Could not extract text from response candidates: {e}")
             
             if not response_text:
                 return {"error": "Empty response from AI", "raw": str(response)}
 
-            print(f"DEBUG AI: RAW RESPONSE TEXT: {response_text[:200]}...")
+            logger.debug(f"Raw AI response text: {response_text[:200]}...")
 
             # Robust Pattern Matching for JSON
             import re
@@ -159,7 +159,7 @@ class AIAnalyzer:
             if match:
                 clean_text = match.group(1)
             
-            print(f"DEBUG AI: CLEAN TEXT: {clean_text[:200]}...")
+            logger.debug(f"Cleaned AI response text: {clean_text[:200]}...")
 
             # Remove markdown code blocks if present (common in AI responses)
             clean_text = clean_text.replace('```json', '').replace('```', '').strip()
@@ -169,15 +169,14 @@ class AIAnalyzer:
             except json.JSONDecodeError as e:
                 # If regex failed, try to repair common issues or just logging
                 logger.warning(f"JSON decode failed on cleaned text: {e}")
-                print(f"DEBUG AI: JSON LOAD FAILED: {e}")
                 # Try to find the first '{' and last '}' explicitly if regex failed
                 start = response_text.find('{')
                 end = response_text.rfind('}')
                 if start != -1 and end != -1:
                     try:
                         data = json.loads(response_text[start:end+1])
-                    except:
-                         print(f"DEBUG AI: FALLBACK JSON LOAD FAILED")
+                    except json.JSONDecodeError as e2:
+                         logger.debug(f"Fallback JSON parsing also failed: {e2}")
                          return {"error": "Failed to parse JSON", "raw": response_text[:200]}
                 else:
                     return {"error": "No JSON found in response", "raw": response_text[:200]}
@@ -312,8 +311,8 @@ class AIAnalyzer:
             import json
             try:
                 research_data = json.loads(response_text.strip())
-            except:
-                # Fallback if no json found
+            except json.JSONDecodeError as e:
+                logger.debug(f"Could not parse JSON from research response: {e}")
                 research_data = {"error": "Could not parse JSON from research", "raw": response_text[:200]}
                 
             research_data['sources'] = sources[:5]  # Keep top 5 sources

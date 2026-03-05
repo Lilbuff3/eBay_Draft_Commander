@@ -472,10 +472,6 @@ class QueueManager:
         """Set Flask app instance for context pushing"""
         self.app = app
 
-    def set_processor(self, processor: Callable[[str], dict]):
-        """Deprecated: Processor is now hardwired to ProcessorService"""
-        pass
-        
     def _process_queue(self):
         """Background worker to process jobs sequentially"""
         while True:

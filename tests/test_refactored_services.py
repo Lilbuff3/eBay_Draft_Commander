@@ -19,8 +19,9 @@ class TestAIAnalyzer(unittest.TestCase):
         self.analyzer = AIAnalyzer()
         self.analyzer.client = self.mock_client
 
+    @patch('PIL.Image.open', return_value=MagicMock())
     @patch('backend.app.services.ai_analyzer.limiter')
-    def test_analyze_item_success(self, mock_limiter):
+    def test_analyze_item_success(self, mock_limiter, mock_pil):
         # Mock successful Gemini response with ALL required keys
         mock_response = MagicMock()
         mock_response.text = '{"identification": {"brand": "TestBrand"}, "listing": {"suggested_price": 100}}'
@@ -36,8 +37,9 @@ class TestAIAnalyzer(unittest.TestCase):
         args, kwargs = self.mock_client.models.generate_content.call_args
         self.assertEqual(kwargs['model'], AI_MODEL_NAME)
 
+    @patch('PIL.Image.open', return_value=MagicMock())
     @patch('backend.app.services.ai_analyzer.limiter')
-    def test_analyze_item_json_parsing_robustness(self, mock_limiter):
+    def test_analyze_item_json_parsing_robustness(self, mock_limiter, mock_pil):
         # Test with markdown code blocks AND complete JSON
         mock_response = MagicMock()
         mock_text = """```json

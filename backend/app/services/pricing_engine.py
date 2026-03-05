@@ -8,7 +8,6 @@ import re
 import statistics
 import requests
 from typing import List, Dict, Optional, Union, Any
-from pathlib import Path
 from urllib.parse import quote
 from backend.app.core.logger import get_logger
 
@@ -35,31 +34,14 @@ class PricingEngine:
     }
     
     def __init__(self):
-        """Initialize with eBay App ID from .env"""
-        env_path = Path(__file__).resolve().parents[3] / ".env"
-        self.app_id = None
-        
-        if env_path.exists():
-            with open(env_path, 'r') as f:
-                for line in f:
-                    if line.strip().startswith('EBAY_APP_ID='):
-                        self.app_id = line.split('=')[1].strip()
-                        break
-        
+        """Initialize with eBay App ID and Google API key from environment"""
+        self.app_id = os.getenv('EBAY_APP_ID')
+
         if not self.app_id:
-            logger.warning("[WARN] EBAY_APP_ID not found in .env - Pricing Intelligence disabled")
-            
+            logger.warning("[WARN] EBAY_APP_ID not found - Pricing Intelligence disabled")
+
         # Initialize Gemini 3 for Search Grounding (from Roadmap Phase 6)
-        self.google_api_key = None
-        if env_path.exists():
-            with open(env_path, 'r') as f:
-                for line in f:
-                    if line.strip().startswith('GOOGLE_API_KEY='):
-                        self.google_api_key = line.split('=')[1].strip()
-                        break
-        
-        if not self.google_api_key:
-            self.google_api_key = os.getenv('GOOGLE_API_KEY')
+        self.google_api_key = os.getenv('GOOGLE_API_KEY')
             
         self.ai_client = None
         if self.google_api_key:

@@ -3,6 +3,7 @@ from backend.app.services.ebay_service import eBayService
 from backend.app.services.ebay import policies as ebay_policies
 from backend.app.core.logger import get_logger
 from backend.app.services.queue_job import JobStatus
+from .helpers import error_response
 
 listings_bp = Blueprint('listings', __name__)
 logger = get_logger('api.listings')
@@ -38,23 +39,23 @@ def update_listing(sku):
             if 'title' in data: item_updates['title'] = data['title']
             if 'description' in data: item_updates['description'] = data['description']
             res, status = ebay_service.update_inventory_item(sku, item_updates)
-            if status not in [200, 204]: return jsonify({'error': 'Failed to update item details', 'details': res}), status
+            if status not in [200, 204]: return error_response('Failed to update item details', status, details=res)
             results['item_update'] = 'success'
         if 'price' in data or 'quantity' in data:
             updates = [{
                 'sku': sku, 'offerId': data.get('offerId'), 'price': data.get('price'), 'quantity': data.get('quantity')
             }]
             res, status = ebay_service.bulk_update(updates)
-            if status not in [200, 204]: return jsonify({'error': 'Failed to update price/qty', 'details': res}), status
+            if status not in [200, 204]: return error_response('Failed to update price/qty', status, details=res)
             results['offer_update'] = 'success'
         return jsonify({'success': True, 'results': results}), 200
-    except Exception as e: return jsonify({'error': str(e)}), 500
+    except Exception as e: return error_response(e)
 
 @listings_bp.route('/listings/bulk', methods=['POST'])
 def bulk_update_listings():
     data = request.json
     updates = data.get('updates', [])
-    if not updates: return jsonify({'success': False, 'error': 'No updates provided'}), 400
+    if not updates: return error_response('No updates provided', 400)
     result, status = ebay_service.bulk_update(updates)
     return jsonify(result), status
 
@@ -72,7 +73,7 @@ def publish_listing(offer_id):
 def bulk_update_titles():
     data = request.json
     updates = data.get('updates', [])
-    if not updates: return jsonify({'success': False, 'error': 'No updates provided'}), 400
+    if not updates: return error_response('No updates provided', 400)
     result, status = ebay_service.bulk_update_titles(updates)
     return jsonify(result), status
 
@@ -108,21 +109,21 @@ def get_pending_listings():
     try:
         queue_manager = current_app.config.get('QUEUE_MANAGER')
         if not queue_manager:
-            return jsonify({'error': 'Queue manager not initialized'}), 500
-            
+            return error_response('Queue manager not initialized')
+
         session = queue_manager.SessionFactory()
         try:
             db_jobs = session.query(queue_manager.JobModel).filter_by(
                 status=JobStatus.PENDING_REVIEW.value
             ).all()
-            
+
             jobs = [queue_manager._db_to_queue_job(j).to_dict() for j in db_jobs]
             return jsonify({'listings': jobs, 'count': len(jobs)}), 200
         finally:
             session.close()
     except Exception as e:
         logger.error(f"Failed to fetch pending listings: {e}")
-        return jsonify({'error': str(e)}), 500
+        return error_response(e)
 
 @listings_bp.route('/listings/<job_id>/quick-edit', methods=['PUT'])
 def quick_edit_listing(job_id):
@@ -131,20 +132,20 @@ def quick_edit_listing(job_id):
         data = request.json
         queue_manager = current_app.config.get('QUEUE_MANAGER')
         if not queue_manager:
-            return jsonify({'error': 'Queue manager not initialized'}), 500
-            
+            return error_response('Queue manager not initialized')
+
         updates = {}
         if 'title' in data: updates['user_title'] = data['title']
         if 'price' in data: updates['user_price'] = data['price']
         if 'condition' in data: updates['user_condition'] = data['condition']
-        
+
         if queue_manager.update_job(job_id, updates):
             return jsonify({'success': True}), 200
         else:
-            return jsonify({'error': 'Job not found or update failed'}), 404
+            return error_response('Job not found or update failed', 404)
     except Exception as e:
         logger.error(f"Quick edit failed for job {job_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return error_response(e)
 
 @listings_bp.route('/listings/batch-approve', methods=['POST'])
 def batch_approve_listings():
@@ -153,23 +154,23 @@ def batch_approve_listings():
         data = request.json
         job_ids = data.get('listing_ids', [])
         if not job_ids:
-            return jsonify({'error': 'No listing IDs provided'}), 400
-            
+            return error_response('No listing IDs provided', 400)
+
         queue_manager = current_app.config.get('QUEUE_MANAGER')
         if not queue_manager:
-            return jsonify({'error': 'Queue manager not initialized'}), 500
-            
+            return error_response('Queue manager not initialized')
+
         success_count = 0
         for job_id in job_ids:
             if queue_manager.update_job(job_id, {'status': JobStatus.PENDING}):
                 success_count += 1
-        
+
         # Trigger queue processing if needed
         if success_count > 0:
             if not queue_manager.is_processing() and not queue_manager.is_paused():
                 queue_manager.start_processing()
-                
+
         return jsonify({'success': True, 'approved_count': success_count}), 200
     except Exception as e:
         logger.error(f"Batch approval failed: {e}")
-        return jsonify({'error': str(e)}), 500
+        return error_response(e)

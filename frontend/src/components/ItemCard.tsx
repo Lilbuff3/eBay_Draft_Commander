@@ -1,4 +1,4 @@
-import { forwardRef, useState, type MouseEvent } from 'react'
+import React, { forwardRef, useState, type MouseEvent } from 'react'
 import { motion } from 'framer-motion'
 import { Clock, Loader2, Check, AlertCircle, Image, Square, CheckSquare, CalendarClock, DollarSign } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -25,7 +25,7 @@ const statusConfig: Record<JobStatus, { icon: typeof Clock; color: string; bgCol
     pending_review: { icon: AlertCircle, color: 'text-amber-600', bgColor: 'bg-amber-100', badgeVariant: 'secondary' },
 };
 
-export const ItemCard = forwardRef<HTMLDivElement, ItemCardProps>(function ItemCard(
+const ItemCardInner = forwardRef<HTMLDivElement, ItemCardProps>(function ItemCard(
     { job, isSelected, isSelectionMode, onToggleSelect, onClick },
     ref
 ) {
@@ -165,3 +165,5 @@ export const ItemCard = forwardRef<HTMLDivElement, ItemCardProps>(function ItemC
         </motion.div>
     )
 })
+
+export const ItemCard = React.memo(ItemCardInner)
