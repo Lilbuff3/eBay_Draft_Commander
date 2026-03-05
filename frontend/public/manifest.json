@@ -4,25 +4,25 @@
     "description": "Manage your eBay listings with AI-powered automation",
     "icons": [
         {
-            "src": "/icons/icon-192.png",
+            "src": "/app/icons/icon-192.png",
             "type": "image/png",
             "sizes": "192x192",
             "purpose": "any"
         },
         {
-            "src": "/icons/icon-512.png",
+            "src": "/app/icons/icon-512.png",
             "type": "image/png",
             "sizes": "512x512",
             "purpose": "any"
         },
         {
-            "src": "/icons/icon-192.png",
+            "src": "/app/icons/icon-192.png",
             "type": "image/png",
             "sizes": "192x192",
             "purpose": "maskable"
         },
         {
-            "src": "/icons/icon-512.png",
+            "src": "/app/icons/icon-512.png",
             "type": "image/png",
             "sizes": "512x512",
             "purpose": "maskable"
@@ -36,7 +36,7 @@
             "url": "/app/#create",
             "icons": [
                 {
-                    "src": "/icons/icon-192.png",
+                    "src": "/app/icons/icon-192.png",
                     "sizes": "192x192"
                 }
             ]
@@ -48,7 +48,7 @@
             "url": "/app/#batch-scan",
             "icons": [
                 {
-                    "src": "/icons/icon-192.png",
+                    "src": "/app/icons/icon-192.png",
                     "sizes": "192x192"
                 }
             ]

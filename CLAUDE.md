@@ -1,6 +1,6 @@
 # eBay Draft Commander
 
-AI-powered eBay listing automation. Flask backend + React TypeScript frontend + Electron desktop packaging.
+AI-powered eBay listing automation. Flask backend + React TypeScript frontend PWA.
 
 ## Canonical Location
 
@@ -32,8 +32,6 @@ cd frontend && npm install
 npm run dev                               # Vite dev server (port 5175, proxies /api to 5000)
 npm run build                             # Build to ../static/app/
 npm run test                              # Vitest
-npm run electron:dev                      # Electron + Vite dev
-npm run electron:build                    # Package Electron distributable
 
 # Full stack dev
 # Terminal 1: python backend/wsgi.py
@@ -66,7 +64,7 @@ backend/                    Flask app factory
       rate_limiter.py       Token-bucket (gemini: 2 RPM, ebay: 5 burst)
       token_manager.py      Centralized eBay access token management (SQLite-backed)
       validator.py          Input validation (price, title, ISBN, paths)
-      paths.py              Cross-platform path resolution (dev vs frozen)
+      paths.py              Cross-platform path resolution
       exceptions.py         Custom exception hierarchy
       logger.py             Logging configuration
       prompts.py            AI prompt templates
@@ -186,7 +184,7 @@ Test conventions: `test_*.py` files, `Test*` classes, `test_*` functions.
 ## Gotchas
 
 - **Frontend lib/ files** — `src/lib/api.ts`, `utils.ts`, `sanitizer.ts`, `pwa.ts` are imported everywhere. If missing, nothing compiles.
-- **Frozen mode paths** — In PyInstaller builds, data goes to `%LOCALAPPDATA%/eBayDraftCommander/` not project root
+- **Worktree `.env` shadowing** — Never create `.env` in a worktree. `load_dotenv_manually()` walks up parent dirs to find the main project's `.env` automatically. A worktree `.env` will shadow it and cause missing-policy errors.
 - **eBay token refresh** — Background thread. Also auto-refreshes on 401 in ebay_request()
 - **AI data caching** — If job.ai_data already has `listing` key, AI analysis is skipped (uses cached). Clear ai_json to force re-analysis
 - **Title max 80 chars** — eBay enforced, validated in both frontend and backend

@@ -75,9 +75,6 @@ frontend/node_modules_trash/
 *.db-shm
 *.db-wal
 frontend/dist/
-frontend/dist-electron/
-frontend/dist-python/
-frontend/release/
 .DS_Store
 thumbs.db
 

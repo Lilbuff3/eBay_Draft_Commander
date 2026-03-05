@@ -14,13 +14,14 @@ import { PreviewPanel } from '@/components/PreviewPanel'
 import { MobileNavBar } from '@/components/MobileNavBar'
 import { MobileUploadFAB } from '@/components/MobileUploadFAB'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { Toaster } from 'sonner'
+import { Toaster, toast } from 'sonner'
 import { PullToRefreshIndicator } from '@/components/PullToRefreshIndicator'
 import { InstallPrompt } from '@/components/InstallPrompt'
 import { OfflineIndicator } from '@/components/OfflineIndicator'
 import { ReviewQueue } from '@/components/listings/ReviewQueue'
 import { useJobSync } from '@/hooks/useJobSync'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
+import { onUpdateAvailable } from '@/lib/pwa'
 
 export default function App() {
   const activeTab = useCommanderStore(state => state.activeTab)
@@ -55,6 +56,20 @@ export default function App() {
       window.history.pushState({ tab: activeTab }, '', '')
     }
   }, [activeTab])
+
+  // PWA update notification
+  useEffect(() => {
+    onUpdateAvailable(() => {
+      toast('Update available', {
+        description: 'A new version of Draft Commander is ready.',
+        duration: Infinity,
+        action: {
+          label: 'Reload',
+          onClick: () => window.location.reload(),
+        },
+      })
+    })
+  }, [])
 
   return (
     <div className="flex h-screen bg-stone-50">

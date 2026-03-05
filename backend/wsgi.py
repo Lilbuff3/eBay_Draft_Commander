@@ -7,30 +7,6 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.append(str(ROOT_DIR))
 
-# Setup Boot Logging (Critical for Frozen App Debugging)
-# Only monkey-patch print in frozen mode where stdout/stderr may be None
-if getattr(sys, 'frozen', False):
-    import builtins
-    _original_print = builtins.print
-    def log_to_file(*args, **kwargs):
-        try:
-            log_path = Path(sys.executable).parent / "backend_boot.log"
-            msg = " ".join(map(str, args))
-            with open(log_path, "a") as f:
-                f.write(msg + "\n")
-        except:
-            pass
-    builtins.print = log_to_file
-
-# Redirect Stdout/Stderr to prevent crashes in frozen mode (where they are None)
-if getattr(sys, 'frozen', False):
-    try:
-        log_dir = Path(sys.executable).parent
-        sys.stdout = open(log_dir / 'backend_stdout.log', 'a')
-        sys.stderr = open(log_dir / 'backend_stderr.log', 'a')
-    except:
-        pass # Best effort
-
 # Early boot logger - writes to file before main logging system is ready
 def setup_boot_logger():
     """Create a basic logger for early application startup"""
@@ -41,7 +17,7 @@ def setup_boot_logger():
         boot_logger = logging.getLogger('boot')
         boot_logger.setLevel(logging.DEBUG)
         
-        # File handler only (no console - console may not exist in packaged app)
+        # File handler only
         handler = logging.FileHandler(log_file, mode='a', encoding='utf-8')
         handler.setFormatter(logging.Formatter(
             '%(asctime)s [%(levelname)s] %(message)s',
@@ -63,7 +39,7 @@ from backend.app import create_app, socketio
 from backend.app.services.queue_manager import QueueManager
 
 def main():
-    """Entry point for standalone execution (Electron/Headless)"""
+    """Entry point for standalone execution"""
     boot_logger.info("Starting eBay Draft Commander backend...")
     
     # Initialize Queue Manager
