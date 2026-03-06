@@ -33,6 +33,8 @@ def create_app(config_class=Config, queue_manager=None):
         app.queue_manager = queue_manager
         # Link socketio to queue manager for event emitting
         queue_manager.socketio = socketio
+        # Emit job_added event when new jobs are created (uploads, inbox scans)
+        queue_manager.on_job_added = lambda job: socketio.emit('job_added', job.to_dict())
         # Give QueueManager access to app for context pushing in threads
         queue_manager.set_app(app)
     

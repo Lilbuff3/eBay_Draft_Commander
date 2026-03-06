@@ -9,9 +9,12 @@ import { ScannerListener } from '@/components/ScannerListener'
 import { ScannerModal } from '@/components/ScannerModal'
 import { useCommanderStore } from '@/store/useCommanderStore'
 import { useJobSync } from '@/hooks/useJobSync'
+import { useQueryClient } from '@tanstack/react-query'
 import { BatchSummaryDialog } from '@/components/BatchSummaryDialog'
 
 export function Dashboard() {
+    const queryClient = useQueryClient()
+
     // Store State
     const jobs = useCommanderStore(state => state.jobs)
     const setJobs = useCommanderStore(state => state.setJobs)
@@ -303,6 +306,8 @@ export function Dashboard() {
                         <UploadZone
                             compact={hasItems}
                             onUploadComplete={(jobId) => {
+                                // Immediately refresh jobs list (belt-and-suspenders with Socket.IO)
+                                queryClient.invalidateQueries({ queryKey: ['jobs'] })
                                 let attempts = 0
                                 const maxAttempts = 20
                                 const trySelect = () => {

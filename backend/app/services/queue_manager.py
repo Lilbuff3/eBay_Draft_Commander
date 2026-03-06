@@ -780,10 +780,12 @@ class QueueManager:
         session = self.SessionFactory()
         try:
             db_job = session.query(self.JobModel).filter_by(id=job_id).first()
-            if db_job and db_job.status == JobStatus.FAILED.value and db_job.attempts < db_job.max_attempts:
+            valid_statuses = [JobStatus.FAILED.value, JobStatus.NEEDS_REVIEW.value, JobStatus.PENDING_REVIEW.value]
+            if db_job and db_job.status in valid_statuses:
                 db_job.status = JobStatus.PENDING.value
                 db_job.error_type = None
                 db_job.error_message = None
+                db_job.attempts = 0
                 session.commit()
                 return True
         except Exception as e:
