@@ -304,7 +304,9 @@ class ProcessorService:
         # CATEGORY GUARD: Force review if category is missing
         missing_category = not cat_result.get('id')
         
-        if not auto_publish or confidence_score < threshold or missing_category:
+        user_approved = job_obj.job_metadata.get('user_approved', False) if job_obj.job_metadata else False
+
+        if not user_approved and (not auto_publish or confidence_score < threshold or missing_category):
             if missing_category:
                 reason = "Missing Category (AI could not determine accurate eBay category)"
             elif not auto_publish:

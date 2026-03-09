@@ -221,6 +221,12 @@ def update_job_metadata(job_id):
 
     if data.get('process_now'):
         from backend.app.services.queue_manager import JobStatus
+        
+        # Mark as user approved so it doesn't get kicked back to review queue
+        metadata = job.job_metadata or {}
+        metadata['user_approved'] = True
+        qm.update_job(job_id, {'job_metadata': metadata})
+        
         if job.status in [JobStatus.FAILED, JobStatus.PENDING, JobStatus.COMPLETED, JobStatus.NEEDS_REVIEW, JobStatus.PENDING_REVIEW]:
             qm.retry_job(job_id)
         if not qm.is_processing():
