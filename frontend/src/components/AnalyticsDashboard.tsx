@@ -9,33 +9,35 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-
-interface SalesStats {
-    total_revenue: number
-    orders_count: number
-    items_sold: number
-    average_order_value: number
-    chart_data: { date: string; sales: number }[]
-    best_sellers: { title: string; qty: number; revenue: number }[]
-    active_listings_count?: number
-    sell_through_rate?: number
-}
+import { fetchAnalyticsSummary, fetchRecentOrders } from '@/lib/api'
+import type { SalesStats, Order } from '@/lib/api'
 
 interface StatCardProps {
     title: string
     value: string | number
     icon: React.ElementType
     subtext: string
-    color: string
+    bgColor: string
+    iconColor: string
 }
 
-interface Order {
-    orderId: string
-    creationDate: string
-    buyer: string
-    total: number
-    status: string
-    itemCount: number
+function StatCard({ title, value, icon: Icon, subtext, bgColor, iconColor }: StatCardProps) {
+    return (
+        <Card>
+            <CardContent className="p-6">
+                <div className="flex items-center justify-between space-y-0 pb-2">
+                    <p className="text-sm font-medium text-muted-foreground">{title}</p>
+                    <div className={`p-2 rounded-lg ${bgColor} bg-opacity-10`}>
+                        <Icon className={`h-4 w-4 ${iconColor}`} />
+                    </div>
+                </div>
+                <div className="flex flex-col gap-1">
+                    <div className="text-2xl font-bold">{value}</div>
+                    <p className="text-xs text-muted-foreground">{subtext}</p>
+                </div>
+            </CardContent>
+        </Card>
+    )
 }
 
 export function AnalyticsDashboard() {
@@ -49,19 +51,14 @@ export function AnalyticsDashboard() {
         setIsLoading(true)
         setError(null)
         try {
-            // Fetch stats
-            const statsRes = await fetch(`/api/analytics/summary?days=${timeRange}`)
-            if (!statsRes.ok) throw new Error(`Stats: ${statsRes.status}`)
-            const statsData = await statsRes.json()
+            const [statsData, ordersData] = await Promise.all([
+                fetchAnalyticsSummary(timeRange),
+                fetchRecentOrders(timeRange),
+            ])
             setStats(statsData)
-
-            // Fetch recent orders
-            const ordersRes = await fetch(`/api/analytics/orders?days=${timeRange}&limit=50`)
-            if (!ordersRes.ok) throw new Error(`Orders: ${ordersRes.status}`)
-            const ordersData = await ordersRes.json()
             setRecentOrders(ordersData.orders || [])
-
-        } catch (error: any) {
+        } catch (err) {
+            const error = err as Error
             console.error("Failed to fetch analytics:", error)
             setError(error.message || "Failed to load analytics data")
         } finally {
@@ -77,22 +74,7 @@ export function AnalyticsDashboard() {
         return new Date(dateStr).toLocaleDateString()
     }
 
-    const StatCard = ({ title, value, icon: Icon, subtext, color }: StatCardProps) => (
-        <Card>
-            <CardContent className="p-6">
-                <div className="flex items-center justify-between space-y-0 pb-2">
-                    <p className="text-sm font-medium text-muted-foreground">{title}</p>
-                    <div className={`p-2 rounded-lg ${color} bg-opacity-10`}>
-                        <Icon className={`h-4 w-4 ${color.replace('bg-', 'text-')}`} />
-                    </div>
-                </div>
-                <div className="flex flex-col gap-1">
-                    <div className="text-2xl font-bold">{value}</div>
-                    <p className="text-xs text-muted-foreground">{subtext}</p>
-                </div>
-            </CardContent>
-        </Card>
-    )
+    // StatCard is now defined at file scope above
 
     return (
         <div className="flex flex-col h-full bg-stone-50 overflow-hidden">
@@ -132,35 +114,40 @@ export function AnalyticsDashboard() {
                             value={stats ? `$${stats.total_revenue.toFixed(2)}` : '$0.00'}
                             icon={DollarSign}
                             subtext="Gross sales including shipping"
-                            color="bg-emerald-500 text-emerald-600"
+                            bgColor="bg-emerald-500"
+                            iconColor="text-emerald-600"
                         />
                         <StatCard
                             title="Orders"
                             value={stats ? stats.orders_count : 0}
                             icon={ShoppingBag}
                             subtext="Total completed orders"
-                            color="bg-blue-500 text-blue-600"
+                            bgColor="bg-blue-500"
+                            iconColor="text-blue-600"
                         />
                         <StatCard
                             title="Items Sold"
                             value={stats ? stats.items_sold : 0}
                             icon={Package}
                             subtext="Total units moved"
-                            color="bg-purple-500 text-purple-600"
+                            bgColor="bg-purple-500"
+                            iconColor="text-purple-600"
                         />
                         <StatCard
                             title="Avg Order Value"
                             value={stats ? `$${stats.average_order_value.toFixed(2)}` : '$0.00'}
                             icon={TrendingUp}
                             subtext="Revenue per order"
-                            color="bg-orange-500 text-orange-600"
+                            bgColor="bg-orange-500"
+                            iconColor="text-orange-600"
                         />
                         <StatCard
                             title="Sell-through Rate"
                             value={stats ? `${stats.sell_through_rate || 0}%` : '0%'}
                             icon={Activity}
                             subtext={`${stats?.items_sold || 0} sold / ${(stats?.items_sold || 0) + (stats?.active_listings_count || 0)} total`}
-                            color="bg-pink-500 text-pink-600"
+                            bgColor="bg-pink-500"
+                            iconColor="text-pink-600"
                         />
                     </div>
 
@@ -202,7 +189,7 @@ export function AnalyticsDashboard() {
                                                 />
                                                 <Tooltip
                                                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                                    formatter={(value: any) => [`$${Number(value || 0).toFixed(2)}`, 'Revenue']}
+                                                    formatter={(value: number | string) => [`$${Number(value || 0).toFixed(2)}`, 'Revenue']}
                                                 />
                                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                                                 <Area
@@ -281,7 +268,7 @@ export function AnalyticsDashboard() {
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="text-sm font-bold text-stone-900">${order.total}</p>
+                                                <p className="text-sm font-bold text-stone-900">${order.total.toFixed(2)}</p>
                                                 <Badge variant="secondary" className="text-[10px] mt-1">
                                                     {order.status}
                                                 </Badge>

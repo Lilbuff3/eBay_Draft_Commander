@@ -26,6 +26,10 @@ class InternalListing:
     postal_code: Optional[str] = None
     item_location: Optional[str] = None
     
+    # Inventory
+    quantity: int = 1
+    upc: Optional[str] = None  # None means "Does not apply"
+    
     # Meta / Sync
     scheduled_time: Optional[str] = None
     

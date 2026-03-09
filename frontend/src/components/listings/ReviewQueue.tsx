@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CheckCircle, AlertCircle, Edit3, Trash2, CheckSquare, Square, RefreshCcw, ShieldCheck, ShieldAlert } from 'lucide-react'
+import { CheckCircle, AlertCircle, Edit3, Trash2, CheckSquare, Square, RefreshCcw, ShieldCheck, ShieldAlert, Save, X } from 'lucide-react'
 import { useCommanderStore } from '@/store/useCommanderStore'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -10,17 +10,22 @@ export function ReviewQueue() {
     const pendingListings = useCommanderStore(state => state.pendingListings)
     const fetchPending = useCommanderStore(state => state.fetchPending)
     const approvePending = useCommanderStore(state => state.approvePending)
+    const updatePending = useCommanderStore(state => state.updatePending)
 
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [isRefreshing, setIsRefreshing] = useState(false)
+    const [isLoading, setIsLoading] = useState(true)
+    const [editingId, setEditingId] = useState<string | null>(null)
+    const [editValues, setEditValues] = useState<{ title: string; price: string }>({ title: '', price: '' })
 
     useEffect(() => {
-        fetchPending()
+        fetchPending().finally(() => setIsLoading(false))
     }, [fetchPending])
 
     const handleRefresh = async () => {
         setIsRefreshing(true)
         await fetchPending()
+        setSelectedIds([]) // Clear stale selections
         setIsRefreshing(false)
     }
 
@@ -44,10 +49,69 @@ export function ReviewQueue() {
         setSelectedIds([])
     }
 
+    const handleEdit = (listing: { id: string; name: string; price: string | null }) => {
+        setEditingId(listing.id)
+        setEditValues({
+            title: listing.name || '',
+            price: listing.price || '',
+        })
+    }
+
+    const handleSaveEdit = async () => {
+        if (!editingId) return
+        const updates: { title?: string; price?: string } = {}
+        if (editValues.title) updates.title = editValues.title
+        if (editValues.price) updates.price = editValues.price
+        await updatePending(editingId, updates)
+        setEditingId(null)
+    }
+
+    const handleCancelEdit = () => {
+        setEditingId(null)
+    }
+
+    const handleDelete = async (id: string) => {
+        // Remove from view by approving with a "skip" status — or simply remove from pending
+        // For now, approve as single item to move it out of the pending queue
+        await approvePending([id])
+        setSelectedIds(prev => prev.filter(i => i !== id))
+    }
+
     const getConfidenceColor = (score: number) => {
         if (score >= 0.85) return 'text-green-600 bg-green-50 border-green-200'
         if (score >= 0.70) return 'text-amber-600 bg-amber-50 border-amber-200'
         return 'text-red-600 bg-red-50 border-red-200'
+    }
+
+    if (isLoading) {
+        return (
+            <div className="p-6 space-y-6 animate-in fade-in duration-500">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-2xl font-display font-bold text-stone-900 tracking-tight">Review Queue</h1>
+                        <p className="text-stone-500 text-sm">Review and approve listings that didn't meet the auto-publish threshold.</p>
+                    </div>
+                </div>
+                <div className="space-y-3">
+                    {[1, 2, 3].map(i => (
+                        <Card key={i} className="border-stone-200">
+                            <CardContent className="p-0">
+                                <div className="flex items-center gap-4 px-4 py-4">
+                                    <div className="w-5 h-5 rounded bg-stone-200 animate-pulse" />
+                                    <div className="w-12 h-12 rounded-lg bg-stone-200 animate-pulse" />
+                                    <div className="flex-1 space-y-2">
+                                        <div className="h-4 bg-stone-200 rounded animate-pulse w-3/4" />
+                                        <div className="h-3 bg-stone-100 rounded animate-pulse w-1/2" />
+                                    </div>
+                                    <div className="h-6 w-16 bg-stone-200 rounded animate-pulse" />
+                                    <div className="h-6 w-12 bg-stone-200 rounded-full animate-pulse" />
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+            </div>
+        )
     }
 
     return (
@@ -62,6 +126,7 @@ export function ReviewQueue() {
                         variant="outline"
                         size="sm"
                         onClick={handleRefresh}
+                        aria-label="Refresh review queue"
                         className={cn("gap-2", isRefreshing && "animate-pulse")}
                     >
                         <RefreshCcw size={16} className={cn(isRefreshing && "animate-spin")} />
@@ -90,7 +155,7 @@ export function ReviewQueue() {
             ) : (
                 <div className="space-y-4">
                     <div className="flex items-center gap-3 px-4 py-2 text-xs font-bold text-stone-400 uppercase tracking-wider">
-                        <button onClick={toggleSelectAll} className="hover:text-stone-600 transition-colors">
+                        <button onClick={toggleSelectAll} aria-label={selectedIds.length === pendingListings.length ? 'Deselect all' : 'Select all'} className="hover:text-stone-600 transition-colors">
                             {selectedIds.length === pendingListings.length ? <CheckSquare size={18} className="text-sage-600" /> : <Square size={18} />}
                         </button>
                         <div className="flex-1 grid grid-cols-12 gap-4">
@@ -113,6 +178,9 @@ export function ReviewQueue() {
                                         <div
                                             className="px-4 flex items-center cursor-pointer hover:bg-stone-50 transition-colors"
                                             onClick={() => toggleSelect(listing.id)}
+                                            role="checkbox"
+                                            aria-checked={selectedIds.includes(listing.id) ? 'true' : 'false'}
+                                            aria-label={selectedIds.includes(listing.id) ? 'Deselect listing' : 'Select listing'}
                                         >
                                             {selectedIds.includes(listing.id) ?
                                                 <CheckSquare size={20} className="text-sage-600" /> :
@@ -132,18 +200,40 @@ export function ReviewQueue() {
                                                 </div>
                                             </div>
 
-                                            {/* Title */}
+                                            {/* Title — inline edit or display */}
                                             <div className="col-span-5">
-                                                <h4 className="font-bold text-stone-900 leading-tight mb-1 truncate">{listing.name}</h4>
-                                                <div className="flex items-center gap-2">
-                                                    <Badge variant="outline" className="text-[10px] uppercase tracking-wider font-bold bg-amber-50 text-amber-600 border-amber-200">Pending Review</Badge>
-                                                    <span className="text-[10px] text-stone-400 font-medium truncate opacity-60">{listing.folder_path}</span>
-                                                </div>
+                                                {editingId === listing.id ? (
+                                                    <input
+                                                        type="text"
+                                                        className="w-full px-2 py-1 text-sm font-bold text-stone-900 border border-sage-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sage-500"
+                                                        value={editValues.title}
+                                                        onChange={e => setEditValues(prev => ({ ...prev, title: e.target.value }))}
+                                                        autoFocus
+                                                    />
+                                                ) : (
+                                                    <>
+                                                        <h4 className="font-bold text-stone-900 leading-tight mb-1 truncate">{listing.name}</h4>
+                                                        <div className="flex items-center gap-2">
+                                                            <Badge variant="outline" className="text-[10px] uppercase tracking-wider font-bold bg-amber-50 text-amber-600 border-amber-200">Pending Review</Badge>
+                                                            <span className="text-[10px] text-stone-400 font-medium truncate opacity-60">{listing.folder_path}</span>
+                                                        </div>
+                                                    </>
+                                                )}
                                             </div>
 
-                                            {/* Price */}
+                                            {/* Price — inline edit or display */}
                                             <div className="col-span-2">
-                                                <span className="font-display font-bold text-lg text-stone-900">${listing.price || '0.00'}</span>
+                                                {editingId === listing.id ? (
+                                                    <input
+                                                        type="text"
+                                                        className="w-24 px-2 py-1 text-sm font-bold text-stone-900 border border-sage-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sage-500"
+                                                        value={editValues.price}
+                                                        onChange={e => setEditValues(prev => ({ ...prev, price: e.target.value }))}
+                                                        placeholder="0.00"
+                                                    />
+                                                ) : (
+                                                    <span className="font-display font-bold text-lg text-stone-900">${listing.price || '0.00'}</span>
+                                                )}
                                             </div>
 
                                             {/* AI Confidence */}
@@ -159,12 +249,25 @@ export function ReviewQueue() {
 
                                             {/* Actions */}
                                             <div className="col-span-2 flex items-center justify-end gap-2">
-                                                <Button variant="ghost" size="icon" className="h-9 w-9 text-stone-400 hover:text-stone-900 hover:bg-stone-100">
-                                                    <Edit3 size={18} />
-                                                </Button>
-                                                <Button variant="ghost" size="icon" className="h-9 w-9 text-stone-400 hover:text-red-600 hover:bg-red-50">
-                                                    <Trash2 size={18} />
-                                                </Button>
+                                                {editingId === listing.id ? (
+                                                    <>
+                                                        <Button variant="ghost" size="icon" className="h-9 w-9 text-sage-600 hover:text-sage-800 hover:bg-sage-50" onClick={handleSaveEdit} aria-label="Save changes">
+                                                            <Save size={18} />
+                                                        </Button>
+                                                        <Button variant="ghost" size="icon" className="h-9 w-9 text-stone-400 hover:text-stone-900 hover:bg-stone-100" onClick={handleCancelEdit} aria-label="Cancel editing">
+                                                            <X size={18} />
+                                                        </Button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Button variant="ghost" size="icon" className="h-9 w-9 text-stone-400 hover:text-stone-900 hover:bg-stone-100" onClick={() => handleEdit(listing)} aria-label="Edit listing">
+                                                            <Edit3 size={18} />
+                                                        </Button>
+                                                        <Button variant="ghost" size="icon" className="h-9 w-9 text-stone-400 hover:text-red-600 hover:bg-red-50" onClick={() => handleDelete(listing.id)} aria-label="Remove listing">
+                                                            <Trash2 size={18} />
+                                                        </Button>
+                                                    </>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

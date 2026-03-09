@@ -107,7 +107,7 @@ def get_inventory_locations():
 def get_pending_listings():
     """Fetch all listings with PENDING_REVIEW status"""
     try:
-        queue_manager = current_app.config.get('QUEUE_MANAGER')
+        queue_manager = getattr(current_app, 'queue_manager', None)
         if not queue_manager:
             return error_response('Queue manager not initialized')
 

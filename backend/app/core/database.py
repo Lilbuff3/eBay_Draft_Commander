@@ -1,11 +1,12 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 from sqlalchemy import create_engine, Column, String, Integer, DateTime, Text, Boolean, Float, ForeignKey, Index
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import DeclarativeBase, sessionmaker, relationship
 
-Base = declarative_base()
+
+class Base(DeclarativeBase):
+    pass
 
 class JobModel(Base):
     """Database model for queue jobs"""
@@ -59,7 +60,7 @@ class JobModel(Base):
     # Timing & Metrics
     attempts = Column(Integer, default=0)
     max_attempts = Column(Integer, default=3)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc))
     started_at = Column(DateTime)
     completed_at = Column(DateTime)
     timing_json = Column(Text)
@@ -110,8 +111,8 @@ class TemplateModel(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(100), unique=True, nullable=False)
     data_json = Column(Text, nullable=False)  # Stores the template configuration
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
     use_count = Column(Integer, default=0)
     
     @property

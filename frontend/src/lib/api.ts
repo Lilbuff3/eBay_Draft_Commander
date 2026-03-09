@@ -1,4 +1,5 @@
 // API Types and Functions for eBay Draft Commander
+import { toast } from 'sonner'
 
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'paused' | 'skipped' | 'scheduled' | 'needs_review' | 'pending_review'
 
@@ -279,4 +280,52 @@ export interface CategorySuggestion {
 
 export async function searchCategories(query: string): Promise<CategorySuggestion[]> {
     return apiFetch(`${API_BASE}/lookup/category?q=${encodeURIComponent(query)}`)
+}
+
+export async function uploadFiles(files: FileList | File[]): Promise<{ success: boolean; job_id?: string; error?: string }> {
+    const formData = new FormData()
+    Array.from(files).forEach(f => formData.append('files', f))
+    try {
+        const result = await apiFetch<{ success: boolean; job_id?: string; error?: string }>(
+            `${API_BASE}/upload`,
+            { method: 'POST', body: formData }
+        )
+        if (result.job_id) {
+            toast.success('Upload started')
+        }
+        return result
+    } catch (err) {
+        toast.error('Upload failed')
+        throw err
+    }
+}
+
+// --- Analytics ---
+
+export interface SalesStats {
+    total_revenue: number
+    orders_count: number
+    items_sold: number
+    average_order_value: number
+    chart_data: { date: string; sales: number }[]
+    best_sellers: { title: string; qty: number; revenue: number }[]
+    active_listings_count?: number
+    sell_through_rate?: number
+}
+
+export interface Order {
+    orderId: string
+    creationDate: string
+    buyer: string
+    total: number
+    status: string
+    itemCount: number
+}
+
+export async function fetchAnalyticsSummary(days: string): Promise<SalesStats> {
+    return apiFetch(`${API_BASE}/analytics/summary?days=${days}`)
+}
+
+export async function fetchRecentOrders(days: string, limit = 50): Promise<{ orders: Order[] }> {
+    return apiFetch(`${API_BASE}/analytics/orders?days=${days}&limit=${limit}`)
 }

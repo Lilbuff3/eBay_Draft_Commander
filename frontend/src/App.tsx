@@ -22,6 +22,7 @@ import { ReviewQueue } from '@/components/listings/ReviewQueue'
 import { useJobSync } from '@/hooks/useJobSync'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import { onUpdateAvailable } from '@/lib/pwa'
+import { uploadFiles } from '@/lib/api'
 
 export default function App() {
   const activeTab = useCommanderStore(state => state.activeTab)
@@ -135,17 +136,7 @@ export default function App() {
       {activeTab === 'dashboard' && (
         <MobileUploadFAB
           onFilesSelected={(files) => {
-            // Trigger upload via the same mechanism as UploadZone
-            const formData = new FormData()
-            Array.from(files).forEach(f => formData.append('files', f))
-            fetch('/api/upload', { method: 'POST', body: formData })
-              .then(res => res.json())
-              .then(data => {
-                if (data.job_id) {
-                  console.log('Upload started, job:', data.job_id)
-                }
-              })
-              .catch(err => console.error('Upload failed:', err))
+            uploadFiles(files).catch(() => {/* toast already shown */ })
           }}
         />
       )}

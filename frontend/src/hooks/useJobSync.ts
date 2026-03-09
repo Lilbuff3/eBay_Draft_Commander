@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { fetchJobs, fetchStatus, type Job } from '@/lib/api'
+import { fetchJobs, fetchStatus, type Job, type QueueStatus, type JobStatus } from '@/lib/api'
 import { io, type Socket } from 'socket.io-client'
 import { toast } from 'sonner'
 import type { LogEntry } from '@/components/LogViewer'
@@ -58,7 +58,7 @@ export function useJobSync() {
     const { data: statusData, refetch: refetchStatus } = useQuery({
         queryKey: ['status'],
         queryFn: fetchStatus,
-        initialData: { status: 'idle', stats: { pending: 0, completed: 0, failed: 0, total: 0 }, current_job: null, progress: { current: 0, total: 0, percent: 0 } } as any,
+        initialData: { status: 'idle', stats: { pending: 0, completed: 0, failed: 0, total: 0 }, current_job: null, progress: { current: 0, total: 0, percent: 0 } } as QueueStatus,
         refetchInterval: isSocketConnected ? false : 5000,
     })
 
@@ -122,13 +122,59 @@ export function useJobSync() {
             toast.error('Unable to reconnect to server')
         })
 
-        socket.on('job_added', () => {
-            queryClient.invalidateQueries({ queryKey: ['jobs'] })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const formatJobPayload = (rawJob: any): Job => {
+            const aiData = rawJob.ai_data || {}
+            const listing = aiData.listing || {}
+            const displayName = rawJob.user_title || listing.suggested_title || aiData.seo_title || rawJob.folder_name
+
+            return {
+                id: String(rawJob.id),
+                name: String(rawJob.folder_name),
+                display_name: displayName,
+                status: rawJob.status as JobStatus,
+                folder_path: rawJob.folder_path,
+                listing_id: rawJob.listing_id || null,
+                offer_id: rawJob.offer_id || null,
+                price: rawJob.price || null,
+                error_type: rawJob.error_type || null,
+                error_message: rawJob.error_message || null,
+                started_at: rawJob.started_at || null,
+                completed_at: rawJob.completed_at || null,
+                thumbnail_name: rawJob.thumbnail_name || null,
+                thumbnail_url: rawJob.thumbnail_name ? `/api/job/${rawJob.id}/image/${rawJob.thumbnail_name}` : null,
+                condition: rawJob.condition || (rawJob.job_metadata?.condition) || null,
+                scheduled_time: rawJob.scheduled_time || null,
+                confidence_score: rawJob.confidence_score || null
+            }
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        socket.on('job_added', (rawJob: any) => {
+            if (rawJob) {
+                const newJob = formatJobPayload(rawJob)
+                queryClient.setQueryData(['jobs'], (old: Job[] | undefined) => {
+                    if (!old) return [newJob]
+                    if (old.some(j => j.id === newJob.id)) return old
+                    return [...old, newJob]
+                })
+            } else {
+                queryClient.invalidateQueries({ queryKey: ['jobs'] })
+            }
             queryClient.invalidateQueries({ queryKey: ['status'] })
         })
 
-        socket.on('job_update', () => {
-            queryClient.invalidateQueries({ queryKey: ['jobs'] })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        socket.on('job_update', (rawJob: any) => {
+            if (rawJob) {
+                const updatedJob = formatJobPayload(rawJob)
+                queryClient.setQueryData(['jobs'], (old: Job[] | undefined) => {
+                    if (!old) return [updatedJob]
+                    return old.map(job => job.id === updatedJob.id ? { ...job, ...updatedJob } : job)
+                })
+            } else {
+                queryClient.invalidateQueries({ queryKey: ['jobs'] })
+            }
             queryClient.invalidateQueries({ queryKey: ['status'] })
         })
 

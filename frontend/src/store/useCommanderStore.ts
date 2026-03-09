@@ -39,7 +39,6 @@ interface CommanderState {
     handleStart: () => Promise<void>
     handlePause: () => Promise<void>
     handleScan: () => Promise<void>
-    refreshData: () => Promise<void>
     fetchPending: () => Promise<void>
     updatePending: (id: string, updates: { title?: string; price?: string; condition?: string }) => Promise<void>
     approvePending: (ids: string[]) => Promise<void>
@@ -146,10 +145,6 @@ export const useCommanderStore = create<CommanderState>((set, get) => ({
         }
     },
 
-    refreshData: async () => {
-        // This will be triggered via refetch in useJobSync but we can expose a trigger here
-        // Actually, it's better to just invalidate queries if we use react-query
-    },
 
     fetchPending: async () => {
         try {

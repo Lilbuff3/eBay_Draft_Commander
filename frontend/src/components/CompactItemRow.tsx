@@ -41,6 +41,7 @@ export function CompactItemRow({ job, isSelected, isSelectionMode, onToggleSelec
     const [showDelete, setShowDelete] = useState(false)
     const touchStartRef = useRef({ x: 0, y: 0, time: 0 })
     const rowRef = useRef<HTMLDivElement>(null)
+    const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     const handleClick = (e: MouseEvent) => {
         if (showDelete) {
@@ -64,12 +65,20 @@ export function CompactItemRow({ job, isSelected, isSelectionMode, onToggleSelec
         }
     }
 
-    // Touch handlers for swipe-to-delete
+    // Touch handlers for swipe-to-delete and long-press
     const handleTouchStart = (e: TouchEvent) => {
         if (isSelectionMode) return
         const touch = e.touches[0]
         touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() }
         setIsSwiping(false)
+
+        // Start long-press timer (500ms)
+        longPressTimerRef.current = setTimeout(() => {
+            if (!isSelectionMode) {
+                onToggleSelect(job.id)
+            }
+            longPressTimerRef.current = null
+        }, 500)
     }
 
     const handleTouchMove = (e: TouchEvent) => {
@@ -77,6 +86,12 @@ export function CompactItemRow({ job, isSelected, isSelectionMode, onToggleSelec
         const touch = e.touches[0]
         const dx = touch.clientX - touchStartRef.current.x
         const dy = touch.clientY - touchStartRef.current.y
+
+        // Cancel long-press on any significant movement
+        if (longPressTimerRef.current && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+            clearTimeout(longPressTimerRef.current)
+            longPressTimerRef.current = null
+        }
 
         // Only allow left swipe, require more horizontal than vertical movement
         if (!isSwiping && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.5) {
@@ -93,6 +108,12 @@ export function CompactItemRow({ job, isSelected, isSelectionMode, onToggleSelec
     }
 
     const handleTouchEnd = () => {
+        // Cancel any pending long-press
+        if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current)
+            longPressTimerRef.current = null
+        }
+
         if (!isSwiping) return
         setIsSwiping(false)
 
@@ -135,6 +156,7 @@ export function CompactItemRow({ job, isSelected, isSelectionMode, onToggleSelec
                 <div className="absolute inset-y-0 right-0 flex items-center">
                     <button
                         onClick={handleDeleteClick}
+                        aria-label="Delete item"
                         className="h-full px-6 bg-red-500 text-white flex items-center gap-1.5 text-sm font-medium active:bg-red-600 transition-colors w-20"
                     >
                         <Trash2 size={16} />
@@ -167,7 +189,7 @@ export function CompactItemRow({ job, isSelected, isSelectionMode, onToggleSelec
                 >
                     {/* Selection checkbox */}
                     {isSelectionMode && (
-                        <div className="flex-shrink-0" onClick={(e) => { e.stopPropagation(); onToggleSelect(job.id) }}>
+                        <div className="flex-shrink-0" aria-label={isSelected ? 'Deselect item' : 'Select item'} role="checkbox" aria-checked={isSelected ? 'true' : 'false'} onClick={(e) => { e.stopPropagation(); onToggleSelect(job.id) }}>
                             {isSelected ? (
                                 <CheckSquare size={20} className="text-blue-600" />
                             ) : (

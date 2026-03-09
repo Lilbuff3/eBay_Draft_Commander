@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request, current_app, send_file
 from pathlib import Path
+import os
 import time
 import uuid
 from werkzeug.utils import secure_filename
@@ -13,6 +14,30 @@ from backend.app.services.queue_job import resolve_thumbnail
 jobs_bp = Blueprint('jobs', __name__)
 logger = get_logger('api.jobs')
 image_service = ImageService()
+
+
+def _ensure_inbox_dir() -> Path:
+    """Get a writable inbox directory, falling back to data/inbox if INBOX_DIR is not writable.
+
+    OneDrive-synced Desktop folders on Windows can appear to exist but be
+    cloud-only placeholders — all mkdir/write operations fail with
+    FileExistsError or FileNotFoundError. This helper detects that and
+    falls back to a local directory.
+    """
+    inbox_dir = current_app.config['INBOX_DIR']
+    try:
+        inbox_dir.mkdir(parents=True, exist_ok=True)
+        # Verify we can actually write a subfolder (OneDrive placeholders pass mkdir but fail here)
+        probe = inbox_dir / '.write_test'
+        probe.mkdir(exist_ok=True)
+        probe.rmdir()
+        return inbox_dir
+    except (FileExistsError, FileNotFoundError, OSError) as e:
+        # OneDrive cloud-only placeholder — fall back to local data/inbox
+        fallback = current_app.config.get('DATA_DIR', Path.cwd() / 'data') / 'inbox'
+        logger.warning(f"INBOX_DIR '{inbox_dir}' is not writable ({e}), falling back to '{fallback}'")
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback
 
 
 def _resolve_display_name(j) -> str:
@@ -273,8 +298,7 @@ def create_job_from_metadata():
         if not data: return error_response('No metadata provided', 400)
         qm = current_app.queue_manager
         folder_name = f"metadata_import_{int(time.time())}_{uuid.uuid4().hex[:4]}"
-        inbox_dir = current_app.config['INBOX_DIR']
-        inbox_dir.mkdir(parents=True, exist_ok=True)
+        inbox_dir = _ensure_inbox_dir()
         job_folder = inbox_dir / folder_name
         job_folder.mkdir(exist_ok=True)
         image_url = data.get('thumbnail')
@@ -301,8 +325,7 @@ def upload_files():
     if not files: return error_response('No files selected', 400)
     qm = current_app.queue_manager
     folder_name = f"mobile_upload_{int(time.time())}_{uuid.uuid4().hex[:4]}"
-    inbox_dir = current_app.config['INBOX_DIR']
-    inbox_dir.mkdir(parents=True, exist_ok=True)
+    inbox_dir = _ensure_inbox_dir()
     job_folder = inbox_dir / folder_name
     job_folder.mkdir(exist_ok=True)
     saved_count = 0
@@ -324,8 +347,7 @@ def create_listing_from_photos():
         if not files: return error_response('No photos provided', 400)
         qm = current_app.queue_manager
         folder_name = f"web_upload_{int(time.time())}_{uuid.uuid4().hex[:4]}"
-        inbox_dir = current_app.config['INBOX_DIR']
-        inbox_dir.mkdir(parents=True, exist_ok=True)
+        inbox_dir = _ensure_inbox_dir()
         job_folder = inbox_dir / folder_name
         job_folder.mkdir(exist_ok=True)
         saved_count = 0
