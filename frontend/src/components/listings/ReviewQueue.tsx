@@ -11,6 +11,7 @@ export function ReviewQueue() {
     const fetchPending = useCommanderStore(state => state.fetchPending)
     const approvePending = useCommanderStore(state => state.approvePending)
     const updatePending = useCommanderStore(state => state.updatePending)
+    const deletePending = useCommanderStore(state => state.deletePending)
 
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [isRefreshing, setIsRefreshing] = useState(false)
@@ -71,10 +72,10 @@ export function ReviewQueue() {
     }
 
     const handleDelete = async (id: string) => {
-        // Remove from view by approving with a "skip" status — or simply remove from pending
-        // For now, approve as single item to move it out of the pending queue
-        await approvePending([id])
-        setSelectedIds(prev => prev.filter(i => i !== id))
+        if (window.confirm('Delete this listing and its source folder?')) {
+            await deletePending(id, true)
+            setSelectedIds(prev => prev.filter(i => i !== id))
+        }
     }
 
     const getConfidenceColor = (score: number) => {

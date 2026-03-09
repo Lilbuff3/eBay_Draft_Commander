@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { type Job, type QueueStats, startQueue, pauseQueue, scanInbox, fetchJobs, fetchPendingListings, quickEditListing, approvePendingListings } from '@/lib/api'
+import { type Job, type QueueStats, startQueue, pauseQueue, scanInbox, fetchJobs, fetchPendingListings, quickEditListing, approvePendingListings, deleteJob } from '@/lib/api'
 import { type LogEntry } from '@/components/LogViewer'
 import { toast } from 'sonner'
 
@@ -42,6 +42,7 @@ interface CommanderState {
     fetchPending: () => Promise<void>
     updatePending: (id: string, updates: { title?: string; price?: string; condition?: string }) => Promise<void>
     approvePending: (ids: string[]) => Promise<void>
+    deletePending: (id: string, deleteFolder?: boolean) => Promise<void>
 
     // Filtering & UI
     activeFilter: string
@@ -186,6 +187,22 @@ export const useCommanderStore = create<CommanderState>((set, get) => ({
         } catch (err) {
             console.error(err)
             toast.error('Approval failed')
+        }
+    },
+
+    deletePending: async (id, deleteFolder = true) => {
+        try {
+            await deleteJob(id, deleteFolder)
+            set((state) => ({
+                pendingListings: state.pendingListings.filter(l => l.id !== id)
+            }))
+            // Also refresh main jobs list in case it affects dashboard
+            const jobsData = await fetchJobs()
+            set({ jobs: jobsData })
+            toast.success('Listing deleted')
+        } catch (err) {
+            console.error(err)
+            toast.error('Delete failed')
         }
     },
 
