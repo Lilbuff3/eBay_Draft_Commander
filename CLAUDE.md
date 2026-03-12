@@ -78,7 +78,8 @@ backend/                    Flask app factory
       ebay_service.py       eBay API facade
       category_mapper.py    eBay category taxonomy mapping
       template_manager.py   HTML description template rendering
-      image_processor.py    Image processing and optimization
+      image_processor.py    Image processing, background removal, upload
+      processor_service.py  Main processing orchestrator (AI, category, pricing, upload)
       image_service.py      Image upload coordination
       isbn_scanner.py       ISBN barcode detection
       book_service.py       Book-specific metadata lookup
@@ -127,6 +128,9 @@ frontend/                   React 18 + Vite + TypeScript
 - **Scheduled listings** — Dashboard has datetime picker; `scheduled_time` stored on job, passed through to Trading API `ScheduleTime` field.
 - **Job statuses**: pending, processing, completed, failed, paused, skipped, scheduled
 - **API is modular** — `blueprints/api/` is a package with 7 sub-modules, not a single file.
+- **Image reordering** — `ImageGallery` uses `@dnd-kit` drag-and-drop. `ordered_images` stored in `job_metadata`, respected by `image_processor.upload_images()`. First image = eBay cover photo.
+- **Aspect schema** — `ebay_aspect_schema` (not old `ebay_required_aspects`) returns full required+optional aspects with `isRequired` flag. Dynamic refresh via `/api/lookup/category/<id>/aspects`. Fuzzy value matching in `processor_service._validate_and_enrich_specifics()`.
+- **Background removal** — `image_processor.remove_background_and_square()` uses `rembg` + Pillow. Composites subject onto 2000x2000 white JPEG canvas. Originals preserved as `.orig` files.
 
 ## Database
 
@@ -173,10 +177,11 @@ Settings UI writes directly to .env via SettingsManager singleton.
 ## Testing
 
 ```bash
-pytest tests/ -v                    # Unit tests
-pytest tests/test_validation.py     # Single file
-python tests/manual_test_api.py     # Integration test
-python tests/manual_test_e2e.py     # Full pipeline test
+pytest tests/unit/ -v               # Unit tests (53 tests)
+pytest tests/integration/ -v        # Integration tests (need .env credentials)
+pytest tests/unit/test_validation.py  # Single file
+python tests/manual/manual_test_api.py  # Manual integration test
+python tests/manual/manual_test_e2e.py  # Full pipeline test
 ```
 
 Test conventions: `test_*.py` files, `Test*` classes, `test_*` functions.
@@ -199,3 +204,7 @@ Test conventions: `test_*.py` files, `Test*` classes, `test_*` functions.
 - **Free shipping pricing** — Fulfillment policy uses free shipping. `ESTIMATED_SHIPPING_COST` (default $6.50) is added to suggested price so seller margin isn't eaten by shipping. The buffer is applied in `pricing_engine.py` after the condition multiplier.
 - **Git worktrees** — `.env` is not tracked by git, but `load_dotenv_manually()` now walks up parent directories to find it. Worktrees should work for development, but note that `data/commander.db` is also not shared — each worktree gets its own database.
 - **Queue API routes** — Queue control is at `/api/start`, `/api/pause`, `/api/skip` (no `/queue/` prefix) because `queue_bp` is registered with `url_prefix=''`.
+- **`ebay_aspect_schema` not `ebay_required_aspects`** — The old key was replaced. `ai_data['ebay_aspect_schema']` is the full required+optional aspect list. Frontend `JobDetails` type uses `ebay_aspect_schema`. Old jobs may have stale `ebay_required_aspects` key.
+- **Claude Code hooks active** — `.claude/settings.json` has PreToolUse hook blocking `.env` edits and PostToolUse hook running ESLint on frontend files. `.env` must be edited through SettingsManager/API, never directly.
+- **rembg dependency** — `requirements.txt` includes `rembg`. First run downloads ~170MB ONNX model. If image processing is slow or fails on a new machine, this is likely why.
+- **Serena memories** — 4 project memories exist (`architecture`, `debugging-patterns`, `api-routes`, `frontend-patterns`). Read these at session start for instant context.
