@@ -123,6 +123,18 @@ class TemplateModel(Base):
     def data(self, value):
         self.data_json = json.dumps(value)
 
+class AppToken(Base):
+    """Database model for application tokens (e.g. eBay access tokens)"""
+    __tablename__ = 'app_tokens'
+
+    id = Column(Integer, primary_key=True)
+    key = Column(String(100), unique=True, nullable=False)
+    value = Column(Text, nullable=False)
+    expires_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+
+
 # Database Setup
 def get_db_engine(db_path: Path):
     from sqlalchemy import event

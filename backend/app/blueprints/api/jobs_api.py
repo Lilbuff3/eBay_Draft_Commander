@@ -147,8 +147,12 @@ def get_job_details(job_id):
         'condition_description': ai_data.get('condition_description'),
         'analysis_mode': ai_data.get('analysis_mode'),
         'ebay_aspect_schema': ai_data.get('ebay_aspect_schema', []),
+        'image_urls': ai_data.get('image_urls', []),
         'images': images,
         'image_count': len(images),
+        'confidence_score': job.confidence_score,
+        'price': job.price,
+        'timing': job.timing,
         'raw_metadata': job.job_metadata
     }
     return jsonify(response)

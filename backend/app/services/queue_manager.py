@@ -844,7 +844,15 @@ class QueueManager:
 
             # Handle result
             if isinstance(result, dict):
-                if result.get('success', False) or result.get('listing_id') or result.get('offer_id'):
+                if result.get('status') == 'pending_review':
+                    # Routed to review queue (AUTO_PUBLISH=false, low confidence, or missing category)
+                    job.status = JobStatus.PENDING_REVIEW
+                    job.price = result.get('price')
+                    job.title = result.get('title')
+                    job.condition = result.get('condition')
+                    job.confidence_score = result.get('confidence_score')
+                    job.timing = result.get('timing', {'total': elapsed})
+                elif result.get('success', False) or result.get('listing_id') or result.get('offer_id'):
                     job.status = JobStatus.COMPLETED
                     job.listing_id = result.get('listing_id')
                     job.offer_id = result.get('offer_id')
@@ -889,6 +897,8 @@ class QueueManager:
             'price': job.price,
             'title': job.title,
             'condition': job.condition,
+            'confidence_score': job.confidence_score,
+            'timing': job.timing,
             'error_type': job.error_type,
             'error_message': job.error_message,
             'attempts': job.attempts,

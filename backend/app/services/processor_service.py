@@ -290,13 +290,16 @@ class ProcessorService:
         ebay_aspect_schema = self._validate_and_enrich_specifics(
             cat_result.get('id'), analysis['item_specifics'], _log=_log
         )
+        # Persist category and aspect schema in ai_data
+        ai_data = job_obj.ai_data or {}
+        ai_data['category_id'] = cat_result.get('id')
+        ai_data['category_name'] = cat_result.get('name')
         if ebay_aspect_schema:
-            # Persist in ai_data so frontend can show required field indicators and dropdown schemas
-            ai_data = job_obj.ai_data or {}
+            # Frontend uses this for required field indicators and dropdown schemas
             ai_data['ebay_aspect_schema'] = ebay_aspect_schema
             # Cleanup old key if it exists
             ai_data.pop('ebay_required_aspects', None)
-            job_obj.ai_data = ai_data
+        job_obj.ai_data = ai_data
 
         # 5. Final Pricing
         shipping_cost = analysis.get('shipping_cost')
@@ -316,6 +319,11 @@ class ProcessorService:
         if "error" in upload:
             return {"success": False, "error_type": "image_upload_failed", "error_message": f"Image upload failed: {upload['error']}"}
         result["timing"]["image_upload"] = upload["timing"]
+
+        # Persist uploaded image URLs in ai_data for retrieval after processing
+        ai_data = job_obj.ai_data or {}
+        ai_data['image_urls'] = upload["urls"]
+        job_obj.ai_data = ai_data
 
         # 7. Rendering
         template = self._render_listing_template(analysis['title'], analysis['raw_description'], upload["urls"], analysis['item_specifics'], condition)
