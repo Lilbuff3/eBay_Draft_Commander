@@ -1,7 +1,6 @@
+import os
 import time
 from pathlib import Path
-from PIL import Image
-from rembg import remove
 from backend.app.services.ebay.media import upload_image_to_eps, check_endpoint_reachability
 from backend.app.core.logger import get_logger
 
@@ -14,8 +13,11 @@ class ImageProcessor:
     def remove_background_and_square(self, input_path: Path, output_path: Path) -> bool:
         """
         Removes background from an image and composites the subject onto a 2000x2000 white canvas.
+        Lazy-imports rembg and PIL to avoid 170MB model download on startup.
         """
         try:
+            from PIL import Image
+            from rembg import remove
             img = Image.open(input_path)
             output_png = remove(img)
             
@@ -89,32 +91,30 @@ class ImageProcessor:
             if not images:
                 raise Exception(f"No image files found in {folder_path.name}")
 
-            _log(f"[UPLOAD] Found {len(images)} images to upload. Processing backgrounds first...")
+            bg_removal_enabled = os.getenv('ENABLE_BACKGROUND_REMOVAL', 'false').lower() == 'true'
 
-            processed_images = []
-            for img_path in images:
-                # Skip already processed (or just process if not done)
-                if img_path.name.endswith(".orig"):
-                    continue
-                    
-                orig_path = img_path.with_name(f"{img_path.name}.orig")
-                
-                # Move original out of the way
-                import shutil
-                shutil.copy2(img_path, orig_path)
-                
-                _log(f"[IMAGE] Removing background for {img_path.name}...")
-                success = self.remove_background_and_square(orig_path, img_path)
-                
-                if success:
-                    processed_images.append(img_path)
-                else:
-                    _log(f"[IMAGE] Fallback to original for {img_path.name}", level='warning')
-                    import os
-                    if img_path.exists():
-                        os.remove(img_path)
-                    shutil.copy2(orig_path, img_path)
-                    processed_images.append(img_path)
+            if bg_removal_enabled:
+                _log(f"[UPLOAD] Found {len(images)} images to upload. Processing backgrounds first...")
+                processed_images = []
+                for img_path in images:
+                    if img_path.name.endswith(".orig"):
+                        continue
+                    orig_path = img_path.with_name(f"{img_path.name}.orig")
+                    import shutil
+                    shutil.copy2(img_path, orig_path)
+                    _log(f"[IMAGE] Removing background for {img_path.name}...")
+                    success = self.remove_background_and_square(orig_path, img_path)
+                    if success:
+                        processed_images.append(img_path)
+                    else:
+                        _log(f"[IMAGE] Fallback to original for {img_path.name}", level='warning')
+                        if img_path.exists():
+                            os.remove(img_path)
+                        shutil.copy2(orig_path, img_path)
+                        processed_images.append(img_path)
+            else:
+                _log(f"[UPLOAD] Found {len(images)} images to upload")
+                processed_images = images
 
             # Upload each image, tracking successes and failures
             successful_urls = []

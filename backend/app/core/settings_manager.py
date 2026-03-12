@@ -21,6 +21,7 @@ class SettingsManager:
         'AUTO_MOVE_POSTED': 'true',
         'AUTO_PUBLISH': 'true',  # If false, creates drafts instead of live listings
         'ESTIMATED_SHIPPING_COST': '6.50',  # Baked into price for free-shipping listings
+        'ENABLE_BACKGROUND_REMOVAL': 'false',  # rembg background removal (off for MVP)
     }
     
     # All known setting keys organized by category
@@ -52,6 +53,7 @@ class SettingsManager:
             'AUTO_MOVE_POSTED',
             'AUTO_PUBLISH',
             'ESTIMATED_SHIPPING_COST',
+            'ENABLE_BACKGROUND_REMOVAL',
         ],
     }
     
