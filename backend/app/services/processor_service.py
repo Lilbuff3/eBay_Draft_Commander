@@ -107,43 +107,64 @@ class ProcessorService:
     def _validate_and_enrich_specifics(self, category_id: str, specifics: dict, _log=None) -> list:
         """
         Fetch eBay's required/recommended aspects for the category,
-        auto-fill single-value required aspects, and return metadata
-        about missing required aspects for the frontend.
+        auto-fill single-value required aspects, perform fuzzy matching,
+        and return the full aspect schema for the frontend.
         """
         if not category_id:
             return []
 
         from backend.app.services.ebay.taxonomy import get_item_aspects
         aspects = get_item_aspects(category_id)
+        
         required_aspects = aspects.get('required', [])
+        optional_aspects = aspects.get('optional', [])
 
-        if not required_aspects:
+        for aspect in required_aspects:
+            aspect['isRequired'] = True
+            if 'values' in aspect:
+                aspect['values'] = aspect['values'][:50] # Cap to avoid huge payloads
+
+        for aspect in optional_aspects:
+            aspect['isRequired'] = False
+            if 'values' in aspect:
+                aspect['values'] = aspect['values'][:50]
+
+        full_schema = required_aspects + optional_aspects
+
+        if not full_schema:
             return []
 
-        missing_required = []
         for aspect in required_aspects:
             name = aspect.get('name')
             if not name:
                 continue
 
-            if name in specifics and specifics[name]:
+            # Auto-fill if there's exactly one allowed value and missing
+            if (name not in specifics or not specifics[name]) and aspect.get('values') and len(aspect['values']) == 1:
+                specifics[name] = aspect['values'][0]
+                if _log:
+                    _log(f"Auto-filled required aspect: {name} = {aspect['values'][0]}")
+
+        # Fuzzy match existing values against the schema
+        for name, value in list(specifics.items()):
+            if not isinstance(value, str):
                 continue
+            schema_aspect = next((a for a in full_schema if a.get('name') == name), None)
+            if schema_aspect and schema_aspect.get('values'):
+                allowed_values = schema_aspect['values']
+                if value in allowed_values:
+                    continue
+                # Fuzzy logic
+                value_lower = value.lower()
+                for allowed in allowed_values:
+                    allowed_lower = allowed.lower()
+                    if value_lower == allowed_lower or value_lower in allowed_lower:
+                        specifics[name] = allowed
+                        if _log:
+                            _log(f"Fuzzy matched aspect: {name} = '{value}' -> '{allowed}'")
+                        break
 
-            # Auto-fill if there's exactly one allowed value
-            values = aspect.get('values', [])
-            if len(values) == 1:
-                specifics[name] = values[0]
-                if _log:
-                    _log(f"Auto-filled required aspect: {name} = {values[0]}")
-            else:
-                missing_required.append({
-                    'name': name,
-                    'values': values[:50]  # Cap at 50 to avoid bloating response
-                })
-                if _log:
-                    _log(f"Missing required aspect: {name}", level='warning')
-
-        return missing_required
+        return full_schema
 
     def _render_listing_template(self, title: str, description: str, images: list, aspects: dict, condition: str) -> dict:
         """Render the listing HTML"""
@@ -266,13 +287,15 @@ class ProcessorService:
             cat_result = self.category_mapper.get_category(analysis['title'], analysis['raw_description'])
         
         # 4b. Fetch eBay required aspects and validate/enrich item specifics
-        missing_required_aspects = self._validate_and_enrich_specifics(
+        ebay_aspect_schema = self._validate_and_enrich_specifics(
             cat_result.get('id'), analysis['item_specifics'], _log=_log
         )
-        if missing_required_aspects:
-            # Persist in ai_data so frontend can show required field indicators
+        if ebay_aspect_schema:
+            # Persist in ai_data so frontend can show required field indicators and dropdown schemas
             ai_data = job_obj.ai_data or {}
-            ai_data['ebay_required_aspects'] = missing_required_aspects
+            ai_data['ebay_aspect_schema'] = ebay_aspect_schema
+            # Cleanup old key if it exists
+            ai_data.pop('ebay_required_aspects', None)
             job_obj.ai_data = ai_data
 
         # 5. Final Pricing
@@ -288,7 +311,8 @@ class ProcessorService:
         result["timing"]["pricing"] = pricing_result["timing"]
 
         # 6. Image Upload
-        upload = self.image_processor.upload_images(folder_path, log_callback=log_callback)
+        ordered_images = job_obj.job_metadata.get('ordered_images') if job_obj.job_metadata else None
+        upload = self.image_processor.upload_images(folder_path, ordered_filenames=ordered_images, log_callback=log_callback)
         if "error" in upload:
             return {"success": False, "error_type": "image_upload_failed", "error_message": f"Image upload failed: {upload['error']}"}
         result["timing"]["image_upload"] = upload["timing"]

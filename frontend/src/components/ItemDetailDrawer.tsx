@@ -8,7 +8,7 @@ import { ImageGallery } from '@/components/ImageGallery'
 import { ShippingSelector } from '@/components/ShippingSelector'
 import { LogViewer, type LogEntry } from '@/components/LogViewer'
 import type { Job, JobDetails, ItemDraft, CategorySuggestion } from '@/lib/api'
-import { searchCategories } from '@/lib/api'
+import { searchCategories, fetchCategoryAspects } from '@/lib/api'
 import { ItemDescriptionCard } from './item-detail/ItemDescriptionCard'
 import { ItemScheduleField } from './item-detail/ItemScheduleField'
 
@@ -51,6 +51,7 @@ interface ItemDetailDrawerProps {
     jobDetails: JobDetails | null
     isLoadingDetails: boolean
     images: Array<{ name: string; url: string }>
+    onReorderImages: (images: Array<{ name: string; url: string }>) => void
     // Editable fields
     draft: ItemDraft
     updateDraft: (updates: Partial<ItemDraft>) => void
@@ -69,6 +70,8 @@ export function ItemDetailDrawer({
     jobDetails,
     isLoadingDetails,
     images,
+    onReorderImages,
+    // Editable fields
     draft,
     updateDraft,
     isCreating,
@@ -83,6 +86,12 @@ export function ItemDetailDrawer({
     const [isSearchingCategories, setIsSearchingCategories] = useState(false)
     const categorySearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
     const isMobile = useIsMobile()
+
+    const [localSchema, setLocalSchema] = useState<Array<{ name: string; values: string[]; isRequired?: boolean }> | null>(null)
+
+    useEffect(() => {
+        setLocalSchema(jobDetails?.ebay_aspect_schema || null)
+    }, [jobDetails?.ebay_aspect_schema])
 
     const handleCategorySearch = useCallback((query: string) => {
         setCategoryQuery(query)
@@ -104,7 +113,7 @@ export function ItemDetailDrawer({
         }, 400)
     }, [])
 
-    const selectCategory = useCallback((suggestion: CategorySuggestion) => {
+    const selectCategory = useCallback(async (suggestion: CategorySuggestion) => {
         updateDraft({
             categoryId: suggestion.category_id,
             categoryName: suggestion.category_name
@@ -112,7 +121,38 @@ export function ItemDetailDrawer({
         setShowCategorySearch(false)
         setCategoryQuery('')
         setCategorySuggestions([])
-    }, [updateDraft])
+
+        try {
+            const newSchema = await fetchCategoryAspects(suggestion.category_id)
+            setLocalSchema(newSchema)
+
+            // Clear out irrelevant specifics, preserve overlapping ones
+            const newSpecs = { ...draft.itemSpecifics }
+
+            if (localSchema) {
+                const newSchemaNames = new Set(newSchema.map(s => s.name.toLowerCase()))
+                for (const oldAspect of localSchema) {
+                    if (!newSchemaNames.has(oldAspect.name.toLowerCase())) {
+                        delete newSpecs[oldAspect.name]
+                    }
+                }
+            }
+
+            // Enforce value validation for the overlapping aspects
+            for (const aspect of newSchema) {
+                if (aspect.values && aspect.values.length > 0) {
+                    const currentVal = newSpecs[aspect.name]
+                    if (currentVal && !aspect.values.includes(currentVal)) {
+                        delete newSpecs[aspect.name]
+                    }
+                }
+            }
+
+            updateDraft({ itemSpecifics: newSpecs })
+        } catch (err) {
+            console.error('Failed to fetch category aspects:', err)
+        }
+    }, [updateDraft, draft.itemSpecifics, localSchema])
 
     const sheetSide = isMobile ? 'bottom' : 'right'
 
@@ -182,6 +222,7 @@ export function ItemDetailDrawer({
                                 {job && (
                                     <ImageGallery
                                         images={images}
+                                        onReorder={onReorderImages}
                                         jobId={job.id}
                                     />
                                 )}
@@ -302,43 +343,58 @@ export function ItemDetailDrawer({
                                         <span className="text-[10px] text-stone-400">Click to edit</span>
                                     </div>
                                     <div className="grid grid-cols-1 gap-2">
-                                        {Object.entries(draft.itemSpecifics).map(([key, value]) => {
-                                            const requiredAspect = jobDetails.ebay_required_aspects?.find(a => a.name === key)
-                                            const isRequired = !!requiredAspect
-                                            const hasEnumValues = requiredAspect && requiredAspect.values.length > 0
+                                        {(() => {
+                                            const schema = jobDetails.ebay_aspect_schema || []
+                                            const customKeys = Object.keys(draft.itemSpecifics).filter(k => !schema.find(s => s.name === k))
 
-                                            return (
-                                                <div key={key} className="flex gap-2 items-center">
-                                                    <span className={`text-xs font-medium w-24 flex-shrink-0 truncate ${isRequired ? 'text-amber-600' : 'text-stone-500'}`}>
-                                                        {key}{isRequired && <span className="text-red-500">*</span>}:
-                                                    </span>
-                                                    {hasEnumValues ? (
-                                                        <Select value={value} onValueChange={(v: string) => {
-                                                            const newSpecs = { ...draft.itemSpecifics, [key]: v };
-                                                            updateDraft({ itemSpecifics: newSpecs });
-                                                        }}>
-                                                            <SelectTrigger className="h-8 text-sm bg-stone-50 border-stone-200">
-                                                                <SelectValue placeholder="Select..." />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {requiredAspect.values.map((v: string) => (
-                                                                    <SelectItem key={v} value={v}>{v}</SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    ) : (
-                                                        <Input
-                                                            value={value}
-                                                            onChange={(e) => {
-                                                                const newSpecs = { ...draft.itemSpecifics, [key]: e.target.value };
+                                            return [
+                                                ...schema.map(aspect => ({
+                                                    key: aspect.name,
+                                                    value: draft.itemSpecifics[aspect.name] || '',
+                                                    isRequired: aspect.isRequired,
+                                                    enumValues: aspect.values || []
+                                                })),
+                                                ...customKeys.map(key => ({
+                                                    key,
+                                                    value: draft.itemSpecifics[key],
+                                                    isRequired: false,
+                                                    enumValues: [] as string[]
+                                                }))
+                                            ].map(({ key, value, isRequired, enumValues }) => {
+                                                const hasEnumValues = enumValues.length > 0
+                                                return (
+                                                    <div key={key} className="flex gap-2 items-center">
+                                                        <span className={`text-xs font-medium w-24 flex-shrink-0 truncate ${isRequired ? 'text-amber-600' : 'text-stone-500'}`}>
+                                                            {key}{isRequired && <span className="text-red-500">*</span>}:
+                                                        </span>
+                                                        {hasEnumValues ? (
+                                                            <Select value={value} onValueChange={(v: string) => {
+                                                                const newSpecs = { ...draft.itemSpecifics, [key]: v };
                                                                 updateDraft({ itemSpecifics: newSpecs });
-                                                            }}
-                                                            className={`h-8 py-0 px-2 text-sm bg-stone-50 focus:bg-white ${isRequired && !value ? 'border-amber-300' : 'border-stone-200'}`}
-                                                        />
-                                                    )}
-                                                </div>
-                                            )
-                                        })}
+                                                            }}>
+                                                                <SelectTrigger className={`h-8 text-sm bg-stone-50 ${isRequired && !value ? 'border-red-500' : 'border-stone-200'}`}>
+                                                                    <SelectValue placeholder="Select..." />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {enumValues.map((v: string) => (
+                                                                        <SelectItem key={v} value={v}>{v}</SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        ) : (
+                                                            <Input
+                                                                value={value || ''}
+                                                                onChange={(e) => {
+                                                                    const newSpecs = { ...draft.itemSpecifics, [key]: e.target.value };
+                                                                    updateDraft({ itemSpecifics: newSpecs });
+                                                                }}
+                                                                className={`h-8 py-0 px-2 text-sm bg-stone-50 focus:bg-white ${isRequired && !value ? 'border-red-500' : 'border-stone-200'}`}
+                                                            />
+                                                        )}
+                                                    </div>
+                                                )
+                                            })
+                                        })()}
                                     </div>
                                 </div>
 
@@ -398,28 +454,40 @@ export function ItemDetailDrawer({
                 {/* Sticky CTA — always visible at bottom of drawer */}
                 {job && (
                     <div className="flex-shrink-0 border-t border-stone-100 px-6 py-3 bg-white pb-safe">
-                        <button
-                            onClick={onCreateListing}
-                            disabled={isCreating}
-                            className={`w-full py-3 px-4 rounded-xl font-medium text-white transition-all ${isCreating
-                                ? 'bg-stone-400 cursor-wait'
-                                : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/25'
-                                }`}
-                        >
-                            {isCreating ? (
-                                <span className="flex items-center justify-center gap-2">
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    Creating...
-                                </span>
-                            ) : createResult?.success ? (
-                                <span className="flex items-center justify-center gap-2">
-                                    <Check className="w-4 h-4" />
-                                    Listed Successfully
-                                </span>
-                            ) : (
-                                draft.scheduledTime ? 'Schedule Listing' : 'Create eBay Listing'
-                            )}
-                        </button>
+                        {(() => {
+                            const hasMissingRequiredSpecifics = jobDetails?.ebay_aspect_schema?.some(aspect =>
+                                aspect.isRequired && !draft.itemSpecifics[aspect.name]
+                            ) || false;
+
+                            return (
+                                <button
+                                    onClick={onCreateListing}
+                                    disabled={isCreating || hasMissingRequiredSpecifics}
+                                    className={`w-full py-3 px-4 rounded-xl font-medium text-white transition-all ${isCreating
+                                        ? 'bg-stone-400 cursor-wait'
+                                        : hasMissingRequiredSpecifics
+                                            ? 'bg-stone-300 cursor-not-allowed text-stone-500'
+                                            : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/25'
+                                        }`}
+                                >
+                                    {isCreating ? (
+                                        <span className="flex items-center justify-center gap-2">
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            Creating...
+                                        </span>
+                                    ) : createResult?.success ? (
+                                        <span className="flex items-center justify-center gap-2">
+                                            <Check className="w-4 h-4" />
+                                            Listed Successfully
+                                        </span>
+                                    ) : hasMissingRequiredSpecifics ? (
+                                        'Missing Required Specifics'
+                                    ) : (
+                                        draft.scheduledTime ? 'Schedule Listing' : 'Create eBay Listing'
+                                    )}
+                                </button>
+                            );
+                        })()}
 
                         {createResult && (
                             <div className={`mt-2 p-2 rounded-lg text-sm ${createResult.success

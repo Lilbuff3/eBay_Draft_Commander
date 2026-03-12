@@ -58,4 +58,7 @@ export default defineConfig(({ mode }) => ({
     setupFiles: './src/test/setup.ts',
     css: true,
   },
+  optimizeDeps: {
+    exclude: ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities']
+  }
 }))

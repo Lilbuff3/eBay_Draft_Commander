@@ -59,6 +59,33 @@ def lookup_category():
     except Exception as e:
         return error_response(str(e))
 
+@lookup_bp.route('/lookup/category/<category_id>/aspects', methods=['GET'])
+def category_aspects(category_id):
+    """Fetch formatted eBay required/optional aspects for a given category ID."""
+    if not category_id:
+        return error_response('Category ID is required', 400)
+    try:
+        from backend.app.services.ebay.taxonomy import get_item_aspects
+        aspects = get_item_aspects(category_id)
+        
+        required_aspects = aspects.get('required', [])
+        optional_aspects = aspects.get('optional', [])
+
+        for aspect in required_aspects:
+            aspect['isRequired'] = True
+            if 'values' in aspect:
+                aspect['values'] = aspect['values'][:50]
+
+        for aspect in optional_aspects:
+            aspect['isRequired'] = False
+            if 'values' in aspect:
+                aspect['values'] = aspect['values'][:50]
+
+        full_schema = required_aspects + optional_aspects
+        return jsonify(full_schema)
+    except Exception as e:
+        return error_response(str(e))
+
 @lookup_bp.route('/tools/research', methods=['GET'])
 def search_prices():
     query = request.args.get('q')

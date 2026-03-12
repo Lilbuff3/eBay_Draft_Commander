@@ -44,8 +44,9 @@ class eBayService:
     # ... rest of file ...
         """Check if eBay API connection is valid by testing token"""
         try:
-            creds = load_env()
-            token = creds.get('EBAY_USER_TOKEN')
+            from backend.app.core.token_manager import get_token_manager
+            tm = get_token_manager()
+            token = tm.get_access_token()
             
             if not token:
                 return {'status': 'disconnected', 'message': 'No eBay token configured'}, 200

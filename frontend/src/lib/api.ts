@@ -150,6 +150,7 @@ export interface CreateListingParams {
     processNow?: boolean
     scheduledTime?: string
     itemSpecifics?: Record<string, string>
+    orderedImages?: string[]
 }
 
 export interface ItemDraft {
@@ -180,7 +181,8 @@ export async function createListing(params: CreateListingParams): Promise<Create
         fulfillmentPolicy: params.fulfillmentPolicy,
         item_specifics: params.itemSpecifics,
         process_now: true,
-        scheduled_time: params.scheduledTime
+        scheduled_time: params.scheduledTime,
+        ordered_images: params.orderedImages
     }
     return apiFetch(`${API_BASE}/job/${params.jobId}/update`, {
         method: 'POST',
@@ -262,7 +264,7 @@ export interface JobDetails {
     condition_id?: number
     condition_description?: string
     analysis_mode?: string
-    ebay_required_aspects?: Array<{ name: string; values: string[] }>
+    ebay_aspect_schema?: Array<{ name: string; values: string[]; isRequired?: boolean }>
     images: Array<{ name: string; path: string; url: string }>
     image_count: number
     raw_metadata: Record<string, unknown>
@@ -270,6 +272,10 @@ export interface JobDetails {
 
 export async function fetchJobDetails(jobId: string): Promise<JobDetails> {
     return apiFetch(`${API_BASE}/job/${jobId}/details`)
+}
+
+export async function fetchCategoryAspects(categoryId: string): Promise<Array<{ name: string; values: string[]; isRequired?: boolean }>> {
+    return apiFetch(`${API_BASE}/lookup/category/${categoryId}/aspects`)
 }
 
 export interface CategorySuggestion {

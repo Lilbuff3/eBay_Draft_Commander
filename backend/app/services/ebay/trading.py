@@ -18,8 +18,12 @@ class TradingService:
         This successfully found 154 items in testing (even if some fields were tricky).
         """
         try:
-            creds = load_env()
-            token = creds.get('EBAY_USER_TOKEN')
+            from backend.app.core.token_manager import get_token_manager
+            tm = get_token_manager()
+            token = tm.get_access_token()
+            if not token:
+                creds = load_env()
+                token = creds.get('EBAY_USER_TOKEN')
             if not token: return {'error': 'No token'}, 500
 
             TRADING_URL = 'https://api.ebay.com/ws/api.dll'
@@ -75,8 +79,13 @@ class TradingService:
                             break
                         elif response.status_code == 401:
                             logger.warning(f"GetSellerList: Token expired (401), refreshing... (attempt {retry_count + 1}/{max_retries + 1})")
-                            creds = load_env()
-                            token = creds.get('EBAY_USER_TOKEN')
+                            from backend.app.core.token_manager import get_token_manager
+                            tm = get_token_manager()
+                            if tm.force_refresh():
+                                token = tm.get_access_token()
+                            else:
+                                creds = load_env()
+                                token = creds.get('EBAY_USER_TOKEN')
                             if not token:
                                 logger.error("GetSellerList: No token available after refresh")
                                 break
@@ -174,8 +183,12 @@ class TradingService:
             dict: {success, item_id, error}
         """
         try:
-            creds = load_env()
-            token = creds.get('EBAY_USER_TOKEN')
+            from backend.app.core.token_manager import get_token_manager
+            tm = get_token_manager()
+            token = tm.get_access_token()
+            if not token:
+                creds = load_env()
+                token = creds.get('EBAY_USER_TOKEN')
             if not token: return {'success': False, 'error': 'No eBay User Token found'}
 
             TRADING_URL = 'https://api.ebay.com/ws/api.dll'

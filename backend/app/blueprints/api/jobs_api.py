@@ -146,7 +146,7 @@ def get_job_details(job_id):
         'condition_id': ai_data.get('condition_id'),
         'condition_description': ai_data.get('condition_description'),
         'analysis_mode': ai_data.get('analysis_mode'),
-        'ebay_required_aspects': ai_data.get('ebay_required_aspects', []),
+        'ebay_aspect_schema': ai_data.get('ebay_aspect_schema', []),
         'images': images,
         'image_count': len(images),
         'raw_metadata': job.job_metadata
@@ -190,8 +190,12 @@ def update_job_metadata(job_id):
             from backend.app.services.category_correction_cache import get_correction_cache
             get_correction_cache().record(title, category_id, category_name)
         if 'fulfillmentPolicy' in data:
-            metadata = job.job_metadata or {}
+            metadata = updates.get('job_metadata', job.job_metadata or {})
             metadata['fulfillment_policy'] = data['fulfillmentPolicy']
+            updates['job_metadata'] = metadata
+        if 'ordered_images' in data:
+            metadata = updates.get('job_metadata', job.job_metadata or {})
+            metadata['ordered_images'] = data['ordered_images']
             updates['job_metadata'] = metadata
         if 'scheduled_time' in data:
             s_time_str = data['scheduled_time']

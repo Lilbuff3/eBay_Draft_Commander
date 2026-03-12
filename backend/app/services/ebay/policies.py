@@ -34,8 +34,15 @@ def load_env():
 
 def _get_headers() -> Dict:
     """Get authorization headers with current token"""
-    credentials = load_env()
-    token = credentials.get('EBAY_USER_TOKEN')
+    from backend.app.core.token_manager import get_token_manager
+    tm = get_token_manager()
+    token = tm.get_access_token()
+    
+    if not token:
+        logger.warning("TokenManager returned None, falling back to load_env()")
+        credentials = load_env()
+        token = credentials.get('EBAY_USER_TOKEN')
+        
     return {
         'Authorization': f'Bearer {token}',
         'Content-Type': 'application/json',
@@ -48,10 +55,12 @@ def _refresh_token_if_needed(response) -> bool:
     """Refresh token if auth failed"""
     if response.status_code in [401, 500]:
         try:
-            from backend.app.services.ebay.auth import eBayOAuth
-            oauth = eBayOAuth(use_sandbox=False)
-            return oauth.refresh_access_token()
-        except Exception:
+            from backend.app.core.token_manager import get_token_manager
+            tm = get_token_manager()
+            # Force a synchronous refresh
+            return tm.force_refresh()
+        except Exception as e:
+            logger.error(f"Error forcing token refresh: {e}")
             pass
     return False
 

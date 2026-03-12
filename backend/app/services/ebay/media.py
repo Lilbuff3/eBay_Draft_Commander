@@ -24,9 +24,17 @@ def load_env():
     ]}
 
 def _get_token():
-    """Get a fresh eBay user token from .env (handles token rotation)"""
-    creds = load_env()
-    return creds.get('EBAY_USER_TOKEN', '')
+    """Get a fresh eBay user token from TokenManager"""
+    from backend.app.core.token_manager import get_token_manager
+    tm = get_token_manager()
+    token = tm.get_access_token()
+    
+    if not token:
+        logger.warning("TokenManager returned None, falling back to load_env()")
+        creds = load_env()
+        return creds.get('EBAY_USER_TOKEN', '')
+        
+    return token
 
 # CONFIRMED via API Explorer: apim.ebay.com is the correct host for Media API
 BASE_URL = 'https://apim.ebay.com/commerce/media/v1_beta'
@@ -106,9 +114,9 @@ def upload_image_to_eps(image_path):
                 if r.status_code == 401 and attempt == 0:
                     logger.warning("   Token expired (401) during upload. Refreshing...")
                     try:
-                        from backend.app.services.ebay.auth import eBayOAuth
-                        oauth = eBayOAuth(use_sandbox=False)
-                        if oauth.refresh_access_token():
+                        from backend.app.core.token_manager import get_token_manager
+                        tm = get_token_manager()
+                        if tm.force_refresh():
                             # Reload fresh token from .env
                             new_token = _get_token()
                             if new_token:

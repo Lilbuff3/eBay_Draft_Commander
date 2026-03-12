@@ -239,7 +239,8 @@ export function Dashboard() {
                 categoryName: draft.categoryName || undefined,
                 fulfillmentPolicy: draft.shipping || undefined,
                 scheduledTime: draft.scheduledTime || undefined,
-                itemSpecifics: draft.itemSpecifics
+                itemSpecifics: draft.itemSpecifics,
+                orderedImages: jobImages.map(img => img.name)
             })
 
             if (result.success) {
@@ -353,6 +354,7 @@ export function Dashboard() {
                 jobDetails={jobDetails}
                 isLoadingDetails={isLoadingDetails}
                 images={jobImages}
+                onReorderImages={setJobImages}
                 draft={draft}
                 updateDraft={updateDraft}
                 isCreating={isCreating}
