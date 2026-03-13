@@ -1,6 +1,12 @@
 // PWA utilities for eBay Draft Commander
 // Service worker registration is handled automatically by VitePWA
 
+export interface BeforeInstallPromptEvent extends Event {
+    readonly platforms: string[];
+    readonly userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+    prompt(): Promise<void>;
+}
+
 let updateAvailableCallback: (() => void) | null = null;
 
 export function onUpdateAvailable(callback: () => void) {
@@ -13,7 +19,7 @@ export function onUpdateAvailable(callback: () => void) {
                 if (newWorker) {
                     newWorker.addEventListener('statechange', () => {
                         if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                            console.log('[PWA] New version available');
+                            console.debug('[PWA] New version available');
                             if (updateAvailableCallback) {
                                 updateAvailableCallback();
                             }
@@ -27,21 +33,20 @@ export function onUpdateAvailable(callback: () => void) {
 
 // PWA Install Prompt
 export function usePWAInstall() {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let deferredPrompt: any = null;
+    let deferredPrompt: BeforeInstallPromptEvent | null = null;
 
-    window.addEventListener('beforeinstallprompt', (e) => {
+    window.addEventListener('beforeinstallprompt', (e: Event) => {
         // Prevent the mini-infobar from appearing on mobile
         e.preventDefault();
         // Stash the event so it can be triggered later
-        deferredPrompt = e;
+        deferredPrompt = e as BeforeInstallPromptEvent;
 
-        console.log('[PWA] Install prompt available');
+        console.debug('[PWA] Install prompt available');
     });
 
     const promptInstall = async () => {
         if (!deferredPrompt) {
-            console.log('[PWA] Install prompt not available');
+            console.debug('[PWA] Install prompt not available');
             return false;
         }
 
@@ -51,7 +56,7 @@ export function usePWAInstall() {
         // Wait for the user to respond to the prompt
         const { outcome } = await deferredPrompt.userChoice;
 
-        console.log(`[PWA] User response: ${outcome}`);
+        console.debug(`[PWA] User response: ${outcome}`);
 
         // Clear the deferredPrompt
         deferredPrompt = null;

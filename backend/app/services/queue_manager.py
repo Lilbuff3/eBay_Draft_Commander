@@ -941,8 +941,8 @@ class QueueManager:
                 db_job = query.filter_by(folder_name=folder_name).first()
             if db_job:
                 return self._db_to_queue_job(db_job)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Folder lookup failed for '%s': %s", folder_path or folder_name, e)
         finally:
             session.close()
 

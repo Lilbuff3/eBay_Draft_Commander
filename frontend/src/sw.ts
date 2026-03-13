@@ -70,7 +70,7 @@ const bgSyncPlugin = new BackgroundSyncPlugin('offline-mutations', {
         while ((entry = await queue.shiftRequest())) {
             try {
                 await fetch(entry.request.clone())
-                console.log('[SW] Background Sync: replayed', entry.request.url)
+                console.debug('[SW] Background Sync: replayed', entry.request.url)
 
                 // Notify all clients that a sync happened
                 const clients = await self.clients.matchAll({ type: 'window' })

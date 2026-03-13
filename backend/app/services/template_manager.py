@@ -4,7 +4,7 @@ Now powered by SQLite database.
 """
 import json
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict
 from backend.app.core.database import init_db, TemplateModel
 from backend.app.core.logger import get_logger
@@ -16,8 +16,8 @@ class ListingTemplate:
     def __init__(self, name: str, data: dict, created_at=None, updated_at=None, use_count=0):
         self.name = name
         self.data = data
-        self.created_at = created_at or datetime.utcnow().isoformat()
-        self.updated_at = updated_at or datetime.utcnow().isoformat()
+        self.created_at = created_at or datetime.now(timezone.utc).isoformat()
+        self.updated_at = updated_at or datetime.now(timezone.utc).isoformat()
         self.use_count = use_count
     
     def to_dict(self) -> dict:
@@ -74,7 +74,7 @@ class TemplateManager:
             db_t = session.query(self.TemplateModel).filter_by(name=name).first()
             if db_t:
                 db_t.data = data
-                db_t.updated_at = datetime.utcnow()
+                db_t.updated_at = datetime.now(timezone.utc)
             else:
                 db_t = self.TemplateModel(name=name)
                 db_t.data = data

@@ -40,7 +40,6 @@ export function ScannerListener({ onScan }: Omit<ScannerListenerProps, 'isScanni
                 const currentBuffer = bufferRef.current;
                 // ISBNs are 10 or 13 digits
                 if (currentBuffer.length >= 10 && /^\d+$/.test(currentBuffer)) {
-                    console.log("Scanner Input Detected:", currentBuffer);
                     await lookupISBN(currentBuffer);
                 }
                 bufferRef.current = '';

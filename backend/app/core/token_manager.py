@@ -227,13 +227,13 @@ class TokenManager:
                 if existing:
                     existing.value = token
                     existing.expires_at = expires_at
-                    existing.updated_at = datetime.utcnow()
+                    existing.updated_at = datetime.now(timezone.utc)
                 else:
                     session.add(AppToken(
                         key='ebay_access_token',
                         value=token,
                         expires_at=expires_at,
-                        updated_at=datetime.utcnow()
+                        updated_at=datetime.now(timezone.utc)
                     ))
                 session.commit()
             except Exception as e:

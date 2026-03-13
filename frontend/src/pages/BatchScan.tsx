@@ -233,7 +233,6 @@ export function BatchScan() {
             if (e.key === 'Enter') {
                 const isbn = bufferRef.current
                 if (isbn.length >= 10 && /^\d+$/.test(isbn)) {
-                    console.log("Batch Scan:", isbn)
                     await handleScan(isbn)
                 }
                 bufferRef.current = ''
