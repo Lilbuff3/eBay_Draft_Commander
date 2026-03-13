@@ -124,7 +124,7 @@ class InventoryService:
                 product = item_data.get('product', {})
                 result_data['title'] = product.get('title')
                 result_data['description'] = product.get('description')
-                # Add images if we want them later
+                result_data['imageUrls'] = product.get('imageUrls', [])
             
             return result_data, 200
                 

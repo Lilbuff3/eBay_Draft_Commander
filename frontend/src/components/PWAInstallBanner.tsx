@@ -2,12 +2,11 @@ import { useState, useEffect } from 'react'
 import { Phone, Download, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { isMobileDevice, isAppInstalled } from '@/lib/pwa'
+import { isMobileDevice, isAppInstalled, type BeforeInstallPromptEvent } from '@/lib/pwa'
 
 export function PWAInstallBanner() {
     const [showBanner, setShowBanner] = useState(false)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
+    const [deferredPrompt, setDeferredPrompt] = useState<Event | null>(null)
 
     useEffect(() => {
         // Don't show if already installed
@@ -36,10 +35,10 @@ export function PWAInstallBanner() {
     const handleInstall = async () => {
         if (!deferredPrompt) return
 
-        deferredPrompt.prompt()
-        const { outcome } = await deferredPrompt.userChoice
+        const prompt = deferredPrompt as BeforeInstallPromptEvent
+        prompt.prompt()
+        await prompt.userChoice
 
-        console.log(`User response: ${outcome}`)
         setDeferredPrompt(null)
         setShowBanner(false)
     }

@@ -220,9 +220,10 @@ class eBayResearcher:
                     url=url,
                     image_url=image_url
                 ))
-            except Exception:
+            except Exception as e:
+                logger.debug("Failed to parse search result item: %s", e)
                 continue
-        
+
         return results
 
     def _parse_price(self, price_str: str) -> Optional[float]:
@@ -232,7 +233,8 @@ class eBayResearcher:
             if matches:
                 return float(matches[0])
             return None
-        except:
+        except Exception as e:
+            logger.debug("Price parse failed for '%s': %s", price_str, e)
             return None
 
     def _calculate_stats(self, items: List[SoldItem]) -> Dict:

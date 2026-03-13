@@ -3,7 +3,7 @@ import time
 import requests
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape as xml_escape
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from backend.app.core.logger import get_logger
 from backend.app.services.ebay.policies import load_env
 
@@ -29,7 +29,7 @@ class TradingService:
             TRADING_URL = 'https://api.ebay.com/ws/api.dll'
             
             # 120 days future window covers active GTC listings
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             future = now + timedelta(days=120)
             end_time_to = future.strftime('%Y-%m-%dT%H:%M:%S.000Z')
             end_time_from = now.strftime('%Y-%m-%dT%H:%M:%S.000Z')

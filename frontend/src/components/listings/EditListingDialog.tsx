@@ -11,6 +11,13 @@ import { toast } from 'sonner'
 import { MediaManager } from './MediaManager'
 import type { Listing } from '../ActiveListings'
 
+interface MediaFile {
+    id: string
+    file: File
+    previewUrl: string
+    type: 'image' | 'video'
+}
+
 interface EditListingDialogProps {
     listing: Listing
     isOpen: boolean
@@ -27,10 +34,10 @@ export function EditListingDialog({ listing, isOpen, onClose, onSave }: EditList
     const [isSaving, setIsSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [media, setMedia] = useState<any[]>([])
+    const [media, setMedia] = useState<MediaFile[]>([])
+    const [existingImageUrls, setExistingImageUrls] = useState<string[]>([])
 
-    // Fetch full details (description) on open
+    // Fetch full details (description + images) on open
     useEffect(() => {
         if (isOpen) {
             // Reset basic fields
@@ -39,20 +46,23 @@ export function EditListingDialog({ listing, isOpen, onClose, onSave }: EditList
             setQuantity(listing.availableQuantity.toString())
             setError(null)
             setDescription('Loading description...')
-            setMedia([]) // Reset media
-            fetchDescription()
+            setMedia([])
+            setExistingImageUrls([])
+            fetchDetails()
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, listing.sku])
 
-    const fetchDescription = async () => {
+    const fetchDetails = async () => {
         setIsLoading(true)
         try {
             const res = await fetch(`/api/listings/${listing.sku}/details`)
             const data = await res.json()
             if (data.error) throw new Error(data.error)
             setDescription(data.description || '(Description loading not supported in this version)')
-            // TODO: In a real app, we would load existing media here
+            if (data.imageUrls && Array.isArray(data.imageUrls)) {
+                setExistingImageUrls(data.imageUrls)
+            }
         } catch (e) {
             console.error(e)
             setDescription('(Failed to load description)')
@@ -160,6 +170,19 @@ export function EditListingDialog({ listing, isOpen, onClose, onSave }: EditList
                                     <p>eBay now prioritizes listings with video. Use this tab to add MP4/MOV videos (max 150MB) and high-res images.</p>
                                 </div>
                             </div>
+                            {existingImageUrls.length > 0 && (
+                                <div className="mb-4">
+                                    <Label className="text-sm font-medium text-stone-600 mb-2 block">Current Images ({existingImageUrls.length})</Label>
+                                    <div className="grid grid-cols-4 gap-2">
+                                        {existingImageUrls.map((url, i) => (
+                                            <div key={i} className="aspect-square rounded-lg border border-stone-200 overflow-hidden bg-stone-50">
+                                                <img src={url} alt={`Listing image ${i + 1}`} className="w-full h-full object-cover" />
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            <Label className="text-sm font-medium text-stone-600 mb-2 block">Add New Media</Label>
                             <MediaManager initialMedia={media} onMediaChange={setMedia} />
                         </TabsContent>
 

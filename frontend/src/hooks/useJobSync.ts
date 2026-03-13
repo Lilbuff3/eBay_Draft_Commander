@@ -107,7 +107,7 @@ export function useJobSync() {
         socketRef.current = socket
 
         socket.on('connect', () => {
-            console.log('Connected to Event Bus ⚡')
+            console.debug('Connected to Event Bus')
             setIsSocketConnected(true)
             refreshData()
         })
@@ -122,35 +122,34 @@ export function useJobSync() {
             toast.error('Unable to reconnect to server')
         })
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const formatJobPayload = (rawJob: any): Job => {
-            const aiData = rawJob.ai_data || {}
-            const listing = aiData.listing || {}
-            const displayName = rawJob.user_title || listing.suggested_title || aiData.seo_title || rawJob.folder_name
+        const formatJobPayload = (rawJob: Record<string, unknown>): Job => {
+            const aiData = (rawJob.ai_data || {}) as Record<string, unknown>
+            const listing = (aiData.listing || {}) as Record<string, unknown>
+            const jobMeta = (rawJob.job_metadata || {}) as Record<string, unknown>
+            const displayName = (rawJob.user_title || listing.suggested_title || aiData.seo_title || rawJob.folder_name) as string | undefined
 
             return {
                 id: String(rawJob.id),
                 name: String(rawJob.folder_name),
                 display_name: displayName,
                 status: rawJob.status as JobStatus,
-                folder_path: rawJob.folder_path,
-                listing_id: rawJob.listing_id || null,
-                offer_id: rawJob.offer_id || null,
-                price: rawJob.price || null,
-                error_type: rawJob.error_type || null,
-                error_message: rawJob.error_message || null,
-                started_at: rawJob.started_at || null,
-                completed_at: rawJob.completed_at || null,
-                thumbnail_name: rawJob.thumbnail_name || null,
+                folder_path: rawJob.folder_path as string,
+                listing_id: (rawJob.listing_id as string) || null,
+                offer_id: (rawJob.offer_id as string) || null,
+                price: (rawJob.price as string) || null,
+                error_type: (rawJob.error_type as string) || null,
+                error_message: (rawJob.error_message as string) || null,
+                started_at: (rawJob.started_at as string) || null,
+                completed_at: (rawJob.completed_at as string) || null,
+                thumbnail_name: (rawJob.thumbnail_name as string) || null,
                 thumbnail_url: rawJob.thumbnail_name ? `/api/job/${rawJob.id}/image/${rawJob.thumbnail_name}` : null,
-                condition: rawJob.condition || (rawJob.job_metadata?.condition) || null,
-                scheduled_time: rawJob.scheduled_time || null,
-                confidence_score: rawJob.confidence_score || null
+                condition: (rawJob.condition as string) || (jobMeta.condition as string) || null,
+                scheduled_time: (rawJob.scheduled_time as string) || null,
+                confidence_score: (rawJob.confidence_score as number) || null
             }
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        socket.on('job_added', (rawJob: any) => {
+        socket.on('job_added', (rawJob: Record<string, unknown>) => {
             if (rawJob) {
                 const newJob = formatJobPayload(rawJob)
                 queryClient.setQueryData(['jobs'], (old: Job[] | undefined) => {
@@ -164,8 +163,7 @@ export function useJobSync() {
             queryClient.invalidateQueries({ queryKey: ['status'] })
         })
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        socket.on('job_update', (rawJob: any) => {
+        socket.on('job_update', (rawJob: Record<string, unknown>) => {
             if (rawJob) {
                 const updatedJob = formatJobPayload(rawJob)
                 queryClient.setQueryData(['jobs'], (old: Job[] | undefined) => {
@@ -190,7 +188,7 @@ export function useJobSync() {
             avg_time: number;
             total_duration: number;
         }) => {
-            console.log('Batch complete:', summary)
+            console.debug('Batch complete:', summary)
             useCommanderStore.getState().setBatchSummary(summary)
             toast.success(`Batch Processed: ${summary.succeeded} succeeded, ${summary.failed} failed`, {
                 description: `Total Value: $${summary.total_value.toFixed(2)} | Avg Time: ${summary.avg_time}s`,

@@ -86,7 +86,7 @@ export async function offlineFetch(
         if (!navigator.onLine && isMutation) {
             // The SW BackgroundSyncPlugin will handle queuing + replay.
             // Notify the caller that it was queued.
-            console.log('[Offline] Request queued for background sync:', input)
+            console.debug('[Offline] Request queued for background sync:', input)
             options?.onQueued?.()
 
             // Return a synthetic response so callers don't crash

@@ -257,8 +257,8 @@ export function Dashboard() {
     }
 
     // Handle scanner input
-    const handleScannerInput = (bookData: unknown) => {
-        console.log("Book Scanned:", bookData)
+    const handleScannerInput = (_bookData: unknown) => {
+        // Scanner input handled by ScannerListener component
     }
 
     const hasItems = jobs.length > 0
