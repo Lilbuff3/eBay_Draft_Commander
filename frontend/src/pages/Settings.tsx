@@ -71,7 +71,7 @@ export function Settings() {
 
         const check = async () => {
             try {
-                const res = await fetch('/api/health')
+                const res = await fetch('/api/system/health')
                 if (res.ok) {
                     toast.success("Server is back online!")
                     // Small delay to ensure everything is ready

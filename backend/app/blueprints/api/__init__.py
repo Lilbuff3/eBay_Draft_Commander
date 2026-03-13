@@ -11,7 +11,7 @@ api_bp = Blueprint('api', __name__)
 
 # Register sub-blueprints with empty prefix to maintain original /api/... compatibility
 # as paths are fully defined in the sub-blueprints.
-api_bp.register_blueprint(system_bp, url_prefix='')
+api_bp.register_blueprint(system_bp, url_prefix='/system')
 api_bp.register_blueprint(queue_bp, url_prefix='')
 api_bp.register_blueprint(jobs_bp, url_prefix='')
 api_bp.register_blueprint(listings_bp, url_prefix='')

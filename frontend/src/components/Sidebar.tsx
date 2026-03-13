@@ -10,7 +10,7 @@ const navGroups = [
     {
         title: "Workspace",
         items: [
-            { id: 'dashboard', icon: LayoutTemplate, label: 'Queue' },
+            { id: 'dashboard', icon: LayoutTemplate, label: 'Dashboard' },
             { id: 'review', icon: ShieldCheck, label: 'Review' },
             { id: 'inventory', icon: Package, label: 'Inventory' },
             { id: 'analytics', icon: BarChart3, label: 'Analytics' },

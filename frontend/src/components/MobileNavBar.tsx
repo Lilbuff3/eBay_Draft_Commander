@@ -4,7 +4,7 @@ import { useCommanderStore } from '@/store/useCommanderStore'
 import { useHaptics } from '@/hooks/useHaptics'
 
 const tabs = [
-    { id: 'dashboard', label: 'Queue', icon: LayoutTemplate },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutTemplate },
     { id: 'review', label: 'Review', icon: ShieldCheck },
     { id: 'inventory', label: 'Inventory', icon: Package },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
