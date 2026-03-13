@@ -53,7 +53,7 @@ backend/                    Flask app factory
         settings_api.py     /api/settings read/write
         lookup_api.py       /api/lookup (book, ISBN, category)
         analytics_api.py    /api/analytics endpoints
-        system_api.py       /api/system (health, token status)
+        system_api.py       /api/system/* (health, restart, cache clear) — url_prefix='/system'
         helpers.py          Shared utilities for API routes
       ui.py                 Serves React SPA at /app/, redirects / to /app/
     core/
@@ -186,6 +186,16 @@ python tests/manual/manual_test_e2e.py  # Full pipeline test
 
 Test conventions: `test_*.py` files, `Test*` classes, `test_*` functions.
 
+### Playwright (browser testing)
+```bash
+# Uses playwright-skill at ~/.claude/skills/playwright-skill/
+# Write test scripts to /tmp, execute via skill runner:
+cd ~/.claude/skills/playwright-skill && node run.js /tmp/playwright-test-*.js
+```
+- Vite dev server must be running on 5175, Flask backend on 5000
+- Use `headless: false` for visible browser, `slowMo: 150` for debugging
+- Parameterize URL as `const TARGET_URL = 'http://localhost:5175'`
+
 ## Gotchas
 
 - **Frontend lib/ files** — `src/lib/api.ts`, `utils.ts`, `sanitizer.ts`, `pwa.ts` are imported everywhere. If missing, nothing compiles.
@@ -204,6 +214,7 @@ Test conventions: `test_*.py` files, `Test*` classes, `test_*` functions.
 - **Free shipping pricing** — Fulfillment policy uses free shipping. `ESTIMATED_SHIPPING_COST` (default $6.50) is added to suggested price so seller margin isn't eaten by shipping. The buffer is applied in `pricing_engine.py` after the condition multiplier.
 - **Git worktrees** — `.env` is not tracked by git, but `load_dotenv_manually()` now walks up parent directories to find it. Worktrees should work for development, but note that `data/commander.db` is also not shared — each worktree gets its own database.
 - **Queue API routes** — Queue control is at `/api/start`, `/api/pause`, `/api/skip` (no `/queue/` prefix) because `queue_bp` is registered with `url_prefix=''`.
+- **System API routes** — System endpoints are at `/api/system/health`, `/api/system/restart`, `/api/system/clear-taxonomy-cache` because `system_bp` is registered with `url_prefix='/system'`.
 - **`ebay_aspect_schema` not `ebay_required_aspects`** — The old key was replaced. `ai_data['ebay_aspect_schema']` is the full required+optional aspect list. Frontend `JobDetails` type uses `ebay_aspect_schema`. Old jobs may have stale `ebay_required_aspects` key.
 - **Claude Code hooks active** — `.claude/settings.json` has PreToolUse hook blocking `.env` edits and PostToolUse hook running ESLint on frontend files. `.env` must be edited through SettingsManager/API, never directly.
 - **rembg dependency** — `requirements.txt` includes `rembg`. First run downloads ~170MB ONNX model. If image processing is slow or fails on a new machine, this is likely why.
