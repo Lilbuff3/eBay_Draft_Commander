@@ -17,6 +17,3 @@ eventlet>=0.40.4
 # Image Processing
 pillow>=12.1.1
 rembg
-
-# MCP
-mcp>=1.26.0

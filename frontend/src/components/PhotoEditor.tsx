@@ -32,6 +32,15 @@ const defaultAdjustments: Adjustment = {
     sharpness: 50
 }
 
+const FILTER_PRESETS: Record<string, Adjustment> = {
+    'Original': { brightness: 50, contrast: 50, saturation: 50, sharpness: 50 },
+    'Vivid': { brightness: 50, contrast: 58, saturation: 70, sharpness: 55 },
+    'B&W': { brightness: 50, contrast: 55, saturation: 0, sharpness: 50 },
+    'Warm': { brightness: 55, contrast: 50, saturation: 55, sharpness: 50 },
+    'Cool': { brightness: 52, contrast: 55, saturation: 45, sharpness: 50 },
+    'Vintage': { brightness: 48, contrast: 45, saturation: 35, sharpness: 45 },
+}
+
 export function PhotoEditor({ imagePath, jobId, onClose, onSave }: PhotoEditorProps) {
     const [rotation, setRotation] = useState(0)
     const [flipX, setFlipX] = useState(false)
@@ -87,17 +96,29 @@ export function PhotoEditor({ imagePath, jobId, onClose, onSave }: PhotoEditorPr
     }
 
     const handleAutoEnhance = async () => {
+        if (!jobId) return
         setIsEnhancing(true)
-        // Simulate AI enhancement
-        await new Promise(resolve => setTimeout(resolve, 1500))
-        setAdjustments({
-            brightness: 55,
-            contrast: 58,
-            saturation: 52,
-            sharpness: 60
-        })
-        setIsEnhancing(false)
-        setHasChanges(true)
+        try {
+            const res = await fetch('/api/tools/photo/enhance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    jobId,
+                    imageName: selectedImage
+                        ? images.find(i => i.url === selectedImage)?.name
+                        : undefined
+                })
+            })
+            const data = await res.json()
+            if (data.success && data.adjustments) {
+                setAdjustments(data.adjustments)
+                setHasChanges(true)
+            }
+        } catch (err) {
+            console.error('Auto enhance failed:', err)
+        } finally {
+            setIsEnhancing(false)
+        }
     }
 
     const handleRemoveBackground = () => {
@@ -378,12 +399,21 @@ scale(${zoom / 100})
 
                         <TabsContent value="filters" className="mt-4">
                             <div className="grid grid-cols-3 gap-2">
-                                {['Original', 'Vivid', 'B&W', 'Warm', 'Cool', 'Vintage'].map((filter) => (
+                                {Object.entries(FILTER_PRESETS).map(([name, preset]) => (
                                     <button
-                                        key={filter}
-                                        className="aspect-square rounded-lg bg-stone-100 flex items-center justify-center text-xs font-medium text-stone-600 hover:bg-stone-200 transition-colors"
+                                        key={name}
+                                        onClick={() => {
+                                            setAdjustments(preset)
+                                            setHasChanges(name !== 'Original')
+                                        }}
+                                        className={cn(
+                                            "aspect-square rounded-lg flex items-center justify-center text-xs font-medium transition-colors",
+                                            JSON.stringify(adjustments) === JSON.stringify(preset)
+                                                ? "bg-blue-100 text-blue-700 border-2 border-blue-300"
+                                                : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+                                        )}
                                     >
-                                        {filter}
+                                        {name}
                                     </button>
                                 ))}
                             </div>

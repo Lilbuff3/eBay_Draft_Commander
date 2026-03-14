@@ -382,6 +382,90 @@ def create_listing_from_photos():
         return jsonify({'success': True, 'jobId': job.id, 'message': 'Listing created and queued for processing'})
     except Exception as e: return error_response(str(e))
 
+@jobs_bp.route('/tools/photo/enhance', methods=['POST'])
+def auto_enhance_photo():
+    """Apply auto-enhancement to a job's image using PIL"""
+    try:
+        from PIL import Image, ImageStat
+    except ImportError:
+        return error_response('Server missing Pillow library', 500)
+
+    data = request.json
+    job_id = data.get('jobId')
+    image_name = data.get('imageName')
+
+    if not job_id:
+        return error_response('jobId is required', 400)
+
+    qm = current_app.queue_manager
+    job = qm.get_job_by_id(job_id)
+    if not job:
+        return error_response('Job not found', 404)
+
+    folder_path = Path(job.folder_path)
+    if not folder_path.exists():
+        return error_response('Job folder not found', 404)
+
+    # Find the target image
+    if image_name:
+        target = folder_path / image_name
+        if not target.exists():
+            return error_response(f'Image {image_name} not found', 404)
+    else:
+        # Use the first image in the folder
+        image_files = sorted(
+            f for f in folder_path.iterdir()
+            if f.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
+        )
+        if not image_files:
+            return error_response('No images found in job folder', 404)
+        target = image_files[0]
+
+    try:
+        with Image.open(target) as img:
+            img_rgb = img.convert('RGB')
+            stat = ImageStat.Stat(img_rgb)
+
+            # Mean brightness across channels (0-255)
+            mean_brightness = sum(stat.mean) / 3.0
+            # Ideal midpoint is 128
+            # Map to 0-100 slider scale where 50 = no change
+            # If mean < 128, image is dark -> suggest brightness > 50
+            # If mean > 128, image is bright -> suggest brightness < 50
+            brightness_offset = (128 - mean_brightness) / 128.0 * 15  # max +/-15 from center
+            brightness = int(max(35, min(65, 50 + brightness_offset)))
+
+            # Contrast: slight boost for low-contrast images
+            # Use stddev as a proxy for contrast
+            mean_stddev = sum(stat.stddev) / 3.0
+            # Low stddev = flat/low-contrast image -> boost more
+            if mean_stddev < 40:
+                contrast = 60  # noticeable boost
+            elif mean_stddev < 60:
+                contrast = 55  # slight boost
+            else:
+                contrast = 50  # already good contrast
+
+            # Saturation: mild boost unless already very saturated
+            saturation = 55 if mean_stddev < 80 else 50
+
+            # Sharpness: always a slight boost for product photos
+            sharpness = 58
+
+        return jsonify({
+            'success': True,
+            'adjustments': {
+                'brightness': brightness,
+                'contrast': contrast,
+                'saturation': saturation,
+                'sharpness': sharpness
+            }
+        })
+    except Exception as e:
+        logger.exception(f"Auto-enhance analysis failed for job {job_id}")
+        return error_response(f'Enhancement analysis failed: {e}', 500)
+
+
 @jobs_bp.route('/tools/photo/save', methods=['POST'])
 def save_photo_edits():
     qm = current_app.queue_manager

@@ -1,3 +1,4 @@
+import json
 from flask import Blueprint, jsonify, request
 from backend.app.blueprints.api.helpers import error_response
 from backend.app.core.validator import validate_isbn
@@ -94,3 +95,110 @@ def search_prices():
     researcher = eBayResearcher()
     result = researcher.search_sold(query)
     return jsonify(result)
+
+
+# --- Template CRUD ---
+
+def _template_to_response(template) -> dict:
+    """Convert a ListingTemplate to the frontend Template shape."""
+    data = template.data if isinstance(template.data, dict) else {}
+    return {
+        'id': template.name,
+        'name': template.name,
+        'category': data.get('category', 'General'),
+        'description': data.get('description', ''),
+        'fields': data.get('fields', {}),
+        'isDefault': data.get('isDefault', False),
+        'isFavorite': data.get('isFavorite', False),
+        'usageCount': template.use_count,
+    }
+
+
+@lookup_bp.route('/tools/templates', methods=['GET'])
+def list_templates():
+    """List all templates."""
+    try:
+        from backend.app.services.template_manager import get_template_manager
+        tm = get_template_manager()
+        templates = tm.get_all()
+        return jsonify([_template_to_response(t) for t in templates])
+    except Exception as e:
+        logger.error(f"Failed to list templates: {e}")
+        return error_response(str(e))
+
+
+@lookup_bp.route('/tools/templates', methods=['POST'])
+def create_template():
+    """Create or update a template."""
+    data = request.json
+    if not data:
+        return error_response('Request body is required', 400)
+
+    name = data.get('name')
+    if not name:
+        return error_response('Template name is required', 400)
+
+    try:
+        from backend.app.services.template_manager import get_template_manager
+        tm = get_template_manager()
+
+        # Store the frontend fields inside data_json
+        template_data = {
+            'category': data.get('category', 'General'),
+            'description': data.get('description', ''),
+            'fields': data.get('fields', {}),
+            'isDefault': data.get('isDefault', False),
+            'isFavorite': data.get('isFavorite', False),
+        }
+
+        saved = tm.save(name, template_data)
+        return jsonify({'success': True, 'template': _template_to_response(saved)})
+    except Exception as e:
+        logger.error(f"Failed to create/update template: {e}")
+        return error_response(str(e))
+
+
+@lookup_bp.route('/tools/templates/<name>', methods=['PUT'])
+def update_template(name):
+    """Update an existing template by name."""
+    data = request.json
+    if not data:
+        return error_response('Request body is required', 400)
+
+    try:
+        from backend.app.services.template_manager import get_template_manager
+        tm = get_template_manager()
+
+        existing = tm.get(name)
+        if not existing:
+            return error_response(f"Template '{name}' not found", 404)
+
+        template_data = {
+            'category': data.get('category', existing.data.get('category', 'General')),
+            'description': data.get('description', existing.data.get('description', '')),
+            'fields': data.get('fields', existing.data.get('fields', {})),
+            'isDefault': data.get('isDefault', existing.data.get('isDefault', False)),
+            'isFavorite': data.get('isFavorite', existing.data.get('isFavorite', False)),
+        }
+
+        saved = tm.save(name, template_data)
+        return jsonify({'success': True, 'template': _template_to_response(saved)})
+    except Exception as e:
+        logger.error(f"Failed to update template '{name}': {e}")
+        return error_response(str(e))
+
+
+@lookup_bp.route('/tools/templates/<name>', methods=['DELETE'])
+def delete_template(name):
+    """Delete a template by name."""
+    try:
+        from backend.app.services.template_manager import get_template_manager
+        tm = get_template_manager()
+
+        if tm.delete(name):
+            return jsonify({'success': True})
+        else:
+            return error_response(f"Template '{name}' not found", 404)
+    except Exception as e:
+        logger.error(f"Failed to delete template '{name}': {e}")
+        return error_response(str(e))

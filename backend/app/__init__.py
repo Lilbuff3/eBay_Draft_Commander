@@ -45,10 +45,4 @@ def create_app(config_class=Config, queue_manager=None):
     from backend.app.blueprints.api import api_bp
     app.register_blueprint(api_bp, url_prefix='/api')
     
-    # Initialize MCP Client
-    from backend.app.services.mcp_client import get_mcp_client
-    # We don't connect immediately to avoid blocking startup if server is down,
-    # but we ensure the singleton is ready.
-    app.mcp_client = get_mcp_client()
-
     return app

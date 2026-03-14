@@ -35,8 +35,9 @@ export function TemplateManager({ onClose, onApply }: TemplateManagerProps) {
             const res = await fetch('/api/tools/templates')
             const data = await res.json()
             setTemplates(data)
-        } catch {
-            loadTemplates() // Revert on error
+        } catch (err) {
+            console.error('Failed to load templates:', err)
+            setTemplates([])
         }
     }
 
@@ -99,13 +100,14 @@ export function TemplateManager({ onClose, onApply }: TemplateManagerProps) {
         setTemplates(prev => prev.map(p => p.id === t.id ? updated : p))
 
         try {
-            await fetch('/api/tools/templates', {
-                method: 'POST',
+            await fetch(`/api/tools/templates/${encodeURIComponent(t.name)}`, {
+                method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updated)
             })
-        } catch {
-            loadTemplates() // Revert on error
+        } catch (err) {
+            console.error('Failed to toggle favorite:', err)
+            loadTemplates() // Revert optimistic update on error
         }
     }
 
@@ -114,7 +116,7 @@ export function TemplateManager({ onClose, onApply }: TemplateManagerProps) {
         if (!confirm("Are you sure you want to delete this template?")) return
 
         try {
-            await fetch(`/api/tools/templates?id=${id}`, { method: 'DELETE' })
+            await fetch(`/api/tools/templates/${encodeURIComponent(id)}`, { method: 'DELETE' })
             setTemplates(prev => prev.filter(t => t.id !== id))
         } catch (error) {
             console.error('Failed to delete template:', error)
@@ -129,8 +131,8 @@ export function TemplateManager({ onClose, onApply }: TemplateManagerProps) {
             const updated = { ...template, usageCount: template.usageCount + 1 }
             setTemplates(prev => prev.map(t => t.id === template.id ? updated : t))
 
-            await fetch('/api/tools/templates', {
-                method: 'POST',
+            await fetch(`/api/tools/templates/${encodeURIComponent(template.name)}`, {
+                method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updated)
             })
