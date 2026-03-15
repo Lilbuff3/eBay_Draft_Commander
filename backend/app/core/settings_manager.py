@@ -48,6 +48,7 @@ class SettingsManager:
         ],
         'AI Settings': [
             'GOOGLE_API_KEY',
+            'GEMINI_RPM_LIMIT',
         ],
         'Automation': [
             'AUTO_PUBLISH',

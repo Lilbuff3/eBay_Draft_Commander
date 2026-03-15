@@ -1,6 +1,7 @@
 """
 Global Constants for eBay Draft Commander
 """
+import os
 
 # Condition Mapping from Folder Names/User Input to eBay Enum
 CONDITION_MAP = {
@@ -63,8 +64,8 @@ TOKEN_REFRESH_INTERVAL = 1800  # 30 minutes in seconds (eBay tokens expire at 12
 TOKEN_RETRY_DELAY = 300  # 5 minutes in seconds
 
 # Rate Limiting Configuration (Issue #8)
-# Gemini Free Tier: 2 RPM (Requests Per Minute)
-GEMINI_RPM_LIMIT = 2
+# Gemini: env-configurable RPM (default 2 for free tier, 60+ for paid)
+GEMINI_RPM_LIMIT = int(os.getenv('GEMINI_RPM_LIMIT', '2'))
 GEMINI_REQ_INTERVAL = 60 / GEMINI_RPM_LIMIT # Seconds between calls
 
 # eBay API: 5 RPS (Requests Per Second) for burst management

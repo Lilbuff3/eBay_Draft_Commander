@@ -162,7 +162,15 @@ def batch_approve_listings():
 
         success_count = 0
         for job_id in job_ids:
-            if queue_manager.update_job(job_id, {'status': JobStatus.PENDING}):
+            job = queue_manager.get_job_by_id(job_id)
+            if not job:
+                continue
+            metadata = job.job_metadata or {}
+            metadata['user_approved'] = True
+            if queue_manager.update_job(job_id, {
+                'status': JobStatus.PENDING,
+                'job_metadata': metadata,
+            }):
                 success_count += 1
 
         # Trigger queue processing if needed

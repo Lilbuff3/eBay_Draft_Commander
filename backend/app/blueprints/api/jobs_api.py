@@ -216,6 +216,7 @@ def update_job_metadata(job_id):
         if 'ordered_images' in data:
             metadata = updates.get('job_metadata', job.job_metadata or {})
             metadata['ordered_images'] = data['ordered_images']
+            metadata['force_image_reupload'] = True  # Reorder invalidates cached EPS URLs
             updates['job_metadata'] = metadata
         if 'scheduled_time' in data:
             s_time_str = data['scheduled_time']

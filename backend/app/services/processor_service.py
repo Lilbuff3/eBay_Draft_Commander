@@ -313,20 +313,29 @@ class ProcessorService:
         )
         result["timing"]["pricing"] = pricing_result["timing"]
 
-        # 6. Image Upload
-        ordered_images = job_obj.job_metadata.get('ordered_images') if job_obj.job_metadata else None
-        upload = self.image_processor.upload_images(folder_path, ordered_filenames=ordered_images, log_callback=log_callback)
-        if "error" in upload:
-            return {"success": False, "error_type": "image_upload_failed", "error_message": f"Image upload failed: {upload['error']}"}
-        result["timing"]["image_upload"] = upload["timing"]
+        # 6. Image Upload (skip if cached URLs exist and no force flag)
+        force_reupload = (job_obj.job_metadata or {}).get('force_image_reupload', False)
+        cached_urls = (job_obj.ai_data or {}).get('image_urls', [])
+
+        if cached_urls and not force_reupload:
+            _log(f"Using {len(cached_urls)} cached image URLs (skip re-upload)")
+            upload_urls = cached_urls
+            result["timing"]["image_upload"] = 0.0
+        else:
+            ordered_images = job_obj.job_metadata.get('ordered_images') if job_obj.job_metadata else None
+            upload = self.image_processor.upload_images(folder_path, ordered_filenames=ordered_images, log_callback=log_callback)
+            if "error" in upload:
+                return {"success": False, "error_type": "image_upload_failed", "error_message": f"Image upload failed: {upload['error']}"}
+            upload_urls = upload["urls"]
+            result["timing"]["image_upload"] = upload["timing"]
 
         # Persist uploaded image URLs in ai_data for retrieval after processing
         ai_data = job_obj.ai_data or {}
-        ai_data['image_urls'] = upload["urls"]
+        ai_data['image_urls'] = upload_urls
         job_obj.ai_data = ai_data
 
         # 7. Rendering
-        template = self._render_listing_template(analysis['title'], analysis['raw_description'], upload["urls"], analysis['item_specifics'], condition)
+        template = self._render_listing_template(analysis['title'], analysis['raw_description'], upload_urls, analysis['item_specifics'], condition)
         result["timing"]["templating"] = template["timing"]
 
         # 8. Hybrid Publishing Logic (Phase 2 Intercept)
@@ -369,7 +378,7 @@ class ProcessorService:
         bundle = self._create_trading_api_listing(
             title=analysis['title'], final_price=pricing_result["price"], condition=condition,
             category_id=cat_result['id'], html_description=template["html"],
-            image_urls=upload["urls"], item_specifics=analysis['item_specifics'],
+            image_urls=upload_urls, item_specifics=analysis['item_specifics'],
             shipping_policy=job_obj.job_metadata.get('fulfillment_policy') if job_obj.job_metadata else None,
             scheduled_time=job_obj.scheduled_time
         )
