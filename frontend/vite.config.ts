@@ -41,7 +41,7 @@ export default defineConfig(({ mode }) => ({
   },
   server: {
     host: true,
-    port: 5175,
+    port: parseInt(process.env.PORT || '5175'),
     hmr: true,
     proxy: {
       '/api': {

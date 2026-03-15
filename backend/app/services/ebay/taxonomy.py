@@ -281,14 +281,15 @@ def get_item_aspects(category_id: str) -> dict:
             optional = []
 
             for a in aspects:
+                constraint = a.get('aspectConstraint', {})
                 aspect_info = {
                     "name": a.get('localizedAspectName'),
-                    "usage": a.get('aspectUsage'),
-                    "type": a.get('dataType'),
-                    "values": [v.get('localizedValue') for v in a.get('relevantAspectValues', [])]
+                    "usage": constraint.get('aspectUsage') or a.get('aspectUsage'),
+                    "type": constraint.get('aspectDataType') or a.get('dataType'),
+                    "values": [v.get('localizedValue') for v in a.get('aspectValues', []) or a.get('relevantAspectValues', [])]
                 }
 
-                if a.get('aspectUsage') == 'REQUIRED':
+                if constraint.get('aspectRequired') or constraint.get('aspectUsage') == 'REQUIRED':
                     required.append(aspect_info)
                 else:
                     optional.append(aspect_info)

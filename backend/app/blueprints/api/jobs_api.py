@@ -40,6 +40,19 @@ def _ensure_inbox_dir() -> Path:
         return fallback
 
 
+def _merge_specifics_into_schema(schema: list, specifics: dict) -> list:
+    """Merge item_specifics values into aspect schema as currentValue for frontend display."""
+    if not specifics:
+        return schema
+    enriched = []
+    for aspect in schema:
+        name = aspect.get('name')
+        if name and name in specifics:
+            aspect = {**aspect, 'currentValue': specifics[name]}
+        enriched.append(aspect)
+    return enriched
+
+
 def _resolve_display_name(j) -> str:
     """Extract the best available display name from AI data, falling back to folder name."""
     ai_data = j.ai_data if hasattr(j, 'ai_data') and j.ai_data else {}
@@ -124,7 +137,7 @@ def get_job_details(job_id):
         'status': job.status.value if hasattr(job.status, 'value') else job.status,
         'folder_path': str(job.folder_path),
         'ai_title': ai_title,
-        'ai_description': listing.get('description') or ai_data.get('description') or ai_data.get('ai_description') or '',
+        'ai_description': listing.get('description') or listing.get('description_html') or ai_data.get('description') or ai_data.get('ai_description') or '',
         'user_title': job.user_title,
         'user_price': job.user_price,
         'user_description': job.user_description,
@@ -146,7 +159,10 @@ def get_job_details(job_id):
         'condition_id': ai_data.get('condition_id'),
         'condition_description': ai_data.get('condition_description'),
         'analysis_mode': ai_data.get('analysis_mode'),
-        'ebay_aspect_schema': ai_data.get('ebay_aspect_schema', []),
+        'ebay_aspect_schema': _merge_specifics_into_schema(
+            ai_data.get('ebay_aspect_schema', []),
+            job.item_specifics or ai_data.get('item_specifics') or {}
+        ),
         'image_urls': ai_data.get('image_urls', []),
         'images': images,
         'image_count': len(images),
