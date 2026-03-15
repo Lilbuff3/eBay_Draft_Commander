@@ -42,9 +42,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: true,
     port: 5175,
-    hmr: {
-      host: '192.168.1.142',
-    },
+    hmr: true,
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:5000',
