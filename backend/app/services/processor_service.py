@@ -331,20 +331,26 @@ class ProcessorService:
 
         # 8. Hybrid Publishing Logic (Phase 2 Intercept)
         auto_publish = str(os.environ.get('AUTO_PUBLISH', 'false')).lower() == 'true'
-        threshold = float(os.environ.get('CONFIDENCE_THRESHOLD', 0.85))
-        
+        threshold_raw = float(os.environ.get('CONFIDENCE_THRESHOLD', 85))
+        threshold = threshold_raw / 100 if threshold_raw > 1 else threshold_raw
+        min_price = float(os.environ.get('AUTO_PUBLISH_MIN_PRICE', 15.00))
+
         # CATEGORY GUARD: Force review if category is missing
         missing_category = not cat_result.get('id')
-        
+        # PRICE GUARD: Force review if price is below minimum
+        price_too_low = float(pricing_result.get('price', 0)) < min_price
+
         user_approved = job_obj.job_metadata.get('user_approved', False) if job_obj.job_metadata else False
 
-        if not user_approved and (not auto_publish or confidence_score < threshold or missing_category):
+        if not user_approved and (not auto_publish or confidence_score < threshold or missing_category or price_too_low):
             if missing_category:
                 reason = "Missing Category (AI could not determine accurate eBay category)"
             elif not auto_publish:
                 reason = "AUTO_PUBLISH=false"
+            elif price_too_low:
+                reason = f"Price Too Low (${pricing_result.get('price', 0)} < ${min_price:.2f} minimum)"
             else:
-                reason = f"Low Confidence ({confidence_score:.2f} < {threshold})"
+                reason = f"Low Confidence ({confidence_score:.2f} < {threshold:.2f})"
             
             _log(f"Routing to Review Queue: {reason}", level='warning')
             

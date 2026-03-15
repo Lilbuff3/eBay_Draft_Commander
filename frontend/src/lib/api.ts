@@ -290,7 +290,7 @@ export async function searchCategories(query: string): Promise<CategorySuggestio
 
 export async function uploadFiles(files: FileList | File[]): Promise<{ success: boolean; job_id?: string; error?: string }> {
     const formData = new FormData()
-    Array.from(files).forEach(f => formData.append('files', f))
+    Array.from(files).forEach(f => formData.append('files[]', f))
     try {
         const result = await apiFetch<{ success: boolean; job_id?: string; error?: string }>(
             `${API_BASE}/upload`,

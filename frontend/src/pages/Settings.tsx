@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, Save, RefreshCw } from 'lucide-react'
+import { Loader2, Save, RefreshCw, Zap } from 'lucide-react'
 
 export function Settings() {
     const [settings, setSettings] = useState<Record<string, string>>({})
@@ -127,6 +127,10 @@ export function Settings() {
                             <span className="hidden sm:inline">eBay Authentication</span>
                             <span className="sm:hidden">Auth</span>
                         </TabsTrigger>
+                        <TabsTrigger value="automation" className="flex-1 min-w-0 text-xs sm:text-sm">
+                            <span className="hidden sm:inline">Automation</span>
+                            <span className="sm:hidden"><Zap className="h-4 w-4" /></span>
+                        </TabsTrigger>
                         <TabsTrigger value="ai" className="flex-1 min-w-0 text-xs sm:text-sm">
                             <span className="hidden sm:inline">AI & Other</span>
                             <span className="sm:hidden">AI</span>
@@ -244,6 +248,82 @@ export function Settings() {
                                             />
                                             <span>Sandbox</span>
                                         </label>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    <TabsContent value="automation" className="mt-6">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Auto-Publish</CardTitle>
+                                <CardDescription>
+                                    When enabled, listings that meet all criteria will publish directly to eBay without manual review.
+                                    Items below the confidence threshold or minimum price will still go to the Review Queue.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                <div className="flex items-center justify-between p-4 bg-stone-50 rounded-lg border">
+                                    <div>
+                                        <Label htmlFor="auto-publish" className="text-base font-medium">Auto-Publish Enabled</Label>
+                                        <p className="text-sm text-stone-500 mt-1">
+                                            {settings['AUTO_PUBLISH'] === 'true'
+                                                ? 'High-confidence listings will publish automatically'
+                                                : 'All listings require manual approval'}
+                                        </p>
+                                    </div>
+                                    <button
+                                        id="auto-publish"
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={settings['AUTO_PUBLISH'] === 'true'}
+                                        onClick={() => handleChange('AUTO_PUBLISH', settings['AUTO_PUBLISH'] === 'true' ? 'false' : 'true')}
+                                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                                            settings['AUTO_PUBLISH'] === 'true' ? 'bg-emerald-600' : 'bg-stone-300'
+                                        }`}
+                                    >
+                                        <span
+                                            className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg transform transition-transform ${
+                                                settings['AUTO_PUBLISH'] === 'true' ? 'translate-x-5' : 'translate-x-0'
+                                            }`}
+                                        />
+                                    </button>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="confidence">Confidence Threshold (%)</Label>
+                                    <div className="flex items-center gap-4">
+                                        <Input
+                                            id="confidence"
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            className="w-24"
+                                            value={settings['CONFIDENCE_THRESHOLD'] || '85'}
+                                            onChange={e => handleChange('CONFIDENCE_THRESHOLD', e.target.value)}
+                                        />
+                                        <span className="text-sm text-stone-500">
+                                            AI must be at least {settings['CONFIDENCE_THRESHOLD'] || '85'}% confident to auto-publish
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="min-price">Minimum Price ($)</Label>
+                                    <div className="flex items-center gap-4">
+                                        <Input
+                                            id="min-price"
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            className="w-24"
+                                            value={settings['AUTO_PUBLISH_MIN_PRICE'] || '15.00'}
+                                            onChange={e => handleChange('AUTO_PUBLISH_MIN_PRICE', e.target.value)}
+                                        />
+                                        <span className="text-sm text-stone-500">
+                                            Items priced below this go to Review Queue for manual check
+                                        </span>
                                     </div>
                                 </div>
                             </CardContent>

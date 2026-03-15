@@ -5,6 +5,7 @@ Tests verify: condition mapping from folder structure, aspect cleaning/truncatio
 and strict-mode AI failure handling.
 """
 
+import os
 import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
@@ -144,7 +145,12 @@ def test_aspect_cleaning_truncation(test_app, mock_deps, tmp_path):
     service = ProcessorService()
 
     with test_app.app_context():
-        result = service.create_listing(mock_job)
+        # Disable min price guard so $10 listing proceeds to Trading API
+        os.environ['AUTO_PUBLISH_MIN_PRICE'] = '0'
+        try:
+            result = service.create_listing(mock_job)
+        finally:
+            os.environ.pop('AUTO_PUBLISH_MIN_PRICE', None)
 
     # Check the Trading API call for cleaned aspects
     call_args = mock_deps['ebay'].create_trading_api_listing.call_args

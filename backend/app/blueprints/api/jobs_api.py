@@ -350,6 +350,7 @@ def upload_files():
                 file.save(str(job_folder / filename)); saved_count += 1
         if saved_count == 0: return error_response('No valid files saved', 400)
         job = qm.add_folder(str(job_folder))
+        if not qm.is_processing(): qm.start_processing()
         return jsonify({'success': True, 'message': f'Successfully uploaded {saved_count} photos', 'jobId': job.id, 'folder': folder_name})
     except Exception as e: return error_response(str(e))
 

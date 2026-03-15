@@ -20,6 +20,8 @@ class SettingsManager:
         'DEFAULT_PRICE': '29.99',
         'AUTO_MOVE_POSTED': 'true',
         'AUTO_PUBLISH': 'true',  # If false, creates drafts instead of live listings
+        'CONFIDENCE_THRESHOLD': '85',  # 0-100: minimum AI confidence to auto-publish
+        'AUTO_PUBLISH_MIN_PRICE': '15.00',  # Minimum price to auto-publish (force review below)
         'ESTIMATED_SHIPPING_COST': '6.50',  # Baked into price for free-shipping listings
         'ENABLE_BACKGROUND_REMOVAL': 'false',  # rembg background removal (off for MVP)
     }
@@ -47,11 +49,15 @@ class SettingsManager:
         'AI Settings': [
             'GOOGLE_API_KEY',
         ],
+        'Automation': [
+            'AUTO_PUBLISH',
+            'CONFIDENCE_THRESHOLD',
+            'AUTO_PUBLISH_MIN_PRICE',
+        ],
         'Application': [
             'DEFAULT_CONDITION',
             'DEFAULT_PRICE',
             'AUTO_MOVE_POSTED',
-            'AUTO_PUBLISH',
             'ESTIMATED_SHIPPING_COST',
             'ENABLE_BACKGROUND_REMOVAL',
         ],
