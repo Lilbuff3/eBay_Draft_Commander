@@ -1,5 +1,6 @@
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from backend.app.services.ebay.media import upload_image_to_eps, check_endpoint_reachability
 from backend.app.core.logger import get_logger
@@ -116,12 +117,24 @@ class ImageProcessor:
                 _log(f"[UPLOAD] Found {len(images)} images to upload")
                 processed_images = images
 
-            # Upload each image, tracking successes and failures
+            # Upload images in parallel, tracking successes and failures
             successful_urls = []
             failed_images = []
 
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                futures = {executor.submit(upload_image_to_eps, img): img for img in processed_images}
+                result_map = {}
+                for future in as_completed(futures):
+                    img = futures[future]
+                    try:
+                        url = future.result()
+                        result_map[img] = url
+                    except Exception:
+                        result_map[img] = None
+
+            # Preserve original order (first image = eBay cover photo)
             for img in processed_images:
-                url = upload_image_to_eps(img)
+                url = result_map.get(img)
                 if url:
                     successful_urls.append(url)
                 else:

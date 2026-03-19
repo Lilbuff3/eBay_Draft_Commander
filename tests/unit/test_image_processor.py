@@ -1,3 +1,4 @@
+import time
 import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -166,6 +167,53 @@ class TestUploadImages:
         assert 'error' in result
         assert 'unreachable' in result['error'].lower()
         mock_upload.assert_not_called()
+
+    @patch('backend.app.services.image_processor.check_endpoint_reachability', return_value=True)
+    @patch('backend.app.services.image_processor.upload_image_to_eps')
+    def test_parallel_upload_faster_than_serial(self, mock_upload, mock_reachable, processor, image_folder):
+        """Multiple uploads should complete faster than serial execution."""
+        create_test_images(image_folder, [f'img_{i}.jpg' for i in range(6)])
+
+        def slow_upload(path):
+            time.sleep(0.3)
+            return f'https://i.ebayimg.com/images/{path.name}'
+
+        mock_upload.side_effect = slow_upload
+
+        start = time.time()
+        result = processor.upload_images(image_folder)
+        elapsed = time.time() - start
+
+        assert 'urls' in result
+        assert len(result['urls']) == 6
+        # Serial would be ~1.8s (6 x 0.3s). Parallel with 4 workers should be < 1.0s.
+        assert elapsed < 1.0, f"Expected parallel uploads < 1.0s, got {elapsed:.2f}s"
+
+    @patch('backend.app.services.image_processor.check_endpoint_reachability', return_value=True)
+    @patch('backend.app.services.image_processor.upload_image_to_eps')
+    def test_parallel_upload_preserves_order(self, mock_upload, mock_reachable, processor, image_folder):
+        """Parallel uploads must preserve original image order."""
+        create_test_images(image_folder, ['a.jpg', 'b.jpg', 'c.jpg', 'd.jpg'])
+
+        def slow_upload(path):
+            # Make later files finish faster to test order preservation
+            delays = {'a.jpg': 0.3, 'b.jpg': 0.1, 'c.jpg': 0.2, 'd.jpg': 0.05}
+            time.sleep(delays.get(path.name, 0.1))
+            return f'https://i.ebayimg.com/images/{path.name}'
+
+        mock_upload.side_effect = slow_upload
+
+        result = processor.upload_images(image_folder)
+
+        assert 'urls' in result
+        assert len(result['urls']) == 4
+        # URLs must be in alphabetical order (default sort) regardless of completion order
+        assert result['urls'] == [
+            'https://i.ebayimg.com/images/a.jpg',
+            'https://i.ebayimg.com/images/b.jpg',
+            'https://i.ebayimg.com/images/c.jpg',
+            'https://i.ebayimg.com/images/d.jpg',
+        ]
 
     @patch('backend.app.services.image_processor.check_endpoint_reachability', return_value=True)
     @patch('backend.app.services.image_processor.upload_image_to_eps')
