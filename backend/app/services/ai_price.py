@@ -9,6 +9,7 @@ import os
 import json
 import base64
 from typing import Dict, List, Optional
+from backend.app.core.constants import AI_PRICING_MODEL
 from backend.app.core.logger import get_logger
 
 logger = get_logger('ai_price')
@@ -66,7 +67,7 @@ class AIPriceEstimator:
         if HAS_LEGACY_GENAI:
             try:
                 genai_legacy.configure(api_key=api_key)
-                self.legacy_model = genai_legacy.GenerativeModel('gemini-3-flash-preview')
+                self.legacy_model = genai_legacy.GenerativeModel(AI_PRICING_MODEL)
                 logger.info("[OK] AI Price Estimator initialized (legacy SDK, no live search)")
             except Exception as e:
                 logger.error(f"[FAIL] Legacy SDK init failed: {e}")
@@ -108,7 +109,7 @@ class AIPriceEstimator:
             # Use google-genai SDK with Google Search tool
             # Using Gemini 3 Flash Preview for best price analysis with search
             response = self.client.models.generate_content(
-                model='gemini-3-flash-preview',  # Gemini 3 Flash Preview
+                model=AI_PRICING_MODEL,  # Gemini 3 Flash Preview
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     tools=[types.Tool(google_search=types.GoogleSearch())]
@@ -132,7 +133,7 @@ class AIPriceEstimator:
             # Try without search tool
             try:
                 response = self.client.models.generate_content(
-                    model='gemini-3-flash-preview',
+                    model=AI_PRICING_MODEL,
                     contents=prompt
                 )
                 return self._parse_response(response.text, query, [])

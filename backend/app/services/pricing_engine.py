@@ -264,7 +264,7 @@ class PricingEngine:
             """
             
             response = self.ai_client.models.generate_content(
-                model='gemini-3-flash-preview',
+                model=AI_PRICING_MODEL,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     tools=[types.Tool(google_search=types.GoogleSearch())],
@@ -295,7 +295,7 @@ class PricingEngine:
                 return {"price": price, "reasoning": reasoning}
                 
         except Exception as e:
-            logger.warning(f"   [WARN] Gemini 3 Grounding failed: {e}")
+            logger.warning(f"   [WARN] Gemini Grounding failed: {e}")
             
             # FALLBACK: Try Standard Inference (No Tools) if Grounding crashes
             try:
@@ -314,7 +314,7 @@ class PricingEngine:
                 }}"""
                 
                 retry_resp = self.ai_client.models.generate_content(
-                    model='gemini-3-flash-preview',
+                    model=AI_PRICING_MODEL,
                     contents=retry_prompt,
                     config=types.GenerateContentConfig(
                         temperature=0.3,
@@ -389,14 +389,14 @@ class PricingEngine:
                 "research_link": research_link
             }
         
-        # Try Gemini 3 Grounding (Mandatory if no comps)
-        logger.info(f"[SEARCH] Performing AI Market Research (Gemini 3 Grounding)...")
+        # Try Gemini Grounding (Mandatory if no comps)
+        logger.info(f"[SEARCH] Performing AI Market Research (Gemini Grounding)...")
         grounded_result = self.get_ai_price_estimate(title, condition)
         
         if grounded_result:
             import math
             ai_price = grounded_result['price']
-            ai_reasoning = grounded_result.get('reasoning', "Researched via Gemini 3")
+            ai_reasoning = grounded_result.get('reasoning', "Researched via Gemini")
             if shipping_cost > 0:
                 ai_price = round(ai_price + shipping_cost, 2)
                 ai_reasoning += f" + ${shipping_cost:.2f} free shipping buffer"

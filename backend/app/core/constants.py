@@ -92,3 +92,4 @@ EBAY_REFILL_RATE = 2 # Tokens per second
 
 # AI Models
 AI_MODEL_NAME = 'gemini-2.0-flash' # Updated to latest fast model
+AI_PRICING_MODEL = os.getenv('AI_PRICING_MODEL', 'gemini-2.0-flash')  # Pricing/grounding model
