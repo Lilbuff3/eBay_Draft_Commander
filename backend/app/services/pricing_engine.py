@@ -9,6 +9,7 @@ import statistics
 import requests
 from typing import List, Dict, Optional, Union, Any
 from urllib.parse import quote
+from backend.app.core.constants import AI_PRICING_MODEL
 from backend.app.core.logger import get_logger
 
 logger = get_logger('pricing_engine')
@@ -48,7 +49,7 @@ class PricingEngine:
             try:
                 from google import genai
                 self.ai_client = genai.Client(api_key=self.google_api_key)
-                logger.info("[OK] Pricing AI initialized (Gemini 3 + Search Grounding)")
+                logger.info(f"[OK] Pricing AI initialized ({AI_PRICING_MODEL} + Search Grounding)")
             except Exception as e:
                 logger.warning(f"[WARN] Could not initialize Pricing AI: {e}")
     
@@ -208,7 +209,7 @@ class PricingEngine:
         return f"https://www.ebay.com/sch/i.html?_nkw={quote(search_terms)}&LH_Complete=1&LH_Sold=1"
     
     def get_ai_price_estimate(self, title: str, condition: str) -> Optional[Dict[str, Union[float, str]]]:
-        """Estimate price using Gemini 3 with Google Search grounding"""
+        """Estimate price using Gemini with Google Search grounding"""
         if not self.ai_client:
             return None
             
@@ -221,8 +222,8 @@ class PricingEngine:
             prompt = f"""You are a High-End Industrial Appraiser and eBay Pricing Strategist.
             The user has an item that may be rare, industrial, or undervalued.
             Do NOT default to a low price just because direct sales data is scarce.
-            IMPORTANT: This listing uses FREE SHIPPING. The price must cover the seller's
-            estimated shipping cost (~$5-$12 USPS depending on weight/size). Factor this in.
+            IMPORTANT: Return the BASE market value only. Do NOT include shipping costs.
+            Shipping will be calculated separately.
 
             Item Title: {title}
             Condition: {condition}
@@ -393,11 +394,15 @@ class PricingEngine:
         grounded_result = self.get_ai_price_estimate(title, condition)
         
         if grounded_result:
+            import math
             ai_price = grounded_result['price']
             ai_reasoning = grounded_result.get('reasoning', "Researched via Gemini 3")
             if shipping_cost > 0:
                 ai_price = round(ai_price + shipping_cost, 2)
                 ai_reasoning += f" + ${shipping_cost:.2f} free shipping buffer"
+            # Smart pricing: round to .99
+            if ai_price > 10:
+                ai_price = math.ceil(ai_price) - 0.01
             logger.info(f"   [WEB] AI Research Price: ${ai_price:.2f}")
             return {
                 "suggested_price": ai_price,
@@ -409,11 +414,15 @@ class PricingEngine:
         
         # Fallback to AI suggestion from analyzer (image-based) ONLY if valid
         if ai_suggested_price:
+            import math
             fallback_price = float(ai_suggested_price)
             fallback_reasoning = "Based on logical inference from visual analysis (No market data found)"
             if shipping_cost > 0:
                 fallback_price = round(fallback_price + shipping_cost, 2)
                 fallback_reasoning += f" + ${shipping_cost:.2f} free shipping buffer"
+            # Smart pricing: round to .99
+            if fallback_price > 10:
+                fallback_price = math.ceil(fallback_price) - 0.01
             logger.info(f"   [INFO] Using AI image estimate: ${fallback_price}")
             return {
                 "suggested_price": fallback_price,

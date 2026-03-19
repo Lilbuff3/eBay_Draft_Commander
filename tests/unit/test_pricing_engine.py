@@ -168,20 +168,23 @@ class TestGetPriceWithComps:
              patch.object(engine, "get_ai_price_estimate", return_value={"price": 50.0, "reasoning": "AI est"}):
             result = engine.get_price_with_comps("Rare Gadget")
         assert result["source"] == "ai_grounded_research"
-        assert result["suggested_price"] == 50.0
+        # 50.0 -> smart pricing ceil(50) - 0.01 = 49.99
+        assert result["suggested_price"] == 49.99
 
     def test_gemini_with_shipping_buffer(self, engine):
         with patch.object(engine, "search_sold_listings", return_value=[]), \
              patch.object(engine, "get_ai_price_estimate", return_value={"price": 50.0, "reasoning": "AI est"}):
             result = engine.get_price_with_comps("Rare Gadget", shipping_cost=6.50)
-        assert result["suggested_price"] == 56.50
+        # 50 + 6.50 = 56.50 -> smart pricing ceil(56.50) - 0.01 = 56.99
+        assert result["suggested_price"] == 56.99
 
     def test_ai_estimate_fallback(self, engine):
         with patch.object(engine, "search_sold_listings", return_value=[]), \
              patch.object(engine, "get_ai_price_estimate", return_value=None):
             result = engine.get_price_with_comps("Unknown Widget", ai_suggested_price="30")
         assert result["source"] == "ai_estimate"
-        assert result["suggested_price"] == 30.0
+        # 30.0 -> smart pricing ceil(30) - 0.01 = 29.99
+        assert result["suggested_price"] == 29.99
 
     def test_all_fail(self, engine):
         with patch.object(engine, "search_sold_listings", return_value=[]), \
@@ -311,3 +314,31 @@ class TestSmartPricingRounding:
         items = _make_sold_items([8.50])
         result = engine.calculate_suggested_price(items, our_condition="New")
         assert result["suggested_price"] == 8.50
+
+
+# ---------------------------------------------------------------------------
+# TestShippingBufferConsistency
+# ---------------------------------------------------------------------------
+
+
+class TestShippingBufferConsistency:
+    """Shipping buffer must be added exactly once across all pricing paths."""
+
+    @patch.object(PricingEngine, 'search_sold_listings', return_value=[])
+    @patch.object(PricingEngine, 'get_ai_price_estimate')
+    def test_ai_grounding_adds_shipping_once(self, mock_ai_est, mock_search, engine):
+        """AI grounding returns base price; shipping added by get_price_with_comps, not the prompt."""
+        mock_ai_est.return_value = {"price": 50.00, "reasoning": "Based on research"}
+        result = engine.get_price_with_comps("Test Item", condition="USED_GOOD", shipping_cost=6.50)
+        # AI returns 50, shipping 6.50 added once = 56.50 -> smart pricing = 56.99
+        assert result["suggested_price"] == 56.99
+        assert result["source"] == "ai_grounded_research"
+
+    @patch.object(PricingEngine, 'search_sold_listings', return_value=[])
+    @patch.object(PricingEngine, 'get_ai_price_estimate', return_value=None)
+    def test_ai_fallback_adds_shipping_once(self, mock_ai_est, mock_search, engine):
+        """AI image estimate fallback also adds shipping exactly once."""
+        result = engine.get_price_with_comps("Test Item", condition="USED_GOOD", ai_suggested_price="40.00", shipping_cost=6.50)
+        # ai_suggested_price=40, shipping 6.50 added once = 46.50 -> smart pricing = 46.99
+        assert result["suggested_price"] == 46.99
+        assert result["source"] == "ai_estimate"
