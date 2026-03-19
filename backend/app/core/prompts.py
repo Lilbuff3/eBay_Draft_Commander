@@ -44,7 +44,7 @@ OUTPUT FORMAT: Return a JSON object with this EXACT structure:
         "accessories_found": ["Power Cord", "Manual", "Bracket"]
     }},
     "listing": {{
-        "suggested_title": "Brand Model MPN Product Type Key Spec (Max 80 Chars)",
+        "suggested_title": "SEO-optimized, max 80 chars. Format: [Brand] [Model/MPN] [Product Type] [Key Specs] [Condition Keyword]. Front-load searchable keywords buyers type into eBay search. Include model numbers and part numbers. No filler words (great, amazing, lot, wow, look). No special characters (!*~). Example: 'Xerox 108R00713 Solid Ink Cyan Phaser 8560 Genuine OEM New'",
         "description_html": "<b>Brand:</b> ...<br><b>Model:</b> ...<br>...",
         "suggested_price": 0.00
     }},
