@@ -171,12 +171,22 @@ class ItemSpecificsMapper:
             specifics['Publisher'] = book_data.get('publisher', '')
             specifics['Publication Year'] = book_data.get('publishedDate', '')[:4]
             specifics['Book Title'] = book_data.get('title', '')
-            specifics['Topic'] = 'Computers' # Default, could extract from categories
-            specifics['Language'] = 'English' # Default, could infer
-            specifics['Format'] = 'Paperback' # Default assumption
-            
-            # Map categories to Genre/Subject
+
+            # Map categories to Genre/Subject/Topic
             categories = book_data.get('categories', [])
+
+            # Topic: use first category from metadata
+            specifics['Topic'] = categories[0] if categories else 'General'
+
+            # Language: use metadata language code, map to eBay display name
+            LANG_MAP = {'en': 'English', 'fr': 'French', 'es': 'Spanish', 'de': 'German',
+                        'it': 'Italian', 'pt': 'Portuguese', 'ja': 'Japanese', 'zh': 'Chinese',
+                        'ko': 'Korean', 'ru': 'Russian', 'ar': 'Arabic', 'nl': 'Dutch'}
+            raw_lang = book_data.get('language', 'en')
+            specifics['Language'] = LANG_MAP.get(raw_lang[:2].lower(), raw_lang.title()) if raw_lang else 'English'
+
+            # Format: use metadata if available, default to Paperback
+            specifics['Format'] = book_data.get('format', 'Paperback')
             if categories:
                 specifics['Genre'] = categories[0]
             
