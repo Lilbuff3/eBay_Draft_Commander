@@ -82,8 +82,8 @@ class TestCalculateSuggestedPrice:
         items = _make_sold_items([40])
         result = engine.calculate_suggested_price(items, our_condition="New", shipping_cost=6.50)
         # median=40, multiplier=1.0 -> 40 + 6.50 = 46.50
-        # smart pricing: ceil(46.50) = 47 -> 47 - 0.01 = 46.99
-        assert result["suggested_price"] == 46.99
+        # smart pricing: floor(46.50)=46, cents=0.50 < 0.80 -> 46-0.01 = 45.99
+        assert result["suggested_price"] == 45.99
         assert "shipping" in result["reasoning"]
 
     def test_smart_99_above_10(self, engine):
@@ -107,8 +107,8 @@ class TestCalculateSuggestedPrice:
         # est_fees = 36.50*0.1325 + 0.30 = 5.14 + 0.30 = 5.44
         # projected_profit = 36.50 - 5.44 - 50 - 6.50 = -25.44 (< 10)
         # target_price = (50 + 10 + 0.30) / (1 - 0.1325) = 60.30 / 0.8675 = 69.51...
-        # margin_boost=True -> smart pricing round(69.51)-0.01 = 69.99
-        assert result["suggested_price"] == 69.99
+        # margin_boost=True -> smart pricing: floor(69.51)=69, cents=0.51 < 0.80 -> 68.99
+        assert result["suggested_price"] == 68.99
         assert "Boosted" in result["reasoning"]
 
     def test_no_margin_boost_zero_acquisition(self, engine):
@@ -175,8 +175,8 @@ class TestGetPriceWithComps:
         with patch.object(engine, "search_sold_listings", return_value=[]), \
              patch.object(engine, "get_ai_price_estimate", return_value={"price": 50.0, "reasoning": "AI est"}):
             result = engine.get_price_with_comps("Rare Gadget", shipping_cost=6.50)
-        # 50 + 6.50 = 56.50 -> smart pricing ceil(56.50) - 0.01 = 56.99
-        assert result["suggested_price"] == 56.99
+        # 50 + 6.50 = 56.50 -> smart pricing: floor=56, cents=0.50 < 0.80 -> 55.99
+        assert result["suggested_price"] == 55.99
 
     def test_ai_estimate_fallback(self, engine):
         with patch.object(engine, "search_sold_listings", return_value=[]), \
@@ -288,26 +288,37 @@ class TestGenerateSearchLink:
 
 
 class TestSmartPricingRounding:
-    """Smart pricing should round UP to nearest .99, not down."""
+    """Smart pricing rounds to nearest .99 without aggressive inflation.
 
-    def test_price_rounds_up_to_99(self, engine):
-        """$44.32 should become $44.99, not $43.99"""
+    Rules (prices > $10 only):
+    - cents >= 0.80: round UP to current dollar .99 ($44.85 -> $44.99)
+    - cents < 0.80: round DOWN to previous dollar .99 ($44.32 -> $43.99)
+    - exact whole numbers (0.00 cents): round DOWN ($45.00 -> $44.99)
+    """
+
+    def test_price_below_80_cents_rounds_down(self, engine):
+        """$44.32 -> floor is $44, cents=0.32 < 0.80, so $43.99"""
         items = _make_sold_items([44.32])
         result = engine.calculate_suggested_price(items, our_condition="New")
-        # median=44.32, multiplier=1.0, smart pricing -> 44.99
+        assert result["suggested_price"] == 43.99
+
+    def test_price_above_80_cents_rounds_up(self, engine):
+        """$44.85 -> floor is $44, cents=0.85 >= 0.80, so $44.99"""
+        items = _make_sold_items([44.85])
+        result = engine.calculate_suggested_price(items, our_condition="New")
         assert result["suggested_price"] == 44.99
 
     def test_price_at_whole_number_stays_99(self, engine):
-        """$45.00 should become $44.99 (round down from exact whole)"""
+        """$45.00 -> floor is $45, cents=0.00 < 0.80, so $44.99"""
         items = _make_sold_items([45.00])
         result = engine.calculate_suggested_price(items, our_condition="New")
         assert result["suggested_price"] == 44.99
 
-    def test_price_just_above_whole_rounds_up(self, engine):
-        """$45.01 should become $45.99"""
+    def test_price_just_above_whole_rounds_down(self, engine):
+        """$45.01 -> floor is $45, cents=0.01 < 0.80, so $44.99"""
         items = _make_sold_items([45.01])
         result = engine.calculate_suggested_price(items, our_condition="New")
-        assert result["suggested_price"] == 45.99
+        assert result["suggested_price"] == 44.99
 
     def test_price_under_10_no_rounding(self, engine):
         """Prices <= $10 should NOT be smart-rounded"""
@@ -330,8 +341,9 @@ class TestShippingBufferConsistency:
         """AI grounding returns base price; shipping added by get_price_with_comps, not the prompt."""
         mock_ai_est.return_value = {"price": 50.00, "reasoning": "Based on research"}
         result = engine.get_price_with_comps("Test Item", condition="USED_GOOD", shipping_cost=6.50)
-        # AI returns 50, shipping 6.50 added once = 56.50 -> smart pricing = 56.99
-        assert result["suggested_price"] == 56.99
+        # AI returns 50, shipping 6.50 added once = 56.50
+        # smart pricing: floor=56, cents=0.50 < 0.80 -> 55.99
+        assert result["suggested_price"] == 55.99
         assert result["source"] == "ai_grounded_research"
 
     @patch.object(PricingEngine, 'search_sold_listings', return_value=[])
@@ -339,6 +351,100 @@ class TestShippingBufferConsistency:
     def test_ai_fallback_adds_shipping_once(self, mock_ai_est, mock_search, engine):
         """AI image estimate fallback also adds shipping exactly once."""
         result = engine.get_price_with_comps("Test Item", condition="USED_GOOD", ai_suggested_price="40.00", shipping_cost=6.50)
-        # ai_suggested_price=40, shipping 6.50 added once = 46.50 -> smart pricing = 46.99
-        assert result["suggested_price"] == 46.99
+        # ai_suggested_price=40, shipping 6.50 added once = 46.50
+        # smart pricing: floor=46, cents=0.50 < 0.80 -> 45.99
+        assert result["suggested_price"] == 45.99
         assert result["source"] == "ai_estimate"
+
+
+# ---------------------------------------------------------------------------
+# TestFindingAPISoldSearch
+# ---------------------------------------------------------------------------
+
+class TestFindingAPISoldSearch:
+    """Finding API returns actual sold prices (not asking prices)."""
+
+    def test_finding_api_returns_sold_items(self, engine):
+        """Successful Finding API call returns list of sold item dicts."""
+        mock_xml = """<?xml version="1.0" encoding="UTF-8"?>
+        <findCompletedItemsResponse xmlns="https://svcs.ebay.com/services/search/FindingService/v1">
+            <ack>Success</ack>
+            <searchResult count="2">
+                <item>
+                    <title>Xerox 108R00713 Solid Ink Cyan</title>
+                    <sellingStatus>
+                        <currentPrice currencyId="USD">45.00</currentPrice>
+                        <sellingState>EndedWithSales</sellingState>
+                    </sellingStatus>
+                    <condition><conditionDisplayName>Used</conditionDisplayName></condition>
+                    <listingInfo><endTime>2026-03-10T12:00:00.000Z</endTime></listingInfo>
+                    <viewItemURL>https://www.ebay.com/itm/123</viewItemURL>
+                </item>
+                <item>
+                    <title>Xerox 108R00713 Solid Ink Cyan OEM</title>
+                    <sellingStatus>
+                        <currentPrice currencyId="USD">52.00</currentPrice>
+                        <sellingState>EndedWithSales</sellingState>
+                    </sellingStatus>
+                    <condition><conditionDisplayName>New</conditionDisplayName></condition>
+                    <listingInfo><endTime>2026-03-08T15:30:00.000Z</endTime></listingInfo>
+                    <viewItemURL>https://www.ebay.com/itm/456</viewItemURL>
+                </item>
+            </searchResult>
+        </findCompletedItemsResponse>"""
+        with patch("requests.get") as mock_get:
+            mock_get.return_value.status_code = 200
+            mock_get.return_value.text = mock_xml
+            items = engine.search_finding_api("Xerox 108R00713")
+        assert len(items) == 2
+        assert items[0]["price"] == 45.00
+        assert items[0]["condition"] == "Used"
+        assert items[1]["price"] == 52.00
+
+    def test_finding_api_filters_unsold(self, engine):
+        """Items that ended without a sale (EndedWithoutSales) are excluded."""
+        mock_xml = """<?xml version="1.0" encoding="UTF-8"?>
+        <findCompletedItemsResponse xmlns="https://svcs.ebay.com/services/search/FindingService/v1">
+            <ack>Success</ack>
+            <searchResult count="2">
+                <item>
+                    <title>Good Item</title>
+                    <sellingStatus>
+                        <currentPrice currencyId="USD">30.00</currentPrice>
+                        <sellingState>EndedWithSales</sellingState>
+                    </sellingStatus>
+                    <condition><conditionDisplayName>Used</conditionDisplayName></condition>
+                    <listingInfo><endTime>2026-03-10T12:00:00.000Z</endTime></listingInfo>
+                    <viewItemURL>https://www.ebay.com/itm/789</viewItemURL>
+                </item>
+                <item>
+                    <title>Unsold Item</title>
+                    <sellingStatus>
+                        <currentPrice currencyId="USD">99.00</currentPrice>
+                        <sellingState>EndedWithoutSales</sellingState>
+                    </sellingStatus>
+                    <condition><conditionDisplayName>New</conditionDisplayName></condition>
+                    <listingInfo><endTime>2026-03-09T12:00:00.000Z</endTime></listingInfo>
+                    <viewItemURL>https://www.ebay.com/itm/000</viewItemURL>
+                </item>
+            </searchResult>
+        </findCompletedItemsResponse>"""
+        with patch("requests.get") as mock_get:
+            mock_get.return_value.status_code = 200
+            mock_get.return_value.text = mock_xml
+            items = engine.search_finding_api("Test Item")
+        assert len(items) == 1
+        assert items[0]["title"] == "Good Item"
+
+    def test_finding_api_empty_on_no_app_id(self, monkeypatch):
+        """Returns empty list if EBAY_APP_ID is missing."""
+        monkeypatch.delenv("EBAY_APP_ID", raising=False)
+        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+        eng = PricingEngine()
+        assert eng.search_finding_api("anything") == []
+
+    def test_finding_api_empty_on_network_error(self, engine):
+        """Returns empty list on network failure (no crash)."""
+        with patch("requests.get", side_effect=Exception("Network error")):
+            items = engine.search_finding_api("Test")
+        assert items == []
