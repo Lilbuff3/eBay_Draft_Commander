@@ -136,12 +136,16 @@ class PricingEngine:
         # Calculate median (robust to outliers)
         median_price = statistics.median(prices)
         
-        # Get condition multiplier
-        # Fuzzy match for NOS
+        # Get condition multiplier — resolve enum keys to display format
+        from backend.app.core.constants import CONDITION_ENUM_TO_DISPLAY
         cond_key = our_condition
-        if "new old stock" in our_condition.lower() or "nos" in our_condition.lower():
+        # If it's an enum key (e.g. USED_EXCELLENT), convert to display format
+        if cond_key in CONDITION_ENUM_TO_DISPLAY:
+            cond_key = CONDITION_ENUM_TO_DISPLAY[cond_key]
+        # Fuzzy match for NOS
+        if "new old stock" in cond_key.lower() or "nos" in cond_key.lower():
             cond_key = "New Old Stock"
-            
+
         multiplier = self.CONDITION_MULTIPLIERS.get(cond_key, 0.75)
         
         # Calculate suggested price

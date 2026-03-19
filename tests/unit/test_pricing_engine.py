@@ -204,6 +204,67 @@ class TestGetPriceWithComps:
 # ---------------------------------------------------------------------------
 
 
+class TestConditionEnumLookup:
+    """Verify pricing engine handles ENUM-style condition keys from the pipeline."""
+
+    def test_used_excellent_enum_gets_correct_multiplier(self, engine):
+        """Pipeline passes 'USED_EXCELLENT' — must NOT fall to 0.75 default."""
+        items = _make_sold_items([100])
+        result = engine.calculate_suggested_price(items, our_condition="USED_EXCELLENT")
+        assert result["multiplier"] == 0.85, f"USED_EXCELLENT should be 0.85, got {result['multiplier']}"
+
+    def test_new_other_enum_gets_correct_multiplier(self, engine):
+        items = _make_sold_items([100])
+        result = engine.calculate_suggested_price(items, our_condition="NEW_OTHER")
+        assert result["multiplier"] == 0.90
+
+    def test_used_good_enum_gets_correct_multiplier(self, engine):
+        items = _make_sold_items([100])
+        result = engine.calculate_suggested_price(items, our_condition="USED_GOOD")
+        assert result["multiplier"] == 0.75
+
+    def test_for_parts_enum_gets_correct_multiplier(self, engine):
+        items = _make_sold_items([100])
+        result = engine.calculate_suggested_price(items, our_condition="FOR_PARTS_OR_NOT_WORKING")
+        assert result["multiplier"] == 0.40
+
+    def test_new_enum_gets_correct_multiplier(self, engine):
+        items = _make_sold_items([100])
+        result = engine.calculate_suggested_price(items, our_condition="NEW")
+        assert result["multiplier"] == 1.0
+
+    def test_like_new_enum_gets_correct_multiplier(self, engine):
+        items = _make_sold_items([100])
+        result = engine.calculate_suggested_price(items, our_condition="LIKE_NEW")
+        assert result["multiplier"] == 0.85
+
+    def test_display_format_still_works(self, engine):
+        """Backward compat: display-style keys must still resolve."""
+        items = _make_sold_items([100])
+        result = engine.calculate_suggested_price(items, our_condition="Used - Good")
+        assert result["multiplier"] == 0.75
+
+    def test_used_very_good_enum_gets_correct_multiplier(self, engine):
+        items = _make_sold_items([100])
+        result = engine.calculate_suggested_price(items, our_condition="USED_VERY_GOOD")
+        assert result["multiplier"] == 0.85
+
+    def test_used_acceptable_enum_gets_correct_multiplier(self, engine):
+        items = _make_sold_items([100])
+        result = engine.calculate_suggested_price(items, our_condition="USED_ACCEPTABLE")
+        assert result["multiplier"] == 0.60
+
+    def test_seller_refurbished_enum_gets_correct_multiplier(self, engine):
+        items = _make_sold_items([100])
+        result = engine.calculate_suggested_price(items, our_condition="SELLER_REFURBISHED")
+        assert result["multiplier"] == 0.85
+
+
+# ---------------------------------------------------------------------------
+# TestGenerateSearchLink
+# ---------------------------------------------------------------------------
+
+
 class TestGenerateSearchLink:
     def test_basic_link(self, engine):
         url = engine.generate_ebay_search_link("Hello World Test")
