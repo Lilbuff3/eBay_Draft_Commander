@@ -290,6 +290,22 @@ class ProcessorService:
         ebay_aspect_schema = self._validate_and_enrich_specifics(
             cat_result.get('id'), analysis['item_specifics'], _log=_log
         )
+        # 4c. Two-pass AI enrichment: fill remaining required aspects using images + schema
+        if ebay_aspect_schema and analysis.get('ai_data', {}).get('image_paths'):
+            try:
+                enriched_specifics = self.ai_agent.ai_analyzer.enrich_item_specifics(
+                    image_paths=analysis['ai_data']['image_paths'][:4],
+                    title=analysis['title'],
+                    identification=analysis.get('ai_data', {}).get('identification', {}),
+                    category_name=cat_result.get('name', ''),
+                    aspect_schema=ebay_aspect_schema,
+                    existing_specifics=analysis['item_specifics'],
+                )
+                analysis['item_specifics'] = enriched_specifics
+                _log(f"Enriched to {len(enriched_specifics)} item specifics (two-pass)")
+            except Exception as e:
+                _log(f"Aspect enrichment skipped: {e}", level='warning')
+
         # Persist category and aspect schema in ai_data
         ai_data = job_obj.ai_data or {}
         ai_data['category_id'] = cat_result.get('id')
@@ -304,12 +320,13 @@ class ProcessorService:
         # 5. Final Pricing
         shipping_cost = analysis.get('shipping_cost')
         pricing_result = self.ai_agent.get_final_pricing(
-            analysis['title'], 
-            condition, 
-            analysis['ai_suggested_price'], 
-            job_obj.user_price, 
+            analysis['title'],
+            condition,
+            analysis['ai_suggested_price'],
+            job_obj.user_price,
             shipping_cost=shipping_cost,
-            log_callback=log_callback
+            log_callback=log_callback,
+            identification=ai_data.get('identification'),
         )
         result["timing"]["pricing"] = pricing_result["timing"]
 

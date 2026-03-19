@@ -160,3 +160,87 @@ class TestBookFormatMapping:
         })
         specifics = mapper.map_research_to_specifics(data)
         assert specifics['Format'] == 'Paperback'
+
+
+"""Tests for two-pass item specifics enrichment."""
+from unittest.mock import patch, MagicMock, PropertyMock
+
+
+class TestAspectEnrichment:
+    """AI enrichment fills in eBay-required aspects from images + schema."""
+
+    def test_enrichment_merges_without_overwriting(self):
+        """New aspects are added but existing ones are preserved."""
+        from backend.app.services.ai_analyzer import AIAnalyzer
+
+        analyzer = AIAnalyzer.__new__(AIAnalyzer)
+        analyzer.client = None  # Disabled client returns existing
+
+        existing = {"Brand": "Xerox", "MPN": "108R00713"}
+        result = analyzer.enrich_item_specifics(
+            image_paths=[], title="Test", identification={},
+            category_name="Toner", aspect_schema=[], existing_specifics=existing,
+        )
+        assert result == existing  # No client -> passthrough
+
+    def test_enrichment_returns_existing_on_empty_schema(self):
+        """Empty aspect schema -> skip enrichment, return existing."""
+        from backend.app.services.ai_analyzer import AIAnalyzer
+
+        analyzer = AIAnalyzer.__new__(AIAnalyzer)
+        analyzer.client = MagicMock()
+
+        existing = {"Brand": "Test"}
+        result = analyzer.enrich_item_specifics(
+            image_paths=[], title="Test", identification={},
+            category_name="", aspect_schema=[], existing_specifics=existing,
+        )
+        assert result == existing
+
+    @patch("backend.app.services.ai_analyzer.limiter")
+    def test_enrichment_adds_new_fields(self, mock_limiter):
+        """When AI returns new aspects, they are merged in."""
+        from backend.app.services.ai_analyzer import AIAnalyzer
+
+        analyzer = AIAnalyzer.__new__(AIAnalyzer)
+        mock_client = MagicMock()
+        analyzer.client = mock_client
+
+        # Simulate AI returning new aspects
+        mock_response = MagicMock()
+        type(mock_response).text = PropertyMock(return_value='{"Color": "Cyan", "Brand": "Should Not Overwrite"}')
+        mock_client.models.generate_content.return_value = mock_response
+
+        existing = {"Brand": "Xerox"}
+        schema = [
+            {"name": "Color", "isRequired": True, "values": ["Cyan", "Magenta", "Yellow", "Black"]},
+            {"name": "Brand", "isRequired": True, "values": []},
+        ]
+
+        result = analyzer.enrich_item_specifics(
+            image_paths=[], title="Xerox Ink", identification={"brand": "Xerox"},
+            category_name="Toner Cartridges", aspect_schema=schema, existing_specifics=existing,
+        )
+        assert result["Color"] == "Cyan"
+        assert result["Brand"] == "Xerox"  # NOT overwritten
+
+    @patch("backend.app.services.ai_analyzer.limiter")
+    def test_enrichment_truncates_long_values(self, mock_limiter):
+        """Values longer than 65 chars are truncated."""
+        from backend.app.services.ai_analyzer import AIAnalyzer
+
+        analyzer = AIAnalyzer.__new__(AIAnalyzer)
+        mock_client = MagicMock()
+        analyzer.client = mock_client
+
+        long_value = "A" * 100
+        mock_response = MagicMock()
+        type(mock_response).text = PropertyMock(return_value=f'{{"Type": "{long_value}"}}')
+        mock_client.models.generate_content.return_value = mock_response
+
+        schema = [{"name": "Type", "isRequired": False, "values": []}]
+        result = analyzer.enrich_item_specifics(
+            image_paths=[], title="Test", identification={},
+            category_name="Test", aspect_schema=schema, existing_specifics={},
+        )
+        assert len(result["Type"]) == 65

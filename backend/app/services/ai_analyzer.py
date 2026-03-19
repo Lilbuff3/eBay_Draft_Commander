@@ -13,7 +13,7 @@ from google.genai import types
 from backend.app.core.logger import get_logger
 from backend.app.core.rate_limiter import limiter
 from backend.app.core.constants import AI_MODEL_NAME
-from backend.app.core.prompts import EBAY_LISTING_PROMPT, INDUSTRIAL_RESEARCH_PROMPT
+from backend.app.core.prompts import EBAY_LISTING_PROMPT, INDUSTRIAL_RESEARCH_PROMPT, ASPECT_ENRICHMENT_PROMPT
 
 logger = get_logger('ai_analyzer')
 
@@ -229,6 +229,117 @@ class AIAnalyzer:
             logger.error(f"AI analysis failed: {e}")
             return {"error": str(e)}
     
+    def enrich_item_specifics(self, image_paths: list, title: str, identification: dict,
+                               category_name: str, aspect_schema: list,
+                               existing_specifics: dict) -> dict:
+        """
+        Second-pass AI call: fill in item specifics using the eBay aspect schema.
+
+        This is a lightweight text+image call that passes the category's required
+        and optional aspects (with allowed values) so the AI can fill them in
+        accurately instead of guessing generic fields.
+
+        Args:
+            image_paths: Original product images (reused from analysis)
+            title: Item title
+            identification: Dict with brand/model/mpn from first AI pass
+            category_name: eBay category name
+            aspect_schema: List of aspect dicts from taxonomy API (each has name, isRequired, values)
+            existing_specifics: Already-filled specifics (won't be overwritten)
+
+        Returns:
+            Dict of aspect_name -> value (merged with existing)
+        """
+        if not self.client or not aspect_schema:
+            return existing_specifics
+
+        # Build the aspect list text for the prompt
+        aspect_lines = []
+        for aspect in aspect_schema:
+            name = aspect.get('name', '')
+            required = aspect.get('isRequired', False)
+            values = aspect.get('values', [])
+
+            tag = "REQUIRED" if required else "recommended"
+            if values:
+                # Show first 20 allowed values to keep prompt size reasonable
+                val_str = ", ".join(values[:20])
+                if len(values) > 20:
+                    val_str += f" ... ({len(values)} total)"
+                aspect_lines.append(f"- [{tag}] {name}: Allowed values: [{val_str}]")
+            else:
+                aspect_lines.append(f"- [{tag}] {name}: (free text)")
+
+        aspect_list_text = "\n".join(aspect_lines)
+
+        # Format existing specifics
+        existing_text = "\n".join(
+            f"- {k}: {v}" for k, v in existing_specifics.items() if v
+        ) or "(none filled yet)"
+
+        prompt = ASPECT_ENRICHMENT_PROMPT.format(
+            title=title,
+            brand=identification.get('brand', 'Unknown'),
+            model=identification.get('model', ''),
+            mpn=identification.get('mpn', ''),
+            category_name=category_name,
+            aspect_list=aspect_list_text,
+            existing_specifics=existing_text,
+        )
+
+        # Build content with images (reuse from first pass)
+        from PIL import Image as PILImage
+        contents = [prompt]
+        for path in image_paths[:4]:  # Limit to 4 images to keep call fast
+            try:
+                img = PILImage.open(path)
+                contents.append(img)
+            except Exception:
+                continue
+
+        try:
+            limiter.wait_if_needed('gemini')
+
+            config = types.GenerateContentConfig(
+                temperature=0.1,  # Low temp for factual extraction
+                max_output_tokens=2000,
+                response_mime_type="application/json",
+            )
+
+            response = self.client.models.generate_content(
+                model=AI_MODEL_NAME,
+                contents=contents,
+                config=config,
+            )
+
+            text = response.text.strip() if response.text else "{}"
+            # Clean markdown wrappers
+            if text.startswith('```json'):
+                text = text.split('```json')[1].split('```')[0]
+            elif text.startswith('```'):
+                text = text.split('```')[1].split('```')[0]
+
+            import json as json_mod
+            enriched = json_mod.loads(text.strip())
+
+            if not isinstance(enriched, dict):
+                logger.warning("Aspect enrichment returned non-dict")
+                return existing_specifics
+
+            # Merge: existing specifics take priority (don't overwrite user data)
+            merged = dict(existing_specifics)
+            for key, value in enriched.items():
+                if key not in merged or not merged[key]:
+                    # Truncate to eBay max
+                    merged[key] = str(value)[:65]
+
+            logger.info(f"Aspect enrichment added {len(merged) - len(existing_specifics)} new specifics")
+            return merged
+
+        except Exception as e:
+            logger.warning(f"Aspect enrichment failed (non-fatal): {e}")
+            return existing_specifics
+
     def analyze_folder(self, folder_path):
         """Analyze all images in a folder"""
         images = self.get_images_from_folder(folder_path)

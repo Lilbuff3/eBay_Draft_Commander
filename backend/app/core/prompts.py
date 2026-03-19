@@ -4,24 +4,28 @@ Centralized storage for AI prompts used in eBay Draft Commander
 
 EBAY_LISTING_PROMPT = """{category_suggestions}
 
-ROLE: You are an expert e-commerce specialist.
-GOAL: Extract structured data for eBay Inventory API.
-NOTE: This listing uses FREE SHIPPING. When suggesting a price, factor in an
-estimated shipping cost of $5-$12 (USPS Ground Advantage) so the seller's margin
-is preserved. Do NOT suggest a price that would be unprofitable after shipping.
+ROLE: You are an expert e-commerce product identifier and listing specialist.
+GOAL: Extract structured data for eBay Inventory API from product images.
 
-CRITICAL INSTRUCTIONS:
-1. IDENTIFICATION: Find Brand, Model, MPN (Part Number), and Serial Number.
+PRIORITY ORDER (spend most effort on #1 and #2):
+1. IDENTIFICATION (most important): Find Brand, Model, MPN (Part Number), Serial Number.
+   - Read ALL visible text, labels, stickers, and engravings in the images.
    - If multiple codes exist, list them all in `oem_part_numbers`.
    - Distinguish between the MANUFACTURER (Brand) and COMPATIBLE WITH (e.g. "For Dell").
-2. CATEGORY: Review the `category_suggestions` provided above. 
+   - Be precise with part numbers — a single wrong digit makes the listing unsearchable.
+2. CONDITION: Assess condition strictly based on visual evidence.
+   - Look for factory seals, shrink wrap, unopened bags -> "New Old Stock" or "New".
+   - Look for scratches, scuffs, dust, wear marks -> "Used".
+   - Note ALL visible defects in wear_details.
+3. CATEGORY: Review the `category_suggestions` provided above.
    - Choose the single most accurate `category_id` that matches the item.
    - Consider technical differences (e.g., a printer drum is NOT a musical drum).
    - If NONE of the suggestions are accurate, return `null` for the `category_id`.
-3. CONDITION: Assess condition strictly based on visual evidence.
-   - Look for factory seals -> "New Old Stock" or "New".
-   - Look for scratches/wear -> "Used".
 4. SPECIFICS: Extract technical specs (Voltage, Amps, Capacity, Size, Color).
+5. TITLE: Generate a search-optimized title (max 80 chars).
+6. PRICE: Provide a rough estimate ONLY as a ballback. This will be overridden by
+   market research. Do NOT spend effort researching pricing — just give your best
+   guess of the BASE market value (no shipping included).
 
 OUTPUT FORMAT: Return a JSON object with this EXACT structure:
 {{
@@ -60,8 +64,8 @@ OUTPUT FORMAT: Return a JSON object with this EXACT structure:
 INDUSTRIAL_RESEARCH_PROMPT = """Research this industrial equipment part for eBay listing:
 
 Item: {search_terms}
-NOTE: This listing uses FREE SHIPPING, so the market price should account for
-the seller covering shipping costs (~$5-$12 USPS depending on size/weight).
+NOTE: Return BASE market value only. Do NOT include shipping costs in prices.
+Shipping is calculated separately.
 
 Find and return:
 1. EXACT product specifications (capacity, speed, interface, voltage)
@@ -85,3 +89,35 @@ Provide your response in a JSON block like this:
 ```json
 {{ ... }}
 ```"""
+
+ASPECT_ENRICHMENT_PROMPT = """You are filling in eBay item specifics for a product listing.
+
+The item has already been identified as:
+- Title: {title}
+- Brand: {brand}
+- Model: {model}
+- MPN: {mpn}
+- Category: {category_name}
+
+Below are the REQUIRED and RECOMMENDED item specifics for this eBay category.
+For each aspect, I've listed the allowed values (if constrained by eBay).
+
+{aspect_list}
+
+EXISTING SPECIFICS (already filled, do NOT overwrite unless empty):
+{existing_specifics}
+
+INSTRUCTIONS:
+1. Using the product images and your knowledge of this product, fill in as many aspects as possible.
+2. For aspects with allowed values, you MUST pick from the allowed list (exact match).
+3. For free-text aspects, provide accurate values based on the images and product knowledge.
+4. If you genuinely cannot determine a value, omit it (do NOT guess randomly).
+5. Return ONLY a flat JSON object mapping aspect names to values.
+6. Aspect values must be strings, max 65 characters each.
+7. Do NOT include aspects you cannot determine.
+
+Return JSON:
+{{{{
+    "Aspect Name": "Value",
+    "Another Aspect": "Value"
+}}}}"""
