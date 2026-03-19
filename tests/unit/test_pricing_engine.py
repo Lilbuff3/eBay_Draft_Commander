@@ -146,25 +146,29 @@ class TestGetPriceWithComps:
     ]
 
     def test_isbn_search_succeeds(self, engine):
-        with patch.object(engine, "search_sold_listings", return_value=self._sold):
+        with patch.object(engine, "search_finding_api", return_value=[]), \
+             patch.object(engine, "search_sold_listings", return_value=self._sold):
             result = engine.get_price_with_comps("Test Book", isbn="1234567890")
         assert result["source"] == "market_data_isbn"
         assert result["suggested_price"] is not None
 
     def test_isbn_fallback_to_keyword(self, engine):
         # ISBN search returns empty, keyword search returns items
-        with patch.object(engine, "search_sold_listings", side_effect=[[], self._sold]):
+        with patch.object(engine, "search_finding_api", return_value=[]), \
+             patch.object(engine, "search_sold_listings", side_effect=[[], self._sold]):
             result = engine.get_price_with_comps("Test Book", isbn="1234567890")
         assert result["source"] == "market_data"
 
     def test_keyword_search_succeeds(self, engine):
-        with patch.object(engine, "search_sold_listings", return_value=self._sold):
+        with patch.object(engine, "search_finding_api", return_value=[]), \
+             patch.object(engine, "search_sold_listings", return_value=self._sold):
             result = engine.get_price_with_comps("Test Item Title")
         assert result["source"] == "market_data"
         assert result["suggested_price"] is not None
 
     def test_gemini_fallback(self, engine):
-        with patch.object(engine, "search_sold_listings", return_value=[]), \
+        with patch.object(engine, "search_finding_api", return_value=[]), \
+             patch.object(engine, "search_sold_listings", return_value=[]), \
              patch.object(engine, "get_ai_price_estimate", return_value={"price": 50.0, "reasoning": "AI est"}):
             result = engine.get_price_with_comps("Rare Gadget")
         assert result["source"] == "ai_grounded_research"
@@ -172,14 +176,16 @@ class TestGetPriceWithComps:
         assert result["suggested_price"] == 49.99
 
     def test_gemini_with_shipping_buffer(self, engine):
-        with patch.object(engine, "search_sold_listings", return_value=[]), \
+        with patch.object(engine, "search_finding_api", return_value=[]), \
+             patch.object(engine, "search_sold_listings", return_value=[]), \
              patch.object(engine, "get_ai_price_estimate", return_value={"price": 50.0, "reasoning": "AI est"}):
             result = engine.get_price_with_comps("Rare Gadget", shipping_cost=6.50)
         # 50 + 6.50 = 56.50 -> smart pricing: floor=56, cents=0.50 < 0.80 -> 55.99
         assert result["suggested_price"] == 55.99
 
     def test_ai_estimate_fallback(self, engine):
-        with patch.object(engine, "search_sold_listings", return_value=[]), \
+        with patch.object(engine, "search_finding_api", return_value=[]), \
+             patch.object(engine, "search_sold_listings", return_value=[]), \
              patch.object(engine, "get_ai_price_estimate", return_value=None):
             result = engine.get_price_with_comps("Unknown Widget", ai_suggested_price="30")
         assert result["source"] == "ai_estimate"
@@ -187,7 +193,8 @@ class TestGetPriceWithComps:
         assert result["suggested_price"] == 29.99
 
     def test_all_fail(self, engine):
-        with patch.object(engine, "search_sold_listings", return_value=[]), \
+        with patch.object(engine, "search_finding_api", return_value=[]), \
+             patch.object(engine, "search_sold_listings", return_value=[]), \
              patch.object(engine, "get_ai_price_estimate", return_value=None):
             result = engine.get_price_with_comps("Unknown Widget")
         assert result["source"] == "failed_requires_manual"
@@ -195,7 +202,8 @@ class TestGetPriceWithComps:
 
     def test_research_link_always_present(self, engine):
         # Every code path should return a research_link
-        with patch.object(engine, "search_sold_listings", return_value=[]), \
+        with patch.object(engine, "search_finding_api", return_value=[]), \
+             patch.object(engine, "search_sold_listings", return_value=[]), \
              patch.object(engine, "get_ai_price_estimate", return_value=None):
             result = engine.get_price_with_comps("Anything At All")
         assert "research_link" in result
@@ -335,9 +343,10 @@ class TestSmartPricingRounding:
 class TestShippingBufferConsistency:
     """Shipping buffer must be added exactly once across all pricing paths."""
 
+    @patch.object(PricingEngine, 'search_finding_api', return_value=[])
     @patch.object(PricingEngine, 'search_sold_listings', return_value=[])
     @patch.object(PricingEngine, 'get_ai_price_estimate')
-    def test_ai_grounding_adds_shipping_once(self, mock_ai_est, mock_search, engine):
+    def test_ai_grounding_adds_shipping_once(self, mock_ai_est, mock_search, mock_finding, engine):
         """AI grounding returns base price; shipping added by get_price_with_comps, not the prompt."""
         mock_ai_est.return_value = {"price": 50.00, "reasoning": "Based on research"}
         result = engine.get_price_with_comps("Test Item", condition="USED_GOOD", shipping_cost=6.50)
@@ -346,9 +355,10 @@ class TestShippingBufferConsistency:
         assert result["suggested_price"] == 55.99
         assert result["source"] == "ai_grounded_research"
 
+    @patch.object(PricingEngine, 'search_finding_api', return_value=[])
     @patch.object(PricingEngine, 'search_sold_listings', return_value=[])
     @patch.object(PricingEngine, 'get_ai_price_estimate', return_value=None)
-    def test_ai_fallback_adds_shipping_once(self, mock_ai_est, mock_search, engine):
+    def test_ai_fallback_adds_shipping_once(self, mock_ai_est, mock_search, mock_finding, engine):
         """AI image estimate fallback also adds shipping exactly once."""
         result = engine.get_price_with_comps("Test Item", condition="USED_GOOD", ai_suggested_price="40.00", shipping_cost=6.50)
         # ai_suggested_price=40, shipping 6.50 added once = 46.50
@@ -448,3 +458,91 @@ class TestFindingAPISoldSearch:
         with patch("requests.get", side_effect=Exception("Network error")):
             items = engine.search_finding_api("Test")
         assert items == []
+
+
+# ---------------------------------------------------------------------------
+# TestFindingAPIIntegration
+# ---------------------------------------------------------------------------
+
+class TestFindingAPIIntegration:
+    """Finding API is tried first in the pricing cascade."""
+
+    def test_finding_api_used_before_browse(self, engine):
+        """Finding API results are used when available (skips Browse API)."""
+        finding_items = [
+            {"title": "Sold Item", "price": 40.0, "condition": "Used",
+             "end_date": "2026-03-10", "url": "http://example.com", "currency": "USD"}
+        ]
+        with patch.object(engine, "search_finding_api", return_value=finding_items) as mock_finding, \
+             patch.object(engine, "search_sold_listings") as mock_browse:
+            result = engine.get_price_with_comps("Test Item")
+        mock_finding.assert_called()
+        mock_browse.assert_not_called()
+        assert result["source"] == "market_data_sold"
+
+    def test_fallback_to_browse_when_finding_empty(self, engine):
+        """When Finding API returns nothing, Browse API is tried next."""
+        browse_items = [
+            {"title": "Active Item", "price": 35.0, "condition": "Used",
+             "end_date": "Active", "url": "http://example.com"}
+        ]
+        with patch.object(engine, "search_finding_api", return_value=[]), \
+             patch.object(engine, "search_sold_listings", return_value=browse_items):
+            result = engine.get_price_with_comps("Test Item")
+        assert result["source"] == "market_data"
+
+    def test_finding_api_isbn_path(self, engine):
+        """ISBN search also uses Finding API first."""
+        finding_items = [
+            {"title": "Book", "price": 25.0, "condition": "Good",
+             "end_date": "2026-03-10", "url": "http://example.com", "currency": "USD"}
+        ]
+        with patch.object(engine, "search_finding_api", return_value=finding_items):
+            result = engine.get_price_with_comps("Test Book", isbn="9780123456789")
+        assert result["source"] == "market_data_isbn_sold"
+
+    def test_finding_api_identifier_path(self, engine):
+        """Identifier search (brand+mpn) also uses Finding API first."""
+        finding_items = [
+            {"title": "Xerox Part", "price": 55.0, "condition": "New",
+             "end_date": "2026-03-10", "url": "http://example.com", "currency": "USD"}
+        ]
+        ident = {"brand": "Xerox", "mpn": "108R00713", "model": ""}
+        with patch.object(engine, "search_finding_api", return_value=finding_items):
+            result = engine.get_price_with_comps("Xerox Solid Ink", identification=ident)
+        assert result["source"] == "market_data_id_sold"
+
+
+# ---------------------------------------------------------------------------
+# TestSmartQueryConstruction
+# ---------------------------------------------------------------------------
+
+class TestSmartQueryConstruction:
+    """Search queries should prioritize identifiers over raw title words."""
+
+    def test_build_search_query_uses_brand_mpn(self):
+        engine = PricingEngine.__new__(PricingEngine)
+        query = engine._build_keyword_query(
+            title="Genuine Xerox 108R00713 Solid Ink Cyan for Phaser 8560 OEM New",
+            identification={"brand": "Xerox", "mpn": "108R00713", "model": "Phaser 8560"}
+        )
+        assert "Xerox" in query
+        assert "108R00713" in query
+
+    def test_build_search_query_fallback_to_title(self):
+        engine = PricingEngine.__new__(PricingEngine)
+        query = engine._build_keyword_query(
+            title="Vintage Brass Compass Navigation Tool Antique Maritime",
+            identification=None
+        )
+        assert "Vintage" in query
+        assert len(query.split()) <= 8
+
+    def test_build_search_query_no_duplicate_brand(self):
+        """If brand is already in the title fragment, don't double it."""
+        engine = PricingEngine.__new__(PricingEngine)
+        query = engine._build_keyword_query(
+            title="Xerox 108R00713 Solid Ink",
+            identification={"brand": "Xerox", "mpn": "108R00713", "model": ""}
+        )
+        assert query.count("Xerox") == 1

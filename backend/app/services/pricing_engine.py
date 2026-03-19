@@ -531,57 +531,116 @@ class PricingEngine:
 
         return None
 
+    def _build_keyword_query(self, title: str, identification: Optional[Dict] = None) -> str:
+        """Build an optimized search query from identifiers or title.
+
+        Priority:
+        1. Brand + MPN (most precise, what buyers search by)
+        2. Brand + Model (good fallback)
+        3. First 8 words of title (last resort)
+        """
+        if identification:
+            brand = identification.get('brand', '').strip()
+            mpn = identification.get('mpn', '').strip()
+            model = identification.get('model', '').strip()
+            product_type = identification.get('product_type', '').strip()
+
+            # Strategy: brand + mpn + product_type
+            if brand and mpn:
+                parts = [brand, mpn]
+                if product_type and len(" ".join(parts + [product_type])) <= 60:
+                    parts.append(product_type)
+                return " ".join(parts)
+
+            # Strategy: brand + model
+            if brand and model:
+                parts = [brand, model]
+                if product_type and len(" ".join(parts + [product_type])) <= 60:
+                    parts.append(product_type)
+                return " ".join(parts)
+
+        # Fallback: first 8 words of title
+        return " ".join(title.split()[:8])
+
     def get_price_with_comps(self, title: str, condition: str = "Used - Good", category_id: Optional[str] = None, ai_suggested_price: Optional[str] = None, acquisition_cost: float = 0.0, isbn: Optional[str] = None, shipping_cost: float = 0.0, identification: Optional[Dict] = None) -> Dict[str, Any]:
         """
         Main entry point: Get suggested price and comparable sales data.
-        Falls back to AI suggestion if API fails.
 
-        Args:
-            shipping_cost: Estimated shipping cost to bake into price when using free shipping (default 0.0)
-            identification: Optional AI identification dict with brand/model/mpn for smarter search
+        Pricing cascade (in priority order):
+        0. User override (handled by caller)
+        1. ISBN search -- Finding API (sold) -> Browse API (active)
+        1.5. MPN/Model search -- Finding API (sold) -> Browse API (active)
+        2. Keyword search -- Finding API (sold) -> Browse API (active)
+        3. Gemini + Google Search grounding
+        4. AI vision estimate (weakest signal)
+        5. Fail loudly (returns None)
         """
-        # Generate research link for user
         research_link = self.generate_ebay_search_link(title)
-
-        search_query = ""
 
         # --- STRATEGY 1: ISBN SEARCH (Gold Standard for Books) ---
         if isbn:
-             logger.info(f"[SEARCH] Searching sold listings by ISBN: {isbn}...")
-             sold_items = self.search_sold_listings(isbn, category_id, limit=15)
+            # Try Finding API (sold data) first
+            logger.info(f"[SEARCH] ISBN sold search: {isbn}...")
+            sold_items = self.search_finding_api(isbn, category_id, limit=15)
+            if sold_items:
+                price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost)
+                logger.info(f"   [PRICE] Sold price (ISBN): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
+                return {
+                    "suggested_price": price_data["suggested_price"],
+                    "comps": sold_items[:5],
+                    "reasoning": f"ISBN Sold Match: {price_data['reasoning']}",
+                    "projected_profit": price_data.get("projected_profit"),
+                    "source": "market_data_isbn_sold",
+                    "research_link": self.generate_ebay_search_link(isbn)
+                }
 
-             if sold_items:
-                 price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost)
-                 logger.info(f"   [PRICE] Market price (ISBN): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
-
-                 return {
+            # Fallback: Browse API (active listings)
+            logger.info(f"   [WARN] No sold data for ISBN, trying active listings...")
+            sold_items = self.search_sold_listings(isbn, category_id, limit=15)
+            if sold_items:
+                price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost)
+                logger.info(f"   [PRICE] Active price (ISBN): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
+                return {
                     "suggested_price": price_data["suggested_price"],
                     "comps": sold_items[:5],
                     "reasoning": f"ISBN Match: {price_data['reasoning']}",
                     "projected_profit": price_data.get("projected_profit"),
                     "source": "market_data_isbn",
-                    "research_link": self.generate_ebay_search_link(isbn) # Override link
+                    "research_link": self.generate_ebay_search_link(isbn)
                 }
-             else:
-                 logger.info("   [WARN] No sales found for exact ISBN, falling back to title...")
+            logger.info("   [WARN] No sales found for ISBN, falling back to title...")
 
-        # --- STRATEGY 1.5: MPN/MODEL SEARCH (more precise than title keywords) ---
+        # --- STRATEGY 1.5: MPN/MODEL SEARCH ---
         if identification:
             mpn = identification.get('mpn', '')
             brand = identification.get('brand', '')
             model = identification.get('model', '')
 
-            # Build a targeted search query from identifiers
             id_parts = [p for p in [brand, mpn or model] if p]
             if id_parts and len(" ".join(id_parts)) >= 5:
                 id_query = " ".join(id_parts)
-                logger.info(f"[SEARCH] Searching sold listings by identifiers: {id_query}...")
-                sold_items = self.search_sold_listings(id_query, category_id, limit=15)
 
+                # Try Finding API (sold data) first
+                logger.info(f"[SEARCH] Identifier sold search: {id_query}...")
+                sold_items = self.search_finding_api(id_query, category_id, limit=15)
                 if sold_items:
                     price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost)
-                    logger.info(f"   [PRICE] Market price (ID): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
+                    logger.info(f"   [PRICE] Sold price (ID): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
+                    return {
+                        "suggested_price": price_data["suggested_price"],
+                        "comps": sold_items[:5],
+                        "reasoning": f"ID Sold Match ({id_query}): {price_data['reasoning']}",
+                        "projected_profit": price_data.get("projected_profit"),
+                        "source": "market_data_id_sold",
+                        "research_link": self.generate_ebay_search_link(id_query)
+                    }
 
+                # Fallback: Browse API (active listings)
+                logger.info(f"   [WARN] No sold data for identifiers, trying active listings...")
+                sold_items = self.search_sold_listings(id_query, category_id, limit=15)
+                if sold_items:
+                    price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost)
+                    logger.info(f"   [PRICE] Active price (ID): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
                     return {
                         "suggested_price": price_data["suggested_price"],
                         "comps": sold_items[:5],
@@ -590,21 +649,32 @@ class PricingEngine:
                         "source": "market_data_id",
                         "research_link": self.generate_ebay_search_link(id_query)
                     }
-                else:
-                    logger.info("   [WARN] No sales found for identifiers, falling back to title...")
+                logger.info("   [WARN] No sales found for identifiers, falling back to title...")
 
         # --- STRATEGY 2: KEYWORD SEARCH ---
-        # Clean up title for search (remove special chars, limit length)
-        search_query = " ".join(title.split()[:8])  # First 8 words
-        
-        logger.info(f"[SEARCH] Searching sold listings for: {search_query[:50]}...")
-        
-        sold_items = self.search_sold_listings(search_query, category_id, limit=15)
-        
+        search_query = self._build_keyword_query(title, identification)
+
+        # Try Finding API (sold data) first
+        logger.info(f"[SEARCH] Keyword sold search: {search_query[:50]}...")
+        sold_items = self.search_finding_api(search_query, category_id, limit=15)
         if sold_items:
             price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost)
-            logger.info(f"   [PRICE] Market price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
-            
+            logger.info(f"   [PRICE] Sold price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
+            return {
+                "suggested_price": price_data["suggested_price"],
+                "comps": sold_items[:5],
+                "reasoning": f"Sold: {price_data['reasoning']}",
+                "projected_profit": price_data.get("projected_profit"),
+                "source": "market_data_sold",
+                "research_link": research_link
+            }
+
+        # Fallback: Browse API (active listings)
+        logger.info(f"   [WARN] No sold data, trying active listings: {search_query[:50]}...")
+        sold_items = self.search_sold_listings(search_query, category_id, limit=15)
+        if sold_items:
+            price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost)
+            logger.info(f"   [PRICE] Active price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
             return {
                 "suggested_price": price_data["suggested_price"],
                 "comps": sold_items[:5],
@@ -613,11 +683,10 @@ class PricingEngine:
                 "source": "market_data",
                 "research_link": research_link
             }
-        
-        # Try Gemini Grounding (Mandatory if no comps)
+
+        # --- STRATEGY 3: GEMINI GROUNDING ---
         logger.info(f"[SEARCH] Performing AI Market Research (Gemini Grounding)...")
         grounded_result = self.get_ai_price_estimate(title, condition)
-        
         if grounded_result:
             ai_price = grounded_result['price']
             ai_reasoning = grounded_result.get('reasoning', "Researched via Gemini")
@@ -633,8 +702,8 @@ class PricingEngine:
                 "source": "ai_grounded_research",
                 "research_link": research_link
             }
-        
-        # Fallback to AI suggestion from analyzer (image-based) ONLY if valid
+
+        # --- STRATEGY 4: AI VISION ESTIMATE ---
         if ai_suggested_price:
             fallback_price = float(ai_suggested_price)
             fallback_reasoning = "Based on logical inference from visual analysis (No market data found)"
@@ -650,12 +719,11 @@ class PricingEngine:
                 "source": "ai_estimate",
                 "research_link": research_link
             }
-            
-        # LAST RESORT: Fail Loudly (No Default)
-        # User requested NO DEFAULT PRICING for undervalued items.
+
+        # --- STRATEGY 5: FAIL LOUDLY ---
         logger.warning("   [FAIL] Price discovery failed. Manual pricing required.")
         return {
-            "suggested_price": None, 
+            "suggested_price": None,
             "comps": [],
             "reasoning": "Could not determine price. Manual input required.",
             "source": "failed_requires_manual",
