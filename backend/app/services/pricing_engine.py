@@ -173,9 +173,10 @@ class PricingEngine:
             suggested_price = round(target_price, 2)
             margin_boost = True
             
-        # Smart pricing: round to .99 or .95
+        # Smart pricing: round to .99
+        import math
         if suggested_price > 10:
-            suggested_price = round(suggested_price) - 0.01  # e.g., 45.00 -> 44.99
+            suggested_price = math.ceil(suggested_price) - 0.01  # e.g., 44.32 -> 44.99
         
         reasoning = f"Median of {len(prices)} sales (${median_price:.2f}) × {multiplier:.0%} condition"
         if shipping_buffered:

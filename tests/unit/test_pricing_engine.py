@@ -82,8 +82,8 @@ class TestCalculateSuggestedPrice:
         items = _make_sold_items([40])
         result = engine.calculate_suggested_price(items, our_condition="New", shipping_cost=6.50)
         # median=40, multiplier=1.0 -> 40 + 6.50 = 46.50
-        # smart pricing: round(46.50) = 46 (banker's rounding) -> 46 - 0.01 = 45.99
-        assert result["suggested_price"] == 45.99
+        # smart pricing: ceil(46.50) = 47 -> 47 - 0.01 = 46.99
+        assert result["suggested_price"] == 46.99
         assert "shipping" in result["reasoning"]
 
     def test_smart_99_above_10(self, engine):
@@ -277,3 +277,37 @@ class TestGenerateSearchLink:
         url = engine.generate_ebay_search_link(title)
         assert "Seven" not in url
         assert "Six" in url
+
+
+# ---------------------------------------------------------------------------
+# TestSmartPricingRounding
+# ---------------------------------------------------------------------------
+
+
+class TestSmartPricingRounding:
+    """Smart pricing should round UP to nearest .99, not down."""
+
+    def test_price_rounds_up_to_99(self, engine):
+        """$44.32 should become $44.99, not $43.99"""
+        items = _make_sold_items([44.32])
+        result = engine.calculate_suggested_price(items, our_condition="New")
+        # median=44.32, multiplier=1.0, smart pricing -> 44.99
+        assert result["suggested_price"] == 44.99
+
+    def test_price_at_whole_number_stays_99(self, engine):
+        """$45.00 should become $44.99 (round down from exact whole)"""
+        items = _make_sold_items([45.00])
+        result = engine.calculate_suggested_price(items, our_condition="New")
+        assert result["suggested_price"] == 44.99
+
+    def test_price_just_above_whole_rounds_up(self, engine):
+        """$45.01 should become $45.99"""
+        items = _make_sold_items([45.01])
+        result = engine.calculate_suggested_price(items, our_condition="New")
+        assert result["suggested_price"] == 45.99
+
+    def test_price_under_10_no_rounding(self, engine):
+        """Prices <= $10 should NOT be smart-rounded"""
+        items = _make_sold_items([8.50])
+        result = engine.calculate_suggested_price(items, our_condition="New")
+        assert result["suggested_price"] == 8.50
