@@ -38,6 +38,11 @@ class BookService:
                 # Get the first match
                 volume = data['items'][0].get('volumeInfo', {})
                 
+                # Map Google Books printType to eBay format
+                print_type = volume.get('printType', '')
+                format_map = {'BOOK': 'Paperback', 'MAGAZINE': 'Magazine'}
+                book_format = format_map.get(print_type, 'Paperback')
+
                 return {
                     'success': True,
                     'title': volume.get('title'),
@@ -48,6 +53,8 @@ class BookService:
                     'pageCount': volume.get('pageCount'),
                     'categories': volume.get('categories', []),
                     'thumbnail': volume.get('imageLinks', {}).get('thumbnail'),
+                    'language': volume.get('language', 'en'),
+                    'format': book_format,
                     'isbn': isbn,
                     'source': 'google_books'
                 }

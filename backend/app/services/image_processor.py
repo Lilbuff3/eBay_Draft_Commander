@@ -121,15 +121,22 @@ class ImageProcessor:
             successful_urls = []
             failed_images = []
 
+            def _throttled_upload(img):
+                """Upload with rate limiting to avoid eBay 429 errors."""
+                from backend.app.core.rate_limiter import limiter
+                limiter.wait_if_needed('ebay')
+                return upload_image_to_eps(img)
+
             with ThreadPoolExecutor(max_workers=4) as executor:
-                futures = {executor.submit(upload_image_to_eps, img): img for img in processed_images}
+                futures = {executor.submit(_throttled_upload, img): img for img in processed_images}
                 result_map = {}
                 for future in as_completed(futures):
                     img = futures[future]
                     try:
                         url = future.result()
                         result_map[img] = url
-                    except Exception:
+                    except Exception as e:
+                        logger.warning(f"Upload exception for {img.name}: {e}")
                         result_map[img] = None
 
             # Preserve original order (first image = eBay cover photo)

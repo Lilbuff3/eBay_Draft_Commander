@@ -148,14 +148,17 @@ class TestUploadImages:
     @patch('backend.app.services.image_processor.upload_image_to_eps')
     def test_extras_appended_sorted(self, mock_upload, mock_reachable, processor, image_folder):
         create_test_images(image_folder, ['a.jpg', 'b.jpg', 'c.jpg'])
-        mock_upload.return_value = 'https://i.ebayimg.com/images/test.jpg'
+        mock_upload.side_effect = lambda p: f'https://i.ebayimg.com/images/{p.name}'
 
         result = processor.upload_images(image_folder, ordered_filenames=['c.jpg', 'a.jpg'])
 
         assert 'urls' in result
-        call_args = [call[0][0].name for call in mock_upload.call_args_list]
-        # c.jpg first (explicit), a.jpg second (explicit), b.jpg last (remaining, sorted)
-        assert call_args == ['c.jpg', 'a.jpg', 'b.jpg']
+        # Result order must respect ordered_filenames: c.jpg first, a.jpg second, b.jpg last
+        assert result['urls'] == [
+            'https://i.ebayimg.com/images/c.jpg',
+            'https://i.ebayimg.com/images/a.jpg',
+            'https://i.ebayimg.com/images/b.jpg',
+        ]
 
     @patch('backend.app.services.image_processor.check_endpoint_reachability', return_value=False)
     @patch('backend.app.services.image_processor.upload_image_to_eps')
@@ -168,9 +171,10 @@ class TestUploadImages:
         assert 'unreachable' in result['error'].lower()
         mock_upload.assert_not_called()
 
+    @patch('backend.app.core.rate_limiter.limiter')
     @patch('backend.app.services.image_processor.check_endpoint_reachability', return_value=True)
     @patch('backend.app.services.image_processor.upload_image_to_eps')
-    def test_parallel_upload_faster_than_serial(self, mock_upload, mock_reachable, processor, image_folder):
+    def test_parallel_upload_faster_than_serial(self, mock_upload, mock_reachable, mock_limiter, processor, image_folder):
         """Multiple uploads should complete faster than serial execution."""
         create_test_images(image_folder, [f'img_{i}.jpg' for i in range(6)])
 
@@ -189,9 +193,10 @@ class TestUploadImages:
         # Serial would be ~1.8s (6 x 0.3s). Parallel with 4 workers should be < 1.0s.
         assert elapsed < 1.0, f"Expected parallel uploads < 1.0s, got {elapsed:.2f}s"
 
+    @patch('backend.app.core.rate_limiter.limiter')
     @patch('backend.app.services.image_processor.check_endpoint_reachability', return_value=True)
     @patch('backend.app.services.image_processor.upload_image_to_eps')
-    def test_parallel_upload_preserves_order(self, mock_upload, mock_reachable, processor, image_folder):
+    def test_parallel_upload_preserves_order(self, mock_upload, mock_reachable, mock_limiter, processor, image_folder):
         """Parallel uploads must preserve original image order."""
         create_test_images(image_folder, ['a.jpg', 'b.jpg', 'c.jpg', 'd.jpg'])
 
