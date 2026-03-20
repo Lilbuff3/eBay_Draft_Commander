@@ -319,8 +319,7 @@ class AIAnalyzer:
             elif text.startswith('```'):
                 text = text.split('```')[1].split('```')[0]
 
-            import json as json_mod
-            enriched = json_mod.loads(text.strip())
+            enriched = json.loads(text.strip())
 
             if not isinstance(enriched, dict):
                 logger.warning("Aspect enrichment returned non-dict")

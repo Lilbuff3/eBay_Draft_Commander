@@ -117,7 +117,7 @@ INSTRUCTIONS:
 7. Do NOT include aspects you cannot determine.
 
 Return JSON:
-{{{{
+{{
     "Aspect Name": "Value",
     "Another Aspect": "Value"
-}}}}"""
+}}"""

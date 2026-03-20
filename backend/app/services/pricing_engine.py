@@ -11,6 +11,7 @@ from typing import List, Dict, Optional, Union, Any
 from urllib.parse import quote
 from backend.app.core.constants import AI_PRICING_MODEL
 from backend.app.core.logger import get_logger
+from backend.app.core.rate_limiter import limiter
 
 logger = get_logger('pricing_engine')
 
@@ -20,15 +21,15 @@ class PricingEngine:
 
     Pricing cascade (in priority order):
     0. User override (manual price)
-    1. ISBN search (exact match via Browse API)
-    1.5. MPN/Model search (AI-extracted identifiers via Browse API)
-    2. Keyword search (first 8 words of title via Browse API)
+    1. ISBN search — Finding API (sold) -> Browse API (active)
+    1.5. MPN/Model search — Finding API (sold) -> Browse API (active)
+    2. Keyword search — Finding API (sold) -> Browse API (active)
     3. Gemini + Google Search grounding (AI web research)
     4. AI vision estimate (suggested_price from image analysis — weakest signal)
     5. Fail loudly (returns None, requires manual pricing)
 
     TODO (Future): Comp Image Comparison
-    - Fetch thumbnail images from Browse API sold listings
+    - Finding API returns sold data; fetch thumbnail images from results
     - Use Gemini multimodal to compare our product photos against comp photos
     - Score visual similarity to filter out non-matching comps
     - Weight prices by visual similarity for more accurate estimates
@@ -199,7 +200,7 @@ class PricingEngine:
             "itemFilter(0).value": "true",
             "itemFilter(1).name": "Currency",
             "itemFilter(1).value": "USD",
-            "sortOrder": "EndTimeSoonest",
+            "sortOrder": "EndTimeNewest",
         }
 
         if category_id:
@@ -208,6 +209,7 @@ class PricingEngine:
         try:
             import xml.etree.ElementTree as ET
 
+            limiter.wait_if_needed('ebay')
             response = requests.get(self.FINDING_API_URL, params=params, timeout=15)
 
             if response.status_code != 200:
@@ -611,6 +613,7 @@ class PricingEngine:
             logger.info("   [WARN] No sales found for ISBN, falling back to title...")
 
         # --- STRATEGY 1.5: MPN/MODEL SEARCH ---
+        id_query_tried = None
         if identification:
             mpn = identification.get('mpn', '')
             brand = identification.get('brand', '')
@@ -619,6 +622,7 @@ class PricingEngine:
             id_parts = [p for p in [brand, mpn or model] if p]
             if id_parts and len(" ".join(id_parts)) >= 5:
                 id_query = " ".join(id_parts)
+                id_query_tried = id_query
 
                 # Try Finding API (sold data) first
                 logger.info(f"[SEARCH] Identifier sold search: {id_query}...")
@@ -653,6 +657,10 @@ class PricingEngine:
 
         # --- STRATEGY 2: KEYWORD SEARCH ---
         search_query = self._build_keyword_query(title, identification)
+
+        # Avoid re-searching the same query we already tried in Strategy 1.5
+        if id_query_tried and search_query == id_query_tried:
+            search_query = " ".join(title.split()[:8])  # Force title fallback
 
         # Try Finding API (sold data) first
         logger.info(f"[SEARCH] Keyword sold search: {search_query[:50]}...")
