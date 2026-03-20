@@ -389,7 +389,7 @@ class PricingEngine:
             "median_price": round(median_price, 2),
             "multiplier": multiplier,
             "reasoning": reasoning,
-            "projected_profit": round(suggested_price - est_fees - acquisition_cost, 2)
+            "projected_profit": round(suggested_price - est_fees - acquisition_cost - shipping_cost, 2)
         }
     
     def generate_ebay_search_link(self, title: str) -> str:
