@@ -213,7 +213,7 @@ export function ReviewQueue() {
                                                     />
                                                 ) : (
                                                     <>
-                                                        <h4 className="font-bold text-stone-900 leading-tight mb-1 truncate">{listing.name}</h4>
+                                                        <h4 className="font-bold text-stone-900 leading-tight mb-1 truncate">{listing.display_name || listing.name}</h4>
                                                         <div className="flex items-center gap-2">
                                                             <Badge variant="outline" className="text-[10px] uppercase tracking-wider font-bold bg-amber-50 text-amber-600 border-amber-200">Pending Review</Badge>
                                                             <span className="text-[10px] text-stone-400 font-medium truncate opacity-60">{listing.folder_path}</span>

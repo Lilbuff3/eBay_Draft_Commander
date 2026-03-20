@@ -110,18 +110,17 @@ def get_job_details(job_id):
     if not job:
         return error_response('Job not found', 404)
     job_folder = Path(job.folder_path)
-    if not job_folder.exists():
-        return error_response('Job folder not found', 404)
-    
+
     ai_data = job.ai_data or {}
     images = []
-    for file in job_folder.iterdir():
-        if file.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
-            images.append({
-                'name': file.name,
-                'path': str(file),
-                'url': f'/api/job/{job_id}/image/{file.name}'
-            })
+    if job_folder.exists():
+        for file in job_folder.iterdir():
+            if file.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
+                images.append({
+                    'name': file.name,
+                    'path': str(file),
+                    'url': f'/api/job/{job_id}/image/{file.name}'
+                })
     
     listing = ai_data.get('listing', {})
     identification = ai_data.get('identification', {})
