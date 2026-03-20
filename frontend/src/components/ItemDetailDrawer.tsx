@@ -175,7 +175,7 @@ export function ItemDetailDrawer({
 
                 <SheetHeader className="px-6 pt-4 pb-2 flex-shrink-0">
                     <SheetTitle className="text-lg font-display">
-                        {job?.name || 'Item Details'}
+                        {job?.display_name || job?.name || 'Item Details'}
                     </SheetTitle>
                     <SheetDescription>
                         Review and edit before listing

@@ -103,7 +103,13 @@ def validate_condition(condition):
     
     if not condition:
         return 'USED_GOOD' # Default fallback
-        
+
+    # Handle dict input (e.g. from AI response: {"state": "Used - Like New", ...})
+    if isinstance(condition, dict):
+        condition = condition.get('state') or condition.get('value') or condition.get('condition') or ''
+        if not condition:
+            return 'USED_GOOD'
+
     # Standardize: uppercase and remove non-alphanumeric (keep underscores)
     cond_norm = re.sub(r'[^A-Z0-9_]', '', str(condition).upper().replace('-', '_').replace(' ', '_'))
     # Remove duplicate underscores
@@ -114,6 +120,7 @@ def validate_condition(condition):
         'NEW_OLD_STOCK': 'NEW_OTHER',
         'NEW_OPEN_BOX': 'NEW_OTHER',
         'LIKE_NEW': 'USED_EXCELLENT',
+        'USED_LIKE_NEW': 'USED_EXCELLENT',
         'VERY_GOOD': 'USED_VERY_GOOD',
         'GOOD': 'USED_GOOD',
         'ACCEPTABLE': 'USED_ACCEPTABLE',

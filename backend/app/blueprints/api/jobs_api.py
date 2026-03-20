@@ -7,7 +7,7 @@ from werkzeug.utils import secure_filename
 from backend.app.blueprints.api.helpers import error_response
 from backend.app.services.image_service import ImageService
 from backend.app.core.constants import SUPPORTED_IMAGE_EXTENSIONS
-from backend.app.core.validator import validate_price, validate_title, validate_isbn, ValidationError
+from backend.app.core.validator import validate_price, validate_title, validate_isbn, validate_condition, ValidationError
 from backend.app.core.logger import get_logger
 from backend.app.services.queue_job import resolve_thumbnail
 
@@ -110,18 +110,17 @@ def get_job_details(job_id):
     if not job:
         return error_response('Job not found', 404)
     job_folder = Path(job.folder_path)
-    if not job_folder.exists():
-        return error_response('Job folder not found', 404)
-    
+
     ai_data = job.ai_data or {}
     images = []
-    for file in job_folder.iterdir():
-        if file.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
-            images.append({
-                'name': file.name,
-                'path': str(file),
-                'url': f'/api/job/{job_id}/image/{file.name}'
-            })
+    if job_folder.exists():
+        for file in job_folder.iterdir():
+            if file.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
+                images.append({
+                    'name': file.name,
+                    'path': str(file),
+                    'url': f'/api/job/{job_id}/image/{file.name}'
+                })
     
     listing = ai_data.get('listing', {})
     identification = ai_data.get('identification', {})
@@ -155,7 +154,7 @@ def get_job_details(job_id):
             'price_source': ai_data.get('price_source', 'AI estimate'),
             'market_price': ai_data.get('research', {}).get('market_price', {})
         },
-        'condition': job.user_condition or condition_data if condition_data else ai_data.get('condition'),
+        'condition': job.user_condition or (condition_data.get('state') if isinstance(condition_data, dict) else condition_data) or '',
         'condition_id': ai_data.get('condition_id'),
         'condition_description': ai_data.get('condition_description'),
         'analysis_mode': ai_data.get('analysis_mode'),
@@ -193,7 +192,7 @@ def update_job_metadata(job_id):
         if 'description' in data:
             updates['user_description'] = data['description']
         if 'condition' in data:
-            updates['user_condition'] = data['condition']
+            updates['user_condition'] = validate_condition(data['condition'])
         if 'item_specifics' in data:
             updates['item_specifics'] = data['item_specifics']
         if 'category_id' in data and data['category_id']:
