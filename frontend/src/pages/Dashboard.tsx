@@ -183,7 +183,11 @@ export function Dashboard() {
                     const newDraft: Partial<ItemDraft> = {
                         title: details.user_title || details.ai_title || selectedJob.name,
                         price: details.suggested_price ? String(details.suggested_price) : '29.99',
-                        condition: details.condition ? String(details.condition) : '',
+                        condition: details.condition
+                            ? (typeof details.condition === 'object' && details.condition !== null
+                                ? String((details.condition as Record<string, unknown>).state ?? (details.condition as Record<string, unknown>).value ?? '')
+                                : String(details.condition))
+                            : '',
                         categoryId: details.category_id || '',
                         categoryName: details.category_name || ''
                     }
