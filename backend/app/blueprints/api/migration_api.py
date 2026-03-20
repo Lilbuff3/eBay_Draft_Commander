@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request, current_app
 from backend.app.services.ebay.trading import TradingService
 from backend.app.services.ebay.inventory import InventoryService
 from backend.app.services.ebay.policies import load_env
+from backend.app.core.database import JobModel
 from backend.app.core.logger import get_logger
 from .helpers import error_response
 
@@ -39,7 +40,6 @@ def check_legacy_listings():
             if queue_manager:
                 session = queue_manager.SessionFactory()
                 try:
-                    from backend.app.core.database import JobModel
                     rows = session.query(JobModel.listing_id).filter(
                         JobModel.listing_id.isnot(None),
                         JobModel.listing_id != ''
