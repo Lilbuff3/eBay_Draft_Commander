@@ -301,3 +301,79 @@ def get_item_aspects(category_id: str) -> dict:
         logger.warning(f"get_item_aspects failed: {e}")
 
     return {"required": [], "optional": []}
+
+
+def get_valid_condition_ids(category_id: str) -> list:
+    """
+    Fetch valid condition IDs for a category via eBay Sell Metadata API.
+    Returns list of valid condition ID strings, e.g. ['1000', '1500', '3000', '7000'].
+    Results are cached.
+    """
+    if not category_id:
+        return []
+
+    cache_key = f"conditions:{category_id}"
+    cached = _check_cache(cache_key)
+    if cached is not None:
+        return cached
+
+    try:
+        url = 'https://api.ebay.com/sell/metadata/v1/marketplace/EBAY_US/get_item_condition_policies'
+        headers = _get_headers()
+        response = requests.get(url, headers=headers, timeout=15)
+
+        if response.status_code == 200:
+            data = response.json()
+            for policy in data.get('itemConditionPolicies', []):
+                if str(policy.get('categoryId')) == str(category_id):
+                    valid_ids = [str(c['conditionId']) for c in policy.get('itemConditions', [])]
+                    _save_cache(cache_key, valid_ids)
+                    logger.debug(f"Valid conditions for category {category_id}: {valid_ids}")
+                    return valid_ids
+            # Category not found in policies - return empty (will trigger fallback)
+            _save_cache(cache_key, [])
+            return []
+        else:
+            logger.warning(f"get_item_condition_policies returned {response.status_code}")
+    except Exception as e:
+        logger.warning(f"get_valid_condition_ids failed: {e}")
+
+    return []
+
+
+def validate_condition_for_category(condition_id: str, category_id: str) -> str:
+    """
+    Validate a condition ID against a category's allowed conditions.
+    If the condition ID is not valid, falls back to the closest valid alternative.
+
+    Fallback chain: try '3000' (Used) -> '1500' (New Other) -> first valid ID.
+    """
+    if not category_id:
+        return condition_id
+
+    valid_ids = get_valid_condition_ids(category_id)
+    if not valid_ids:
+        # API failed or category not found - trust the original
+        return condition_id
+
+    if condition_id in valid_ids:
+        return condition_id
+
+    # Condition ID not valid for this category - find closest fallback
+    # Granular used conditions (4000/5000/6000) should fall back to generic 3000 (Used)
+    FALLBACK_CHAIN = ['3000', '1500', '1000']
+    for fallback in FALLBACK_CHAIN:
+        if fallback in valid_ids:
+            logger.warning(
+                f"Condition ID {condition_id} invalid for category {category_id}. "
+                f"Falling back to {fallback}. Valid: {valid_ids}"
+            )
+            return fallback
+
+    # Last resort: first valid condition
+    first_valid = valid_ids[0]
+    logger.warning(
+        f"Condition ID {condition_id} invalid for category {category_id}. "
+        f"Using first valid: {first_valid}. Valid: {valid_ids}"
+    )
+    return first_valid

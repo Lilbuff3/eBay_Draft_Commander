@@ -16,6 +16,7 @@ from backend.app.services.image_processor import ImageProcessor
 from backend.app.services.listing_ai_agent import ListingAIAgent
 from backend.app.services.category_mapper import CategoryMapper
 from backend.app.core.exceptions import NeedsReviewException
+from backend.app.core.results_logger import log_listing_result
 from backend.app.core.constants import (
     CONDITION_MAP,
     CONDITION_ID_MAP,
@@ -188,7 +189,14 @@ class ProcessorService:
             final_price = str(validate_price(final_price))
             condition = validate_condition(condition)
             condition_id = CONDITION_ID_MAP.get(condition, '3000')
-            
+
+            # Validate condition ID against category's allowed conditions
+            from backend.app.services.ebay.taxonomy import validate_condition_for_category
+            validated_id = validate_condition_for_category(condition_id, category_id)
+            if validated_id != condition_id:
+                logger.warning(f"Condition ID adjusted: {condition_id} -> {validated_id} for category {category_id}")
+                condition_id = validated_id
+
             cleaned_aspects = {}
             for k, v in item_specifics.items():
                 if not v: continue
@@ -389,6 +397,8 @@ class ProcessorService:
                 "confidence_score": confidence_score,
                 "timing": {**result["timing"], "total": time.time() - start_time}
             })
+            log_listing_result(job_obj, result, analysis, pricing_result,
+                               cat_result, condition, confidence_score)
             return result
 
         # 9. Listing Creation (Proceed if High Confidence & Auto-Publish)
@@ -416,4 +426,6 @@ class ProcessorService:
             "timing": {**result["timing"], "api": bundle["timing"], "total": time.time() - start_time}
         })
         _log(f"Listing Created: {result['status']}", level='success')
+        log_listing_result(job_obj, result, analysis, pricing_result,
+                           cat_result, condition, confidence_score)
         return result

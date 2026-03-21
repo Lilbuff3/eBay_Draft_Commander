@@ -45,6 +45,7 @@ class TradingService:
                   <EndTimeFrom>{end_time_from}</EndTimeFrom>
                   <EndTimeTo>{end_time_to}</EndTimeTo>
                   <Sort>2</Sort>
+                  <DetailLevel>ReturnAll</DetailLevel>
                   <Pagination>
                     <EntriesPerPage>200</EntriesPerPage>
                     <PageNumber>{page}</PageNumber>
@@ -58,6 +59,7 @@ class TradingService:
                   <OutputSelector>ItemArray.Item.QuantityAvailable</OutputSelector>
                   <OutputSelector>ItemArray.Item.Quantity</OutputSelector>
                   <OutputSelector>ItemArray.Item.PictureDetails.GalleryURL</OutputSelector>
+                  <OutputSelector>ItemArray.Item.PictureDetails.PictureURL</OutputSelector>
                 </GetSellerListRequest>"""
                 
                 headers = {
@@ -244,7 +246,11 @@ class TradingService:
             if schedule_time:
                 try:
                     from datetime import timezone as tz
-                    parsed = datetime.fromisoformat(schedule_time.replace('Z', '+00:00'))
+                    # Handle both datetime objects and ISO string inputs
+                    if isinstance(schedule_time, datetime):
+                        parsed = schedule_time
+                    else:
+                        parsed = datetime.fromisoformat(str(schedule_time).replace('Z', '+00:00'))
                     utc_time = parsed.astimezone(tz.utc)
                     formatted = utc_time.strftime('%Y-%m-%dT%H:%M:%S.000Z')
                     schedule_tag = f"<ScheduleTime>{formatted}</ScheduleTime>"
@@ -421,6 +427,11 @@ class TradingService:
         picture_details = item.find('e:PictureDetails', ns)
         if picture_details is not None:
             image_url = get_text(picture_details, 'e:GalleryURL')
+            if not image_url:
+                # Fallback to first PictureURL if GalleryURL not present
+                pic_url = picture_details.find('e:PictureURL', ns)
+                if pic_url is not None:
+                    image_url = pic_url.text
             
         return {
             'sku': sku,
@@ -434,3 +445,72 @@ class TradingService:
             'status': 'Active',
             'condition': 'Used'
         }
+
+    def end_fixed_price_item(self, item_id: str, reason: str = 'NotAvailable'):
+        """
+        End a fixed-price listing using Trading API EndFixedPriceItem.
+
+        Args:
+            item_id: The eBay listing ItemID to end.
+            reason: EndingReason - NotAvailable, LostOrBroken, Incorrect, OtherListingError
+
+        Returns:
+            dict: {success, end_time, error}
+        """
+        try:
+            from backend.app.core.token_manager import get_token_manager
+            tm = get_token_manager()
+            token = tm.get_access_token()
+            if not token:
+                creds = load_env()
+                token = creds.get('EBAY_USER_TOKEN')
+            if not token:
+                return {'success': False, 'error': 'No eBay User Token found'}
+
+            xmlns = "urn:ebay:apis:eBLBaseComponents"
+            xml_request = f"""<?xml version="1.0" encoding="utf-8"?>
+            <EndFixedPriceItemRequest xmlns="{xmlns}">
+                <RequesterCredentials>
+                    <eBayAuthToken>{token}</eBayAuthToken>
+                </RequesterCredentials>
+                <ErrorLanguage>en_US</ErrorLanguage>
+                <ItemID>{item_id}</ItemID>
+                <EndingReason>{reason}</EndingReason>
+            </EndFixedPriceItemRequest>"""
+
+            headers = {
+                'X-EBAY-API-SITEID': '0',
+                'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
+                'X-EBAY-API-CALL-NAME': 'EndFixedPriceItem',
+                'Content-Type': 'text/xml'
+            }
+
+            response = requests.post(
+                'https://api.ebay.com/ws/api.dll',
+                headers=headers, data=xml_request.encode('utf-8'), timeout=30
+            )
+
+            if response.status_code != 200:
+                return {'success': False, 'error': f'HTTP {response.status_code}'}
+
+            root = ET.fromstring(response.content)
+            ns = {'e': xmlns}
+            ack = root.find('.//e:Ack', ns).text
+
+            if ack in ['Success', 'Warning']:
+                end_time_node = root.find('.//e:EndTime', ns)
+                end_time = end_time_node.text if end_time_node is not None else None
+                logger.info(f"Successfully ended listing {item_id}")
+                return {'success': True, 'end_time': end_time}
+            else:
+                errors = []
+                for err in root.findall('.//e:Errors', ns):
+                    code = err.find('e:ErrorCode', ns).text
+                    msg = err.find('e:LongMessage', ns).text
+                    errors.append(f"{code}: {msg}")
+                logger.error(f"EndFixedPriceItem failed: {errors}")
+                return {'success': False, 'error': '; '.join(errors)}
+
+        except Exception as e:
+            logger.exception("EndFixedPriceItem Exception")
+            return {'success': False, 'error': str(e)}
