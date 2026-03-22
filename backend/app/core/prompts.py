@@ -99,6 +99,7 @@ The item has already been identified as:
 - MPN: {mpn}
 - Category: {category_name}
 
+{research_specs_section}
 Below are the REQUIRED and RECOMMENDED item specifics for this eBay category.
 For each aspect, I've listed the allowed values (if constrained by eBay).
 

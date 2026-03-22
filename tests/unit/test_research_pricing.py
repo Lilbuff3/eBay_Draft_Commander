@@ -408,3 +408,87 @@ class TestAvailabilityPricing:
 
         call_kwargs = mock_engine.get_price_with_comps.call_args[1]
         assert call_kwargs.get("availability") == "rare"
+
+
+class TestResearchSpecsInPrompt:
+    """Verify web-verified specs are passed to the aspect enrichment prompt."""
+
+    def test_research_specs_included_in_prompt(self):
+        """When research_specs provided, they appear in the prompt."""
+        from backend.app.core.prompts import ASPECT_ENRICHMENT_PROMPT
+
+        research_specs = {"Voltage": "120V", "Interface": "USB 3.0"}
+        specs_lines = [f"- {k}: {v}" for k, v in research_specs.items() if v]
+        research_specs_section = (
+            "WEB-VERIFIED SPECIFICATIONS (use these as ground truth, "
+            "more reliable than guessing):\n" + "\n".join(specs_lines)
+        )
+
+        prompt = ASPECT_ENRICHMENT_PROMPT.format(
+            title="Test Widget",
+            brand="Acme",
+            model="X100",
+            mpn="ACM-X100",
+            category_name="Widgets",
+            research_specs_section=research_specs_section,
+            aspect_list="- [REQUIRED] Brand: (free text)",
+            existing_specifics="(none filled yet)",
+        )
+
+        assert "WEB-VERIFIED SPECIFICATIONS" in prompt
+        assert "- Voltage: 120V" in prompt
+        assert "- Interface: USB 3.0" in prompt
+
+    def test_no_research_specs_no_section(self):
+        """When research_specs is None, no section in prompt."""
+        from backend.app.core.prompts import ASPECT_ENRICHMENT_PROMPT
+
+        prompt = ASPECT_ENRICHMENT_PROMPT.format(
+            title="Test Widget",
+            brand="Acme",
+            model="X100",
+            mpn="ACM-X100",
+            category_name="Widgets",
+            research_specs_section="",
+            aspect_list="- [REQUIRED] Brand: (free text)",
+            existing_specifics="(none filled yet)",
+        )
+
+        assert "WEB-VERIFIED SPECIFICATIONS" not in prompt
+        # Prompt should still be valid
+        assert "Title: Test Widget" in prompt
+        assert "Brand: Acme" in prompt
+
+    def test_enrich_builds_specs_section_correctly(self):
+        """enrich_item_specifics should build the specs section from research_specs dict."""
+        from backend.app.services.ai_analyzer import AIAnalyzer
+
+        analyzer = AIAnalyzer.__new__(AIAnalyzer)
+        analyzer.client = None  # Will cause early return
+
+        result = analyzer.enrich_item_specifics(
+            image_paths=[],
+            title="Test",
+            identification={},
+            category_name="Test",
+            aspect_schema=[],  # Empty schema triggers early return
+            existing_specifics={"Brand": "Acme"},
+            research_specs={"Voltage": "120V"},
+        )
+
+        # With no client or empty schema, should return existing_specifics unchanged
+        assert result == {"Brand": "Acme"}
+
+    def test_research_specs_with_empty_values_filtered(self):
+        """Empty/falsy spec values should be filtered out."""
+        research_specs = {"Voltage": "120V", "Interface": "", "Color": None, "Size": "Large"}
+        specs_lines = [f"- {k}: {v}" for k, v in research_specs.items() if v]
+        research_specs_section = (
+            "WEB-VERIFIED SPECIFICATIONS (use these as ground truth, "
+            "more reliable than guessing):\n" + "\n".join(specs_lines)
+        )
+
+        assert "- Voltage: 120V" in research_specs_section
+        assert "- Size: Large" in research_specs_section
+        assert "Interface" not in research_specs_section
+        assert "Color" not in research_specs_section

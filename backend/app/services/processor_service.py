@@ -301,6 +301,7 @@ class ProcessorService:
         # 4c. Two-pass AI enrichment: fill remaining required aspects using images + schema
         if ebay_aspect_schema and analysis.get('ai_data', {}).get('image_paths'):
             try:
+                research_specs = (job_obj.ai_data or {}).get('research', {}).get('specifications')
                 enriched_specifics = self.ai_agent.ai_analyzer.enrich_item_specifics(
                     image_paths=analysis['ai_data']['image_paths'][:4],
                     title=analysis['title'],
@@ -308,6 +309,7 @@ class ProcessorService:
                     category_name=cat_result.get('name', ''),
                     aspect_schema=ebay_aspect_schema,
                     existing_specifics=analysis['item_specifics'],
+                    research_specs=research_specs,
                 )
                 analysis['item_specifics'] = enriched_specifics
                 _log(f"Enriched to {len(enriched_specifics)} item specifics (two-pass)")
