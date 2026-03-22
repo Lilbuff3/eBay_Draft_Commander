@@ -328,6 +328,7 @@ class ProcessorService:
         # 5. Final Pricing
         shipping_cost = analysis.get('shipping_cost')
         research_market_price = ai_data.get('research', {}).get('market_price')
+        availability = ai_data.get('research', {}).get('availability')
         pricing_result = self.ai_agent.get_final_pricing(
             analysis['title'],
             condition,
@@ -337,6 +338,7 @@ class ProcessorService:
             log_callback=log_callback,
             identification=ai_data.get('identification'),
             research_market_price=research_market_price,
+            availability=availability,
         )
         result["timing"]["pricing"] = pricing_result["timing"]
 

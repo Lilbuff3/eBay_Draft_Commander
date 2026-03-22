@@ -250,3 +250,161 @@ class TestPricingCompsPassthrough:
         assert result["source"] == ""
         assert result["price"] == "0.00"
         assert "warning" in result
+
+
+class TestAvailabilityPricing:
+    """Verify rare/very_rare items use 75th percentile pricing."""
+
+    def _make_engine(self):
+        from backend.app.services.pricing_engine import PricingEngine
+
+        engine = PricingEngine.__new__(PricingEngine)
+        engine.app_id = "test"
+        engine.google_api_key = None
+        engine.ai_client = None
+        return engine
+
+    def _make_sold_items(self, prices):
+        """Create minimal sold_items list from a list of prices."""
+        return [{"price": p, "condition": "Used - Good"} for p in prices]
+
+    def test_rare_item_prices_higher_than_common(self):
+        """Rare items should use 75th percentile, pricing higher than median."""
+        engine = self._make_engine()
+        prices = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+        sold_items = self._make_sold_items(prices)
+
+        result_common = engine.calculate_suggested_price(
+            sold_items, "Used - Good", shipping_cost=0, availability="common"
+        )
+        result_rare = engine.calculate_suggested_price(
+            sold_items, "Used - Good", shipping_cost=0, availability="rare"
+        )
+
+        assert result_rare["suggested_price"] > result_common["suggested_price"]
+
+    def test_very_rare_also_uses_75th_percentile(self):
+        """very_rare should behave the same as rare (75th percentile)."""
+        engine = self._make_engine()
+        prices = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+        sold_items = self._make_sold_items(prices)
+
+        result_rare = engine.calculate_suggested_price(
+            sold_items, "Used - Good", shipping_cost=0, availability="rare"
+        )
+        result_very_rare = engine.calculate_suggested_price(
+            sold_items, "Used - Good", shipping_cost=0, availability="very_rare"
+        )
+
+        assert result_very_rare["suggested_price"] == result_rare["suggested_price"]
+
+    def test_common_item_uses_median(self):
+        """Common/moderate items should use normal median pricing."""
+        engine = self._make_engine()
+        prices = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+        sold_items = self._make_sold_items(prices)
+
+        result_common = engine.calculate_suggested_price(
+            sold_items, "Used - Good", shipping_cost=0, availability="common"
+        )
+        result_moderate = engine.calculate_suggested_price(
+            sold_items, "Used - Good", shipping_cost=0, availability="moderate"
+        )
+
+        # Both should produce the same price (median-based)
+        assert result_common["suggested_price"] == result_moderate["suggested_price"]
+
+    def test_availability_none_uses_median(self):
+        """When availability is None, default to median."""
+        engine = self._make_engine()
+        prices = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+        sold_items = self._make_sold_items(prices)
+
+        result_none = engine.calculate_suggested_price(
+            sold_items, "Used - Good", shipping_cost=0, availability=None
+        )
+        result_common = engine.calculate_suggested_price(
+            sold_items, "Used - Good", shipping_cost=0, availability="common"
+        )
+
+        assert result_none["suggested_price"] == result_common["suggested_price"]
+
+    def test_rare_reasoning_mentions_percentile(self):
+        """Reasoning string should indicate 75th percentile for rare items."""
+        engine = self._make_engine()
+        sold_items = self._make_sold_items([20, 40, 60, 80])
+
+        result = engine.calculate_suggested_price(
+            sold_items, "Used - Good", shipping_cost=0, availability="rare"
+        )
+
+        assert "75th pctl" in result["reasoning"]
+
+    def test_common_reasoning_mentions_median(self):
+        """Reasoning string should say Median for common items."""
+        engine = self._make_engine()
+        sold_items = self._make_sold_items([20, 40, 60, 80])
+
+        result = engine.calculate_suggested_price(
+            sold_items, "Used - Good", shipping_cost=0, availability="common"
+        )
+
+        assert "Median" in result["reasoning"]
+
+    def test_availability_threaded_through_get_price_with_comps(self):
+        """availability should be passed from get_price_with_comps to calculate_suggested_price."""
+        engine = self._make_engine()
+
+        engine.search_finding_api = MagicMock(return_value=[])
+        engine.search_sold_listings = MagicMock(return_value=[])
+        engine.generate_ebay_search_link = MagicMock(return_value="")
+        engine.get_ai_price_estimate = MagicMock(return_value=None)
+
+        # Mock calculate_suggested_price to capture the call
+        engine.calculate_suggested_price = MagicMock(return_value={
+            "suggested_price": 50.0,
+            "comp_count": 3,
+            "median_price": 45.0,
+            "reasoning": "test",
+        })
+
+        # Provide sold items via Finding API so calculate_suggested_price gets called
+        engine.search_finding_api = MagicMock(return_value=[
+            {"title": "Test", "price": 50.0, "condition": "Used", "end_date": "", "url": ""}
+        ])
+
+        engine.get_price_with_comps(
+            "Test Item", condition="Used - Good", availability="very_rare"
+        )
+
+        call_kwargs = engine.calculate_suggested_price.call_args
+        assert call_kwargs[1].get("availability") == "very_rare"
+
+    def test_availability_threaded_through_agent(self):
+        """availability should pass from ListingAIAgent to pricing engine."""
+        from backend.app.services.listing_ai_agent import ListingAIAgent
+
+        agent = ListingAIAgent.__new__(ListingAIAgent)
+        agent._default_shipping_cost = 6.50
+
+        mock_engine = MagicMock()
+        mock_engine.get_price_with_comps.return_value = {
+            "suggested_price": 79.99,
+            "comps": [],
+            "reasoning": "test",
+            "source": "market_data_sold",
+            "research_link": "",
+        }
+        agent.pricing_engine = mock_engine
+
+        agent.get_final_pricing(
+            "Rare Widget",
+            "Used - Good",
+            "50.00",
+            None,
+            shipping_cost=6.50,
+            availability="rare",
+        )
+
+        call_kwargs = mock_engine.get_price_with_comps.call_args[1]
+        assert call_kwargs.get("availability") == "rare"
