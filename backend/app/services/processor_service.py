@@ -178,13 +178,14 @@ class ProcessorService:
 
             # Append research-sourced sections (inline styles only — eBay strips <style> on mobile)
             if research:
+                from html import escape as html_escape
                 research_sections = []
 
                 # Compatible systems / devices
                 compatible = research.get('compatible_with', [])
                 if compatible:
                     compat_items = ''.join(
-                        f'<li style="padding:4px 0;">{c}</li>' for c in compatible[:8]
+                        f'<li style="padding:4px 0;">{html_escape(str(c))}</li>' for c in compatible[:8]
                     )
                     research_sections.append(
                         '<div style="margin:15px 0; padding:12px; background:#f8f9fa; border-radius:5px;">'
@@ -197,7 +198,7 @@ class ProcessorService:
                 notes = research.get('notes', '')
                 if notes and len(notes) > 10:
                     research_sections.append(
-                        f'<p style="margin:10px 0; font-style:italic; color:#555;">{notes}</p>'
+                        f'<p style="margin:10px 0; font-style:italic; color:#555;">{html_escape(str(notes))}</p>'
                     )
 
                 if research_sections:

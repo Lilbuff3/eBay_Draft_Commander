@@ -141,7 +141,8 @@ class ListingAIAgent:
 
         if user_price:
             _log(f"Using User Override Price: {user_price}")
-            return {"price": str(user_price), "timing": 0}
+            return {"price": str(user_price), "timing": 0,
+                    "comps": [], "reasoning": "User override", "source": "user_override"}
 
         import time
         pricing_start = time.time()
