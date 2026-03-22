@@ -420,11 +420,34 @@ class ProcessorService:
         missing_category = not cat_result.get('id')
         # PRICE GUARD: Force review if price is below minimum
         price_too_low = float(pricing_result.get('price', 0)) < min_price
+        # REQUIRED ASPECTS GUARD: Auto-fill safe defaults, flag truly missing ones
+        # eBay accepts "Does Not Apply" for generic aspects (Brand, MPN, etc.)
+        # but rejects listings missing category-specific aspects (Size, Color, etc.)
+        SAFE_DEFAULT_ASPECTS = {'Brand', 'MPN', 'Type', 'Model', 'UPC', 'EAN',
+                                'Country/Region of Manufacture', 'California Prop 65 Warning'}
+        missing_aspects = []
+        if ebay_aspect_schema:
+            for aspect in ebay_aspect_schema:
+                name = aspect.get('name', '')
+                if not aspect.get('isRequired'):
+                    continue
+                if name in analysis['item_specifics']:
+                    continue
+                if name in SAFE_DEFAULT_ASPECTS:
+                    # Auto-fill with "Does Not Apply" so eBay doesn't reject
+                    analysis['item_specifics'][name] = 'Does Not Apply'
+                    _log(f"Auto-filled '{name}' with 'Does Not Apply'")
+                else:
+                    missing_aspects.append(name)
+            if missing_aspects:
+                _log(f"Missing {len(missing_aspects)} required aspects: {', '.join(missing_aspects)}", level='warning')
 
         user_approved = job_obj.job_metadata.get('user_approved', False) if job_obj.job_metadata else False
 
-        if not user_approved and (not auto_publish or confidence_score < threshold or missing_category or price_too_low):
-            if missing_category:
+        if not user_approved and (not auto_publish or confidence_score < threshold or missing_category or price_too_low or missing_aspects):
+            if missing_aspects:
+                reason = f"Missing Required Aspects: {', '.join(missing_aspects[:5])}"
+            elif missing_category:
                 reason = "Missing Category (AI could not determine accurate eBay category)"
             elif not auto_publish:
                 reason = "AUTO_PUBLISH=false"
@@ -435,6 +458,12 @@ class ProcessorService:
             
             _log(f"Routing to Review Queue: {reason}", level='warning')
             
+            # Persist missing aspects for frontend to show
+            if missing_aspects:
+                ai_data = job_obj.ai_data or {}
+                ai_data['missing_required_aspects'] = missing_aspects
+                job_obj.ai_data = ai_data
+
             result.update({
                 "success": True,
                 "status": "pending_review",
@@ -442,6 +471,7 @@ class ProcessorService:
                 "title": analysis['title'],
                 "condition": condition,
                 "confidence_score": confidence_score,
+                "missing_aspects": missing_aspects,
                 "timing": {**result["timing"], "total": time.time() - start_time}
             })
             log_listing_result(job_obj, result, analysis, pricing_result,
