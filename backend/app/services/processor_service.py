@@ -167,13 +167,42 @@ class ProcessorService:
 
         return full_schema
 
-    def _render_listing_template(self, title: str, description: str, images: list, aspects: dict, condition: str) -> dict:
-        """Render the listing HTML"""
+    def _render_listing_template(self, title: str, description: str, images: list,
+                                  aspects: dict, condition: str, research: dict = None) -> dict:
+        """Render the listing HTML, enriched with web research data if available."""
         timing_start = time.time()
         try:
             html = self.template_manager.render_description(
                 title=title, description=description, images=images, aspects=aspects, condition=condition
             )
+
+            # Append research-sourced sections (inline styles only — eBay strips <style> on mobile)
+            if research:
+                research_sections = []
+
+                # Compatible systems / devices
+                compatible = research.get('compatible_with', [])
+                if compatible:
+                    compat_items = ''.join(
+                        f'<li style="padding:4px 0;">{c}</li>' for c in compatible[:8]
+                    )
+                    research_sections.append(
+                        '<div style="margin:15px 0; padding:12px; background:#f8f9fa; border-radius:5px;">'
+                        '<h3 style="margin:0 0 8px 0;">Compatible With</h3>'
+                        f'<ul style="margin:0; padding-left:20px;">{compat_items}</ul>'
+                        '</div>'
+                    )
+
+                # Research notes (contextual details from web research)
+                notes = research.get('notes', '')
+                if notes and len(notes) > 10:
+                    research_sections.append(
+                        f'<p style="margin:10px 0; font-style:italic; color:#555;">{notes}</p>'
+                    )
+
+                if research_sections:
+                    html += '\n'.join(research_sections)
+
             return {"html": html, "timing": time.time() - timing_start}
         except Exception as e:
             logger.error(f"Template rendering failed: {e}")
@@ -372,8 +401,12 @@ class ProcessorService:
         ai_data['image_urls'] = upload_urls
         job_obj.ai_data = ai_data
 
-        # 7. Rendering
-        template = self._render_listing_template(analysis['title'], analysis['raw_description'], upload_urls, analysis['item_specifics'], condition)
+        # 7. Rendering (include web research data for enriched descriptions)
+        research = (job_obj.ai_data or {}).get('research', {})
+        template = self._render_listing_template(
+            analysis['title'], analysis['raw_description'], upload_urls,
+            analysis['item_specifics'], condition, research=research
+        )
         result["timing"]["templating"] = template["timing"]
 
         # 8. Hybrid Publishing Logic (Phase 2 Intercept)
