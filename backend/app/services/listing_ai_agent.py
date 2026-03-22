@@ -94,7 +94,13 @@ class ListingAIAgent:
             if not listing_data:
                 raise Exception("AI returned no output with 'listing' key")
 
-            title = job_obj.user_title or ai_data.get('seo_title') or listing_data.get('suggested_title')
+            # Title priority: user > best of (seo_title, suggested_title) > fallback
+            # SEO title is B2B-optimized (MPN-first), suggested_title is vision-based.
+            # Pick the longer one — it's usually more descriptive and SEO-friendly.
+            seo_title = ai_data.get('seo_title', '')
+            suggested_title = listing_data.get('suggested_title', '')
+            best_ai_title = max([seo_title, suggested_title], key=len) if (seo_title or suggested_title) else ''
+            title = job_obj.user_title or best_ai_title or f"Item {job_obj.id}"
             raw_description = job_obj.user_description or listing_data.get('description_html') or listing_data.get('description') or f"Item {job_obj.id}"
             item_specifics = ai_data.get('item_specifics', ai_data.get('identification', {}))
             ai_suggested_price = listing_data.get('suggested_price', 0)
