@@ -157,11 +157,20 @@ class ListingAIAgent:
             )
             final_price = str(price_result['suggested_price']) if price_result['suggested_price'] else "0.00"
             _log(f"Suggested Price: ${final_price}")
-            return {"price": final_price, "timing": time.time() - pricing_start}
+            return {
+                "price": final_price,
+                "timing": time.time() - pricing_start,
+                "comps": price_result.get('comps', []),
+                "reasoning": price_result.get('reasoning', ''),
+                "source": price_result.get('source', ''),
+            }
         except Exception as e:
             _log(f"Pricing Logic Failed: {e}", level='error')
             return {
                 "price": "0.00",
                 "warning": "Price logic failed. Manual input required.",
-                "timing": time.time() - pricing_start
+                "timing": time.time() - pricing_start,
+                "comps": [],
+                "reasoning": "",
+                "source": "",
             }

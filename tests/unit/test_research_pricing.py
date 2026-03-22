@@ -186,3 +186,67 @@ class TestResearchPriceStrategy:
 
         # Should fall through past Strategy 2.5 to AI estimate (Strategy 4)
         assert result["source"] == "ai_estimate"
+
+
+class TestPricingCompsPassthrough:
+    """Verify get_final_pricing returns comps, reasoning, and source from pricing engine."""
+
+    def _make_agent(self):
+        from backend.app.services.listing_ai_agent import ListingAIAgent
+
+        agent = ListingAIAgent.__new__(ListingAIAgent)
+        agent._default_shipping_cost = 6.50
+        return agent
+
+    def test_comps_returned_from_get_final_pricing(self):
+        """get_final_pricing should return comps from pricing engine."""
+        agent = self._make_agent()
+
+        sample_comps = [
+            {"title": "Similar Widget", "price": 45.00, "condition": "Used"},
+            {"title": "Another Widget", "price": 52.00, "condition": "Used"},
+        ]
+        mock_engine = MagicMock()
+        mock_engine.get_price_with_comps.return_value = {
+            "suggested_price": 49.99,
+            "comps": sample_comps,
+            "reasoning": "Based on 2 comparable sales",
+            "source": "finding_api_sold",
+            "research_link": "",
+        }
+        agent.pricing_engine = mock_engine
+
+        result = agent.get_final_pricing(
+            "Test Widget",
+            "Used - Good",
+            "45.00",
+            None,
+            shipping_cost=6.50,
+        )
+
+        assert result["comps"] == sample_comps
+        assert result["reasoning"] == "Based on 2 comparable sales"
+        assert result["source"] == "finding_api_sold"
+        assert result["price"] == "49.99"
+
+    def test_comps_empty_on_error(self):
+        """When pricing fails, comps should be empty list."""
+        agent = self._make_agent()
+
+        mock_engine = MagicMock()
+        mock_engine.get_price_with_comps.side_effect = RuntimeError("API timeout")
+        agent.pricing_engine = mock_engine
+
+        result = agent.get_final_pricing(
+            "Test Widget",
+            "Used - Good",
+            "45.00",
+            None,
+            shipping_cost=6.50,
+        )
+
+        assert result["comps"] == []
+        assert result["reasoning"] == ""
+        assert result["source"] == ""
+        assert result["price"] == "0.00"
+        assert "warning" in result

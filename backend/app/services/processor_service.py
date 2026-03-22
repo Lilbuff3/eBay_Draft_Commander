@@ -340,6 +340,13 @@ class ProcessorService:
         )
         result["timing"]["pricing"] = pricing_result["timing"]
 
+        # Persist pricing comps and reasoning for user inspection
+        ai_data = job_obj.ai_data or {}
+        ai_data['pricing_comps'] = pricing_result.get('comps', [])
+        ai_data['pricing_reasoning'] = pricing_result.get('reasoning', '')
+        ai_data['pricing_source'] = pricing_result.get('source', '')
+        job_obj.ai_data = ai_data
+
         # 6. Image Upload (skip if cached URLs exist and no force flag)
         force_reupload = (job_obj.job_metadata or {}).get('force_image_reupload', False)
         cached_urls = (job_obj.ai_data or {}).get('image_urls', [])
