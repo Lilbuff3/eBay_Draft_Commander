@@ -663,7 +663,50 @@ class PricingEngine:
                         "source": "market_data_id",
                         "research_link": self.generate_ebay_search_link(id_query)
                     }
-                logger.info("   [WARN] No sales found for identifiers, falling back to title...")
+                logger.info("   [WARN] No sales found for identifiers, trying alt part numbers...")
+
+                # --- STRATEGY 1.5b: ALTERNATIVE PART NUMBERS ---
+                alt_pns = identification.get('oem_part_numbers', []) or []
+                if not alt_pns:
+                    alt_pns = identification.get('alternative_part_numbers', []) or []
+                for alt_pn in alt_pns[:3]:  # Try up to 3 alternatives
+                    if not alt_pn:
+                        continue
+                    search_query = f"{brand} {alt_pn}" if brand else str(alt_pn)
+                    logger.info(f"[SEARCH] Alt part number: {search_query}...")
+                    sold_items = self.search_finding_api(search_query, category_id, limit=10)
+                    if sold_items:
+                        price_data = self.calculate_suggested_price(
+                            sold_items, condition, acquisition_cost, shipping_cost,
+                            availability=availability
+                        )
+                        logger.info(f"   [PRICE] Sold price (Alt PN): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
+                        return {
+                            "suggested_price": price_data["suggested_price"],
+                            "comps": sold_items[:5],
+                            "reasoning": f"Alt PN Match ({alt_pn}): {price_data['reasoning']}",
+                            "projected_profit": price_data.get("projected_profit"),
+                            "source": "market_data_alt_pn",
+                            "research_link": research_link
+                        }
+                    # Also try active listings for alt PN
+                    sold_items = self.search_sold_listings(search_query, category_id, limit=10)
+                    if sold_items:
+                        price_data = self.calculate_suggested_price(
+                            sold_items, condition, acquisition_cost, shipping_cost,
+                            availability=availability
+                        )
+                        logger.info(f"   [PRICE] Active price (Alt PN): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
+                        return {
+                            "suggested_price": price_data["suggested_price"],
+                            "comps": sold_items[:5],
+                            "reasoning": f"Alt PN Active ({alt_pn}): {price_data['reasoning']}",
+                            "projected_profit": price_data.get("projected_profit"),
+                            "source": "market_data_alt_pn_active",
+                            "research_link": research_link
+                        }
+
+                logger.info("   [WARN] No alt part number results, falling back to title...")
 
         # --- STRATEGY 2: KEYWORD SEARCH ---
         search_query = self._build_keyword_query(title, identification)

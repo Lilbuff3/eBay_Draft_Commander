@@ -492,3 +492,173 @@ class TestResearchSpecsInPrompt:
         assert "- Size: Large" in research_specs_section
         assert "Interface" not in research_specs_section
         assert "Color" not in research_specs_section
+
+
+class TestAltPartNumberFallback:
+    """Verify alternative part numbers are tried when primary MPN fails."""
+
+    def _make_engine(self):
+        from backend.app.services.pricing_engine import PricingEngine
+
+        engine = PricingEngine.__new__(PricingEngine)
+        engine.app_id = "test"
+        engine.google_api_key = None
+        engine.ai_client = None
+        return engine
+
+    def test_alt_pn_tried_when_primary_fails(self):
+        """When primary MPN has no results, alternative PNs should be tried."""
+        engine = self._make_engine()
+
+        # Primary MPN search returns nothing, alt PN search returns results
+        call_count = {"n": 0}
+        def mock_finding(query, cat_id=None, limit=15):
+            call_count["n"] += 1
+            if "ALT-001" in query:
+                return [{"title": "Alt Match", "price": 55.0, "condition": "Used"}]
+            return []
+
+        engine.search_finding_api = MagicMock(side_effect=mock_finding)
+        engine.search_sold_listings = MagicMock(return_value=[])
+        engine.generate_ebay_search_link = MagicMock(return_value="")
+        engine.calculate_suggested_price = MagicMock(return_value={
+            "suggested_price": 55.0,
+            "comp_count": 1,
+            "median_price": 55.0,
+            "reasoning": "1 comp",
+            "projected_profit": 48.50,
+        })
+
+        result = engine.get_price_with_comps(
+            "Test Widget",
+            condition="Used - Good",
+            identification={
+                "brand": "Acme",
+                "mpn": "MAIN-001",
+                "oem_part_numbers": ["ALT-001", "ALT-002"],
+            },
+        )
+
+        assert result["source"] == "market_data_alt_pn"
+        assert "ALT-001" in result["reasoning"]
+
+    def test_alt_pn_skipped_when_primary_succeeds(self):
+        """When primary MPN finds results, alt PNs should not be tried."""
+        engine = self._make_engine()
+
+        engine.search_finding_api = MagicMock(return_value=[
+            {"title": "Primary Match", "price": 45.0, "condition": "Used"}
+        ])
+        engine.search_sold_listings = MagicMock(return_value=[])
+        engine.generate_ebay_search_link = MagicMock(return_value="")
+        engine.calculate_suggested_price = MagicMock(return_value={
+            "suggested_price": 45.0,
+            "comp_count": 1,
+            "median_price": 45.0,
+            "reasoning": "1 comp",
+            "projected_profit": 38.50,
+        })
+
+        result = engine.get_price_with_comps(
+            "Test Widget",
+            condition="Used - Good",
+            identification={
+                "brand": "Acme",
+                "mpn": "MAIN-001",
+                "oem_part_numbers": ["ALT-001"],
+            },
+        )
+
+        assert result["source"] == "market_data_id_sold"
+        # search_finding_api should only be called once (for primary MPN)
+        engine.search_finding_api.assert_called_once()
+
+    def test_empty_alt_pn_list_skipped(self):
+        """Empty or missing alt PN list should not cause errors."""
+        engine = self._make_engine()
+
+        engine.search_finding_api = MagicMock(return_value=[])
+        engine.search_sold_listings = MagicMock(return_value=[])
+        engine.generate_ebay_search_link = MagicMock(return_value="")
+        engine.get_ai_price_estimate = MagicMock(return_value=None)
+
+        # Should not raise, just fall through to keyword search and beyond
+        result = engine.get_price_with_comps(
+            "Test Widget",
+            condition="Used - Good",
+            identification={
+                "brand": "Acme",
+                "mpn": "MAIN-001",
+                "oem_part_numbers": [],
+            },
+            ai_suggested_price="25.00",
+        )
+
+        # Should fall through past alt PNs (empty list) to later strategies
+        assert result is not None
+
+    def test_alternative_part_numbers_key_also_works(self):
+        """Falls back to 'alternative_part_numbers' key when 'oem_part_numbers' is empty."""
+        engine = self._make_engine()
+
+        def mock_finding(query, cat_id=None, limit=15):
+            if "COMPAT-X" in query:
+                return [{"title": "Compat Match", "price": 60.0, "condition": "Used"}]
+            return []
+
+        engine.search_finding_api = MagicMock(side_effect=mock_finding)
+        engine.search_sold_listings = MagicMock(return_value=[])
+        engine.generate_ebay_search_link = MagicMock(return_value="")
+        engine.calculate_suggested_price = MagicMock(return_value={
+            "suggested_price": 60.0,
+            "comp_count": 1,
+            "median_price": 60.0,
+            "reasoning": "1 comp",
+            "projected_profit": 53.50,
+        })
+
+        result = engine.get_price_with_comps(
+            "Test Widget",
+            condition="Used - Good",
+            identification={
+                "brand": "Acme",
+                "mpn": "MAIN-001",
+                "alternative_part_numbers": ["COMPAT-X"],
+            },
+        )
+
+        assert result["source"] == "market_data_alt_pn"
+        assert "COMPAT-X" in result["reasoning"]
+
+    def test_alt_pn_active_listings_fallback(self):
+        """When sold search fails but active listings exist for alt PN, use active."""
+        engine = self._make_engine()
+
+        engine.search_finding_api = MagicMock(return_value=[])
+        def mock_active(query, cat_id=None, limit=15):
+            if "ALT-A" in query:
+                return [{"title": "Active Match", "price": 70.0, "condition": "Used"}]
+            return []
+
+        engine.search_sold_listings = MagicMock(side_effect=mock_active)
+        engine.generate_ebay_search_link = MagicMock(return_value="")
+        engine.calculate_suggested_price = MagicMock(return_value={
+            "suggested_price": 70.0,
+            "comp_count": 1,
+            "median_price": 70.0,
+            "reasoning": "1 comp",
+            "projected_profit": 63.50,
+        })
+
+        result = engine.get_price_with_comps(
+            "Test Widget",
+            condition="Used - Good",
+            identification={
+                "brand": "Acme",
+                "mpn": "MAIN-001",
+                "oem_part_numbers": ["ALT-A"],
+            },
+        )
+
+        assert result["source"] == "market_data_alt_pn_active"
+        assert "ALT-A" in result["reasoning"]
