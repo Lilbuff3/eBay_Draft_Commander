@@ -94,7 +94,7 @@ class ListingAIAgent:
             if not listing_data:
                 raise Exception("AI returned no output with 'listing' key")
 
-            title = job_obj.user_title or listing_data.get('suggested_title')
+            title = job_obj.user_title or ai_data.get('seo_title') or listing_data.get('suggested_title')
             raw_description = job_obj.user_description or listing_data.get('description_html') or listing_data.get('description') or f"Item {job_obj.id}"
             item_specifics = ai_data.get('item_specifics', ai_data.get('identification', {}))
             ai_suggested_price = listing_data.get('suggested_price', 0)
