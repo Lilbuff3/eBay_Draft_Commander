@@ -231,7 +231,7 @@ class AIAnalyzer:
     
     def enrich_item_specifics(self, image_paths: list, title: str, identification: dict,
                                category_name: str, aspect_schema: list,
-                               existing_specifics: dict) -> dict:
+                               existing_specifics: dict, research_specs=None) -> dict:
         """
         Second-pass AI call: fill in item specifics using the eBay aspect schema.
 
@@ -272,6 +272,16 @@ class AIAnalyzer:
 
         aspect_list_text = "\n".join(aspect_lines)
 
+        # Build research specs section
+        research_specs_section = ""
+        if research_specs:
+            specs_lines = [f"- {k}: {v}" for k, v in research_specs.items() if v]
+            if specs_lines:
+                research_specs_section = (
+                    "WEB-VERIFIED SPECIFICATIONS (use these as ground truth, "
+                    "more reliable than guessing):\n" + "\n".join(specs_lines)
+                )
+
         # Format existing specifics
         existing_text = "\n".join(
             f"- {k}: {v}" for k, v in existing_specifics.items() if v
@@ -283,6 +293,7 @@ class AIAnalyzer:
             model=identification.get('model', ''),
             mpn=identification.get('mpn', ''),
             category_name=category_name,
+            research_specs_section=research_specs_section,
             aspect_list=aspect_list_text,
             existing_specifics=existing_text,
         )

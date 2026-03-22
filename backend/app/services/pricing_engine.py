@@ -270,7 +270,7 @@ class PricingEngine:
             logger.warning(f"Finding API request failed: {e}")
             return []
 
-    def calculate_suggested_price(self, sold_items: List[Dict], our_condition: str = "Used - Good", acquisition_cost: float = 0.0, shipping_cost: float = 0.0) -> Dict[str, Any]:
+    def calculate_suggested_price(self, sold_items: List[Dict], our_condition: str = "Used - Good", acquisition_cost: float = 0.0, shipping_cost: float = 0.0, availability: str = None) -> Dict[str, Any]:
         """
         Calculate a suggested price based on sold items data.
 
@@ -308,6 +308,16 @@ class PricingEngine:
 
         # Calculate median (robust to outliers)
         median_price = statistics.median(prices)
+
+        # For rare/very_rare items, use 75th percentile instead of median
+        sorted_prices = sorted(prices)
+        if availability in ('rare', 'very_rare'):
+            idx = int(len(sorted_prices) * 0.75)
+            base_price = sorted_prices[min(idx, len(sorted_prices) - 1)]
+            reasoning_prefix = "75th pctl (rare)"
+        else:
+            base_price = median_price
+            reasoning_prefix = "Median"
 
         # Get condition multiplier — resolve enum keys to display format
         from backend.app.core.constants import CONDITION_ENUM_TO_DISPLAY
@@ -350,7 +360,7 @@ class PricingEngine:
             multiplier = our_multiplier
 
         # Calculate suggested price
-        suggested_price = round(median_price * multiplier, 2)
+        suggested_price = round(base_price * multiplier, 2)
 
         # --- Free Shipping Buffer ---
         # When offering free shipping, bake the estimated shipping cost into the price
@@ -377,7 +387,7 @@ class PricingEngine:
         # Smart pricing: round to nearest .99 without aggressive inflation
         suggested_price = self._smart_round_99(suggested_price)
 
-        reasoning = f"Median of {len(prices)} sales (${median_price:.2f}) x {multiplier:.0%} condition adj."
+        reasoning = f"{reasoning_prefix} of {len(prices)} sales (${base_price:.2f}) x {multiplier:.0%} condition adj."
         if shipping_buffered:
             reasoning += f" + ${shipping_cost:.2f} shipping"
         if margin_boost:
@@ -564,7 +574,7 @@ class PricingEngine:
         # Fallback: first 8 words of title
         return " ".join(title.split()[:8])
 
-    def get_price_with_comps(self, title: str, condition: str = "Used - Good", category_id: Optional[str] = None, ai_suggested_price: Optional[str] = None, acquisition_cost: float = 0.0, isbn: Optional[str] = None, shipping_cost: float = 0.0, identification: Optional[Dict] = None) -> Dict[str, Any]:
+    def get_price_with_comps(self, title: str, condition: str = "Used - Good", category_id: Optional[str] = None, ai_suggested_price: Optional[str] = None, acquisition_cost: float = 0.0, isbn: Optional[str] = None, shipping_cost: float = 0.0, identification: Optional[Dict] = None, research_market_price: Optional[Dict] = None, availability: Optional[str] = None) -> Dict[str, Any]:
         """
         Main entry point: Get suggested price and comparable sales data.
 
@@ -585,7 +595,7 @@ class PricingEngine:
             logger.info(f"[SEARCH] ISBN sold search: {isbn}...")
             sold_items = self.search_finding_api(isbn, category_id, limit=15)
             if sold_items:
-                price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost)
+                price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost, availability=availability)
                 logger.info(f"   [PRICE] Sold price (ISBN): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
                 return {
                     "suggested_price": price_data["suggested_price"],
@@ -600,7 +610,7 @@ class PricingEngine:
             logger.info(f"   [WARN] No sold data for ISBN, trying active listings...")
             sold_items = self.search_sold_listings(isbn, category_id, limit=15)
             if sold_items:
-                price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost)
+                price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost, availability=availability)
                 logger.info(f"   [PRICE] Active price (ISBN): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
                 return {
                     "suggested_price": price_data["suggested_price"],
@@ -628,7 +638,7 @@ class PricingEngine:
                 logger.info(f"[SEARCH] Identifier sold search: {id_query}...")
                 sold_items = self.search_finding_api(id_query, category_id, limit=15)
                 if sold_items:
-                    price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost)
+                    price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost, availability=availability)
                     logger.info(f"   [PRICE] Sold price (ID): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
                     return {
                         "suggested_price": price_data["suggested_price"],
@@ -643,7 +653,7 @@ class PricingEngine:
                 logger.info(f"   [WARN] No sold data for identifiers, trying active listings...")
                 sold_items = self.search_sold_listings(id_query, category_id, limit=15)
                 if sold_items:
-                    price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost)
+                    price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost, availability=availability)
                     logger.info(f"   [PRICE] Active price (ID): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
                     return {
                         "suggested_price": price_data["suggested_price"],
@@ -653,7 +663,50 @@ class PricingEngine:
                         "source": "market_data_id",
                         "research_link": self.generate_ebay_search_link(id_query)
                     }
-                logger.info("   [WARN] No sales found for identifiers, falling back to title...")
+                logger.info("   [WARN] No sales found for identifiers, trying alt part numbers...")
+
+                # --- STRATEGY 1.5b: ALTERNATIVE PART NUMBERS ---
+                alt_pns = identification.get('oem_part_numbers', []) or []
+                if not alt_pns:
+                    alt_pns = identification.get('alternative_part_numbers', []) or []
+                for alt_pn in alt_pns[:3]:  # Try up to 3 alternatives
+                    if not alt_pn:
+                        continue
+                    search_query = f"{brand} {alt_pn}" if brand else str(alt_pn)
+                    logger.info(f"[SEARCH] Alt part number: {search_query}...")
+                    sold_items = self.search_finding_api(search_query, category_id, limit=10)
+                    if sold_items:
+                        price_data = self.calculate_suggested_price(
+                            sold_items, condition, acquisition_cost, shipping_cost,
+                            availability=availability
+                        )
+                        logger.info(f"   [PRICE] Sold price (Alt PN): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
+                        return {
+                            "suggested_price": price_data["suggested_price"],
+                            "comps": sold_items[:5],
+                            "reasoning": f"Alt PN Match ({alt_pn}): {price_data['reasoning']}",
+                            "projected_profit": price_data.get("projected_profit"),
+                            "source": "market_data_alt_pn",
+                            "research_link": research_link
+                        }
+                    # Also try active listings for alt PN
+                    sold_items = self.search_sold_listings(search_query, category_id, limit=10)
+                    if sold_items:
+                        price_data = self.calculate_suggested_price(
+                            sold_items, condition, acquisition_cost, shipping_cost,
+                            availability=availability
+                        )
+                        logger.info(f"   [PRICE] Active price (Alt PN): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
+                        return {
+                            "suggested_price": price_data["suggested_price"],
+                            "comps": sold_items[:5],
+                            "reasoning": f"Alt PN Active ({alt_pn}): {price_data['reasoning']}",
+                            "projected_profit": price_data.get("projected_profit"),
+                            "source": "market_data_alt_pn_active",
+                            "research_link": research_link
+                        }
+
+                logger.info("   [WARN] No alt part number results, falling back to title...")
 
         # --- STRATEGY 2: KEYWORD SEARCH ---
         search_query = self._build_keyword_query(title, identification)
@@ -666,7 +719,7 @@ class PricingEngine:
         logger.info(f"[SEARCH] Keyword sold search: {search_query[:50]}...")
         sold_items = self.search_finding_api(search_query, category_id, limit=15)
         if sold_items:
-            price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost)
+            price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost, availability=availability)
             logger.info(f"   [PRICE] Sold price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
             return {
                 "suggested_price": price_data["suggested_price"],
@@ -681,7 +734,7 @@ class PricingEngine:
         logger.info(f"   [WARN] No sold data, trying active listings: {search_query[:50]}...")
         sold_items = self.search_sold_listings(search_query, category_id, limit=15)
         if sold_items:
-            price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost)
+            price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost, availability=availability)
             logger.info(f"   [PRICE] Active price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
             return {
                 "suggested_price": price_data["suggested_price"],
@@ -691,6 +744,29 @@ class PricingEngine:
                 "source": "market_data",
                 "research_link": research_link
             }
+
+        # --- STRATEGY 2.5: PHASE 2 RESEARCH MARKET PRICE ---
+        if research_market_price and research_market_price.get('mid'):
+            try:
+                mid = float(research_market_price['mid'])
+                # Apply condition multiplier (same logic as calculate_suggested_price)
+                multiplier = self._resolve_condition_multiplier(condition) or 0.75
+                adjusted = round(mid * multiplier, 2)
+                if shipping_cost > 0:
+                    adjusted = round(adjusted + shipping_cost, 2)
+                adjusted = self._smart_round_99(adjusted)
+                low = research_market_price.get('low', '?')
+                high = research_market_price.get('high', '?')
+                logger.info(f"   [PRICE] Research price: ${adjusted:.2f} (from Phase 2 web research ${low}-${high} range)")
+                return {
+                    "suggested_price": adjusted,
+                    "comps": [],
+                    "reasoning": f"Phase 2 web research: ${low}-${high} range, condition adjusted ({condition})",
+                    "source": "research_market_price",
+                    "research_link": research_link
+                }
+            except (ValueError, TypeError) as e:
+                logger.warning(f"   [WARN] Research market price unusable: {e}")
 
         # --- STRATEGY 3: GEMINI GROUNDING ---
         logger.info(f"[SEARCH] Performing AI Market Research (Gemini Grounding)...")

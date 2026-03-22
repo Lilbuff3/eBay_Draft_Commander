@@ -94,7 +94,13 @@ class ListingAIAgent:
             if not listing_data:
                 raise Exception("AI returned no output with 'listing' key")
 
-            title = job_obj.user_title or listing_data.get('suggested_title')
+            # Title priority: user > best of (seo_title, suggested_title) > fallback
+            # SEO title is B2B-optimized (MPN-first), suggested_title is vision-based.
+            # Pick the longer one — it's usually more descriptive and SEO-friendly.
+            seo_title = ai_data.get('seo_title', '')
+            suggested_title = listing_data.get('suggested_title', '')
+            best_ai_title = max([seo_title, suggested_title], key=len) if (seo_title or suggested_title) else ''
+            title = job_obj.user_title or best_ai_title or f"Item {job_obj.id}"
             raw_description = job_obj.user_description or listing_data.get('description_html') or listing_data.get('description') or f"Item {job_obj.id}"
             item_specifics = ai_data.get('item_specifics', ai_data.get('identification', {}))
             ai_suggested_price = listing_data.get('suggested_price', 0)
@@ -122,7 +128,7 @@ class ListingAIAgent:
             logger.error(f"AI Analysis failed: {e}")
             return {"success": False, "error": str(e)}
 
-    def get_final_pricing(self, title, condition, ai_suggested_price, user_price, shipping_cost=None, log_callback=None, identification=None):
+    def get_final_pricing(self, title, condition, ai_suggested_price, user_price, shipping_cost=None, log_callback=None, identification=None, research_market_price=None, availability=None):
         """Determine the final price using research engine and user overrides.
 
         When free shipping is active (shipping_cost > 0), the estimated
@@ -135,7 +141,8 @@ class ListingAIAgent:
 
         if user_price:
             _log(f"Using User Override Price: {user_price}")
-            return {"price": str(user_price), "timing": 0}
+            return {"price": str(user_price), "timing": 0,
+                    "comps": [], "reasoning": "User override", "source": "user_override"}
 
         import time
         pricing_start = time.time()
@@ -153,14 +160,25 @@ class ListingAIAgent:
                 ai_suggested_price=ai_suggested_price,
                 shipping_cost=resolved_shipping,
                 identification=identification,
+                research_market_price=research_market_price,
+                availability=availability,
             )
             final_price = str(price_result['suggested_price']) if price_result['suggested_price'] else "0.00"
             _log(f"Suggested Price: ${final_price}")
-            return {"price": final_price, "timing": time.time() - pricing_start}
+            return {
+                "price": final_price,
+                "timing": time.time() - pricing_start,
+                "comps": price_result.get('comps', []),
+                "reasoning": price_result.get('reasoning', ''),
+                "source": price_result.get('source', ''),
+            }
         except Exception as e:
             _log(f"Pricing Logic Failed: {e}", level='error')
             return {
                 "price": "0.00",
                 "warning": "Price logic failed. Manual input required.",
-                "timing": time.time() - pricing_start
+                "timing": time.time() - pricing_start,
+                "comps": [],
+                "reasoning": "",
+                "source": "",
             }

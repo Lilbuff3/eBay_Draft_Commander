@@ -16,6 +16,7 @@ from backend.app.services.image_processor import ImageProcessor
 from backend.app.services.listing_ai_agent import ListingAIAgent
 from backend.app.services.category_mapper import CategoryMapper
 from backend.app.core.exceptions import NeedsReviewException
+from backend.app.core.results_logger import log_listing_result
 from backend.app.core.constants import (
     CONDITION_MAP,
     CONDITION_ID_MAP,
@@ -166,13 +167,43 @@ class ProcessorService:
 
         return full_schema
 
-    def _render_listing_template(self, title: str, description: str, images: list, aspects: dict, condition: str) -> dict:
-        """Render the listing HTML"""
+    def _render_listing_template(self, title: str, description: str, images: list,
+                                  aspects: dict, condition: str, research: dict = None) -> dict:
+        """Render the listing HTML, enriched with web research data if available."""
         timing_start = time.time()
         try:
             html = self.template_manager.render_description(
                 title=title, description=description, images=images, aspects=aspects, condition=condition
             )
+
+            # Append research-sourced sections (inline styles only — eBay strips <style> on mobile)
+            if research:
+                from html import escape as html_escape
+                research_sections = []
+
+                # Compatible systems / devices
+                compatible = research.get('compatible_with', [])
+                if compatible:
+                    compat_items = ''.join(
+                        f'<li style="padding:4px 0;">{html_escape(str(c))}</li>' for c in compatible[:8]
+                    )
+                    research_sections.append(
+                        '<div style="margin:15px 0; padding:12px; background:#f8f9fa; border-radius:5px;">'
+                        '<h3 style="margin:0 0 8px 0;">Compatible With</h3>'
+                        f'<ul style="margin:0; padding-left:20px;">{compat_items}</ul>'
+                        '</div>'
+                    )
+
+                # Research notes (contextual details from web research)
+                notes = research.get('notes', '')
+                if notes and len(notes) > 10:
+                    research_sections.append(
+                        f'<p style="margin:10px 0; font-style:italic; color:#555;">{html_escape(str(notes))}</p>'
+                    )
+
+                if research_sections:
+                    html += '\n'.join(research_sections)
+
             return {"html": html, "timing": time.time() - timing_start}
         except Exception as e:
             logger.error(f"Template rendering failed: {e}")
@@ -188,7 +219,14 @@ class ProcessorService:
             final_price = str(validate_price(final_price))
             condition = validate_condition(condition)
             condition_id = CONDITION_ID_MAP.get(condition, '3000')
-            
+
+            # Validate condition ID against category's allowed conditions
+            from backend.app.services.ebay.taxonomy import validate_condition_for_category
+            validated_id = validate_condition_for_category(condition_id, category_id)
+            if validated_id != condition_id:
+                logger.warning(f"Condition ID adjusted: {condition_id} -> {validated_id} for category {category_id}")
+                condition_id = validated_id
+
             cleaned_aspects = {}
             for k, v in item_specifics.items():
                 if not v: continue
@@ -293,6 +331,7 @@ class ProcessorService:
         # 4c. Two-pass AI enrichment: fill remaining required aspects using images + schema
         if ebay_aspect_schema and analysis.get('ai_data', {}).get('image_paths'):
             try:
+                research_specs = (job_obj.ai_data or {}).get('research', {}).get('specifications')
                 enriched_specifics = self.ai_agent.ai_analyzer.enrich_item_specifics(
                     image_paths=analysis['ai_data']['image_paths'][:4],
                     title=analysis['title'],
@@ -300,6 +339,7 @@ class ProcessorService:
                     category_name=cat_result.get('name', ''),
                     aspect_schema=ebay_aspect_schema,
                     existing_specifics=analysis['item_specifics'],
+                    research_specs=research_specs,
                 )
                 analysis['item_specifics'] = enriched_specifics
                 _log(f"Enriched to {len(enriched_specifics)} item specifics (two-pass)")
@@ -319,6 +359,8 @@ class ProcessorService:
 
         # 5. Final Pricing
         shipping_cost = analysis.get('shipping_cost')
+        research_market_price = ai_data.get('research', {}).get('market_price')
+        availability = ai_data.get('research', {}).get('availability')
         pricing_result = self.ai_agent.get_final_pricing(
             analysis['title'],
             condition,
@@ -327,8 +369,17 @@ class ProcessorService:
             shipping_cost=shipping_cost,
             log_callback=log_callback,
             identification=ai_data.get('identification'),
+            research_market_price=research_market_price,
+            availability=availability,
         )
         result["timing"]["pricing"] = pricing_result["timing"]
+
+        # Persist pricing comps and reasoning for user inspection
+        ai_data = job_obj.ai_data or {}
+        ai_data['pricing_comps'] = pricing_result.get('comps', [])
+        ai_data['pricing_reasoning'] = pricing_result.get('reasoning', '')
+        ai_data['pricing_source'] = pricing_result.get('source', '')
+        job_obj.ai_data = ai_data
 
         # 6. Image Upload (skip if cached URLs exist and no force flag)
         force_reupload = (job_obj.job_metadata or {}).get('force_image_reupload', False)
@@ -351,8 +402,12 @@ class ProcessorService:
         ai_data['image_urls'] = upload_urls
         job_obj.ai_data = ai_data
 
-        # 7. Rendering
-        template = self._render_listing_template(analysis['title'], analysis['raw_description'], upload_urls, analysis['item_specifics'], condition)
+        # 7. Rendering (include web research data for enriched descriptions)
+        research = (job_obj.ai_data or {}).get('research', {})
+        template = self._render_listing_template(
+            analysis['title'], analysis['raw_description'], upload_urls,
+            analysis['item_specifics'], condition, research=research
+        )
         result["timing"]["templating"] = template["timing"]
 
         # 8. Hybrid Publishing Logic (Phase 2 Intercept)
@@ -365,11 +420,34 @@ class ProcessorService:
         missing_category = not cat_result.get('id')
         # PRICE GUARD: Force review if price is below minimum
         price_too_low = float(pricing_result.get('price', 0)) < min_price
+        # REQUIRED ASPECTS GUARD: Auto-fill safe defaults, flag truly missing ones
+        # eBay accepts "Does Not Apply" for generic aspects (Brand, MPN, etc.)
+        # but rejects listings missing category-specific aspects (Size, Color, etc.)
+        SAFE_DEFAULT_ASPECTS = {'Brand', 'MPN', 'Type', 'Model', 'UPC', 'EAN',
+                                'Country/Region of Manufacture', 'California Prop 65 Warning'}
+        missing_aspects = []
+        if ebay_aspect_schema:
+            for aspect in ebay_aspect_schema:
+                name = aspect.get('name', '')
+                if not aspect.get('isRequired'):
+                    continue
+                if name in analysis['item_specifics']:
+                    continue
+                if name in SAFE_DEFAULT_ASPECTS:
+                    # Auto-fill with "Does Not Apply" so eBay doesn't reject
+                    analysis['item_specifics'][name] = 'Does Not Apply'
+                    _log(f"Auto-filled '{name}' with 'Does Not Apply'")
+                else:
+                    missing_aspects.append(name)
+            if missing_aspects:
+                _log(f"Missing {len(missing_aspects)} required aspects: {', '.join(missing_aspects)}", level='warning')
 
         user_approved = job_obj.job_metadata.get('user_approved', False) if job_obj.job_metadata else False
 
-        if not user_approved and (not auto_publish or confidence_score < threshold or missing_category or price_too_low):
-            if missing_category:
+        if not user_approved and (not auto_publish or confidence_score < threshold or missing_category or price_too_low or missing_aspects):
+            if missing_aspects:
+                reason = f"Missing Required Aspects: {', '.join(missing_aspects[:5])}"
+            elif missing_category:
                 reason = "Missing Category (AI could not determine accurate eBay category)"
             elif not auto_publish:
                 reason = "AUTO_PUBLISH=false"
@@ -380,6 +458,12 @@ class ProcessorService:
             
             _log(f"Routing to Review Queue: {reason}", level='warning')
             
+            # Persist missing aspects for frontend to show
+            if missing_aspects:
+                ai_data = job_obj.ai_data or {}
+                ai_data['missing_required_aspects'] = missing_aspects
+                job_obj.ai_data = ai_data
+
             result.update({
                 "success": True,
                 "status": "pending_review",
@@ -387,8 +471,11 @@ class ProcessorService:
                 "title": analysis['title'],
                 "condition": condition,
                 "confidence_score": confidence_score,
+                "missing_aspects": missing_aspects,
                 "timing": {**result["timing"], "total": time.time() - start_time}
             })
+            log_listing_result(job_obj, result, analysis, pricing_result,
+                               cat_result, condition, confidence_score)
             return result
 
         # 9. Listing Creation (Proceed if High Confidence & Auto-Publish)
@@ -416,4 +503,6 @@ class ProcessorService:
             "timing": {**result["timing"], "api": bundle["timing"], "total": time.time() - start_time}
         })
         _log(f"Listing Created: {result['status']}", level='success')
+        log_listing_result(job_obj, result, analysis, pricing_result,
+                           cat_result, condition, confidence_score)
         return result
