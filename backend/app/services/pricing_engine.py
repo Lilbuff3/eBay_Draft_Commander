@@ -564,7 +564,7 @@ class PricingEngine:
         # Fallback: first 8 words of title
         return " ".join(title.split()[:8])
 
-    def get_price_with_comps(self, title: str, condition: str = "Used - Good", category_id: Optional[str] = None, ai_suggested_price: Optional[str] = None, acquisition_cost: float = 0.0, isbn: Optional[str] = None, shipping_cost: float = 0.0, identification: Optional[Dict] = None) -> Dict[str, Any]:
+    def get_price_with_comps(self, title: str, condition: str = "Used - Good", category_id: Optional[str] = None, ai_suggested_price: Optional[str] = None, acquisition_cost: float = 0.0, isbn: Optional[str] = None, shipping_cost: float = 0.0, identification: Optional[Dict] = None, research_market_price: Optional[Dict] = None) -> Dict[str, Any]:
         """
         Main entry point: Get suggested price and comparable sales data.
 
@@ -691,6 +691,29 @@ class PricingEngine:
                 "source": "market_data",
                 "research_link": research_link
             }
+
+        # --- STRATEGY 2.5: PHASE 2 RESEARCH MARKET PRICE ---
+        if research_market_price and research_market_price.get('mid'):
+            try:
+                mid = float(research_market_price['mid'])
+                # Apply condition multiplier (same logic as calculate_suggested_price)
+                multiplier = self._resolve_condition_multiplier(condition) or 0.75
+                adjusted = round(mid * multiplier, 2)
+                if shipping_cost > 0:
+                    adjusted = round(adjusted + shipping_cost, 2)
+                adjusted = self._smart_round_99(adjusted)
+                low = research_market_price.get('low', '?')
+                high = research_market_price.get('high', '?')
+                logger.info(f"   [PRICE] Research price: ${adjusted:.2f} (from Phase 2 web research ${low}-${high} range)")
+                return {
+                    "suggested_price": adjusted,
+                    "comps": [],
+                    "reasoning": f"Phase 2 web research: ${low}-${high} range, condition adjusted ({condition})",
+                    "source": "research_market_price",
+                    "research_link": research_link
+                }
+            except (ValueError, TypeError) as e:
+                logger.warning(f"   [WARN] Research market price unusable: {e}")
 
         # --- STRATEGY 3: GEMINI GROUNDING ---
         logger.info(f"[SEARCH] Performing AI Market Research (Gemini Grounding)...")
