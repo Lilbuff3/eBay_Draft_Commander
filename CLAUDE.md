@@ -68,6 +68,7 @@ backend/                    Flask app factory
       exceptions.py         Custom exception hierarchy
       logger.py             Logging configuration
       prompts.py            AI prompt templates
+      results_logger.py     JSONL listing outcome logger (data/listing_results.jsonl)
     services/
       queue_service.py      Job lifecycle, background threads, Socket.IO events
       listing_ai_agent.py   AI-powered listing creation orchestrator
@@ -131,6 +132,11 @@ frontend/                   React 18 + Vite + TypeScript
 - **Image reordering** — `ImageGallery` uses `@dnd-kit` drag-and-drop. `ordered_images` stored in `job_metadata`, respected by `image_processor.upload_images()`. First image = eBay cover photo.
 - **Aspect schema** — `ebay_aspect_schema` (not old `ebay_required_aspects`) returns full required+optional aspects with `isRequired` flag. Dynamic refresh via `/api/lookup/category/<id>/aspects`. Fuzzy value matching in `processor_service._validate_and_enrich_specifics()`.
 - **Background removal** — `image_processor.remove_background_and_square()` uses `rembg` + Pillow. Composites subject onto 2000x2000 white JPEG canvas. Originals preserved as `.orig` files.
+- **3-phase AI pipeline** — Phase 1: Gemini vision analysis. Phase 2: Gemini with Google Search grounding (web research for specs, pricing, availability). Phase 3: aspect mapping with research-enriched prompts.
+- **Smart title selection** — `listing_ai_agent.py` picks `max([seo_title, suggested_title], key=len)` — longer title = more descriptive for eBay SEO.
+- **Required aspects guard** — `processor_service.py` validates required aspects before eBay submission. Auto-fills generic aspects (Brand, MPN, Type, UPC, etc.) with "Does Not Apply". Category-specific missing aspects route job to review instead of failing.
+- **Results logging** — `results_logger.py` writes JSONL to `data/listing_results.jsonl`. Each record captures title, price, category, condition, comps, source, and outcome. Use `get_results()` and `compare_last_runs()` for analysis.
+- **Pricing cascade (expanded)** — ISBN → MPN → Alt part numbers → Keywords → Research market price → Gemini grounding → AI estimate. Rarity-aware: rare/very_rare items use 75th percentile instead of median. Comps and reasoning persisted to job metadata.
 
 ## Database
 
@@ -150,7 +156,7 @@ SQLite pragmas: `journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=5000`
    - Condition: user_override > metadata > folder_name > AI-detected > DEFAULT_CONDITION
    - AI: Gemini 2.0 Flash vision analysis (cached in ai_json to avoid re-analysis)
    - Category: CategoryMapper → taxonomy.py `get_safe_category()` (hardware guards with context awareness) → eBay Taxonomy API (fallback: 170599)
-   - Price: PricingEngine cascade: ISBN search → keyword search → Gemini grounding → AI estimate. All paths add `ESTIMATED_SHIPPING_COST` buffer ($6.50 default) for free shipping.
+   - Price: PricingEngine cascade: ISBN → MPN → alt part numbers → keywords → research market price → Gemini grounding → AI estimate. Rarity-aware (75th percentile for rare items). All paths add `ESTIMATED_SHIPPING_COST` buffer ($6.50 default) for free shipping.
    - Images: upload to eBay EPS (max 12)
    - Template: TemplateManager renders inline-styled HTML (eBay strips `<style>`/`<head>` on mobile)
    - eBay: Trading API `AddFixedPriceItem` (XML) → active or scheduled listing
@@ -177,14 +183,22 @@ Settings UI writes directly to .env via SettingsManager singleton.
 ## Testing
 
 ```bash
-pytest tests/unit/ -v               # Unit tests (53 tests)
-pytest tests/integration/ -v        # Integration tests (need .env credentials)
+pytest tests/unit/ -v               # Unit tests (244 tests)
+pytest tests/integration/ -v        # Integration tests (need .env credentials + eBay sandbox)
 pytest tests/unit/test_validation.py  # Single file
 python tests/manual/manual_test_api.py  # Manual integration test
 python tests/manual/manual_test_e2e.py  # Full pipeline test
 ```
 
 Test conventions: `test_*.py` files, `Test*` classes, `test_*` functions.
+
+### Integration test fixtures
+Real product images in `tests/fixtures/images/` for full pipeline testing:
+- `boombox/` — Aiwa CSD-ES227 stereo (electronics category)
+- `cookbook/` — Coffee cookbook (books/ISBN category)
+- `tesla-jacket/` — Tesla branded jacket (clothing/apparel category)
+
+`test_full_pipeline.py` runs complete AI→category→pricing→eBay flow. `test_live_pipeline.py` does quick API-only listing+cleanup.
 
 ### Playwright (browser testing)
 ```bash
@@ -219,3 +233,7 @@ cd ~/.claude/skills/playwright-skill && node run.js /tmp/playwright-test-*.js
 - **Claude Code hooks active** — `.claude/settings.json` has PreToolUse hook blocking `.env` edits and PostToolUse hook running ESLint on frontend files. `.env` must be edited through SettingsManager/API, never directly.
 - **rembg dependency** — `requirements.txt` includes `rembg`. First run downloads ~170MB ONNX model. If image processing is slow or fails on a new machine, this is likely why.
 - **Serena memories** — 4 project memories exist (`architecture`, `debugging-patterns`, `api-routes`, `frontend-patterns`). Read these at session start for instant context.
+- **Research data in descriptions** — `processor_service.py` interpolates web research specs into HTML description via `{research_specs_section}` placeholder. All research data is `html.escape()`'d to prevent XSS.
+- **Condition ID validation** — `taxonomy.py:validate_condition_for_category()` checks condition IDs against eBay category policies. Falls back through condition hierarchy if original ID is invalid for the category.
+- **Results logger** — `results_logger.py` appends JSONL to `data/listing_results.jsonl`. NOT a test framework — it's for tracking real listing outcomes over time to improve AI quality. Use `get_results(last_n=10)` for recent entries.
+- **SAFE_DEFAULT_ASPECTS** — Set in `processor_service.py`: `{Brand, MPN, Type, Model, UPC, EAN, Country/Region of Manufacture, California Prop 65 Warning}`. These get auto-filled with "Does Not Apply" when missing. Category-specific required aspects (like Size, Color) route job to review instead.
