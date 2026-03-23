@@ -3,6 +3,7 @@ Settings Manager for eBay Draft Commander Pro
 Handles loading, saving, and validating application settings from .env file
 """
 import os
+import threading
 from pathlib import Path
 from typing import Optional
 from backend.app.core.logger import get_logger
@@ -304,13 +305,16 @@ class SettingsManager:
 
 # Singleton instance
 _instance = None
+_instance_lock = threading.Lock()
 
 
 def get_settings_manager() -> SettingsManager:
-    """Get the global settings manager instance"""
+    """Get the global settings manager instance (thread-safe)"""
     global _instance
     if _instance is None:
-        _instance = SettingsManager()
+        with _instance_lock:
+            if _instance is None:
+                _instance = SettingsManager()
     return _instance
 
 
