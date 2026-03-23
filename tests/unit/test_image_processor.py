@@ -32,6 +32,12 @@ def image_folder(tmp_path):
 class TestUploadImages:
     """Tests for ImageProcessor.upload_images()"""
 
+    @pytest.fixture(autouse=True)
+    def allow_tmp_path(self, tmp_path):
+        """Set INBOX_DIR to tmp_path so path traversal guard allows test folders."""
+        with patch.dict('os.environ', {'INBOX_DIR': str(tmp_path)}):
+            yield
+
     @patch('backend.app.services.image_processor.check_endpoint_reachability', return_value=True)
     @patch('backend.app.services.image_processor.upload_image_to_eps')
     def test_basic_upload_3_images(self, mock_upload, mock_reachable, processor, image_folder):
