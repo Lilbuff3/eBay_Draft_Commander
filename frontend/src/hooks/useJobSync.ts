@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import type { LogEntry } from '@/components/LogViewer'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCommanderStore } from '@/store/useCommanderStore'
+import { useHaptics } from '@/hooks/useHaptics'
 
 /**
  * Custom hook that encapsulates all Socket.IO real-time sync logic
@@ -23,6 +24,7 @@ export function useJobSync() {
     const setIsProcessing = useCommanderStore(state => state.setIsProcessing)
     const setEbayStatus = useCommanderStore(state => state.setEbayStatus)
     const addLog = useCommanderStore(state => state.addLog)
+    const { success: hapticSuccess, error: hapticError } = useHaptics()
 
     // 1. Fetch Jobs directly with React Query
     const { data: jobs = [], refetch: refetchJobs } = useQuery({
@@ -166,6 +168,9 @@ export function useJobSync() {
         socket.on('job_update', (rawJob: Record<string, unknown>) => {
             if (rawJob) {
                 const updatedJob = formatJobPayload(rawJob)
+                // Haptic feedback on status changes
+                if (updatedJob.status === 'completed') hapticSuccess()
+                else if (updatedJob.status === 'failed') hapticError()
                 queryClient.setQueryData(['jobs'], (old: Job[] | undefined) => {
                     if (!old) return [updatedJob]
                     return old.map(job => job.id === updatedJob.id ? { ...job, ...updatedJob } : job)
@@ -206,7 +211,7 @@ export function useJobSync() {
             socket.off('batch_complete')
             socket.disconnect()
         }
-    }, [queryClient, refreshData, addLog])
+    }, [queryClient, refreshData, addLog, hapticSuccess, hapticError])
 
     return {
         refreshData,

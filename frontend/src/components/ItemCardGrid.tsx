@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { Play, Pause, Search, Package, Trash2, MoreVertical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ItemCard } from '@/components/ItemCard'
 import { CompactItemRow } from '@/components/CompactItemRow'
 import { cn } from '@/lib/utils'
 import type { Job } from '@/lib/api'
+import { useHaptics } from '@/hooks/useHaptics'
 import { useCommanderStore } from '@/store/useCommanderStore'
 
 type FilterTab = 'all' | 'inbox' | 'processing' | 'action' | 'history'
@@ -51,6 +52,7 @@ export function ItemCardGrid({
     const [showOverflow, setShowOverflow] = useState(false)
     const [isScrolled, setIsScrolled] = useState(false)
     const overflowRef = useRef<HTMLDivElement>(null)
+    const { tap } = useHaptics()
     const isSelectionMode = selectedJobIds.size > 0
 
     // Track scroll position for sticky header shadow
@@ -153,7 +155,7 @@ export function ItemCardGrid({
                                 {tabs.map(tab => (
                                     <button
                                         key={tab.key}
-                                        onClick={() => setActiveFilter(tab.key)}
+                                        onClick={() => { tap(); setActiveFilter(tab.key) }}
                                         className={cn(
                                             'flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap',
                                             activeFilter === tab.key
@@ -178,7 +180,7 @@ export function ItemCardGrid({
                         {/* Overflow menu trigger */}
                         <div className="relative flex-shrink-0" ref={overflowRef}>
                             <button
-                                onClick={() => setShowOverflow(!showOverflow)}
+                                onClick={() => { tap(); setShowOverflow(!showOverflow) }}
                                 className="p-2 rounded-full bg-white border border-stone-200 text-stone-500 active:bg-stone-100"
                                 aria-label="Actions"
                             >
@@ -191,7 +193,7 @@ export function ItemCardGrid({
                                     {overflowActions.map((action, i) => (
                                         <button
                                             key={i}
-                                            onClick={() => { action.onClick(); setShowOverflow(false) }}
+                                            onClick={() => { tap(); action.onClick(); setShowOverflow(false) }}
                                             disabled={action.disabled}
                                             className={cn(
                                                 'w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left transition-colors',
@@ -320,19 +322,32 @@ export function ItemCardGrid({
                 ═══════════════════════════════════════════════ */}
             {filteredJobs.length > 0 ? (
                 <>
-                    {/* Mobile: Compact list */}
+                    {/* Mobile: Compact list with enter/exit animations */}
                     <div className="md:hidden bg-white rounded-xl border border-stone-200 overflow-hidden mt-2">
-                        {filteredJobs.map(job => (
-                            <CompactItemRow
-                                key={job.id}
-                                job={job}
-                                isSelected={selectedJob?.id === job.id || selectedJobIds.has(job.id)}
-                                isSelectionMode={isSelectionMode}
-                                onToggleSelect={onToggleSelect}
-                                onClick={() => onSelectJob(job)}
-                                onDelete={onDeleteJob}
-                            />
-                        ))}
+                        <AnimatePresence initial={false}>
+                            {filteredJobs.map((job, index) => (
+                                <motion.div
+                                    layout="position"
+                                    key={job.id}
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    exit={{ opacity: 0, height: 0, transition: { duration: 0.2 } }}
+                                    transition={{
+                                        opacity: { duration: 0.2, delay: index < 10 ? index * 0.03 : 0 },
+                                        height: { duration: 0.25 },
+                                    }}
+                                >
+                                    <CompactItemRow
+                                        job={job}
+                                        isSelected={selectedJob?.id === job.id || selectedJobIds.has(job.id)}
+                                        isSelectionMode={isSelectionMode}
+                                        onToggleSelect={onToggleSelect}
+                                        onClick={() => onSelectJob(job)}
+                                        onDelete={onDeleteJob}
+                                    />
+                                </motion.div>
+                            ))}
+                        </AnimatePresence>
                     </div>
 
                     {/* Desktop: Card grid */}

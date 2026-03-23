@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 interface CommanderState {
     // Navigation
     activeTab: string
+    previousTab: string
     setActiveTab: (tab: string) => void
 
     // Job Data
@@ -60,9 +61,11 @@ interface CommanderState {
 export const useCommanderStore = create<CommanderState>((set, get) => ({
     // Navigation
     activeTab: localStorage.getItem('activeTab') || 'dashboard',
+    previousTab: 'dashboard',
     setActiveTab: (tab) => {
+        const current = get().activeTab
         localStorage.setItem('activeTab', tab)
-        set({ activeTab: tab })
+        set({ activeTab: tab, previousTab: current })
     },
 
     // Job Data

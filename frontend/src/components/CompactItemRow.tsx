@@ -1,4 +1,5 @@
 import { useState, useRef, type MouseEvent, type TouchEvent } from 'react'
+import { useHaptics } from '@/hooks/useHaptics'
 import { Clock, Loader2, Check, AlertCircle, Image, ChevronRight, CalendarClock, DollarSign, Square, CheckSquare, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Job, JobStatus } from '@/lib/api'
@@ -27,6 +28,7 @@ const statusConfig: Record<JobStatus, { icon: typeof Clock; label: string; color
 const SWIPE_THRESHOLD = 80
 
 export function CompactItemRow({ job, isSelected, isSelectionMode, onToggleSelect, onClick, onDelete }: CompactItemRowProps) {
+    const { tap, warning } = useHaptics()
     const status = statusConfig[job.status] || statusConfig.pending
     const StatusIcon = status.icon
     const isProcessing = job.status === 'processing'
@@ -74,6 +76,7 @@ export function CompactItemRow({ job, isSelected, isSelectionMode, onToggleSelec
 
         // Start long-press timer (500ms)
         longPressTimerRef.current = setTimeout(() => {
+            tap()
             if (!isSelectionMode) {
                 onToggleSelect(job.id)
             }
@@ -119,6 +122,7 @@ export function CompactItemRow({ job, isSelected, isSelectionMode, onToggleSelec
 
         if (swipeX < -SWIPE_THRESHOLD) {
             // Commit: lock at delete position
+            tap()
             setSwipeX(-SWIPE_THRESHOLD)
             setShowDelete(true)
         } else {
@@ -129,6 +133,7 @@ export function CompactItemRow({ job, isSelected, isSelectionMode, onToggleSelec
     }
 
     const handleDeleteClick = () => {
+        warning()
         if (onDelete) {
             onDelete(job.id)
         }

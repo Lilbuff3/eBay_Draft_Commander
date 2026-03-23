@@ -146,3 +146,11 @@ a {
     background: rgba(0, 0, 0, 0.2);
     border-radius: 2px;
 }
+
+/* MD3 Expressive — FAB speed dial scrim */
+.fab-scrim {
+    background: rgba(0, 0, 0, 0.32);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+}
+

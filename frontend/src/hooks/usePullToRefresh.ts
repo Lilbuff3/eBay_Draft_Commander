@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
+import { useHaptics } from './useHaptics'
 
 interface UsePullToRefreshOptions {
     onRefresh: () => Promise<void> | void
@@ -13,12 +14,25 @@ export function usePullToRefresh({
 }: UsePullToRefreshOptions) {
     const [isRefreshing, setIsRefreshing] = useState(false)
     const [pullDistance, setPullDistance] = useState(0)
+    const { tap, success } = useHaptics()
+
+    // Use refs to avoid re-registering listeners on every state change
+    const pullDistanceRef = useRef(0)
+    const onRefreshRef = useRef(onRefresh)
+    onRefreshRef.current = onRefresh
+    const hapticFiredRef = useRef(false)
+    const tapRef = useRef(tap)
+    const successRef = useRef(success)
+
+    const updatePullDistance = useCallback((distance: number) => {
+        pullDistanceRef.current = distance
+        setPullDistance(distance)
+    }, [])
 
     useEffect(() => {
         if (!isEnabled) return
 
         let startY = 0
-        let currentY = 0
         let isPulling = false
 
         const handleTouchStart = (e: TouchEvent) => {
@@ -26,13 +40,14 @@ export function usePullToRefresh({
             if (window.scrollY === 0) {
                 startY = e.touches[0].clientY
                 isPulling = true
+                hapticFiredRef.current = false
             }
         }
 
         const handleTouchMove = (e: TouchEvent) => {
             if (!isPulling) return
 
-            currentY = e.touches[0].clientY
+            const currentY = e.touches[0].clientY
             const distance = currentY - startY
 
             // Only allow pulling down
@@ -42,7 +57,14 @@ export function usePullToRefresh({
 
                 // Apply resistance (diminishing returns as you pull further)
                 const resistance = 2.5
-                setPullDistance(Math.min(distance / resistance, threshold * 1.5))
+                const clamped = Math.min(distance / resistance, threshold * 1.5)
+                updatePullDistance(clamped)
+
+                // Haptic tick when crossing the threshold
+                if (clamped >= threshold && !hapticFiredRef.current) {
+                    hapticFiredRef.current = true
+                    tapRef.current()
+                }
             }
         }
 
@@ -51,16 +73,17 @@ export function usePullToRefresh({
 
             isPulling = false
 
-            if (pullDistance >= threshold) {
+            if (pullDistanceRef.current >= threshold) {
                 setIsRefreshing(true)
                 try {
-                    await onRefresh()
+                    await onRefreshRef.current()
+                    successRef.current()
                 } finally {
                     setIsRefreshing(false)
-                    setPullDistance(0)
+                    updatePullDistance(0)
                 }
             } else {
-                setPullDistance(0)
+                updatePullDistance(0)
             }
         }
 
@@ -73,7 +96,7 @@ export function usePullToRefresh({
             document.removeEventListener('touchmove', handleTouchMove)
             document.removeEventListener('touchend', handleTouchEnd)
         }
-    }, [onRefresh, threshold, isEnabled, pullDistance])
+    }, [threshold, isEnabled, updatePullDistance])
 
     return { isRefreshing, pullDistance }
 }

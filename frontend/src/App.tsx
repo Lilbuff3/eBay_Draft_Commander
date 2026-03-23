@@ -1,4 +1,5 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useMemo } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { AnalyticsDashboard } from '@/components/AnalyticsDashboard'
 import { ActiveListings } from '@/components/ActiveListings'
 import { Sidebar } from '@/components/Sidebar'
@@ -21,13 +22,31 @@ import { OfflineIndicator } from '@/components/OfflineIndicator'
 import { ReviewQueue } from '@/components/listings/ReviewQueue'
 import { useJobSync } from '@/hooks/useJobSync'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { onUpdateAvailable } from '@/lib/pwa'
 import { uploadFiles } from '@/lib/api'
 
+// Tab ordering for directional transitions
+const TAB_ORDER = ['dashboard', 'review', 'inventory', 'analytics', 'settings']
+
+function getTabIndex(tab: string): number {
+  const idx = TAB_ORDER.indexOf(tab)
+  return idx === -1 ? TAB_ORDER.length : idx // secondary tabs treated as "rightmost"
+}
+
+// MD3 Expressive easing — module-level constant (no re-allocation)
+const PAGE_TRANSITION = {
+  type: 'tween' as const,
+  ease: [0.2, 0, 0, 1] as [number, number, number, number],
+  duration: 0.25,
+}
+
 export default function App() {
   const activeTab = useCommanderStore(state => state.activeTab)
+  const previousTab = useCommanderStore(state => state.previousTab)
   const setActiveTab = useCommanderStore(state => state.setActiveTab)
   const selectedJob = useCommanderStore(state => state.selectedJob)
+  const isMobile = useIsMobile()
 
   // Real-time job sync initialization
   const { refreshData } = useJobSync()
@@ -72,6 +91,24 @@ export default function App() {
     })
   }, [])
 
+  // Determine slide direction: positive = slide from right, negative = slide from left
+  const direction = getTabIndex(activeTab) >= getTabIndex(previousTab) ? 1 : -1
+
+  const pageVariants = useMemo(() => ({
+    initial: (dir: number) => ({
+      x: isMobile ? dir * 60 : 0,
+      opacity: 0,
+    }),
+    animate: {
+      x: 0,
+      opacity: 1,
+    },
+    exit: (dir: number) => ({
+      x: isMobile ? dir * -60 : 0,
+      opacity: 0,
+    }),
+  }), [isMobile])
+
   return (
     <div className="flex h-screen bg-stone-50">
       <OfflineIndicator />
@@ -81,54 +118,67 @@ export default function App() {
       <Sidebar className="hidden md:block" />
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto pb-16 md:pb-0 relative">
+      <main className="flex-1 overflow-auto pb-20 md:pb-0 relative">
         <ErrorBoundary>
-          {activeTab === 'dashboard' && <Dashboard />}
+          <AnimatePresence mode="wait" custom={direction}>
+            <motion.div
+              key={activeTab}
+              custom={direction}
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={PAGE_TRANSITION}
+              className="h-full"
+            >
+              {activeTab === 'dashboard' && <Dashboard />}
 
-          {activeTab === 'create' && <QuickListingForm />}
+              {activeTab === 'create' && <QuickListingForm />}
 
-          {activeTab === 'batch-scan' && (
-            <div className="h-full p-6 overflow-hidden">
-              <BatchScan />
-            </div>
-          )}
+              {activeTab === 'batch-scan' && (
+                <div className="h-full p-6 overflow-hidden">
+                  <BatchScan />
+                </div>
+              )}
 
-          {activeTab === 'photo-editor' && (
-            <div className="h-full p-6 overflow-hidden">
-              <PhotoEditor
-                jobId={selectedJob?.id}
-                onClose={() => setActiveTab('dashboard')}
-              />
-            </div>
-          )}
-          {activeTab === 'price-research' && (
-            <div className="h-full p-6 overflow-hidden">
-              <PriceResearch
-                jobId={selectedJob?.id}
-                initialQuery={selectedJob?.name}
-                onClose={() => setActiveTab('dashboard')}
-              />
-            </div>
-          )}
-          {activeTab === 'templates' && (
-            <div className="h-full p-6 overflow-hidden">
-              <TemplateManager onClose={() => setActiveTab('dashboard')} />
-            </div>
-          )}
-          {activeTab === 'preview' && (
-            <div className="h-full p-6 overflow-hidden">
-              <PreviewPanel
-                jobId={selectedJob?.id}
-                onClose={() => setActiveTab('dashboard')}
-              />
-            </div>
-          )}
+              {activeTab === 'photo-editor' && (
+                <div className="h-full p-6 overflow-hidden">
+                  <PhotoEditor
+                    jobId={selectedJob?.id}
+                    onClose={() => setActiveTab('dashboard')}
+                  />
+                </div>
+              )}
+              {activeTab === 'price-research' && (
+                <div className="h-full p-6 overflow-hidden">
+                  <PriceResearch
+                    jobId={selectedJob?.id}
+                    initialQuery={selectedJob?.name}
+                    onClose={() => setActiveTab('dashboard')}
+                  />
+                </div>
+              )}
+              {activeTab === 'templates' && (
+                <div className="h-full p-6 overflow-hidden">
+                  <TemplateManager onClose={() => setActiveTab('dashboard')} />
+                </div>
+              )}
+              {activeTab === 'preview' && (
+                <div className="h-full p-6 overflow-hidden">
+                  <PreviewPanel
+                    jobId={selectedJob?.id}
+                    onClose={() => setActiveTab('dashboard')}
+                  />
+                </div>
+              )}
 
-          {/* Business Tools */}
-          {activeTab === 'inventory' && <ActiveListings />}
-          {activeTab === 'review' && <ReviewQueue />}
-          {activeTab === 'analytics' && <AnalyticsDashboard />}
-          {activeTab === 'settings' && <Settings />}
+              {/* Business Tools */}
+              {activeTab === 'inventory' && <ActiveListings />}
+              {activeTab === 'review' && <ReviewQueue />}
+              {activeTab === 'analytics' && <AnalyticsDashboard />}
+              {activeTab === 'settings' && <Settings />}
+            </motion.div>
+          </AnimatePresence>
         </ErrorBoundary>
       </main>
 
@@ -144,7 +194,7 @@ export default function App() {
       {/* Mobile Bottom Navigation */}
       <MobileNavBar />
 
-      <Toaster position={window.innerWidth < 768 ? "top-center" : "bottom-right"} richColors />
+      <Toaster position={isMobile ? "top-center" : "bottom-right"} richColors />
       <InstallPrompt />
     </div>
   )
