@@ -5,19 +5,23 @@ future items with similar titles can skip the expensive API+AI pipeline.
 """
 import hashlib
 import sqlite3
+import threading
 import time
 from backend.app.core.logger import get_logger
 
 logger = get_logger('category_correction_cache')
 
 _instance = None
+_instance_lock = threading.Lock()
 
 
 def get_correction_cache():
-    """Module-level singleton accessor."""
+    """Module-level singleton accessor (thread-safe)."""
     global _instance
     if _instance is None:
-        _instance = CategoryCorrectionCache()
+        with _instance_lock:
+            if _instance is None:
+                _instance = CategoryCorrectionCache()
     return _instance
 
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { ChevronDown, ChevronUp, AlertCircle, Loader2, Check, Search } from 'lucide-react'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -30,19 +31,6 @@ const CONDITION_OPTIONS = [
     { value: 'FOR_PARTS_OR_NOT_WORKING', label: 'For Parts / Not Working' },
 ] as const
 
-// Mobile detection hook for bottom-sheet behavior
-function useIsMobile(breakpoint = 768) {
-    const [isMobile, setIsMobile] = useState(() => window.innerWidth < breakpoint)
-
-    useEffect(() => {
-        const mql = window.matchMedia(`(max-width: ${breakpoint - 1}px)`)
-        const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
-        mql.addEventListener('change', handler)
-        return () => mql.removeEventListener('change', handler)
-    }, [breakpoint])
-
-    return isMobile
-}
 
 interface ItemDetailDrawerProps {
     open: boolean

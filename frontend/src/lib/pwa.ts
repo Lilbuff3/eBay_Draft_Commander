@@ -1,6 +1,8 @@
 // PWA utilities for eBay Draft Commander
 // Service worker registration is handled automatically by VitePWA
 
+import { useState, useEffect, useCallback, useRef } from 'react'
+
 export interface BeforeInstallPromptEvent extends Event {
     readonly platforms: string[];
     readonly userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
@@ -33,40 +35,38 @@ export function onUpdateAvailable(callback: () => void) {
 
 // PWA Install Prompt
 export function usePWAInstall() {
-    let deferredPrompt: BeforeInstallPromptEvent | null = null;
+    const [isInstallable, setIsInstallable] = useState(false)
+    const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(null)
 
-    window.addEventListener('beforeinstallprompt', (e: Event) => {
-        // Prevent the mini-infobar from appearing on mobile
-        e.preventDefault();
-        // Stash the event so it can be triggered later
-        deferredPrompt = e as BeforeInstallPromptEvent;
-
-        console.debug('[PWA] Install prompt available');
-    });
-
-    const promptInstall = async () => {
-        if (!deferredPrompt) {
-            console.debug('[PWA] Install prompt not available');
-            return false;
+    useEffect(() => {
+        const handler = (e: Event) => {
+            e.preventDefault()
+            deferredPromptRef.current = e as BeforeInstallPromptEvent
+            setIsInstallable(true)
+            console.debug('[PWA] Install prompt available')
         }
 
-        // Show the install prompt
-        deferredPrompt.prompt();
+        window.addEventListener('beforeinstallprompt', handler)
+        return () => window.removeEventListener('beforeinstallprompt', handler)
+    }, [])
 
-        // Wait for the user to respond to the prompt
-        const { outcome } = await deferredPrompt.userChoice;
+    const promptInstall = useCallback(async () => {
+        if (!deferredPromptRef.current) {
+            console.debug('[PWA] Install prompt not available')
+            return false
+        }
 
-        console.debug(`[PWA] User response: ${outcome}`);
+        deferredPromptRef.current.prompt()
+        const { outcome } = await deferredPromptRef.current.userChoice
+        console.debug(`[PWA] User response: ${outcome}`)
 
-        // Clear the deferredPrompt
-        deferredPrompt = null;
+        deferredPromptRef.current = null
+        setIsInstallable(false)
 
-        return outcome === 'accepted';
-    };
+        return outcome === 'accepted'
+    }, [])
 
-    const isInstallable = () => !!deferredPrompt;
-
-    return { promptInstall, isInstallable };
+    return { promptInstall, isInstallable }
 }
 
 // Check if app is installed

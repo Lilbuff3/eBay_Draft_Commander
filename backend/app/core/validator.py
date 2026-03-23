@@ -2,9 +2,11 @@
 Centralized validation logic for eBay Draft Commander.
 Ensures data integrity and security for API and service layers.
 """
+import math
 import re
 from pathlib import Path
 from flask import current_app
+from backend.app.core.constants import MAX_LISTING_PRICE
 
 class ValidationError(Exception):
     """Custom exception for validation failures"""
@@ -20,11 +22,14 @@ def validate_price(price):
     """
     try:
         val = float(price)
+        if val != val:  # NaN check (NaN != NaN is True in IEEE 754)
+            raise ValidationError("Price cannot be NaN", "price")
+        if math.isinf(val):
+            raise ValidationError("Price cannot be infinite", "price")
         if val < 0:
             raise ValidationError("Price cannot be negative", "price")
-        # Optional: Max price sanity check
-        if val > 50000:
-            raise ValidationError("Price exceeds maximum sanity limit ($50,000)", "price")
+        if val > MAX_LISTING_PRICE:
+            raise ValidationError(f"Price exceeds maximum limit (${MAX_LISTING_PRICE:,.2f})", "price")
         return round(val, 2)
     except (ValueError, TypeError):
         raise ValidationError(f"Invalid price format: {price}", "price")

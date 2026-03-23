@@ -61,7 +61,21 @@ class ImageProcessor:
 
         upload_start = time.time()
         try:
-            folder_path = Path(folder_path)
+            folder_path = Path(folder_path).resolve()  # Canonicalize path
+
+            # Path traversal guard: ensure folder is within allowed directories
+            allowed_dirs = []
+            inbox_dir = os.getenv('INBOX_DIR', 'inbox')
+            if inbox_dir:
+                allowed_dirs.append(Path(inbox_dir).resolve())
+            # Also allow test fixtures
+            fixtures_dir = Path(__file__).parent.parent.parent.parent / 'tests' / 'fixtures' / 'images'
+            if fixtures_dir.exists():
+                allowed_dirs.append(fixtures_dir.resolve())
+
+            if allowed_dirs and not any(str(folder_path).startswith(str(d)) for d in allowed_dirs):
+                raise ValueError(f"Image folder outside allowed directories: {folder_path}")
+
             _log(f"[UPLOAD] Uploading images to eBay from {folder_path.name}...")
 
             if not folder_path.exists():

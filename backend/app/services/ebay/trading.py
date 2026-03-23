@@ -5,9 +5,28 @@ import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape as xml_escape
 from datetime import datetime, timedelta, timezone
 from backend.app.core.logger import get_logger
+from backend.app.core.constants import TRADING_API_TIMEOUT, TRADING_API_MAX_RETRIES, TRADING_API_PAGE_SIZE
 from backend.app.services.ebay.policies import load_env
 
 logger = get_logger('ebay_trading_service')
+
+
+def _replace_auth_token(xml_str: str, new_token: str) -> str:
+    """Replace eBayAuthToken in XML using proper ElementTree parsing.
+
+    Handles special characters safely (no XML injection risk).
+    """
+    ns = 'urn:ebay:apis:eBLBaseComponents'
+    # Register namespace to avoid ns0: prefix in output
+    ET.register_namespace('', ns)
+
+    root = ET.fromstring(xml_str)
+    token_elem = root.find('.//{%s}eBayAuthToken' % ns)
+    if token_elem is not None:
+        token_elem.text = new_token
+
+    return '<?xml version="1.0" encoding="utf-8"?>\n' + ET.tostring(root, encoding='unicode')
+
 
 class TradingService:
     """Service for handling legacy eBay Trading API (XML) interactions"""
@@ -47,7 +66,7 @@ class TradingService:
                   <Sort>2</Sort>
                   <DetailLevel>ReturnAll</DetailLevel>
                   <Pagination>
-                    <EntriesPerPage>200</EntriesPerPage>
+                    <EntriesPerPage>{TRADING_API_PAGE_SIZE}</EntriesPerPage>
                     <PageNumber>{page}</PageNumber>
                   </Pagination>
                   <OutputSelector>PaginationResult</OutputSelector>
@@ -71,12 +90,12 @@ class TradingService:
 
                 # Retry logic
                 retry_count = 0
-                max_retries = 2
+                max_retries = TRADING_API_MAX_RETRIES
                 response = None
 
                 while retry_count <= max_retries:
                     try:
-                        response = requests.post(TRADING_URL, headers=headers, data=xml_request, timeout=30)
+                        response = requests.post(TRADING_URL, headers=headers, data=xml_request, timeout=TRADING_API_TIMEOUT)
                         if response.status_code == 200:
                             break
                         elif response.status_code == 401:
@@ -92,10 +111,7 @@ class TradingService:
                                 logger.error("GetSellerList: No token available after refresh")
                                 break
                             # Rebuild XML with refreshed token
-                            xml_request = xml_request.replace(
-                                xml_request.split('<eBayAuthToken>')[1].split('</eBayAuthToken>')[0],
-                                token
-                            )
+                            xml_request = _replace_auth_token(xml_request, token)
                             retry_count += 1
                             time.sleep(1)
                         elif response.status_code == 429:
@@ -303,7 +319,7 @@ class TradingService:
 
             # Retry logic
             retry_count = 0
-            max_retries = 2
+            max_retries = TRADING_API_MAX_RETRIES
             response = None
 
             while retry_count <= max_retries:
@@ -319,10 +335,7 @@ class TradingService:
                             logger.error("AddFixedPriceItem: No token available after refresh")
                             break
                         # Rebuild XML with refreshed token
-                        xml_request = xml_request.replace(
-                            xml_request.split('<eBayAuthToken>')[1].split('</eBayAuthToken>')[0],
-                            token
-                        )
+                        xml_request = _replace_auth_token(xml_request, token)
                         retry_count += 1
                         time.sleep(1)
                     elif response.status_code == 429:
@@ -487,7 +500,7 @@ class TradingService:
 
             response = requests.post(
                 'https://api.ebay.com/ws/api.dll',
-                headers=headers, data=xml_request.encode('utf-8'), timeout=30
+                headers=headers, data=xml_request.encode('utf-8'), timeout=TRADING_API_TIMEOUT
             )
 
             if response.status_code != 200:

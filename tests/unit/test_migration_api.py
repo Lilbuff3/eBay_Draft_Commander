@@ -6,7 +6,7 @@ from unittest.mock import patch, MagicMock
 @pytest.fixture
 def app(tmp_path):
     from backend.app import create_app
-    from backend.app.services.queue_service import QueueManager
+    from backend.app.services.queue_manager import QueueManager
     qm = QueueManager(base_path=tmp_path)
     app = create_app(queue_manager=qm)
     app.config['TESTING'] = True
@@ -39,7 +39,8 @@ class TestMigrationCheck:
             session = qm.SessionFactory()
             try:
                 from backend.app.core.database import JobModel
-                job = JobModel(id='test0001', folder_path='/tmp/test', status='completed', listing_id='111')
+                import uuid
+                job = JobModel(id=uuid.uuid4().hex[:8], folder_path='/tmp/test', folder_name='test', status='completed', listing_id='111')
                 session.add(job)
                 session.commit()
             finally:

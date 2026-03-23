@@ -2,6 +2,7 @@
 Pricing Engine for eBay Draft Commander
 Uses eBay Finding API to get sold listings and calculate market-based prices
 """
+import math
 import os
 import json
 import re
@@ -9,7 +10,14 @@ import statistics
 import requests
 from typing import List, Dict, Optional, Union, Any
 from urllib.parse import quote
-from backend.app.core.constants import AI_PRICING_MODEL
+from backend.app.core.constants import (
+    AI_PRICING_MODEL,
+    EBAY_FINAL_VALUE_FEE_RATE,
+    EBAY_PAYMENT_PROCESSING_FEE,
+    MIN_LISTING_PRICE,
+    MAX_LISTING_PRICE,
+    RARITY_PERCENTILE_THRESHOLD,
+)
 from backend.app.core.logger import get_logger
 from backend.app.core.rate_limiter import limiter
 
@@ -81,12 +89,28 @@ class PricingEngine:
         """
         if price <= 10:
             return price
-        import math
         base = math.floor(price)
         cents = price - base
         if cents >= 0.80:
             return base + 0.99
         return base - 0.01
+
+    @staticmethod
+    def _sanitize_price(price: Optional[float]) -> float:
+        """Guard against NaN, infinity, and out-of-bounds prices.
+
+        Always returns a valid float. Falls back to DEFAULT_PRICE for None/invalid inputs.
+        """
+        if price is None:
+            return float(os.getenv('DEFAULT_PRICE', '29.99'))
+        if math.isnan(price) or math.isinf(price):
+            logger.error(f"Price calculation produced invalid value: {price}, using default")
+            return float(os.getenv('DEFAULT_PRICE', '29.99'))
+        if price < MIN_LISTING_PRICE:
+            return MIN_LISTING_PRICE
+        if price > MAX_LISTING_PRICE:
+            return MAX_LISTING_PRICE
+        return price
 
     def _resolve_condition_multiplier(self, condition_str: str) -> Optional[float]:
         """Resolve a condition string from comps to a multiplier value.
@@ -312,7 +336,7 @@ class PricingEngine:
         # For rare/very_rare items, use 75th percentile instead of median
         sorted_prices = sorted(prices)
         if availability in ('rare', 'very_rare'):
-            idx = int(len(sorted_prices) * 0.75)
+            idx = int(len(sorted_prices) * RARITY_PERCENTILE_THRESHOLD / 100)
             base_price = sorted_prices[min(idx, len(sorted_prices) - 1)]
             reasoning_prefix = "75th pctl (rare)"
         else:
@@ -371,7 +395,7 @@ class PricingEngine:
 
         # --- Margin Protection ---
         # Estimated eBay Fees: ~13.25% + $0.30
-        est_fees = (suggested_price * 0.1325) + 0.30
+        est_fees = (suggested_price * EBAY_FINAL_VALUE_FEE_RATE) + EBAY_PAYMENT_PROCESSING_FEE
         projected_profit = suggested_price - est_fees - acquisition_cost - shipping_cost
         
         min_margin = 10.00 # Minimum desired profit per item
@@ -379,13 +403,16 @@ class PricingEngine:
         
         if acquisition_cost > 0 and projected_profit < min_margin:
             # Price is too low for target margin, calculate target price
-            # Target = (Cost + MinMargin + 0.30) / (1 - 0.1325)
-            target_price = (acquisition_cost + min_margin + 0.30) / (1 - 0.1325)
+            # Target = (Cost + MinMargin + ProcessingFee) / (1 - FVF)
+            target_price = (acquisition_cost + min_margin + EBAY_PAYMENT_PROCESSING_FEE) / (1 - EBAY_FINAL_VALUE_FEE_RATE)
             suggested_price = round(target_price, 2)
             margin_boost = True
             
         # Smart pricing: round to nearest .99 without aggressive inflation
         suggested_price = self._smart_round_99(suggested_price)
+
+        # Sanitize: guard against NaN/infinity and enforce price bounds
+        suggested_price = self._sanitize_price(suggested_price)
 
         reasoning = f"{reasoning_prefix} of {len(prices)} sales (${base_price:.2f}) x {multiplier:.0%} condition adj."
         if shipping_buffered:
@@ -755,6 +782,7 @@ class PricingEngine:
                 if shipping_cost > 0:
                     adjusted = round(adjusted + shipping_cost, 2)
                 adjusted = self._smart_round_99(adjusted)
+                adjusted = self._sanitize_price(adjusted)
                 low = research_market_price.get('low', '?')
                 high = research_market_price.get('high', '?')
                 logger.info(f"   [PRICE] Research price: ${adjusted:.2f} (from Phase 2 web research ${low}-${high} range)")
@@ -778,6 +806,7 @@ class PricingEngine:
                 ai_price = round(ai_price + shipping_cost, 2)
                 ai_reasoning += f" + ${shipping_cost:.2f} free shipping buffer"
             ai_price = self._smart_round_99(ai_price)
+            ai_price = self._sanitize_price(ai_price)
             logger.info(f"   [WEB] AI Research Price: ${ai_price:.2f}")
             return {
                 "suggested_price": ai_price,
@@ -795,6 +824,7 @@ class PricingEngine:
                 fallback_price = round(fallback_price + shipping_cost, 2)
                 fallback_reasoning += f" + ${shipping_cost:.2f} free shipping buffer"
             fallback_price = self._smart_round_99(fallback_price)
+            fallback_price = self._sanitize_price(fallback_price)
             logger.info(f"   [INFO] Using AI image estimate: ${fallback_price}")
             return {
                 "suggested_price": fallback_price,

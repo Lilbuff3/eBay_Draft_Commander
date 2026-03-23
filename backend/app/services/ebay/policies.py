@@ -4,6 +4,7 @@ Fetches fulfillment, payment, return policies and inventory locations.
 """
 import requests
 import os
+import time
 from pathlib import Path
 from typing import Dict, List, Optional
 from backend.app.core.logger import get_logger
@@ -65,32 +66,57 @@ def _refresh_token_if_needed(response) -> bool:
     return False
 
 
-def ebay_request(method, url, **kwargs):
+def ebay_request(method, url, max_retries=2, **kwargs):
     """
     Centralized eBay request wrapper.
-    - Applies Rate Limiting
-    - Handles Authorization Headers
+    - Applies rate limiting
+    - Handles authorization headers
     - Auto-refreshes tokens on 401
+    - Retries on 429 with exponential backoff
+    - Retries on transient 5xx errors
     """
-    # 1. Wait for Rate Limit
     limiter.wait_if_needed('ebay')
-    
-    # 2. Inject Headers if not provided
+
     if 'headers' not in kwargs:
         kwargs['headers'] = _get_headers()
-        
-    # 3. Execute Request
-    response = requests.request(method, url, **kwargs)
-    
-    # 4. Handle Auth Expiry
-    if response.status_code in [401, 500]:
-        if _refresh_token_if_needed(response):
-            logger.info(f"Token refreshed after {response.status_code}. Retrying {method} {url}...")
-            # Re-fetch headers with new token
-            kwargs['headers'] = _get_headers()
+
+    last_response = None
+    for attempt in range(max_retries + 1):
+        try:
             response = requests.request(method, url, **kwargs)
-            
-    return response
+            last_response = response
+
+            if response.status_code < 400:
+                return response
+
+            if response.status_code == 401 and attempt < max_retries:
+                if _refresh_token_if_needed(response):
+                    logger.info(f"Token refreshed after 401. Retrying {method} {url}...")
+                    kwargs['headers'] = _get_headers()
+                    continue
+                return response  # Refresh failed
+
+            if response.status_code == 429 and attempt < max_retries:
+                backoff = 2 ** attempt
+                logger.warning(f"Rate limited (429), backing off {backoff}s (attempt {attempt + 1}/{max_retries + 1})")
+                time.sleep(backoff)
+                continue
+
+            if response.status_code in (500, 502, 503, 504) and attempt < max_retries:
+                backoff = 2 ** attempt
+                logger.warning(f"Server error ({response.status_code}), retrying in {backoff}s (attempt {attempt + 1}/{max_retries + 1})")
+                time.sleep(backoff)
+                continue
+
+            return response  # Non-retryable error or retries exhausted
+
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Request exception on attempt {attempt + 1}: {e}")
+            if attempt >= max_retries:
+                raise
+            time.sleep(2 ** attempt)
+
+    return last_response
 
 
 def get_fulfillment_policies(retry: bool = True) -> List[Dict]:

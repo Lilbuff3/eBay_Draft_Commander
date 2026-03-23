@@ -38,8 +38,6 @@ class SoldItem:
     shipping: float
     date: str
     condition: str
-    date: str
-    condition: str
     url: str
     image_url: str = "" # Added image_url support
 
