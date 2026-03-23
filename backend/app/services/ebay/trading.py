@@ -10,6 +10,24 @@ from backend.app.services.ebay.policies import load_env
 
 logger = get_logger('ebay_trading_service')
 
+
+def _replace_auth_token(xml_str: str, new_token: str) -> str:
+    """Replace eBayAuthToken in XML using proper ElementTree parsing.
+
+    Handles special characters safely (no XML injection risk).
+    """
+    ns = 'urn:ebay:apis:eBLBaseComponents'
+    # Register namespace to avoid ns0: prefix in output
+    ET.register_namespace('', ns)
+
+    root = ET.fromstring(xml_str)
+    token_elem = root.find('.//{%s}eBayAuthToken' % ns)
+    if token_elem is not None:
+        token_elem.text = new_token
+
+    return '<?xml version="1.0" encoding="utf-8"?>\n' + ET.tostring(root, encoding='unicode')
+
+
 class TradingService:
     """Service for handling legacy eBay Trading API (XML) interactions"""
     
@@ -93,10 +111,7 @@ class TradingService:
                                 logger.error("GetSellerList: No token available after refresh")
                                 break
                             # Rebuild XML with refreshed token
-                            xml_request = xml_request.replace(
-                                xml_request.split('<eBayAuthToken>')[1].split('</eBayAuthToken>')[0],
-                                token
-                            )
+                            xml_request = _replace_auth_token(xml_request, token)
                             retry_count += 1
                             time.sleep(1)
                         elif response.status_code == 429:
@@ -320,10 +335,7 @@ class TradingService:
                             logger.error("AddFixedPriceItem: No token available after refresh")
                             break
                         # Rebuild XML with refreshed token
-                        xml_request = xml_request.replace(
-                            xml_request.split('<eBayAuthToken>')[1].split('</eBayAuthToken>')[0],
-                            token
-                        )
+                        xml_request = _replace_auth_token(xml_request, token)
                         retry_count += 1
                         time.sleep(1)
                     elif response.status_code == 429:
