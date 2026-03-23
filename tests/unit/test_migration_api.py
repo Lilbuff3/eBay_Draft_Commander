@@ -39,7 +39,8 @@ class TestMigrationCheck:
             session = qm.SessionFactory()
             try:
                 from backend.app.core.database import JobModel
-                job = JobModel(id='test0001', folder_path='/tmp/test', folder_name='test', status='completed', listing_id='111')
+                import uuid
+                job = JobModel(id=uuid.uuid4().hex[:8], folder_path='/tmp/test', folder_name='test', status='completed', listing_id='111')
                 session.add(job)
                 session.commit()
             finally:
