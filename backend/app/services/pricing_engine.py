@@ -9,7 +9,12 @@ import statistics
 import requests
 from typing import List, Dict, Optional, Union, Any
 from urllib.parse import quote
-from backend.app.core.constants import AI_PRICING_MODEL
+from backend.app.core.constants import (
+    AI_PRICING_MODEL,
+    EBAY_FINAL_VALUE_FEE_RATE,
+    EBAY_PAYMENT_PROCESSING_FEE,
+    RARITY_PERCENTILE_THRESHOLD,
+)
 from backend.app.core.logger import get_logger
 from backend.app.core.rate_limiter import limiter
 
@@ -312,7 +317,7 @@ class PricingEngine:
         # For rare/very_rare items, use 75th percentile instead of median
         sorted_prices = sorted(prices)
         if availability in ('rare', 'very_rare'):
-            idx = int(len(sorted_prices) * 0.75)
+            idx = int(len(sorted_prices) * RARITY_PERCENTILE_THRESHOLD / 100)
             base_price = sorted_prices[min(idx, len(sorted_prices) - 1)]
             reasoning_prefix = "75th pctl (rare)"
         else:
@@ -371,7 +376,7 @@ class PricingEngine:
 
         # --- Margin Protection ---
         # Estimated eBay Fees: ~13.25% + $0.30
-        est_fees = (suggested_price * 0.1325) + 0.30
+        est_fees = (suggested_price * EBAY_FINAL_VALUE_FEE_RATE) + EBAY_PAYMENT_PROCESSING_FEE
         projected_profit = suggested_price - est_fees - acquisition_cost - shipping_cost
         
         min_margin = 10.00 # Minimum desired profit per item
@@ -379,8 +384,8 @@ class PricingEngine:
         
         if acquisition_cost > 0 and projected_profit < min_margin:
             # Price is too low for target margin, calculate target price
-            # Target = (Cost + MinMargin + 0.30) / (1 - 0.1325)
-            target_price = (acquisition_cost + min_margin + 0.30) / (1 - 0.1325)
+            # Target = (Cost + MinMargin + ProcessingFee) / (1 - FVF)
+            target_price = (acquisition_cost + min_margin + EBAY_PAYMENT_PROCESSING_FEE) / (1 - EBAY_FINAL_VALUE_FEE_RATE)
             suggested_price = round(target_price, 2)
             margin_boost = True
             

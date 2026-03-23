@@ -93,3 +93,16 @@ EBAY_REFILL_RATE = 2 # Tokens per second
 # AI Models
 AI_MODEL_NAME = 'gemini-2.0-flash' # Updated to latest fast model
 AI_PRICING_MODEL = os.getenv('AI_PRICING_MODEL', 'gemini-2.0-flash')  # Pricing/grounding model
+
+# --- Pricing Constants ---
+EBAY_FINAL_VALUE_FEE_RATE = 0.1325       # 13.25% eBay final value fee
+EBAY_PAYMENT_PROCESSING_FEE = 0.30       # $0.30 per-order payment processing
+MIN_LISTING_PRICE = 4.99                  # Floor price for any listing
+MAX_LISTING_PRICE = 9999.99               # Ceiling price sanity check
+DEFAULT_ESTIMATED_SHIPPING_COST = 6.50    # Baked into price (free shipping policy)
+RARITY_PERCENTILE_THRESHOLD = 75          # Use 75th percentile for rare items
+
+# --- Trading API Constants ---
+TRADING_API_TIMEOUT = 30                  # seconds
+TRADING_API_MAX_RETRIES = 2
+TRADING_API_PAGE_SIZE = 200               # GetSellerList entries per page
