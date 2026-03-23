@@ -13,13 +13,22 @@ def get_recent_sales():
 
 @analytics_bp.route('/analytics/summary')
 def get_analytics_summary():
-    days = request.args.get('days', 30)
+    try:
+        days = int(request.args.get('days', '30'))
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid value for days parameter'}), 400
     result, status = ebay_service.get_analytics_summary(days=days)
     return jsonify(result), status
 
 @analytics_bp.route('/analytics/orders')
 def get_analytics_orders():
-    days = request.args.get('days', 30)
-    limit = request.args.get('limit', 50)
+    try:
+        days = int(request.args.get('days', '30'))
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid value for days parameter'}), 400
+    try:
+        limit = int(request.args.get('limit', '50'))
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid value for limit parameter'}), 400
     result, status = ebay_service.get_recent_orders(days=days, limit=limit)
     return jsonify(result), status

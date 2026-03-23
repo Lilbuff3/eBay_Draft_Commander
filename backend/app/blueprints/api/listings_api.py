@@ -33,6 +33,8 @@ def update_listing(sku):
     """
     try:
         data = request.json
+        if data is None:
+            return jsonify({'error': 'Request body must be JSON'}), 400
         results = {}
         if 'title' in data or 'description' in data:
             item_updates = {}
@@ -54,6 +56,8 @@ def update_listing(sku):
 @listings_bp.route('/listings/bulk', methods=['POST'])
 def bulk_update_listings():
     data = request.json
+    if data is None:
+        return jsonify({'error': 'Request body must be JSON'}), 400
     updates = data.get('updates', [])
     if not updates: return error_response('No updates provided', 400)
     result, status = ebay_service.bulk_update(updates)
@@ -72,6 +76,8 @@ def publish_listing(offer_id):
 @listings_bp.route('/listings/bulk/title', methods=['POST'])
 def bulk_update_titles():
     data = request.json
+    if data is None:
+        return jsonify({'error': 'Request body must be JSON'}), 400
     updates = data.get('updates', [])
     if not updates: return error_response('No updates provided', 400)
     result, status = ebay_service.bulk_update_titles(updates)
@@ -130,6 +136,8 @@ def quick_edit_listing(job_id):
     """Update title, price, and condition for a pending listing"""
     try:
         data = request.json
+        if data is None:
+            return jsonify({'error': 'Request body must be JSON'}), 400
         queue_manager = current_app.config.get('QUEUE_MANAGER')
         if not queue_manager:
             return error_response('Queue manager not initialized')
@@ -152,6 +160,8 @@ def batch_approve_listings():
     """Approve multiple listings and move them back to the active queue"""
     try:
         data = request.json
+        if data is None:
+            return jsonify({'error': 'Request body must be JSON'}), 400
         job_ids = data.get('listing_ids', [])
         if not job_ids:
             return error_response('No listing IDs provided', 400)
