@@ -89,7 +89,7 @@ def ebay_request(method, url, max_retries=2, **kwargs):
             if response.status_code < 400:
                 return response
 
-            if response.status_code == 401:
+            if response.status_code == 401 and attempt < max_retries:
                 if _refresh_token_if_needed(response):
                     logger.info(f"Token refreshed after 401. Retrying {method} {url}...")
                     kwargs['headers'] = _get_headers()

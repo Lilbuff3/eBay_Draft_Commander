@@ -96,13 +96,13 @@ class PricingEngine:
         return base - 0.01
 
     @staticmethod
-    def _sanitize_price(price: Optional[float]) -> Optional[float]:
+    def _sanitize_price(price: Optional[float]) -> float:
         """Guard against NaN, infinity, and out-of-bounds prices.
 
-        Returns None for unrecoverable values, clamps to bounds otherwise.
+        Always returns a valid float. Falls back to DEFAULT_PRICE for None/invalid inputs.
         """
         if price is None:
-            return None
+            return float(os.getenv('DEFAULT_PRICE', '29.99'))
         if math.isnan(price) or math.isinf(price):
             logger.error(f"Price calculation produced invalid value: {price}, using default")
             return float(os.getenv('DEFAULT_PRICE', '29.99'))
