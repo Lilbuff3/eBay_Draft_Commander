@@ -16,4 +16,4 @@ eventlet>=0.40.4
 
 # Image Processing
 pillow>=12.1.1
-rembg
+rembg>=2.0.67
