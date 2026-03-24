@@ -16,6 +16,7 @@ from datetime import datetime
 from typing import Optional, List, Callable, Dict, Any
 from backend.app.core.logger import get_logger
 from backend.app.core.paths import get_data_dir
+from backend.app.core.exceptions import NeedsReviewException
 
 # Re-export data model so existing imports don't break
 from backend.app.services.queue_job import JobStatus, QueueJob, resolve_thumbnail  # noqa: F401
@@ -270,9 +271,6 @@ class QueueManager:
             
         return job
 
-    def save_state(self):
-        """Deprecated: No longer needed. Use update_job() for direct DB writes."""
-        self.logger.warning("save_state() called but is deprecated — use update_job() instead")
 
     def update_job(self, job_id: str, updates: Dict[str, Any]) -> bool:
         """Update a job's fields directly in the database.
@@ -444,18 +442,17 @@ class QueueManager:
     def _watch_inbox(self):
         """Background thread to watch for new items in inbox"""
         self.logger.info(f"Inbox Watcher started on: {self.inbox_path}")
-        
+        # Import here to avoid circular dependency
+        from backend.app.services.scanner_service import ScannerService
+        scanner = ScannerService(self.inbox_path)
+
         while True:
             try:
                 time.sleep(10) # Check every 10 seconds
-                
+
                 if not self.inbox_path.exists():
                     continue
-                    
-                # Import here to avoid circular dependency
-                from backend.app.services.scanner_service import ScannerService
-                
-                scanner = ScannerService(self.inbox_path)
+
                 result = scanner.scan_inbox(self)
                 
                 if result.get('added', 0) > 0:
@@ -876,7 +873,7 @@ class QueueManager:
 
         except Exception as e:
             # Check if this is a NeedsReview exception from the processor service
-            if type(e).__name__ == 'NeedsReviewException':
+            if isinstance(e, NeedsReviewException):
                 self.log_status(job.id, f"[WARN] Needs Review: {str(e)}", "warning")
                 job.status = JobStatus.NEEDS_REVIEW
                 job.error_message = str(e)
