@@ -8,7 +8,6 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ScannerListener } from '@/components/ScannerListener'
 import { ScannerModal } from '@/components/ScannerModal'
 import { useCommanderStore } from '@/store/useCommanderStore'
-import { useJobSync } from '@/hooks/useJobSync'
 import { useQueryClient } from '@tanstack/react-query'
 import { BatchSummaryDialog } from '@/components/BatchSummaryDialog'
 
@@ -32,9 +31,6 @@ export function Dashboard() {
     const handleStart = useCommanderStore(state => state.handleStart)
     const handlePause = useCommanderStore(state => state.handlePause)
     const handleScan = useCommanderStore(state => state.handleScan)
-
-    // Sync Actions
-    useJobSync()
 
     // Keep a ref to latest jobs for use in closures
     const jobsRef = useRef(jobs)

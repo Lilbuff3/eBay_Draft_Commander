@@ -175,6 +175,11 @@ export function useJobSync() {
                     if (!old) return [updatedJob]
                     return old.map(job => job.id === updatedJob.id ? { ...job, ...updatedJob } : job)
                 })
+                // Keep selectedJob in sync so ItemDetailDrawer doesn't show stale data
+                const currentSelected = useCommanderStore.getState().selectedJob
+                if (currentSelected && currentSelected.id === updatedJob.id) {
+                    useCommanderStore.getState().setSelectedJob({ ...currentSelected, ...updatedJob })
+                }
             } else {
                 queryClient.invalidateQueries({ queryKey: ['jobs'] })
             }
