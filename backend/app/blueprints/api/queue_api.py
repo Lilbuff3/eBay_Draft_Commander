@@ -91,9 +91,9 @@ def scan_inbox_endpoint():
         result = scanner.scan_inbox(qm, batch_id=batch_id)
         return jsonify({
             'success': True,
-            'count': result.get('added_count', 0),
+            'count': result.get('added', 0),
             'batch_id': batch_id,
-            'message': f"Scanned inbox. Added {result.get('added_count', 0)} jobs to queue (Batch: {batch_id})"
+            'message': f"Scanned inbox. Added {result.get('added', 0)} jobs to queue (Batch: {batch_id})"
         })
     except Exception as e:
         return error_response(str(e))
