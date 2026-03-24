@@ -18,11 +18,30 @@ def get_app_settings():
 
 @settings_bp.route('', methods=['POST'])
 def save_app_settings():
-    """Save application settings to .env"""
+    """Save application settings to .env (only whitelisted keys)"""
     settings_manager = get_settings_manager()
     data = request.json
-    if not data: return jsonify({'success': False, 'error': 'No data provided'}), 400
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'}), 400
+
+    # Build whitelist from SETTING_CATEGORIES and DEFAULTS
+    allowed_keys = set()
+    for keys in settings_manager.SETTING_CATEGORIES.values():
+        allowed_keys.update(keys)
+    allowed_keys.update(settings_manager.DEFAULTS.keys())
+
+    filtered = {k: v for k, v in data.items() if k in allowed_keys}
+    skipped = [k for k in data if k not in allowed_keys]
+    if skipped:
+        logger.warning(f"Settings save: rejected unknown keys: {skipped}")
+
     try:
-        settings_manager.save(data)
-        return jsonify({'success': True, 'message': 'Settings saved successfully'})
-    except Exception as e: return jsonify({'success': False, 'error': str(e)}), 500
+        settings_manager.save(filtered)
+        return jsonify({
+            'success': True,
+            'message': 'Settings saved successfully',
+            'saved_count': len(filtered),
+            'skipped': skipped
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

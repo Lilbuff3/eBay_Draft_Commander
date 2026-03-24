@@ -321,6 +321,28 @@ def serve_job_image(job_id, filename):
     if not path: return error_response('Image not found', 404)
     return send_file(path)
 
+def _validate_thumbnail_url(url: str) -> bool:
+    """Validate thumbnail URL: must be https/http, not internal IP."""
+    from urllib.parse import urlparse
+    import ipaddress
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ('http', 'https'):
+            return False
+        hostname = parsed.hostname or ''
+        try:
+            ip = ipaddress.ip_address(hostname)
+            if ip.is_private or ip.is_reserved or ip.is_loopback or ip.is_link_local:
+                return False
+        except ValueError:
+            pass  # hostname is a domain name, not an IP
+        if hostname in ('localhost', 'metadata.google.internal'):
+            return False
+        return True
+    except Exception:
+        return False
+
+
 @jobs_bp.route('/create-from-metadata', methods=['POST'])
 def create_job_from_metadata():
     try:
@@ -332,14 +354,16 @@ def create_job_from_metadata():
         job_folder = inbox_dir / folder_name
         job_folder.mkdir(exist_ok=True)
         image_url = data.get('thumbnail')
-        if image_url:
+        if image_url and _validate_thumbnail_url(image_url):
             try:
-                import requests
-                img_resp = requests.get(image_url, timeout=10)
-                if img_resp.status_code == 200:
+                import requests as http_requests
+                img_resp = http_requests.get(image_url, timeout=10, allow_redirects=False)
+                if img_resp.status_code == 200 and len(img_resp.content) < 10 * 1024 * 1024:
                     ext = 'png' if 'png' in image_url else 'jpg'
-                    with open(job_folder / f"cover.{ext}", 'wb') as f: f.write(img_resp.content)
-            except Exception as e: logger.warning(f"Failed to download thumbnail: {e}")
+                    with open(job_folder / f"cover.{ext}", 'wb') as f:
+                        f.write(img_resp.content)
+            except Exception as e:
+                logger.warning(f"Failed to download thumbnail: {e}")
         metadata = {
             'user_title': data.get('title'), 'user_isbn': data.get('isbn'), 'user_description': data.get('description'),
             'source_data': data, 'created_at': time.time(), 'notes': f"Imported from {data.get('source', 'metadata')}"

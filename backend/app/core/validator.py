@@ -86,10 +86,11 @@ def validate_safe_path(path_str, base_dir=None):
         
     try:
         requested_path = Path(path_str).resolve()
-        # Check if requested_path is exactly base_dir or a child of it
-        if not str(requested_path).startswith(str(base_dir)):
+        if requested_path != base_dir and not requested_path.is_relative_to(base_dir):
             raise ValidationError(f"Security: Access denied to path outside of authorized root", "path")
         return requested_path
+    except ValidationError:
+        raise
     except Exception as e:
         raise ValidationError(f"Invalid path: {e}", "path")
 

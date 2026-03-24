@@ -73,7 +73,7 @@ class ImageProcessor:
             if fixtures_dir.exists():
                 allowed_dirs.append(fixtures_dir.resolve())
 
-            if allowed_dirs and not any(str(folder_path).startswith(str(d)) for d in allowed_dirs):
+            if allowed_dirs and not any(folder_path == d or folder_path.is_relative_to(d) for d in allowed_dirs):
                 raise ValueError(f"Image folder outside allowed directories: {folder_path}")
 
             _log(f"[UPLOAD] Uploading images to eBay from {folder_path.name}...")
