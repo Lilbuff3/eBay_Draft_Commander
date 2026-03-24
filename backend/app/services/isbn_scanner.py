@@ -1,7 +1,6 @@
 
 import os
 import json
-from pathlib import Path
 from typing import Optional, List
 from backend.app.core.logger import get_logger
 from backend.app.core.constants import AI_PRICING_MODEL
@@ -20,17 +19,7 @@ class ISBNScanner:
     """
     
     def __init__(self):
-        env_path = Path(__file__).resolve().parents[3] / ".env"
-        api_key = None
-        if env_path.exists():
-            with open(env_path, 'r') as f:
-                for line in f:
-                    if line.strip().startswith('GOOGLE_API_KEY='):
-                        api_key = line.split('=')[1].strip()
-                        break
-        
-        if not api_key:
-            api_key = os.getenv('GOOGLE_API_KEY')
+        api_key = os.getenv('GOOGLE_API_KEY')
             
         if api_key:
             self.client = genai.Client(api_key=api_key)

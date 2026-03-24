@@ -59,7 +59,7 @@ class Config:
     # feature flags and limits...
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key'
     MAX_CONTENT_LENGTH = 160 * 1024 * 1024 
-    AUTO_PUBLISH = os.environ.get('EBAY_AUTO_PUBLISH', 'false').lower() == 'true'
+    AUTO_PUBLISH = os.environ.get('AUTO_PUBLISH', 'false').lower() == 'true'
     CONFIDENCE_THRESHOLD = int(os.environ.get('CONFIDENCE_THRESHOLD', 85))
     AUTO_PUBLISH_MIN_PRICE = float(os.environ.get('AUTO_PUBLISH_MIN_PRICE', 15.00))
 

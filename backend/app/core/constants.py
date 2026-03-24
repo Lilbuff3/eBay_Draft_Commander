@@ -65,7 +65,7 @@ SUPPORTED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', 
 # eBay API Limits and Defaults
 DEFAULT_CATEGORY_ID = "170599"  # Other > Everything Else (fallback category)
 MAX_IMAGES_PER_LISTING = 12  # eBay allows max 12 images per listing
-DEFAULT_CONDITION = "USED_EXCELLENT"  # Default if no condition specified
+DEFAULT_CONDITION = os.getenv('DEFAULT_CONDITION', 'USED_EXCELLENT')  # Default if no condition specified
 TITLE_MAX_LENGTH = 80  # eBay title character limit
 ASPECT_VALUE_MAX_LENGTH = 65  # eBay item specific value character limit
 
