@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from backend.app.core.logger import get_logger
 from backend.app.core.constants import TRADING_API_TIMEOUT, TRADING_API_MAX_RETRIES, TRADING_API_PAGE_SIZE
 from backend.app.services.ebay.policies import load_env
+from backend.app.core.token_manager import get_token_manager
 
 logger = get_logger('ebay_trading_service')
 
@@ -329,8 +330,11 @@ class TradingService:
                         break
                     elif response.status_code == 401:
                         logger.warning(f"AddFixedPriceItem: Token expired (401), refreshing... (attempt {retry_count + 1}/{max_retries + 1})")
-                        creds = load_env()
-                        token = creds.get('EBAY_USER_TOKEN')
+                        tm = get_token_manager()
+                        if not tm.force_refresh():
+                            logger.error("AddFixedPriceItem: Token refresh failed")
+                            break
+                        token = tm.get_access_token()
                         if not token:
                             logger.error("AddFixedPriceItem: No token available after refresh")
                             break

@@ -202,20 +202,20 @@ class QueueManager:
     def _token_maintainer(self):
         """Background thread to keep eBay token alive"""
         self.logger.info("Token Maintenance Heartbeat started")
-        from backend.app.services.ebay.auth import eBayOAuth
-        
+        from backend.app.core.token_manager import get_token_manager
+
         while True:
             try:
                 # Sleep for 60 minutes
                 time.sleep(3600)
-                
+
                 self.logger.info("Running scheduled token refresh...")
-                oauth = eBayOAuth(use_sandbox=False)
-                if oauth.refresh_access_token():
+                tm = get_token_manager()
+                if tm.force_refresh():
                     self.logger.info("Token refreshed successfully (Background)")
                 else:
                     self.logger.warning("Background token refresh failed")
-                    
+
             except Exception as e:
                 self.logger.error(f"Token maintenance error: {e}")
                 time.sleep(300) # Retry sooner on error
