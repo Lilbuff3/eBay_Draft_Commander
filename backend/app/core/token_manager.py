@@ -50,6 +50,7 @@ class TokenManager:
         self._expires_at: Optional[datetime] = None
         self._lock = threading.Lock()
         self._db_initialized = False
+        self._session_factory = None
         
         # Load any existing token from DB on startup
         self._load_from_db()
@@ -212,15 +213,22 @@ class TokenManager:
             logger.error(f"[FAIL] Token refresh error: {e}")
             return False
     
+    def _get_session_factory(self):
+        """Get or create the cached SQLAlchemy session factory."""
+        if not self._session_factory:
+            from backend.app.core.database import init_db
+            from backend.app.core.paths import get_data_dir
+
+            db_path = get_data_dir() / "commander.db"
+            self._session_factory = init_db(db_path)
+        return self._session_factory
+
     def _save_to_db(self, token: str, expires_at: datetime):
         """Atomically save access token to SQLite."""
         try:
-            from backend.app.core.database import AppToken, init_db
-            from backend.app.core.paths import get_data_dir
-            
-            db_path = get_data_dir() / "commander.db"
-            SessionFactory = init_db(db_path)
-            session = SessionFactory()
+            from backend.app.core.database import AppToken
+
+            session = self._get_session_factory()()
             
             try:
                 existing = session.query(AppToken).filter_by(key='ebay_access_token').first()
@@ -248,15 +256,14 @@ class TokenManager:
     def _load_from_db(self):
         """Load cached token from SQLite on startup."""
         try:
-            from backend.app.core.database import AppToken, init_db
+            from backend.app.core.database import AppToken
             from backend.app.core.paths import get_data_dir
-            
+
             db_path = get_data_dir() / "commander.db"
             if not db_path.exists():
                 return
-            
-            SessionFactory = init_db(db_path)
-            session = SessionFactory()
+
+            session = self._get_session_factory()()
             
             try:
                 row = session.query(AppToken).filter_by(key='ebay_access_token').first()
