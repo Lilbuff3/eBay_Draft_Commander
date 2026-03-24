@@ -46,7 +46,7 @@ export interface QueueStatus {
 const API_BASE = '/api'
 
 /** Thin wrapper around fetch that checks res.ok and throws on HTTP errors */
-async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
+export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
     const res = await fetch(url, init)
     if (!res.ok) {
         const body = await res.text().catch(() => '')
@@ -134,6 +134,18 @@ export async function deleteJob(jobId: string, deleteFolder = false): Promise<{ 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobIds: [jobId], deleteFolders: deleteFolder })
     })
+}
+
+export async function bulkDeleteJobs(jobIds: string[], deleteFolders = false): Promise<{ success: boolean }> {
+    return apiFetch(`${API_BASE}/jobs/bulk-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobIds, deleteFolders })
+    })
+}
+
+export async function fetchJobImages(jobId: string): Promise<{ images: Array<{ name: string; url: string }> }> {
+    return apiFetch(`${API_BASE}/job/${jobId}/images`)
 }
 
 export interface CreateListingParams {

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Package, RefreshCw, AlertCircle, Download } from 'lucide-react'
+import { toast } from 'sonner'
+import { apiFetch } from '@/lib/api'
 import { MigrationModal } from './MigrationModal'
 import { EditListingDialog } from './listings/EditListingDialog'
 import { Button } from '@/components/ui/button'
@@ -58,14 +60,13 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
         setError(null)
         setSelectedSkus(new Set())
         try {
-            const res = await fetch('/api/listings/active')
-            const json = await res.json()
+            const json = await apiFetch<{ listings: (Listing & { availability?: number })[]; total: number; error?: string }>('/api/listings/active')
             if (json.error) throw new Error(json.error)
 
             // Map availability to availableQuantity if needed or normalize
             const normalized = {
                 ...json,
-                listings: json.listings.map((l: Listing & { availability?: number }) => ({
+                listings: json.listings.map((l) => ({
                     ...l,
                     availableQuantity: l.availableQuantity ?? l.availability ?? 0
                 }))
@@ -98,23 +99,18 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
         }
 
         try {
-            const res = await fetch(`/api/listings/${sku}`, {
+            await apiFetch(`/api/listings/${sku}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updates)
             })
-
-            if (!res.ok) {
-                const err = await res.json()
-                throw new Error(err.error || 'Update failed')
-            }
 
             setEditingListing(null)
         } catch (e) {
             console.error(e)
             // Revert on error
             setData(previousData)
-            alert(`Failed to update listing: ${e instanceof Error ? e.message : 'Unknown error'}`)
+            toast.error(`Failed to update listing: ${e instanceof Error ? e.message : 'Unknown error'}`)
             throw e // Rethrow so dialog knows it failed
         }
     }
@@ -122,10 +118,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
     const refreshPrice = async (sku: string) => {
         setFetchingSkus(prev => new Set(prev).add(sku))
         try {
-            const res = await fetch(`/api/listings/${sku}/details`)
-            if (!res.ok) throw new Error('Failed to fetch price')
-
-            const details = await res.json()
+            const details = await apiFetch<{ price: number; quantity: number; offerId: string }>(`/api/listings/${sku}/details`)
 
             if (data) {
                 setData({
@@ -140,7 +133,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
             }
         } catch (e) {
             console.error(e)
-            alert('Could not fetch latest price')
+            toast.error('Could not fetch latest price')
         } finally {
             setFetchingSkus(prev => {
                 const next = new Set(prev)
@@ -170,15 +163,10 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
     const handleRelist = async (listing: Listing) => {
         if (!confirm(`Relist ${listing.title}?`)) return
         try {
-            const res = await fetch(`/api/listings/${listing.offerId}/publish`, { method: 'POST' })
-            if (res.ok) {
-                fetchListings()
-            } else {
-                const err = await res.json()
-                alert(`Failed: ${err.error}`)
-            }
-        } catch {
-            alert('Relist failed')
+            await apiFetch(`/api/listings/${listing.offerId}/publish`, { method: 'POST' })
+            fetchListings()
+        } catch (e) {
+            toast.error(`Relist failed: ${e instanceof Error ? e.message : 'Unknown error'}`)
         }
     }
 

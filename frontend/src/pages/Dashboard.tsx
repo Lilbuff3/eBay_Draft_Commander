@@ -3,7 +3,8 @@ import { ItemCardGrid } from '@/components/ItemCardGrid'
 import { ItemDetailDrawer } from '@/components/ItemDetailDrawer'
 import { UploadZone } from '@/components/UploadZone'
 import { InstallPrompt } from '@/components/InstallPrompt'
-import { createListing, fetchJobDetails, type JobDetails, type ItemDraft, clearCompleted, clearFailed, deleteJob } from '@/lib/api'
+import { createListing, fetchJobDetails, fetchJobImages, type JobDetails, type ItemDraft, clearCompleted, clearFailed, deleteJob, bulkDeleteJobs } from '@/lib/api'
+import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ScannerListener } from '@/components/ScannerListener'
 import { ScannerModal } from '@/components/ScannerModal'
@@ -73,31 +74,13 @@ export function Dashboard() {
 
     const clearSelection = () => setSelectedJobIds(new Set())
 
-    const handleBulkDelete = async () => {
-        if (!confirm(`Delete ${selectedJobIds.size} items?`)) return
-        const idsToDelete = new Set(selectedJobIds)
-        try {
-            const res = await fetch('/api/jobs/bulk-delete', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ jobIds: Array.from(idsToDelete) })
-            })
-            if (!res.ok) throw new Error(`HTTP ${res.status}`)
-            // Optimistically remove deleted jobs from state
-            setJobs(jobs.filter(j => !idsToDelete.has(j.id)))
-            if (selectedJob && idsToDelete.has(selectedJob.id)) {
-                setSelectedJob(null)
-            }
-            clearSelection()
-        } catch (e) {
-            console.error(e)
-            alert("Failed to delete jobs")
-        }
+    const handleBulkDelete = () => {
+        setConfirmDialog({ type: 'bulk-delete' })
     }
 
     // Confirmation dialog state
     const [confirmDialog, setConfirmDialog] = useState<{
-        type: 'clear-completed' | 'clear-failed' | 'delete-single' | null
+        type: 'clear-completed' | 'clear-failed' | 'delete-single' | 'bulk-delete' | null
         jobId?: string
         jobName?: string
     }>({ type: null })
@@ -137,10 +120,18 @@ export function Dashboard() {
                 await deleteJob(jobId, deleteFolders)
                 setJobs(jobs.filter(j => j.id !== jobId))
                 if (selectedJob?.id === jobId) setSelectedJob(null)
+            } else if (type === 'bulk-delete') {
+                const idsToDelete = new Set(selectedJobIds)
+                await bulkDeleteJobs(Array.from(idsToDelete), deleteFolders)
+                setJobs(jobs.filter(j => !idsToDelete.has(j.id)))
+                if (selectedJob && idsToDelete.has(selectedJob.id)) {
+                    setSelectedJob(null)
+                }
+                clearSelection()
             }
         } catch (e) {
             console.error(e)
-            alert(`Failed to ${type === 'clear-completed' ? 'clear completed' : type === 'clear-failed' ? 'clear failed' : 'delete'} jobs`)
+            toast.error(`Failed to ${type === 'clear-completed' ? 'clear completed' : type === 'clear-failed' ? 'clear failed' : 'delete'} jobs`)
         }
     }
 
@@ -148,8 +139,7 @@ export function Dashboard() {
     useEffect(() => {
         if (selectedJob) {
             setJobImages([])
-            fetch(`/api/job/${selectedJob.id}/images`)
-                .then(res => res.json())
+            fetchJobImages(selectedJob.id)
                 .then(data => {
                     if (data.images && data.images.length > 0) {
                         setJobImages(data.images.map((img: { name: string; url?: string }) => ({
@@ -399,6 +389,16 @@ export function Dashboard() {
                 showFolderOption
                 onConfirm={executeConfirm}
                 confirmLabel="Delete"
+            />
+            <ConfirmDialog
+                open={confirmDialog.type === 'bulk-delete'}
+                onOpenChange={(open) => !open && setConfirmDialog({ type: null })}
+                title={`Delete ${selectedJobIds.size} Items`}
+                description={`Remove ${selectedJobIds.size} selected items from the app.`}
+                count={selectedJobIds.size}
+                showFolderOption
+                onConfirm={executeConfirm}
+                confirmLabel="Delete All"
             />
 
             {/* Batch Summary */}
