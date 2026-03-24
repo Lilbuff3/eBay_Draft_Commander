@@ -52,7 +52,7 @@ const batchReducer = (state: BatchItem[], action: BatchAction): BatchItem[] => {
                 isbn: action.payload.isbn,
                 title: 'Looking up...',
                 author: '',
-                condition: 'Used - Good', // Default assumption
+                condition: 'USED_GOOD', // Default assumption
                 price: '',
                 status: 'loading'
             }, ...state]
@@ -146,10 +146,13 @@ function BatchItemCard({
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="Like New">Like New</SelectItem>
-                                <SelectItem value="Very Good">Very Good</SelectItem>
-                                <SelectItem value="Good">Good</SelectItem>
-                                <SelectItem value="Acceptable">Acceptable</SelectItem>
+                                <SelectItem value="NEW">New</SelectItem>
+                                <SelectItem value="NEW_OTHER">New - Open Box</SelectItem>
+                                <SelectItem value="LIKE_NEW">Like New</SelectItem>
+                                <SelectItem value="USED_EXCELLENT">Used - Excellent</SelectItem>
+                                <SelectItem value="USED_VERY_GOOD">Used - Very Good</SelectItem>
+                                <SelectItem value="USED_GOOD">Used - Good</SelectItem>
+                                <SelectItem value="USED_ACCEPTABLE">Used - Acceptable</SelectItem>
                             </SelectContent>
                         </Select>
                         <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" onClick={onRemove}>
@@ -249,22 +252,43 @@ export function BatchScan() {
         setIsProcessing(true)
         const validItems = items.filter(i => i.status === 'found')
 
-        let processed = 0
+        let successCount = 0
+        let errorCount = 0
         for (const item of validItems) {
             dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { status: 'drafting' } } })
 
             try {
-                // Simulating the API call for MVP
-                await new Promise(r => setTimeout(r, 800))
+                const res = await fetch('/api/jobs/create-from-metadata', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: item.title,
+                        isbn: item.isbn,
+                        description: item.fullData?.description || '',
+                        thumbnail: item.stock_photo || '',
+                        source: 'batch_scan',
+                    }),
+                })
+                const data = await res.json()
 
-                dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { status: 'drafted', listingId: 'DRAFT-' + item.isbn } } })
+                if (res.ok && data.success) {
+                    dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { status: 'drafted', listingId: data.job_id || data.id } } })
+                    successCount++
+                } else {
+                    dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { status: 'error' } } })
+                    errorCount++
+                }
             } catch {
                 dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { status: 'error' } } })
+                errorCount++
             }
-            processed++
         }
         setIsProcessing(false)
-        toast.success(`Processed ${processed} items!`)
+        if (errorCount === 0) {
+            toast.success(`Drafted ${successCount} items successfully!`)
+        } else {
+            toast.warning(`Drafted ${successCount} items, ${errorCount} failed.`)
+        }
     }
 
     const foundCount = items.filter(i => i.status === 'found').length
@@ -305,10 +329,13 @@ export function BatchScan() {
                         <SelectValue placeholder="Set Condition" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="Like New">Like New</SelectItem>
-                        <SelectItem value="Very Good">Very Good</SelectItem>
-                        <SelectItem value="Good">Good</SelectItem>
-                        <SelectItem value="Acceptable">Acceptable</SelectItem>
+                        <SelectItem value="NEW">New</SelectItem>
+                        <SelectItem value="NEW_OTHER">New - Open Box</SelectItem>
+                        <SelectItem value="LIKE_NEW">Like New</SelectItem>
+                        <SelectItem value="USED_EXCELLENT">Used - Excellent</SelectItem>
+                        <SelectItem value="USED_VERY_GOOD">Used - Very Good</SelectItem>
+                        <SelectItem value="USED_GOOD">Used - Good</SelectItem>
+                        <SelectItem value="USED_ACCEPTABLE">Used - Acceptable</SelectItem>
                     </SelectContent>
                 </Select>
 
@@ -392,10 +419,13 @@ export function BatchScan() {
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="Like New">Like New</SelectItem>
-                                                <SelectItem value="Very Good">Very Good</SelectItem>
-                                                <SelectItem value="Good">Good</SelectItem>
-                                                <SelectItem value="Acceptable">Acceptable</SelectItem>
+                                                <SelectItem value="NEW">New</SelectItem>
+                                                <SelectItem value="NEW_OTHER">New - Open Box</SelectItem>
+                                                <SelectItem value="LIKE_NEW">Like New</SelectItem>
+                                                <SelectItem value="USED_EXCELLENT">Used - Excellent</SelectItem>
+                                                <SelectItem value="USED_VERY_GOOD">Used - Very Good</SelectItem>
+                                                <SelectItem value="USED_GOOD">Used - Good</SelectItem>
+                                                <SelectItem value="USED_ACCEPTABLE">Used - Acceptable</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </TableCell>
