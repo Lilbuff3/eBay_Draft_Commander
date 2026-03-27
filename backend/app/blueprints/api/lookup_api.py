@@ -1,4 +1,3 @@
-import html
 import json
 from flask import Blueprint, jsonify, request
 from backend.app.blueprints.api.helpers import error_response

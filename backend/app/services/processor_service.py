@@ -7,6 +7,7 @@ import os
 import uuid
 import time
 from pathlib import Path
+from typing import Optional
 from flask import current_app
 from backend.app.core.logger import get_logger
 from backend.app.core.validator import validate_price, validate_title, validate_condition
@@ -55,7 +56,7 @@ class ProcessorService:
         'for parts or not working': 'FOR_PARTS_OR_NOT_WORKING',
     }
 
-    def _determine_condition(self, folder_path: Path, metadata_condition: str, user_condition: str, log_callback=None) -> str:
+    def _determine_condition(self, folder_path: Path, metadata_condition: str, user_condition: str, log_callback=None) -> Optional[str]:
         """Determine item condition with explicit priority"""
         def _log(msg, level='info'):
             if log_callback: log_callback(msg, level)
@@ -79,11 +80,12 @@ class ProcessorService:
         _log("Condition: None (will await user input)")
         return None
 
-    def _refine_condition_from_ai(self, current_condition: str, ai_data: dict, has_user_override: bool, has_metadata: bool, has_folder_match: bool, log_callback=None) -> str:
+    def _refine_condition_from_ai(self, current_condition: Optional[str], ai_data: dict, has_user_override: bool, has_metadata: bool, has_folder_match: bool, log_callback=None) -> Optional[str]:
         """Refine condition using AI-detected state, if no explicit override exists.
 
-        Only upgrades/changes condition when it came from DEFAULT_CONDITION
-        (i.e. no user override, no metadata, no folder match).
+        Only upgrades/changes condition when no user override, metadata, or folder match exists.
+        When current_condition is None (no source), AI detection can provide a condition
+        to avoid the awaiting_condition gate.
         """
         def _log(msg, level='info'):
             if log_callback: log_callback(msg, level)
