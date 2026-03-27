@@ -19,6 +19,7 @@ class JobStatus(Enum):
     """Status of a queue job"""
     PENDING = "pending"
     PROCESSING = "processing"
+    AWAITING_CONDITION = "awaiting_condition"
     COMPLETED = "completed"
     FAILED = "failed"
     PAUSED = "paused"

@@ -841,7 +841,12 @@ class QueueManager:
 
             # Handle result
             if isinstance(result, dict):
-                if result.get('status') == 'pending_review':
+                if result.get('status') == 'awaiting_condition':
+                    job.status = JobStatus.AWAITING_CONDITION
+                    job.title = result.get('title')
+                    job.confidence_score = result.get('confidence_score')
+                    job.timing = result.get('timing', {'total': elapsed})
+                elif result.get('status') == 'pending_review':
                     # Routed to review queue (AUTO_PUBLISH=false, low confidence, or missing category)
                     job.status = JobStatus.PENDING_REVIEW
                     job.price = result.get('price')

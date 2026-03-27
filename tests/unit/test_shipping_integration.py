@@ -43,7 +43,7 @@ class TestShippingIntegration:
         job.id = "JOB1"
         job.folder_path = str(self.mock_folder)
         job.user_price = None
-        job.user_condition = None
+        job.user_condition = 'USED_GOOD'
         job.job_metadata = {}
         job.ai_data = {}
         return job

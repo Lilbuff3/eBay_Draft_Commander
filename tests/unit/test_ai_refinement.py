@@ -17,7 +17,7 @@ def _make_mock_job(folder_path, **overrides):
     job = MagicMock()
     job.folder_path = str(folder_path)
     job.job_metadata = overrides.get('job_metadata', {})
-    job.user_condition = overrides.get('user_condition', None)
+    job.user_condition = overrides.get('user_condition', 'USED_GOOD')
     job.user_price = overrides.get('user_price', None)
     job.user_title = overrides.get('user_title', None)
     job.scheduled_time = overrides.get('scheduled_time', None)

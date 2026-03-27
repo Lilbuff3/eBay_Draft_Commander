@@ -107,7 +107,7 @@ def test_condition_default_fallback(processor, mock_callback, tmp_path):
     )
     
     # Assert
-    assert result == DEFAULT_CONDITION  # Should be "USED_EXCELLENT" from constants
+    assert result is None  # No source -> None triggers awaiting_condition flow
 
 
 def test_condition_priority_cascade(processor, mock_callback, tmp_path):

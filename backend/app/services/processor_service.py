@@ -75,8 +75,9 @@ class ProcessorService:
             _log(f"Condition: Folder Name '{parent_name}' -> {condition}")
             return condition
 
-        _log(f"Condition: Default -> {DEFAULT_CONDITION}")
-        return DEFAULT_CONDITION
+        # No condition from any source — return None to trigger awaiting_condition
+        _log("Condition: None (will await user input)")
+        return None
 
     def _refine_condition_from_ai(self, current_condition: str, ai_data: dict, has_user_override: bool, has_metadata: bool, has_folder_match: bool, log_callback=None) -> str:
         """Refine condition using AI-detected state, if no explicit override exists.
@@ -356,6 +357,20 @@ class ProcessorService:
             # Cleanup old key if it exists
             ai_data.pop('ebay_required_aspects', None)
         job_obj.ai_data = ai_data
+
+        # --- PHASE 1 GATE: Pause if no condition determined ---
+        if condition is None:
+            _log("No condition determined -- pausing for user input", level='warning')
+            result.update({
+                "success": True,
+                "status": "awaiting_condition",
+                "title": analysis['title'],
+                "category_id": cat_result.get('id'),
+                "category_name": cat_result.get('name', ''),
+                "confidence_score": confidence_score,
+                "timing": {**result["timing"], "total": time.time() - start_time}
+            })
+            return result
 
         # 5. Final Pricing
         shipping_cost = analysis.get('shipping_cost')

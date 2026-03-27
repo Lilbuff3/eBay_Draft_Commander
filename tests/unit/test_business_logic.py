@@ -102,7 +102,7 @@ def test_condition_mapping_from_folders(test_app, mock_deps, tmp_path):
     item_folder.mkdir(parents=True)
     (item_folder / "test.jpg").touch()
 
-    mock_job = _make_mock_job(item_folder)  # no user_condition, no metadata condition
+    mock_job = _make_mock_job(item_folder)  # folder "New Old Stock" provides condition via CONDITION_MAP
     service = ProcessorService()
 
     with test_app.app_context():
@@ -141,7 +141,7 @@ def test_aspect_cleaning_truncation(test_app, mock_deps, tmp_path):
     item_folder.mkdir()
     (item_folder / "img.jpg").touch()
 
-    mock_job = _make_mock_job(item_folder)
+    mock_job = _make_mock_job(item_folder, user_condition='USED_GOOD')
     service = ProcessorService()
 
     with test_app.app_context():

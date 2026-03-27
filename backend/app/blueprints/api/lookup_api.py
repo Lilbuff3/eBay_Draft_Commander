@@ -1,8 +1,10 @@
+import html
 import json
 from flask import Blueprint, jsonify, request
 from backend.app.blueprints.api.helpers import error_response
 from backend.app.core.validator import validate_isbn
 from backend.app.core.logger import get_logger
+from backend.app.services.ebay.taxonomy import get_valid_condition_ids
 
 lookup_bp = Blueprint('lookup', __name__)
 logger = get_logger('api.lookup')
@@ -86,6 +88,22 @@ def category_aspects(category_id):
         return jsonify(full_schema)
     except Exception as e:
         return error_response(str(e))
+
+@lookup_bp.route('/lookup/category/<category_id>/conditions', methods=['GET'])
+def get_valid_conditions(category_id):
+    """Return valid eBay condition IDs and labels for a category."""
+    from backend.app.core.constants import CONDITION_ID_MAP
+
+    valid_ids = get_valid_condition_ids(category_id)
+    # Build reverse map: condition_id -> display label
+    id_to_label = {}
+    for enum_key, cid in CONDITION_ID_MAP.items():
+        display = enum_key.replace('_', ' ').title()
+        id_to_label.setdefault(str(cid), display)
+
+    conditions = [{'id': cid, 'label': id_to_label.get(cid, f'Condition {cid}')} for cid in valid_ids]
+    return jsonify({'category_id': category_id, 'condition_ids': valid_ids, 'conditions': conditions})
+
 
 @lookup_bp.route('/tools/research', methods=['GET'])
 def search_prices():

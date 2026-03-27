@@ -1,7 +1,7 @@
 // API Types and Functions for eBay Draft Commander
 import { toast } from 'sonner'
 
-export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'paused' | 'skipped' | 'scheduled' | 'needs_review' | 'pending_review'
+export type JobStatus = 'pending' | 'processing' | 'awaiting_condition' | 'completed' | 'failed' | 'paused' | 'skipped' | 'scheduled' | 'needs_review' | 'pending_review'
 
 export interface Job {
     id: string
