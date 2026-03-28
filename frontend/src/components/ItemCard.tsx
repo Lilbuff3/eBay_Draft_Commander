@@ -23,6 +23,7 @@ const statusConfig: Record<JobStatus, { icon: typeof Clock; color: string; bgCol
     scheduled: { icon: CalendarClock, color: 'text-blue-600', bgColor: 'bg-blue-100', badgeVariant: 'secondary' },
     needs_review: { icon: AlertCircle, color: 'text-amber-600', bgColor: 'bg-amber-100', badgeVariant: 'secondary' },
     pending_review: { icon: AlertCircle, color: 'text-amber-600', bgColor: 'bg-amber-100', badgeVariant: 'secondary' },
+    awaiting_condition: { icon: AlertCircle, color: 'text-orange-600', bgColor: 'bg-orange-100', badgeVariant: 'secondary' },
 };
 
 const ItemCardInner = forwardRef<HTMLDivElement, ItemCardProps>(function ItemCard(

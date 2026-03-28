@@ -81,6 +81,7 @@ export default function App() {
   useEffect(() => {
     onUpdateAvailable(() => {
       toast('Update available', {
+        id: 'pwa-update',
         description: 'A new version of Draft Commander is ready.',
         duration: Infinity,
         action: {

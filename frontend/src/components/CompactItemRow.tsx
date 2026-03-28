@@ -23,6 +23,7 @@ const statusConfig: Record<JobStatus, { icon: typeof Clock; label: string; color
     scheduled: { icon: CalendarClock, label: 'Scheduled', color: 'text-blue-600', bg: 'bg-blue-50' },
     needs_review: { icon: AlertCircle, label: 'Review', color: 'text-amber-600', bg: 'bg-amber-50' },
     pending_review: { icon: AlertCircle, label: 'Review', color: 'text-amber-600', bg: 'bg-amber-50' },
+    awaiting_condition: { icon: AlertCircle, label: 'Set Condition', color: 'text-orange-600', bg: 'bg-orange-50' },
 };
 
 const SWIPE_THRESHOLD = 80

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { fetchJobs, fetchStatus, type Job, type QueueStatus, type JobStatus } from '@/lib/api'
+import { fetchJobs, fetchStatus, type Job, type JobStatus } from '@/lib/api'
 import { io, type Socket } from 'socket.io-client'
 import { toast } from 'sonner'
 import type { LogEntry } from '@/components/LogViewer'
@@ -30,11 +30,11 @@ export function useJobSync() {
     const { data: jobs = [], refetch: refetchJobs } = useQuery({
         queryKey: ['jobs'],
         queryFn: fetchJobs,
-        initialData: [] as Job[],
+        staleTime: 0,
         refetchInterval: isSocketConnected ? false : 5000,
     })
 
-    // Sync React Query data → Zustand store (stable ref from initialData prevents infinite loops)
+    // Sync React Query data → Zustand store
     const prevJobsRef = useRef(jobs)
     useEffect(() => {
         if (prevJobsRef.current !== jobs) {
@@ -60,7 +60,7 @@ export function useJobSync() {
     const { data: statusData, refetch: refetchStatus } = useQuery({
         queryKey: ['status'],
         queryFn: fetchStatus,
-        initialData: { status: 'idle', stats: { pending: 0, completed: 0, failed: 0, total: 0 }, current_job: null, progress: { current: 0, total: 0, percent: 0 } } as QueueStatus,
+        staleTime: 0,
         refetchInterval: isSocketConnected ? false : 5000,
     })
 
@@ -84,11 +84,11 @@ export function useJobSync() {
             }
         },
         refetchInterval: 60000,
-        initialData: 'checking' as const
+        staleTime: 0,
     })
 
     useEffect(() => {
-        setEbayStatus(ebayStatusObj)
+        if (ebayStatusObj) setEbayStatus(ebayStatusObj)
     }, [ebayStatusObj, setEbayStatus])
 
     const refreshData = useCallback(async () => {

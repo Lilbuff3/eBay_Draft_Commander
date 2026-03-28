@@ -44,17 +44,19 @@ self.addEventListener('activate', (event) => {
 registerRoute(offlineFallback)
 
 // ─── API GET Requests: NetworkFirst ───────────────────────────
+// Short cache (5 min) — stale API data causes "eBay Offline" and empty job lists.
+// Only serves from cache when genuinely offline (networkTimeoutSeconds fallback).
 registerRoute(
     ({ url, request }) =>
         url.pathname.startsWith('/api/') && request.method === 'GET',
     new NetworkFirst({
         cacheName: 'api-cache',
-        networkTimeoutSeconds: 5,
+        networkTimeoutSeconds: 3,
         plugins: [
             new CacheableResponsePlugin({ statuses: [200] }),
             new ExpirationPlugin({
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60, // 1 hour
+                maxEntries: 50,
+                maxAgeSeconds: 5 * 60, // 5 minutes — API data goes stale fast
             }),
         ],
     })

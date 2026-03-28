@@ -25,7 +25,7 @@ export default defineConfig(({ mode }) => ({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
       },
       devOptions: {
-        enabled: true,
+        enabled: false,
         type: 'module',
       },
     }),
@@ -42,7 +42,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: true,
     port: parseInt(process.env.PORT || '5175'),
-    hmr: true,
+    hmr: { host: 'localhost' },
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:5000',
