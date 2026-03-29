@@ -294,6 +294,54 @@ class PricingEngine:
             logger.warning(f"Finding API request failed: {e}")
             return []
 
+    MIN_TITLE_SIMILARITY = 0.30  # Minimum word overlap ratio
+    MIN_COMPS_AFTER_FILTER = 3   # Don't filter below this count
+
+    def filter_comps(self, comps: List[Dict], reference_title: str) -> List[Dict]:
+        """Filter comps by title similarity and price outlier rejection.
+
+        1. Title similarity: keep comps sharing >= 30% of words with reference title
+        2. Outlier rejection: drop prices > 2 std devs from median
+        3. Safety: never filter below MIN_COMPS_AFTER_FILTER if we started with enough
+        """
+        if len(comps) <= self.MIN_COMPS_AFTER_FILTER:
+            return comps
+
+        # --- Phase 1: Title similarity ---
+        ref_words = set(reference_title.lower().split())
+        scored = []
+        for comp in comps:
+            comp_words = set(comp.get("title", "").lower().split())
+            if not ref_words or not comp_words:
+                scored.append((0.0, comp))
+                continue
+            overlap = len(ref_words & comp_words) / max(len(ref_words), 1)
+            scored.append((overlap, comp))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        title_filtered = [c for sim, c in scored if sim >= self.MIN_TITLE_SIMILARITY]
+
+        if len(title_filtered) < self.MIN_COMPS_AFTER_FILTER:
+            title_filtered = [c for _, c in scored[:self.MIN_COMPS_AFTER_FILTER]]
+
+        # --- Phase 2: Outlier rejection ---
+        if len(title_filtered) >= 5:
+            prices = [c["price"] for c in title_filtered if c.get("price", 0) > 0]
+            if prices:
+                median = statistics.median(prices)
+                try:
+                    stdev = statistics.stdev(prices)
+                except statistics.StatisticsError:
+                    stdev = 0
+                if stdev > 0:
+                    lower = median - 2 * stdev
+                    upper = median + 2 * stdev
+                    outlier_filtered = [c for c in title_filtered if lower <= c.get("price", 0) <= upper]
+                    if len(outlier_filtered) >= self.MIN_COMPS_AFTER_FILTER:
+                        title_filtered = outlier_filtered
+
+        return title_filtered
+
     def calculate_suggested_price(self, sold_items: List[Dict], our_condition: str = "Used - Good", acquisition_cost: float = 0.0, shipping_cost: float = 0.0, availability: str = None) -> Dict[str, Any]:
         """
         Calculate a suggested price based on sold items data.
@@ -622,6 +670,7 @@ class PricingEngine:
             logger.info(f"[SEARCH] ISBN sold search: {isbn}...")
             sold_items = self.search_finding_api(isbn, category_id, limit=15)
             if sold_items:
+                sold_items = self.filter_comps(sold_items, reference_title=title)
                 price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost, availability=availability)
                 logger.info(f"   [PRICE] Sold price (ISBN): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
                 return {
@@ -637,6 +686,7 @@ class PricingEngine:
             logger.info(f"   [WARN] No sold data for ISBN, trying active listings...")
             sold_items = self.search_sold_listings(isbn, category_id, limit=15)
             if sold_items:
+                sold_items = self.filter_comps(sold_items, reference_title=title)
                 price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost, availability=availability)
                 logger.info(f"   [PRICE] Active price (ISBN): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
                 return {
@@ -665,6 +715,7 @@ class PricingEngine:
                 logger.info(f"[SEARCH] Identifier sold search: {id_query}...")
                 sold_items = self.search_finding_api(id_query, category_id, limit=15)
                 if sold_items:
+                    sold_items = self.filter_comps(sold_items, reference_title=title)
                     price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost, availability=availability)
                     logger.info(f"   [PRICE] Sold price (ID): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
                     return {
@@ -680,6 +731,7 @@ class PricingEngine:
                 logger.info(f"   [WARN] No sold data for identifiers, trying active listings...")
                 sold_items = self.search_sold_listings(id_query, category_id, limit=15)
                 if sold_items:
+                    sold_items = self.filter_comps(sold_items, reference_title=title)
                     price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost, availability=availability)
                     logger.info(f"   [PRICE] Active price (ID): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
                     return {
@@ -703,6 +755,7 @@ class PricingEngine:
                     logger.info(f"[SEARCH] Alt part number: {search_query}...")
                     sold_items = self.search_finding_api(search_query, category_id, limit=10)
                     if sold_items:
+                        sold_items = self.filter_comps(sold_items, reference_title=title)
                         price_data = self.calculate_suggested_price(
                             sold_items, condition, acquisition_cost, shipping_cost,
                             availability=availability
@@ -719,6 +772,7 @@ class PricingEngine:
                     # Also try active listings for alt PN
                     sold_items = self.search_sold_listings(search_query, category_id, limit=10)
                     if sold_items:
+                        sold_items = self.filter_comps(sold_items, reference_title=title)
                         price_data = self.calculate_suggested_price(
                             sold_items, condition, acquisition_cost, shipping_cost,
                             availability=availability
@@ -746,6 +800,7 @@ class PricingEngine:
         logger.info(f"[SEARCH] Keyword sold search: {search_query[:50]}...")
         sold_items = self.search_finding_api(search_query, category_id, limit=15)
         if sold_items:
+            sold_items = self.filter_comps(sold_items, reference_title=title)
             price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost, availability=availability)
             logger.info(f"   [PRICE] Sold price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
             return {
@@ -761,6 +816,7 @@ class PricingEngine:
         logger.info(f"   [WARN] No sold data, trying active listings: {search_query[:50]}...")
         sold_items = self.search_sold_listings(search_query, category_id, limit=15)
         if sold_items:
+            sold_items = self.filter_comps(sold_items, reference_title=title)
             price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost, availability=availability)
             logger.info(f"   [PRICE] Active price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
             return {
