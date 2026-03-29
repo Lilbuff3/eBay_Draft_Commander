@@ -251,11 +251,52 @@ export function ItemDetailDrawer({
                                                 onChange={(e) => updateDraft({ price: e.target.value })}
                                             />
                                         </div>
-                                        {jobDetails.pricing_data?.price_source && (
+                                        {jobDetails?.pricing_data?.price_source_label ? (
+                                            <p className={`text-[10px] mt-1 ${
+                                                jobDetails.pricing_data.price_source_label.includes('sold')
+                                                    ? 'text-emerald-600'
+                                                    : jobDetails.pricing_data.price_source_label.includes('active')
+                                                        ? 'text-amber-600'
+                                                        : 'text-stone-400'
+                                            }`}>
+                                                {jobDetails.pricing_data.price_source_label}
+                                            </p>
+                                        ) : jobDetails?.pricing_data?.price_source ? (
                                             <p className="text-[10px] text-stone-400 mt-1">
                                                 {jobDetails.pricing_data.price_source}
                                             </p>
-                                        )}
+                                        ) : null}
+                                        {/* Profit Calculator */}
+                                        {(() => {
+                                            const price = parseFloat(draft.price) || 0
+                                            if (price <= 0) return null
+                                            const shippingCost = jobDetails?.profit_breakdown?.shipping_cost ?? 6.50
+                                            const shippingMethod = jobDetails?.profit_breakdown?.shipping_method ?? 'standard'
+                                            const ebayFee = Math.round(price * 0.1325 * 100) / 100
+                                            const paymentFee = 0.30
+                                            const takeHome = Math.round((price - ebayFee - paymentFee - shippingCost) * 100) / 100
+                                            const isNegative = takeHome < 0
+                                            return (
+                                                <div className={`mt-2 p-2 rounded-md text-[11px] font-mono ${isNegative ? 'bg-red-50 border border-red-200' : 'bg-emerald-50 border border-emerald-200'}`}>
+                                                    <div className="flex justify-between text-stone-500">
+                                                        <span>eBay fee (13.25%)</span>
+                                                        <span>-${ebayFee.toFixed(2)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between text-stone-500">
+                                                        <span>Payment processing</span>
+                                                        <span>-$0.30</span>
+                                                    </div>
+                                                    <div className="flex justify-between text-stone-500">
+                                                        <span>Shipping ({shippingMethod === 'media_mail' ? 'Media Mail' : shippingCost <= 4.50 ? 'Small pkg' : shippingCost <= 6.50 ? 'Standard' : shippingCost <= 10 ? 'Large pkg' : 'Heavy'})</span>
+                                                        <span>-${shippingCost.toFixed(2)}</span>
+                                                    </div>
+                                                    <div className={`flex justify-between font-bold border-t mt-1 pt-1 ${isNegative ? 'text-red-600 border-red-300' : 'text-emerald-700 border-emerald-300'}`}>
+                                                        <span>Your take-home</span>
+                                                        <span>${takeHome.toFixed(2)}</span>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })()}
                                     </div>
                                     <div className="relative">
                                         <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1 block">

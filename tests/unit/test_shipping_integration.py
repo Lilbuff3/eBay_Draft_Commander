@@ -37,7 +37,7 @@ class TestShippingIntegration:
         self.processor._render_listing_template = MagicMock(return_value={'html': '', 'timing': 0.1})
         self.processor._create_trading_api_listing = MagicMock(return_value={'success': True, 'listing_id': 'LIST123', 'status': 'Created', 'timing': 0.1})
 
-    def _create_mock_job(self):
+    def _create_mock_job(self, ai_data=None):
         """Create a mock job object."""
         job = MagicMock()
         job.id = "JOB1"
@@ -45,7 +45,7 @@ class TestShippingIntegration:
         job.user_price = None
         job.user_condition = 'USED_GOOD'
         job.job_metadata = {}
-        job.ai_data = {}
+        job.ai_data = ai_data if ai_data is not None else {}
         return job
 
     def test_heavy_item_shipping_cost_passed_to_pricing(self):
@@ -76,7 +76,14 @@ class TestShippingIntegration:
         }
 
         self._setup_mocks(mock_analysis, mock_pricing_result)
-        job = self._create_mock_job()
+        # Pre-populate ai_data with identification so shipping recalculation
+        # after category detection can read package_size/weight
+        job = self._create_mock_job(ai_data={
+            'identification': {
+                'package_size': 'heavy',
+                'estimated_weight_lbs': 12.0
+            }
+        })
         result = self.processor.create_listing(job)
 
         _, kwargs = self.processor.ai_agent.pricing_engine.get_price_with_comps.call_args

@@ -546,3 +546,75 @@ class TestSmartQueryConstruction:
             identification={"brand": "Xerox", "mpn": "108R00713", "model": ""}
         )
         assert query.count("Xerox") == 1
+
+
+# ---------------------------------------------------------------------------
+# TestCompFiltering
+# ---------------------------------------------------------------------------
+
+
+class TestCompFiltering:
+    """Comps should be filtered for relevance before price calculation."""
+
+    def test_title_similarity_filters_irrelevant_comps(self, engine):
+        """Comps with low title similarity should be excluded."""
+        comps = [
+            {"title": "Aiwa CSD-ES227 Boombox CD Cassette", "price": 50.0, "condition": "Used", "end_date": "", "url": ""},
+            {"title": "Aiwa CSD-ES227 Boombox Stereo", "price": 55.0, "condition": "Used", "end_date": "", "url": ""},
+            {"title": "Aiwa CSD-ES227 CD Player Portable", "price": 48.0, "condition": "Used", "end_date": "", "url": ""},
+            {"title": "Tesla Model 3 Floor Mat Set", "price": 200.0, "condition": "New", "end_date": "", "url": ""},
+            {"title": "iPhone 15 Pro Case Cover", "price": 5.0, "condition": "New", "end_date": "", "url": ""},
+        ]
+        filtered = engine.filter_comps(comps, reference_title="Aiwa CSD-ES227 Boombox CD Cassette Player")
+        assert len(filtered) == 3
+        assert all("Aiwa" in c["title"] for c in filtered)
+
+    def test_outlier_rejection_removes_extremes(self, engine):
+        """Prices >2 std devs from median should be dropped."""
+        comps = _make_sold_items([50, 52, 48, 55, 51, 300])  # 300 is an outlier
+        filtered = engine.filter_comps(comps, reference_title="Generic Item")
+        prices = [c["price"] for c in filtered]
+        assert 300 not in prices
+
+    def test_filter_preserves_minimum_comps(self, engine):
+        """Even with aggressive filtering, keep at least 3 comps if available."""
+        comps = [
+            {"title": "Widget A", "price": 10.0, "condition": "Used", "end_date": "", "url": ""},
+            {"title": "Widget B", "price": 12.0, "condition": "Used", "end_date": "", "url": ""},
+            {"title": "Widget C", "price": 11.0, "condition": "Used", "end_date": "", "url": ""},
+            {"title": "Totally Different Thing", "price": 50.0, "condition": "New", "end_date": "", "url": ""},
+        ]
+        filtered = engine.filter_comps(comps, reference_title="Widget A Model X")
+        assert len(filtered) >= 3
+
+    def test_empty_comps_returns_empty(self, engine):
+        filtered = engine.filter_comps([], reference_title="Anything")
+        assert filtered == []
+
+
+# ---------------------------------------------------------------------------
+# TestPriceSourceLabeling
+# ---------------------------------------------------------------------------
+
+class TestPriceSourceLabeling:
+    """Price source should distinguish sold data from asking prices."""
+
+    def test_sold_source_labeled_correctly(self):
+        from backend.app.services.pricing_engine import format_price_source
+        label = format_price_source('market_data_isbn_sold', comp_count=8)
+        assert 'sold' in label.lower()
+        assert '8' in label
+
+    def test_active_source_warns_not_sold(self):
+        from backend.app.services.pricing_engine import format_price_source
+        label = format_price_source('market_data_isbn')
+        assert 'not sold' in label.lower()
+
+    def test_ai_source_labeled(self):
+        from backend.app.services.pricing_engine import format_price_source
+        label = format_price_source('ai_grounding')
+        assert 'AI' in label
+
+    def test_unknown_source_returns_raw(self):
+        from backend.app.services.pricing_engine import format_price_source
+        assert format_price_source('something_custom') == 'something_custom'
