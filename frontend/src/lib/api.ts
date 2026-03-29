@@ -310,9 +310,52 @@ export async function searchCategories(query: string): Promise<CategorySuggestio
     return apiFetch(`${API_BASE}/lookup/category?q=${encodeURIComponent(query)}`)
 }
 
-export async function uploadFiles(files: FileList | File[]): Promise<{ success: boolean; job_id?: string; error?: string }> {
+export async function uploadFiles(
+    files: FileList | File[],
+    onProgress?: (loaded: number, total: number) => void
+): Promise<{ success: boolean; job_id?: string; error?: string }> {
     const formData = new FormData()
-    Array.from(files).forEach(f => formData.append('files[]', f))
+    const fileArray = Array.from(files)
+    fileArray.forEach(f => formData.append('files[]', f))
+
+    // Use XHR for upload progress tracking
+    if (onProgress) {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest()
+            xhr.open('POST', `${API_BASE}/upload`)
+
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) {
+                    onProgress(e.loaded, e.total)
+                }
+            }
+
+            xhr.onload = () => {
+                try {
+                    const result = JSON.parse(xhr.responseText)
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        if (result.job_id) toast.success('Upload started')
+                        resolve(result)
+                    } else {
+                        toast.error(result.error || 'Upload failed')
+                        reject(new Error(result.error || `Upload failed (${xhr.status})`))
+                    }
+                } catch {
+                    toast.error('Upload failed')
+                    reject(new Error('Invalid server response'))
+                }
+            }
+
+            xhr.onerror = () => {
+                toast.error('Upload failed')
+                reject(new Error('Network error'))
+            }
+
+            xhr.send(formData)
+        })
+    }
+
+    // Fallback: standard fetch (no progress)
     try {
         const result = await apiFetch<{ success: boolean; job_id?: string; error?: string }>(
             `${API_BASE}/upload`,

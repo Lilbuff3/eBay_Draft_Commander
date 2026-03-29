@@ -187,7 +187,13 @@ export default function App() {
       {activeTab === 'dashboard' && (
         <MobileUploadFAB
           onFilesSelected={(files) => {
-            uploadFiles(files).catch(() => {/* toast already shown */ })
+            const setProgress = useCommanderStore.getState().setUploadProgress
+            setProgress({ loaded: 0, total: 1, fileCount: Array.from(files).length })
+            uploadFiles(files, (loaded, total) => {
+              setProgress({ loaded, total, fileCount: Array.from(files).length })
+            })
+              .then(() => setProgress(null))
+              .catch(() => setProgress(null))
           }}
         />
       )}

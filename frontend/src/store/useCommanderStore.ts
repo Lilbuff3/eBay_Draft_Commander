@@ -45,6 +45,14 @@ interface CommanderState {
     approvePending: (ids: string[]) => Promise<void>
     deletePending: (id: string, deleteFolder?: boolean) => Promise<void>
 
+    // Upload Progress
+    uploadProgress: {
+        loaded: number
+        total: number
+        fileCount: number
+    } | null
+    setUploadProgress: (progress: CommanderState['uploadProgress']) => void
+
     // Filtering & UI
     activeFilter: string
     setActiveFilter: (filter: string) => void
@@ -208,6 +216,10 @@ export const useCommanderStore = create<CommanderState>((set, get) => ({
             toast.error('Delete failed')
         }
     },
+
+    // Upload Progress
+    uploadProgress: null,
+    setUploadProgress: (uploadProgress) => set({ uploadProgress }),
 
     // Filtering & UI
     activeFilter: 'all',

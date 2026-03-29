@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { Upload, X, Loader2, Plus } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useCommanderStore } from '@/store/useCommanderStore'
 
 interface UploadZoneProps {
     onUploadComplete?: (jobId: string) => void
@@ -14,6 +15,7 @@ export function UploadZone({ onUploadComplete, compact = false }: UploadZoneProp
     const [isDragging, setIsDragging] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
     const [uploadStatus, setUploadStatus] = useState<{ success: boolean; message: string } | null>(null)
+    const setUploadProgress = useCommanderStore(state => state.setUploadProgress)
 
     const handleDrop = useCallback(async (e: React.DragEvent) => {
         e.preventDefault()
@@ -41,34 +43,44 @@ export function UploadZone({ onUploadComplete, compact = false }: UploadZoneProp
     const uploadFiles = async (files: File[]) => {
         setIsUploading(true)
         setUploadStatus(null)
+        setUploadProgress({ loaded: 0, total: 1, fileCount: files.length })
 
         const formData = new FormData()
         files.forEach(file => formData.append('files[]', file))
 
         try {
-            const res = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData
+            const result = await new Promise<{ success: boolean; message?: string; error?: string; jobId?: string }>((resolve, reject) => {
+                const xhr = new XMLHttpRequest()
+                xhr.open('POST', '/api/upload')
+
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        setUploadProgress({ loaded: e.loaded, total: e.total, fileCount: files.length })
+                    }
+                }
+
+                xhr.onload = () => {
+                    try {
+                        resolve(JSON.parse(xhr.responseText))
+                    } catch {
+                        reject(new Error('Invalid response'))
+                    }
+                }
+                xhr.onerror = () => reject(new Error('Network error'))
+                xhr.send(formData)
             })
 
-            if (!res.ok) {
-                const text = await res.text()
-                setUploadStatus({ success: false, message: `Upload failed (${res.status}): ${text.slice(0, 100)}` })
-                return
-            }
-
-            const data = await res.json()
-
-            if (data.success) {
-                setUploadStatus({ success: true, message: data.message })
-                onUploadComplete?.(data.jobId)
+            if (result.success) {
+                setUploadStatus({ success: true, message: result.message || 'Upload complete' })
+                onUploadComplete?.(result.jobId || '')
             } else {
-                setUploadStatus({ success: false, message: data.error || 'Upload failed' })
+                setUploadStatus({ success: false, message: result.error || 'Upload failed' })
             }
         } catch {
             setUploadStatus({ success: false, message: 'Network error' })
         } finally {
             setIsUploading(false)
+            setUploadProgress(null)
         }
     }
 
