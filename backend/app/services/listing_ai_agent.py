@@ -5,18 +5,9 @@ from backend.app.services.pricing_engine import PricingEngine
 from backend.app.services.ebay import taxonomy
 from backend.app.core.logger import get_logger
 
+from backend.app.core.constants import get_shipping_cost, DEFAULT_SHIPPING_COST
+
 logger = get_logger('processor.ai')
-
-# Default estimated shipping cost for free-shipping listings (USPS Ground Advantage ~1-2 lbs)
-DEFAULT_SHIPPING_COST = 6.50
-
-# AI-Estimated Shipping Tiers
-SHIPPING_LOOKUP = {
-    'small': 4.50,   # < 1lb
-    'medium': 6.50,  # 1-3lb
-    'large': 10.00,  # 3-10lb
-    'heavy': 15.00,  # 10+lb
-}
 
 
 class ListingAIAgent:
@@ -33,24 +24,14 @@ class ListingAIAgent:
             return DEFAULT_SHIPPING_COST
 
     def _calculate_shipping_cost(self, ai_data: dict) -> float:
-        """Calculate shipping cost based on AI identifiers or weight."""
+        """Calculate shipping cost using centralized tier logic."""
         ident = ai_data.get('identification', {})
-        package_size = ident.get('package_size', '').lower()
-        weight = ident.get('estimated_weight_lbs')
-
-        # 1. Primary: Explicit package size from AI
-        if package_size in SHIPPING_LOOKUP:
-            return SHIPPING_LOOKUP[package_size]
-
-        # 2. Secondary: Calculate from weight if size is missing/invalid
-        if isinstance(weight, (int, float)):
-            if weight < 1: return SHIPPING_LOOKUP['small']
-            if weight <= 3: return SHIPPING_LOOKUP['medium']
-            if weight <= 10: return SHIPPING_LOOKUP['large']
-            return SHIPPING_LOOKUP['heavy']
-
-        # 3. Fallback to .env/Default
-        return self._default_shipping_cost
+        return get_shipping_cost(
+            category_id=ident.get('category_id'),
+            isbn=ident.get('isbn'),
+            package_size=ident.get('package_size', ''),
+            estimated_weight_lbs=ident.get('estimated_weight_lbs'),
+        )
 
     def analyze_item(self, job_obj, images, condition, log_callback=None):
         """Perform AI vision analysis and initial pricing suggestion"""

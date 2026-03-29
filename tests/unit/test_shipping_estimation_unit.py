@@ -42,3 +42,36 @@ class TestShippingEstimation:
     def test_both_missing_fallback(self):
         ai_data = {"identification": {}}
         assert self.agent._calculate_shipping_cost(ai_data) == self.agent._default_shipping_cost
+
+
+class TestMediaMailDetection:
+    """Books/media should use Media Mail shipping rate ($3.50) not standard."""
+
+    def test_book_category_returns_media_mail_cost(self):
+        from backend.app.core.constants import get_shipping_cost
+        assert get_shipping_cost(category_id="261186") == 3.50
+
+    def test_isbn_present_returns_media_mail_cost(self):
+        from backend.app.core.constants import get_shipping_cost
+        assert get_shipping_cost(isbn="9781579656362") == 3.50
+
+    def test_electronics_uses_ai_package_size(self):
+        from backend.app.core.constants import get_shipping_cost
+        assert get_shipping_cost(package_size="heavy") == 15.00
+
+    def test_small_item_from_weight(self):
+        from backend.app.core.constants import get_shipping_cost
+        assert get_shipping_cost(estimated_weight_lbs=0.5) == 4.50
+
+    def test_medium_item_from_weight(self):
+        from backend.app.core.constants import get_shipping_cost
+        assert get_shipping_cost(estimated_weight_lbs=2.0) == 6.50
+
+    def test_fallback_returns_default(self):
+        from backend.app.core.constants import get_shipping_cost
+        assert get_shipping_cost() == 6.50
+
+    def test_media_mail_overrides_package_size(self):
+        """Even if AI says 'medium', a book should use Media Mail rate."""
+        from backend.app.core.constants import get_shipping_cost
+        assert get_shipping_cost(isbn="1234567890", package_size="medium") == 3.50
