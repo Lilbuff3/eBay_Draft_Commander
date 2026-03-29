@@ -25,7 +25,9 @@ from backend.app.core.constants import (
     DEFAULT_CONDITION,
     TITLE_MAX_LENGTH,
     ASPECT_VALUE_MAX_LENGTH,
-    SUPPORTED_IMAGE_EXTENSIONS
+    SUPPORTED_IMAGE_EXTENSIONS,
+    MEDIA_MAIL_COST,
+    get_shipping_cost as get_shipping_cost_from_constants,
 )
 
 logger = get_logger('processor_service')
@@ -376,16 +378,15 @@ class ProcessorService:
 
         # 5. Final Pricing
         # Recalculate shipping now that category is known (books get Media Mail rate)
-        from backend.app.core.constants import get_shipping_cost as _get_shipping_cost
         ident = ai_data.get('identification', {})
-        shipping_cost = _get_shipping_cost(
+        shipping_cost = get_shipping_cost_from_constants(
             category_id=cat_result.get('id'),
             isbn=ident.get('isbn'),
             package_size=ident.get('package_size', ''),
             estimated_weight_lbs=ident.get('estimated_weight_lbs'),
         )
         ai_data['shipping_cost'] = shipping_cost
-        ai_data['shipping_method'] = 'media_mail' if shipping_cost == 3.50 else 'standard'
+        ai_data['shipping_method'] = 'media_mail' if shipping_cost == MEDIA_MAIL_COST else 'standard'
         job_obj.ai_data = ai_data
         research_market_price = ai_data.get('research', {}).get('market_price')
         availability = ai_data.get('research', {}).get('availability')
