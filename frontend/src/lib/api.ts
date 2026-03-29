@@ -270,7 +270,17 @@ export interface JobDetails {
         confidence?: string
         comparables: Array<{ title: string; price: number }>
         price_source: string
+        price_source_label?: string
         market_price?: Record<string, unknown>
+    }
+    profit_breakdown?: {
+        listing_price: number
+        ebay_fee: number
+        ebay_fee_rate: number
+        payment_fee: number
+        shipping_cost: number
+        shipping_method: string
+        take_home: number
     }
     condition?: string | Record<string, unknown>
     condition_id?: number

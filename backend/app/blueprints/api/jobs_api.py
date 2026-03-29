@@ -10,6 +10,7 @@ from backend.app.core.constants import SUPPORTED_IMAGE_EXTENSIONS, EBAY_FINAL_VA
 from backend.app.core.validator import validate_price, validate_title, validate_isbn, validate_condition, ValidationError
 from backend.app.core.logger import get_logger
 from backend.app.services.queue_job import resolve_thumbnail
+from backend.app.services.pricing_engine import format_price_source
 
 jobs_bp = Blueprint('jobs', __name__)
 logger = get_logger('api.jobs')
@@ -152,6 +153,10 @@ def get_job_details(job_id):
             'confidence': identification.get('confidence_score'),
             'comparables': ai_data.get('comparables', [])[:5],
             'price_source': ai_data.get('price_source', 'AI estimate'),
+            'price_source_label': format_price_source(
+                ai_data.get('pricing_source', ''),
+                comp_count=len(ai_data.get('pricing_comps', []))
+            ),
             'market_price': ai_data.get('research', {}).get('market_price', {})
         },
         'condition': job.user_condition or (condition_data.get('state') if isinstance(condition_data, dict) else condition_data) or '',
