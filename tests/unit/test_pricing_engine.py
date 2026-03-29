@@ -590,3 +590,31 @@ class TestCompFiltering:
     def test_empty_comps_returns_empty(self, engine):
         filtered = engine.filter_comps([], reference_title="Anything")
         assert filtered == []
+
+
+# ---------------------------------------------------------------------------
+# TestPriceSourceLabeling
+# ---------------------------------------------------------------------------
+
+class TestPriceSourceLabeling:
+    """Price source should distinguish sold data from asking prices."""
+
+    def test_sold_source_labeled_correctly(self):
+        from backend.app.services.pricing_engine import format_price_source
+        label = format_price_source('market_data_isbn_sold', comp_count=8)
+        assert 'sold' in label.lower()
+        assert '8' in label
+
+    def test_active_source_warns_not_sold(self):
+        from backend.app.services.pricing_engine import format_price_source
+        label = format_price_source('market_data_isbn')
+        assert 'not sold' in label.lower()
+
+    def test_ai_source_labeled(self):
+        from backend.app.services.pricing_engine import format_price_source
+        label = format_price_source('ai_grounding')
+        assert 'AI' in label
+
+    def test_unknown_source_returns_raw(self):
+        from backend.app.services.pricing_engine import format_price_source
+        assert format_price_source('something_custom') == 'something_custom'

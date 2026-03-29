@@ -24,6 +24,24 @@ from backend.app.core.rate_limiter import limiter
 logger = get_logger('pricing_engine')
 
 
+def format_price_source(source: str, comp_count: int = 0) -> str:
+    """Convert internal price source key to human-readable label."""
+    count_str = f"{comp_count} " if comp_count > 0 else ""
+    labels = {
+        'market_data_isbn_sold': f'Based on {count_str}sold listings (ISBN)',
+        'market_data_isbn': f'Based on {count_str}active listings (ISBN) — not sold data',
+        'market_data_mpn_sold': f'Based on {count_str}sold listings (MPN)',
+        'market_data_mpn': f'Based on {count_str}active listings (MPN) — not sold data',
+        'market_data_keyword_sold': f'Based on {count_str}sold listings',
+        'market_data_keyword': f'Based on {count_str}active listings — not sold data',
+        'research_market_price': 'AI web research estimate',
+        'ai_grounding': 'AI estimate (no comp data)',
+        'ai_vision': 'AI vision estimate (lowest confidence)',
+        'user_override': 'Manual price',
+    }
+    return labels.get(source, source)
+
+
 class PricingEngine:
     """Calculates suggested prices based on recent eBay sales.
 
