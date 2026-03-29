@@ -106,3 +106,67 @@ RARITY_PERCENTILE_THRESHOLD = 75          # Use 75th percentile for rare items
 TRADING_API_TIMEOUT = 30                  # seconds
 TRADING_API_MAX_RETRIES = 2
 TRADING_API_PAGE_SIZE = 200               # GetSellerList entries per page
+
+# --- Shipping Tiers ---
+SHIPPING_LOOKUP = {
+    'small': 4.50,   # < 1lb (USPS Ground Advantage)
+    'medium': 6.50,  # 1-3lb
+    'large': 10.00,  # 3-10lb
+    'heavy': 15.00,  # 10+lb
+}
+MEDIA_MAIL_COST = 3.50  # USPS Media Mail (books, CDs, DVDs)
+DEFAULT_SHIPPING_COST = 6.50
+
+# eBay book/media category IDs (top-level and common subcategories)
+MEDIA_MAIL_CATEGORIES = {
+    '267',      # Books
+    '261186',   # Books > Nonfiction
+    '171228',   # Books > Fiction
+    '29223',    # Books > Antiquarian & Collectible
+    '2228',     # Books > Textbooks
+    '11104',    # Cookbooks
+    '171243',   # Children's Books
+    '176973',   # Audiobooks
+    '11232',    # CDs
+    '176984',   # DVDs & Blu-ray
+    '617',      # Records/Vinyl
+    '80183',    # Video Games (disc-based)
+}
+
+
+def get_shipping_cost(
+    category_id: str = None,
+    isbn: str = None,
+    package_size: str = None,
+    estimated_weight_lbs: float = None,
+) -> float:
+    """Calculate shipping cost tier with Media Mail detection.
+
+    Priority:
+    1. Media Mail eligible (ISBN present OR book/media category) -> $3.50
+    2. AI-detected package size -> tier lookup
+    3. AI-estimated weight -> tier by weight bracket
+    4. Fallback -> DEFAULT_SHIPPING_COST ($6.50)
+    """
+    # 1. Media Mail detection
+    if isbn:
+        return MEDIA_MAIL_COST
+    if category_id and str(category_id) in MEDIA_MAIL_CATEGORIES:
+        return MEDIA_MAIL_COST
+
+    # 2. Package size from AI
+    if package_size and package_size.lower() in SHIPPING_LOOKUP:
+        return SHIPPING_LOOKUP[package_size.lower()]
+
+    # 3. Weight-based tier
+    if isinstance(estimated_weight_lbs, (int, float)):
+        if estimated_weight_lbs < 1:
+            return SHIPPING_LOOKUP['small']
+        if estimated_weight_lbs <= 3:
+            return SHIPPING_LOOKUP['medium']
+        if estimated_weight_lbs <= 10:
+            return SHIPPING_LOOKUP['large']
+        return SHIPPING_LOOKUP['heavy']
+
+    # 4. Fallback
+    return DEFAULT_SHIPPING_COST
