@@ -75,3 +75,20 @@ class TestMediaMailDetection:
         """Even if AI says 'medium', a book should use Media Mail rate."""
         from backend.app.core.constants import get_shipping_cost
         assert get_shipping_cost(isbn="1234567890", package_size="medium") == 3.50
+
+
+class TestShippingRecalcAfterCategory:
+    """Shipping cost should be recalculated when category reveals Media Mail eligibility."""
+
+    def test_book_category_reduces_shipping_buffer(self):
+        """If AI didn't detect ISBN but category is Books, shipping should drop to Media Mail."""
+        from backend.app.core.constants import get_shipping_cost
+        # AI said medium (6.50), but category is Books (261186)
+        cost = get_shipping_cost(category_id="261186", package_size="medium")
+        assert cost == 3.50, "Book category should override package_size to Media Mail"
+
+    def test_non_book_category_keeps_package_size(self):
+        """Non-book categories should still use AI package size."""
+        from backend.app.core.constants import get_shipping_cost
+        cost = get_shipping_cost(category_id="4787", package_size="heavy")
+        assert cost == 15.00
