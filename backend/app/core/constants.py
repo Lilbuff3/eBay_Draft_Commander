@@ -91,8 +91,8 @@ EBAY_BURST_LIMIT = 5
 EBAY_REFILL_RATE = 2 # Tokens per second
 
 # AI Models
-AI_MODEL_NAME = 'gemini-2.0-flash' # Updated to latest fast model
-AI_PRICING_MODEL = os.getenv('AI_PRICING_MODEL', 'gemini-2.0-flash')  # Pricing/grounding model
+AI_MODEL_NAME = 'gemini-3-flash-preview' # Upgraded: frontier vision + reasoning (was 2.0-flash)
+AI_PRICING_MODEL = os.getenv('AI_PRICING_MODEL', 'gemini-3-flash-preview')  # Pricing/grounding model
 
 # --- Pricing Constants ---
 EBAY_FINAL_VALUE_FEE_RATE = 0.1325       # 13.25% eBay final value fee
