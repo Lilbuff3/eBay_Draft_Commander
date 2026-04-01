@@ -77,6 +77,7 @@ class TestMediaMailDetection:
         assert get_shipping_cost(isbn="1234567890", package_size="medium") == 3.50
 
 
+
 class TestShippingRecalcAfterCategory:
     """Shipping cost should be recalculated when category reveals Media Mail eligibility."""
 

@@ -172,6 +172,7 @@ def get_shipping_cost(
     return DEFAULT_SHIPPING_COST
 
 
+
 # --- Optimal Listing Schedule ---
 # eBay peak traffic windows (Pacific Time):
 #   Sunday 6-9 PM PT (highest traffic)
