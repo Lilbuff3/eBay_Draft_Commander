@@ -312,20 +312,24 @@ export async function searchCategories(query: string): Promise<CategorySuggestio
 
 export async function uploadFiles(
     files: FileList | File[],
-    onProgress?: (loaded: number, total: number) => void
-): Promise<{ success: boolean; job_id?: string; error?: string }> {
+    onProgress?: (loaded: number, total: number) => void,
+    metadata?: { title?: string; condition?: string }
+): Promise<{ success: boolean; job_id?: string; jobId?: string; error?: string }> {
     const formData = new FormData()
     const fileArray = Array.from(files)
     fileArray.forEach(f => formData.append('files[]', f))
 
+    if (metadata?.title) formData.append('title', metadata.title)
+    if (metadata?.condition) formData.append('condition', metadata.condition)
+
     // Use XHR for upload progress tracking
-    if (onProgress) {
+    if (onProgress || metadata) {
         return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest()
             xhr.open('POST', `${API_BASE}/upload`)
 
             xhr.upload.onprogress = (e) => {
-                if (e.lengthComputable) {
+                if (e.lengthComputable && onProgress) {
                     onProgress(e.loaded, e.total)
                 }
             }

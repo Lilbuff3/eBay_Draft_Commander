@@ -3,16 +3,21 @@ import { Plus, Camera, ImagePlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useHaptics } from '@/hooks/useHaptics'
 import { AnimatePresence, motion } from 'framer-motion'
+import { MobileCaptureSheet } from './MobileCaptureSheet'
+import { useCommanderStore } from '@/store/useCommanderStore'
+import { uploadFiles } from '@/lib/api'
 
 interface MobileUploadFABProps {
-    onFilesSelected: (files: FileList) => void
+    onUploadComplete: (jobId: string) => void
     className?: string
 }
 
-export function MobileUploadFAB({ onFilesSelected, className }: MobileUploadFABProps) {
+export function MobileUploadFAB({ onUploadComplete, className }: MobileUploadFABProps) {
     const cameraInputRef = useRef<HTMLInputElement>(null)
     const galleryInputRef = useRef<HTMLInputElement>(null)
     const [isExpanded, setIsExpanded] = useState(false)
+    const [isCaptureSheetOpen, setIsCaptureSheetOpen] = useState(false)
+    const [initialFiles, setInitialFiles] = useState<File[]>([])
     const { press, tap } = useHaptics()
 
     const toggleExpanded = useCallback(() => {
@@ -22,7 +27,8 @@ export function MobileUploadFAB({ onFilesSelected, className }: MobileUploadFABP
 
     const handleCamera = useCallback(() => {
         tap()
-        cameraInputRef.current?.click()
+        setInitialFiles([])
+        setIsCaptureSheetOpen(true)
         setIsExpanded(false)
     }, [tap])
 
@@ -34,7 +40,8 @@ export function MobileUploadFAB({ onFilesSelected, className }: MobileUploadFABP
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
-            onFilesSelected(e.target.files)
+            setInitialFiles(Array.from(e.target.files))
+            setIsCaptureSheetOpen(true)
             e.target.value = ''
         }
     }
@@ -158,6 +165,9 @@ export function MobileUploadFAB({ onFilesSelected, className }: MobileUploadFABP
                 type="file"
                 accept="image/*"
                 capture="environment"
+                title="Camera Input"
+                aria-label="Camera Input"
+                placeholder="Take photo"
                 onChange={handleChange}
                 className="hidden"
             />
@@ -166,8 +176,32 @@ export function MobileUploadFAB({ onFilesSelected, className }: MobileUploadFABP
                 type="file"
                 multiple
                 accept="image/*"
+                title="Gallery Input"
+                aria-label="Gallery Input"
+                placeholder="Select photos"
                 onChange={handleChange}
                 className="hidden"
+            />
+
+            <MobileCaptureSheet
+                isOpen={isCaptureSheetOpen}
+                onClose={() => setIsCaptureSheetOpen(false)}
+                initialFiles={initialFiles}
+                onUpload={async (files, metadata) => {
+                    const setProgress = useCommanderStore.getState().setUploadProgress
+                    setProgress({ loaded: 0, total: 1, fileCount: files.length })
+                    try {
+                        const res = await uploadFiles(files, (loaded, total) => {
+                            setProgress({ loaded, total, fileCount: files.length })
+                        }, metadata)
+                        const newJobId = res.jobId || res.job_id
+                        if (newJobId) {
+                            onUploadComplete(newJobId)
+                        }
+                    } finally {
+                        setProgress(null)
+                    }
+                }}
             />
         </>
     )

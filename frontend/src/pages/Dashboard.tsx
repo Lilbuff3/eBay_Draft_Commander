@@ -24,6 +24,8 @@ export function Dashboard() {
     const isProcessing = useCommanderStore(state => state.isProcessing)
     const ebayStatus = useCommanderStore(state => state.ebayStatus)
     const isScanning = useCommanderStore(state => state.isScanning)
+    const lastUploadedJobId = useCommanderStore(state => state.lastUploadedJobId)
+    const setLastUploadedJobId = useCommanderStore(state => state.setLastUploadedJobId)
     const jobLogs = useCommanderStore(state => state.jobLogs)
     const batchSummary = useCommanderStore(state => state.batchSummary)
     const setBatchSummary = useCommanderStore(state => state.setBatchSummary)
@@ -36,6 +38,26 @@ export function Dashboard() {
     // Keep a ref to latest jobs for use in closures
     const jobsRef = useRef(jobs)
     useEffect(() => { jobsRef.current = jobs }, [jobs])
+
+    // Watch for mobile uploads and auto-select
+    useEffect(() => {
+        if (lastUploadedJobId) {
+            queryClient.invalidateQueries({ queryKey: ['jobs'] })
+            let attempts = 0
+            const maxAttempts = 20
+            const trySelect = () => {
+                const found = jobsRef.current.find(j => j.id === lastUploadedJobId)
+                if (found) {
+                    setSelectedJob(found)
+                    setLastUploadedJobId(null)
+                } else if (attempts < maxAttempts) {
+                    attempts++
+                    setTimeout(trySelect, 300)
+                }
+            }
+            trySelect()
+        }
+    }, [lastUploadedJobId, setLastUploadedJobId, setSelectedJob, queryClient])
 
     // Local UI State
     const [isScannerOpen, setIsScannerOpen] = useState(false)
@@ -247,7 +269,7 @@ export function Dashboard() {
     }
 
     // Handle scanner input
-    const handleScannerInput = (_bookData: unknown) => {
+    const handleScannerInput = () => {
         // Scanner input handled by ScannerListener component
     }
 

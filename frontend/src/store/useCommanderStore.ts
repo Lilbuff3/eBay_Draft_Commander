@@ -53,7 +53,9 @@ interface CommanderState {
     } | null
     setUploadProgress: (progress: CommanderState['uploadProgress']) => void
 
-    // Filtering & UI
+    // Routing & UI
+    lastUploadedJobId: string | null
+    setLastUploadedJobId: (id: string | null) => void
     activeFilter: string
     setActiveFilter: (filter: string) => void
     batchSummary: {
@@ -221,7 +223,9 @@ export const useCommanderStore = create<CommanderState>((set, get) => ({
     uploadProgress: null,
     setUploadProgress: (uploadProgress) => set({ uploadProgress }),
 
-    // Filtering & UI
+    // Routing & UI
+    lastUploadedJobId: null,
+    setLastUploadedJobId: (lastUploadedJobId) => set({ lastUploadedJobId }),
     activeFilter: 'all',
     setActiveFilter: (activeFilter) => set({ activeFilter }),
     batchSummary: null,
