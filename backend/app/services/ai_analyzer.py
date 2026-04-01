@@ -373,26 +373,38 @@ class AIAnalyzer:
             'offer_id': None
         }
 
-    def research_part_number(self, brand: str, model: str, part_number: str = None) -> dict:
+    def research_part_number(self, brand: str, model: str, part_number: str = None,
+                             product_type: str = None, material: str = None,
+                             condition: str = None) -> dict:
         """
-        Use Google Search grounding to research an industrial part.
-        
+        Use Google Search grounding to research a product.
+
         Returns specs, pricing, and compatibility information from the web.
         """
         if not self.client:
             return {"error": "AI client not initialized", "researched": False}
-        
-        # Build search query
-        search_terms = [brand, model]
+
+        # Build search query — include product_type and material for specificity
+        search_parts = [brand]
+        if material:
+            search_parts.append(material)
+        if product_type:
+            search_parts.append(product_type)
+        if model and model != product_type:
+            search_parts.append(model)
         if part_number:
-            search_terms.append(part_number)
-        
+            search_parts.append(part_number)
+        search_terms_str = " ".join(filter(None, search_parts))
+
         from datetime import datetime
         year = datetime.now().year
-        
+
         # Format the prompt
         query = INDUSTRIAL_RESEARCH_PROMPT.format(
-            search_terms=f"{brand} {model} {part_number if part_number else ''}",
+            search_terms=search_terms_str,
+            product_type=product_type or "unknown",
+            material=material or "unknown",
+            condition=condition or "used",
             year=year
         )
 
@@ -517,7 +529,14 @@ class AIAnalyzer:
 
             if brand or model or mpn:
                 logger.info("Phase 2: Researching part...")
-                research = self.research_part_number(brand, model, mpn)
+                material = ident.get('material', '')
+                condition_state = basic_result.get('condition', {}).get('state', 'Used')
+                research = self.research_part_number(
+                    brand, model, mpn,
+                    product_type=product_type,
+                    material=material,
+                    condition=condition_state
+                )
                 
                 if research.get('researched'):
                     # Merge research into result

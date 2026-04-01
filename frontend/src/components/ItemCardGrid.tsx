@@ -79,8 +79,7 @@ export function ItemCardGrid({
     // Filter jobs by status tab
     const filteredJobs = useMemo(() => jobs.filter(job => {
         if (activeFilter === 'all') return true
-        if (activeFilter === 'inbox') return job.status === 'pending' || job.status === 'scheduled'
-        if (activeFilter === 'processing') return job.status === 'processing'
+        if (activeFilter === 'inbox') return job.status === 'pending' || job.status === 'processing' || job.status === 'scheduled'
         if (activeFilter === 'history') return job.status === 'completed'
         if (activeFilter === 'action') return job.status === 'failed' || job.status === 'needs_review'
         return true
@@ -89,18 +88,16 @@ export function ItemCardGrid({
     // Counts for tabs
     const counts = useMemo(() => ({
         all: jobs.length,
-        inbox: jobs.filter(j => j.status === 'pending' || j.status === 'scheduled').length,
-        processing: jobs.filter(j => j.status === 'processing').length,
+        inbox: jobs.filter(j => j.status === 'pending' || j.status === 'processing' || j.status === 'scheduled').length,
         history: jobs.filter(j => j.status === 'completed').length,
         action: jobs.filter(j => j.status === 'failed' || j.status === 'needs_review').length,
     }), [jobs])
 
     const tabs: { key: FilterTab; label: string; mobileLabel: string; count: number }[] = [
         { key: 'all', label: 'All', mobileLabel: 'All', count: counts.all },
-        { key: 'inbox', label: 'Inbox', mobileLabel: 'Inbox', count: counts.inbox },
-        { key: 'processing', label: 'Processing', mobileLabel: 'Active', count: counts.processing },
-        { key: 'action', label: 'Action Needed', mobileLabel: 'Action', count: counts.action },
-        { key: 'history', label: 'History', mobileLabel: 'History', count: counts.history },
+        { key: 'inbox', label: 'Queue', mobileLabel: 'Queue', count: counts.inbox },
+        { key: 'action', label: 'Failed', mobileLabel: 'Failed', count: counts.action },
+        { key: 'history', label: 'Listed', mobileLabel: 'Listed', count: counts.history },
     ]
 
     const overflowActions = [

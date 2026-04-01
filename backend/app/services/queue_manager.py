@@ -855,7 +855,12 @@ class QueueManager:
                     job.confidence_score = result.get('confidence_score')
                     job.timing = result.get('timing', {'total': elapsed})
                 elif result.get('success', False) or result.get('listing_id') or result.get('offer_id'):
-                    job.status = JobStatus.COMPLETED
+                    # Use SCHEDULED status if listing was scheduled for future
+                    if result.get('status') == 'Scheduled' and result.get('scheduled_time'):
+                        job.status = JobStatus.SCHEDULED
+                        job.scheduled_time = result.get('scheduled_time')
+                    else:
+                        job.status = JobStatus.COMPLETED
                     job.listing_id = result.get('listing_id')
                     job.offer_id = result.get('offer_id')
                     job.price = result.get('price')
@@ -906,6 +911,7 @@ class QueueManager:
             'attempts': job.attempts,
             'started_at': job.started_at,
             'completed_at': job.completed_at,
+            'scheduled_time': job.scheduled_time,
             'job_metadata': job.job_metadata,
             'ai_data': job.ai_data,
             'item_specifics': job.item_specifics,

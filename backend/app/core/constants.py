@@ -170,3 +170,66 @@ def get_shipping_cost(
 
     # 4. Fallback
     return DEFAULT_SHIPPING_COST
+
+
+# --- Optimal Listing Schedule ---
+# eBay peak traffic windows (Pacific Time):
+#   Sunday 6-9 PM PT (highest traffic)
+#   Monday-Thursday 7-9 PM PT (weekday evenings)
+#   Saturday 10 AM-12 PM PT (weekend morning)
+# Schedule listings to START at these windows for maximum visibility.
+# eBay ScheduleTime must be 1+ hour in the future and within 21 days.
+
+PEAK_WINDOWS_PT = [
+    # (day_of_week, hour_start) — 0=Monday, 6=Sunday
+    (6, 18),  # Sunday 6 PM PT — highest traffic
+    (6, 19),  # Sunday 7 PM PT
+    (6, 20),  # Sunday 8 PM PT
+    (0, 19),  # Monday 7 PM PT
+    (1, 19),  # Tuesday 7 PM PT
+    (2, 19),  # Wednesday 7 PM PT
+    (3, 19),  # Thursday 7 PM PT
+    (5, 10),  # Saturday 10 AM PT
+    (5, 11),  # Saturday 11 AM PT
+    (4, 19),  # Friday 7 PM PT (lower but still decent)
+]
+
+
+def get_next_optimal_listing_time():
+    """Calculate the next optimal eBay listing time based on peak traffic windows.
+
+    Returns an ISO 8601 UTC datetime string for the ScheduleTime field.
+    eBay requires schedule times to be at least 1 hour in the future.
+    """
+    from datetime import datetime, timedelta, timezone
+    import pytz
+
+    pt = pytz.timezone('America/Los_Angeles')
+    now_utc = datetime.now(timezone.utc)
+    now_pt = now_utc.astimezone(pt)
+
+    # Minimum 75 minutes from now (eBay requires 1 hour, add buffer)
+    min_time = now_pt + timedelta(minutes=75)
+
+    candidates = []
+    for day_offset in range(8):  # Check next 7 days
+        check_date = now_pt + timedelta(days=day_offset)
+        for dow, hour in PEAK_WINDOWS_PT:
+            if check_date.weekday() == dow:
+                candidate = check_date.replace(hour=hour, minute=0, second=0, microsecond=0)
+                if candidate > min_time:
+                    candidates.append(candidate)
+
+    if not candidates:
+        # Fallback: next Sunday 6 PM PT
+        days_until_sunday = (6 - now_pt.weekday()) % 7
+        if days_until_sunday == 0:
+            days_until_sunday = 7
+        fallback = (now_pt + timedelta(days=days_until_sunday)).replace(
+            hour=18, minute=0, second=0, microsecond=0
+        )
+        candidates.append(fallback)
+
+    # Pick the soonest optimal window
+    best = min(candidates)
+    return best.astimezone(timezone.utc).isoformat()

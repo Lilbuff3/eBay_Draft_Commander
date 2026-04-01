@@ -443,12 +443,9 @@ class ProcessorService:
         auto_publish = str(os.environ.get('AUTO_PUBLISH', 'false')).lower() == 'true'
         threshold_raw = float(os.environ.get('CONFIDENCE_THRESHOLD', 85))
         threshold = threshold_raw / 100 if threshold_raw > 1 else threshold_raw
-        min_price = float(os.environ.get('AUTO_PUBLISH_MIN_PRICE', 15.00))
 
         # CATEGORY GUARD: Force review if category is missing
         missing_category = not cat_result.get('id')
-        # PRICE GUARD: Force review if price is below minimum
-        price_too_low = float(pricing_result.get('price', 0)) < min_price
         # REQUIRED ASPECTS GUARD: Auto-fill safe defaults, flag truly missing ones
         # eBay accepts "Does Not Apply" for generic aspects (Brand, MPN, etc.)
         # but rejects listings missing category-specific aspects (Size, Color, etc.)
@@ -473,15 +470,13 @@ class ProcessorService:
 
         user_approved = job_obj.job_metadata.get('user_approved', False) if job_obj.job_metadata else False
 
-        if not user_approved and (not auto_publish or confidence_score < threshold or missing_category or price_too_low or missing_aspects):
+        if not user_approved and (not auto_publish or confidence_score < threshold or missing_category or missing_aspects):
             if missing_aspects:
                 reason = f"Missing Required Aspects: {', '.join(missing_aspects[:5])}"
             elif missing_category:
                 reason = "Missing Category (AI could not determine accurate eBay category)"
             elif not auto_publish:
                 reason = "AUTO_PUBLISH=false"
-            elif price_too_low:
-                reason = f"Price Too Low (${pricing_result.get('price', 0)} < ${min_price:.2f} minimum)"
             else:
                 reason = f"Low Confidence ({confidence_score:.2f} < {threshold:.2f})"
             
@@ -508,12 +503,21 @@ class ProcessorService:
             return result
 
         # 9. Listing Creation (Proceed if High Confidence & Auto-Publish)
+        # Auto-schedule at optimal traffic time if no manual schedule set
+        listing_schedule_time = job_obj.scheduled_time
+        if not listing_schedule_time and auto_publish:
+            auto_schedule = str(os.environ.get('AUTO_SCHEDULE_OPTIMAL', 'true')).lower() == 'true'
+            if auto_schedule:
+                from backend.app.core.constants import get_next_optimal_listing_time
+                listing_schedule_time = get_next_optimal_listing_time()
+                _log(f"Auto-scheduled for peak traffic: {listing_schedule_time}")
+
         bundle = self._create_trading_api_listing(
             title=analysis['title'], final_price=pricing_result["price"], condition=condition,
             category_id=cat_result['id'], html_description=template["html"],
             image_urls=upload_urls, item_specifics=analysis['item_specifics'],
             shipping_policy=job_obj.job_metadata.get('fulfillment_policy') if job_obj.job_metadata else None,
-            scheduled_time=job_obj.scheduled_time
+            scheduled_time=listing_schedule_time
         )
         
         if "error" in bundle:
@@ -529,6 +533,7 @@ class ProcessorService:
             "success": True, "listing_id": bundle['listing_id'], "status": bundle['status'],
             "price": pricing_result["price"], "title": analysis['title'],
             "condition": condition,
+            "scheduled_time": listing_schedule_time,
             "timing": {**result["timing"], "api": bundle["timing"], "total": time.time() - start_time}
         })
         _log(f"Listing Created: {result['status']}", level='success')
