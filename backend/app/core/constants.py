@@ -27,7 +27,7 @@ CONDITION_MAP = {
 CONDITION_ID_MAP = {
     'NEW': '1000',
     'NEW_OTHER': '1500',
-    'NEW_WITH_DEFECTS': '1500', 
+    'NEW_WITH_DEFECTS': '1750', 
     'LIKE_NEW': '3000', # Used (Excellent)
     'CERTIFIED_REFURBISHED': '2000',
     'EXCELLENT_REFURBISHED': '2500',
@@ -53,7 +53,7 @@ CONDITION_ENUM_TO_DISPLAY = {
     'GOOD_REFURBISHED': 'Used - Good',
     'SELLER_REFURBISHED': 'Used - Like New',
     'USED_EXCELLENT': 'Used - Like New',
-    'USED_VERY_GOOD': 'Used - Like New',
+    'USED_VERY_GOOD': 'Used - Very Good',
     'USED_GOOD': 'Used - Good',
     'USED_ACCEPTABLE': 'Used - Acceptable',
     'FOR_PARTS_OR_NOT_WORKING': 'For Parts or Not Working',

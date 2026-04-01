@@ -32,10 +32,18 @@ def format_price_source(source: str, comp_count: int = 0) -> str:
         'market_data_isbn': f'Based on {count_str}active listings (ISBN) — not sold data',
         'market_data_mpn_sold': f'Based on {count_str}sold listings (MPN)',
         'market_data_mpn': f'Based on {count_str}active listings (MPN) — not sold data',
+        'market_data_id_sold': f'Based on {count_str}sold listings (ID match)',
+        'market_data_id': f'Based on {count_str}active listings (ID match) — not sold data',
+        'market_data_alt_pn': f'Based on {count_str}sold listings (alt part #)',
+        'market_data_alt_pn_active': f'Based on {count_str}active listings (alt part #) — not sold data',
+        'market_data_sold': f'Based on {count_str}sold listings',
         'market_data_keyword_sold': f'Based on {count_str}sold listings',
         'market_data_keyword': f'Based on {count_str}active listings — not sold data',
+        'market_data': f'Based on {count_str}active listings — not sold data',
         'research_market_price': 'AI web research estimate',
+        'ai_grounded_research': 'AI web research estimate (search grounded)',
         'ai_grounding': 'AI estimate (no comp data)',
+        'ai_estimate': 'AI vision estimate (lowest confidence)',
         'ai_vision': 'AI vision estimate (lowest confidence)',
         'user_override': 'Manual price',
     }
@@ -70,6 +78,7 @@ class PricingEngine:
         "New": 1.0,
         "New - Open Box": 0.90,
         "Used - Like New": 0.85,
+        "Used - Very Good": 0.80,
         "Used - Good": 0.75,
         "Used - Acceptable": 0.60,
         "For Parts": 0.40,
@@ -105,7 +114,7 @@ class PricingEngine:
         - If cents >= 0.80, round UP to current dollar .99 ($44.85 -> $44.99)
         - Otherwise round DOWN to previous dollar .99 ($44.32 -> $43.99)
         """
-        if price <= 10:
+        if price <= 15:
             return price
         base = math.floor(price)
         cents = price - base

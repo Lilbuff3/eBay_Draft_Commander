@@ -373,7 +373,7 @@ export function ItemDetailDrawer({
                                     </div>
                                     <div className="grid grid-cols-1 gap-2">
                                         {(() => {
-                                            const schema = jobDetails.ebay_aspect_schema || []
+                                            const schema = localSchema || jobDetails.ebay_aspect_schema || []
                                             const customKeys = Object.keys(draft.itemSpecifics).filter(k => !schema.find(s => s.name === k))
 
                                             return [
