@@ -99,7 +99,6 @@ EBAY_FINAL_VALUE_FEE_RATE = 0.1325       # 13.25% eBay final value fee
 EBAY_PAYMENT_PROCESSING_FEE = 0.30       # $0.30 per-order payment processing
 MIN_LISTING_PRICE = 4.99                  # Floor price for any listing
 MAX_LISTING_PRICE = 9999.99               # Ceiling price sanity check
-DEFAULT_ESTIMATED_SHIPPING_COST = 6.50    # Baked into price (free shipping policy)
 RARITY_PERCENTILE_THRESHOLD = 75          # Use 75th percentile for rare items
 
 # --- Trading API Constants ---

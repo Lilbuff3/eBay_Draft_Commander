@@ -24,7 +24,6 @@ import { useJobSync } from '@/hooks/useJobSync'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { onUpdateAvailable } from '@/lib/pwa'
-import { uploadFiles } from '@/lib/api'
 
 // Tab ordering for directional transitions
 const TAB_ORDER = ['dashboard', 'review', 'inventory', 'analytics', 'settings']
@@ -186,14 +185,8 @@ export default function App() {
       {/* Mobile Upload FAB — only on dashboard tab */}
       {activeTab === 'dashboard' && (
         <MobileUploadFAB
-          onFilesSelected={(files) => {
-            const setProgress = useCommanderStore.getState().setUploadProgress
-            setProgress({ loaded: 0, total: 1, fileCount: Array.from(files).length })
-            uploadFiles(files, (loaded, total) => {
-              setProgress({ loaded, total, fileCount: Array.from(files).length })
-            })
-              .then(() => setProgress(null))
-              .catch(() => setProgress(null))
+          onUploadComplete={(jobId) => {
+            useCommanderStore.getState().setLastUploadedJobId(jobId)
           }}
         />
       )}

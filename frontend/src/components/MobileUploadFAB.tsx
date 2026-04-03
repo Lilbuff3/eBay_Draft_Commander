@@ -13,7 +13,6 @@ interface MobileUploadFABProps {
 }
 
 export function MobileUploadFAB({ onUploadComplete, className }: MobileUploadFABProps) {
-    const cameraInputRef = useRef<HTMLInputElement>(null)
     const galleryInputRef = useRef<HTMLInputElement>(null)
     const [isExpanded, setIsExpanded] = useState(false)
     const [isCaptureSheetOpen, setIsCaptureSheetOpen] = useState(false)
@@ -159,18 +158,7 @@ export function MobileUploadFAB({ onUploadComplete, className }: MobileUploadFAB
                 </button>
             </div>
 
-            {/* Hidden file inputs */}
-            <input
-                ref={cameraInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                title="Camera Input"
-                aria-label="Camera Input"
-                placeholder="Take photo"
-                onChange={handleChange}
-                className="hidden"
-            />
+            {/* Hidden file input for gallery picker */}
             <input
                 ref={galleryInputRef}
                 type="file"

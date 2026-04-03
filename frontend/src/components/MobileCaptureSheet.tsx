@@ -6,6 +6,8 @@ import { useHaptics } from '@/hooks/useHaptics'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
+const genId = () => Math.random().toString(36).substring(7)
+
 const CONDITIONS = [
     { label: 'New', value: 'NEW' },
     { label: 'Like New', value: 'LIKE_NEW' },
@@ -34,7 +36,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], onUploa
         if (isOpen && initialFiles.length > 0) {
             const newPhotos = initialFiles.map(file => ({
                 file,
-                id: Math.random().toString(36).substring(7),
+                id: genId(),
                 url: URL.createObjectURL(file)
             }))
             setPhotos(newPhotos)
@@ -52,8 +54,6 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], onUploa
         }
     }, [isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
-
-
     const handleAddPhoto = () => {
         tap()
         fileInputRef.current?.click()
@@ -63,7 +63,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], onUploa
         if (e.target.files && e.target.files.length > 0) {
             const newFiles = Array.from(e.target.files).map(file => ({
                 file,
-                id: Math.random().toString(36).substring(7),
+                id: genId(),
                 url: URL.createObjectURL(file)
             }))
             setPhotos(prev => [...prev, ...newFiles])
