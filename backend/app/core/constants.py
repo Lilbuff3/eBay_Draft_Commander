@@ -41,24 +41,6 @@ CONDITION_ID_MAP = {
     'FOR_PARTS_OR_NOT_WORKING': '7000'
 }
 
-# Map internal enum values to display strings for pricing engine
-CONDITION_ENUM_TO_DISPLAY = {
-    'NEW': 'New',
-    'NEW_OTHER': 'New - Open Box',
-    'NEW_WITH_DEFECTS': 'New - Open Box',
-    'LIKE_NEW': 'Used - Like New',
-    'CERTIFIED_REFURBISHED': 'New - Open Box',
-    'EXCELLENT_REFURBISHED': 'Used - Like New',
-    'VERY_GOOD_REFURBISHED': 'Used - Like New',
-    'GOOD_REFURBISHED': 'Used - Good',
-    'SELLER_REFURBISHED': 'Used - Like New',
-    'USED_EXCELLENT': 'Used - Like New',
-    'USED_VERY_GOOD': 'Used - Very Good',
-    'USED_GOOD': 'Used - Good',
-    'USED_ACCEPTABLE': 'Used - Acceptable',
-    'FOR_PARTS_OR_NOT_WORKING': 'For Parts or Not Working',
-}
-
 # Supported Image Formats
 SUPPORTED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff', '.tif'}
 

@@ -1,13 +1,12 @@
 """
 Pricing Engine for eBay Draft Commander
-Uses eBay Finding API to get sold listings and calculate market-based prices
+Uses eBay Browse API for market-based pricing
 """
 import math
 import os
 import json
 import re
 import statistics
-import requests
 from typing import List, Dict, Optional, Union, Any
 from urllib.parse import quote
 from backend.app.core.constants import (
@@ -19,7 +18,6 @@ from backend.app.core.constants import (
     RARITY_PERCENTILE_THRESHOLD,
 )
 from backend.app.core.logger import get_logger
-from backend.app.core.rate_limiter import limiter
 
 logger = get_logger('pricing_engine')
 
@@ -28,18 +26,11 @@ def format_price_source(source: str, comp_count: int = 0) -> str:
     """Convert internal price source key to human-readable label."""
     count_str = f"{comp_count} " if comp_count > 0 else ""
     labels = {
-        'market_data_isbn_sold': f'Based on {count_str}sold listings (ISBN)',
-        'market_data_isbn': f'Based on {count_str}active listings (ISBN) — not sold data',
-        'market_data_mpn_sold': f'Based on {count_str}sold listings (MPN)',
-        'market_data_mpn': f'Based on {count_str}active listings (MPN) — not sold data',
-        'market_data_id_sold': f'Based on {count_str}sold listings (ID match)',
-        'market_data_id': f'Based on {count_str}active listings (ID match) — not sold data',
-        'market_data_alt_pn': f'Based on {count_str}sold listings (alt part #)',
-        'market_data_alt_pn_active': f'Based on {count_str}active listings (alt part #) — not sold data',
-        'market_data_sold': f'Based on {count_str}sold listings',
-        'market_data_keyword_sold': f'Based on {count_str}sold listings',
-        'market_data_keyword': f'Based on {count_str}active listings — not sold data',
-        'market_data': f'Based on {count_str}active listings — not sold data',
+        'market_data_isbn': f'Based on {count_str}listings (ISBN match)',
+        'market_data_id': f'Based on {count_str}listings (ID match)',
+        'market_data_alt_pn': f'Based on {count_str}listings (alt part #)',
+        'market_data_keyword': f'Based on {count_str}listings',
+        'market_data': f'Based on {count_str}listings',
         'research_market_price': 'AI web research estimate',
         'ai_grounded_research': 'AI web research estimate (search grounded)',
         'ai_grounding': 'AI estimate (no comp data)',
@@ -51,41 +42,10 @@ def format_price_source(source: str, comp_count: int = 0) -> str:
 
 
 class PricingEngine:
-    """Calculates suggested prices based on recent eBay sales.
+    """Calculates suggested prices using eBay Browse API and AI fallbacks.
 
-    Pricing cascade (in priority order):
-    0. User override (manual price)
-    1. ISBN search — Finding API (sold) -> Browse API (active)
-    1.5. MPN/Model search — Finding API (sold) -> Browse API (active)
-    2. Keyword search — Finding API (sold) -> Browse API (active)
-    3. Gemini + Google Search grounding (AI web research)
-    4. AI vision estimate (suggested_price from image analysis — weakest signal)
-    5. Fail loudly (returns None, requires manual pricing)
-
-    TODO (Future): Comp Image Comparison
-    - Finding API returns sold data; fetch thumbnail images from results
-    - Use Gemini multimodal to compare our product photos against comp photos
-    - Score visual similarity to filter out non-matching comps
-    - Weight prices by visual similarity for more accurate estimates
-    - This would help with items where title search returns noisy results
+    See get_price_with_comps() for the full pricing cascade.
     """
-    
-    # Finding API endpoint
-    FINDING_API_URL = "https://svcs.ebay.com/services/search/FindingService/v1"
-    
-    # Condition multipliers (relative to median of "all conditions")
-    CONDITION_MULTIPLIERS = {
-        "New": 1.0,
-        "New - Open Box": 0.90,
-        "Used - Like New": 0.85,
-        "Used - Very Good": 0.80,
-        "Used - Good": 0.75,
-        "Used - Acceptable": 0.60,
-        "For Parts": 0.40,
-        "For Parts or Not Working": 0.40,
-        "New Old Stock": 0.95,  # NOS commands higher prices
-        "New other (see details)": 0.90,
-    }
     
     def __init__(self):
         """Initialize with eBay App ID and Google API key from environment"""
@@ -139,66 +99,30 @@ class PricingEngine:
             return MAX_LISTING_PRICE
         return price
 
-    def _resolve_condition_multiplier(self, condition_str: str) -> Optional[float]:
-        """Resolve a condition string from comps to a multiplier value.
-
-        Handles various formats: display names ("Used - Good"), eBay API enums
-        ("USED_GOOD"), and partial matches ("Like New").
-        Returns None if condition is unrecognizable.
+    def search_sold_listings(self, keywords: str, category_id: Optional[str] = None, limit: int = 15, condition: str = None) -> List[Dict[str, Any]]:
         """
-        if not condition_str:
-            return None
+        Search for items matching the keywords via Browse API.
 
-        # Direct match against our table
-        if condition_str in self.CONDITION_MULTIPLIERS:
-            return self.CONDITION_MULTIPLIERS[condition_str]
-
-        # Try enum-to-display conversion
-        from backend.app.core.constants import CONDITION_ENUM_TO_DISPLAY
-        if condition_str in CONDITION_ENUM_TO_DISPLAY:
-            display = CONDITION_ENUM_TO_DISPLAY[condition_str]
-            return self.CONDITION_MULTIPLIERS.get(display)
-
-        # Fuzzy matching on lowercase
-        cond_lower = condition_str.lower()
-        if "new" in cond_lower and "open" in cond_lower:
-            return self.CONDITION_MULTIPLIERS["New - Open Box"]
-        if "like new" in cond_lower:
-            return self.CONDITION_MULTIPLIERS["Used - Like New"]
-        if "good" in cond_lower:
-            return self.CONDITION_MULTIPLIERS["Used - Good"]
-        if "acceptable" in cond_lower:
-            return self.CONDITION_MULTIPLIERS["Used - Acceptable"]
-        if "parts" in cond_lower:
-            return self.CONDITION_MULTIPLIERS["For Parts"]
-        if "new" in cond_lower:
-            return self.CONDITION_MULTIPLIERS["New"]
-
-        return None
-
-    def search_sold_listings(self, keywords: str, category_id: Optional[str] = None, limit: int = 15) -> List[Dict[str, Any]]:
-        """
-        Search for recently sold items matching the keywords.
-        
         Args:
             keywords: Search query (e.g., "NTTAT CLETOP")
             category_id: Optional eBay category ID to narrow search
             limit: Max number of results (1-100)
-        
+            condition: Optional condition enum for Browse API filtering
+
         Returns:
             List of dicts with: title, price, condition, end_date, url
         """
         if not self.app_id:
             return []
-        
-        # Use eBayResearcher (Browse API) instead of legacy Finding API
+
+        # Use eBayResearcher (Browse API) with condition filtering
         try:
             from backend.app.services.ebay.researcher import eBayResearcher
             researcher = eBayResearcher(use_api=True, use_ai=False) # AI fallback handled by caller if needed
-            
+
             # The researcher returns {'items': [SoldItem...], ...}
             # We need to adapt it to the dict format expected by this class
-            results = researcher.search_sold(keywords, limit=limit)
+            results = researcher.search_sold(keywords, limit=limit, condition=condition)
             
             sold_items = []
             if results and 'items' in results:
@@ -221,106 +145,6 @@ class PricingEngine:
             logger.error(f"[FAIL] Pricing engine error (using Researcher): {e}")
             return []
     
-    def search_finding_api(self, keywords: str, category_id: Optional[str] = None, limit: int = 15) -> List[Dict[str, Any]]:
-        """
-        Search eBay Finding API for ACTUALLY SOLD items (last 90 days).
-
-        Unlike Browse API (active listings / asking prices), Finding API
-        findCompletedItems returns real transaction data -- what buyers paid.
-
-        Args:
-            keywords: Search query
-            category_id: Optional eBay category ID
-            limit: Max results (1-100)
-
-        Returns:
-            List of dicts with: title, price, condition, end_date, url
-        """
-        if not self.app_id:
-            return []
-
-        params = {
-            "OPERATION-NAME": "findCompletedItems",
-            "SERVICE-VERSION": "1.13.0",
-            "SECURITY-APPNAME": self.app_id,
-            "RESPONSE-DATA-FORMAT": "XML",
-            "REST-PAYLOAD": "",
-            "keywords": keywords,
-            "paginationInput.entriesPerPage": str(min(limit, 100)),
-            "itemFilter(0).name": "SoldItemsOnly",
-            "itemFilter(0).value": "true",
-            "itemFilter(1).name": "Currency",
-            "itemFilter(1).value": "USD",
-            "sortOrder": "EndTimeNewest",
-        }
-
-        if category_id:
-            params["categoryId"] = category_id
-
-        try:
-            import xml.etree.ElementTree as ET
-
-            limiter.wait_if_needed('ebay')
-            response = requests.get(self.FINDING_API_URL, params=params, timeout=15)
-
-            if response.status_code != 200:
-                logger.warning(f"Finding API HTTP {response.status_code}")
-                return []
-
-            ns = {"ns": "https://svcs.ebay.com/services/search/FindingService/v1"}
-            root = ET.fromstring(response.text)
-
-            ack = root.findtext("ns:ack", default="Failure", namespaces=ns)
-            if ack != "Success":
-                error_msg = root.findtext(".//ns:errorMessage/ns:error/ns:message", default="Unknown", namespaces=ns)
-                logger.warning(f"Finding API error: {error_msg}")
-                return []
-
-            sold_items = []
-            for item_el in root.findall(".//ns:searchResult/ns:item", namespaces=ns):
-                try:
-                    title = item_el.findtext("ns:title", default="", namespaces=ns)
-
-                    selling_state = item_el.findtext(
-                        "ns:sellingStatus/ns:sellingState", default="", namespaces=ns
-                    )
-                    if selling_state != "EndedWithSales":
-                        continue
-
-                    price_str = item_el.findtext(
-                        "ns:sellingStatus/ns:currentPrice", default="0", namespaces=ns
-                    )
-                    price = float(price_str)
-                    if price <= 0:
-                        continue
-
-                    condition = item_el.findtext(
-                        "ns:condition/ns:conditionDisplayName", default="Used", namespaces=ns
-                    )
-                    end_date = item_el.findtext(
-                        "ns:listingInfo/ns:endTime", default="", namespaces=ns
-                    )
-                    url = item_el.findtext("ns:viewItemURL", default="", namespaces=ns)
-
-                    sold_items.append({
-                        "title": title,
-                        "price": price,
-                        "currency": "USD",
-                        "condition": condition,
-                        "end_date": end_date[:10] if end_date else "",
-                        "url": url,
-                    })
-                except (ValueError, AttributeError) as e:
-                    logger.debug(f"Skipping Finding API item: {e}")
-                    continue
-
-            logger.info(f"Finding API returned {len(sold_items)} sold items for: {keywords[:50]}")
-            return sold_items
-
-        except Exception as e:
-            logger.warning(f"Finding API request failed: {e}")
-            return []
-
     MIN_TITLE_SIMILARITY = 0.30  # Minimum word overlap ratio
     MIN_COMPS_AFTER_FILTER = 3   # Don't filter below this count
 
@@ -418,48 +242,9 @@ class PricingEngine:
             base_price = median_price
             reasoning_prefix = "Median"
 
-        # Get condition multiplier — resolve enum keys to display format
-        from backend.app.core.constants import CONDITION_ENUM_TO_DISPLAY
-        cond_key = our_condition
-        # If it's an enum key (e.g. USED_EXCELLENT), convert to display format
-        if cond_key in CONDITION_ENUM_TO_DISPLAY:
-            cond_key = CONDITION_ENUM_TO_DISPLAY[cond_key]
-        # Fuzzy match for NOS
-        if "new old stock" in cond_key.lower() or "nos" in cond_key.lower():
-            cond_key = "New Old Stock"
-
-        our_multiplier = self.CONDITION_MULTIPLIERS.get(cond_key, 0.75)
-
-        # --- Condition-Aware Multiplier ---
-        # Comps come in mixed conditions. If most comps are already similar to
-        # our condition, the median already reflects our condition's price level
-        # and applying the full multiplier would double-discount.
-        # Solution: estimate the "average condition level" of comps and scale
-        # our multiplier relative to that baseline.
-        comp_multipliers = []
-        for item in sold_items:
-            comp_cond = item.get("condition", "")
-            # Try to match comp condition to our multiplier table
-            comp_mult = self._resolve_condition_multiplier(comp_cond)
-            if comp_mult is not None:
-                comp_multipliers.append(comp_mult)
-
-        if comp_multipliers:
-            avg_comp_multiplier = statistics.mean(comp_multipliers)
-            # Relative multiplier: our condition vs the average comp condition
-            # If comps are mostly "Used - Good" (0.75) and we're also "Used - Good" (0.75),
-            # relative multiplier = 0.75 / 0.75 = 1.0 (no adjustment needed)
-            # If comps are mixed (avg ~0.85) and we're "Used - Good" (0.75),
-            # relative multiplier = 0.75 / 0.85 = 0.88 (modest discount)
-            multiplier = our_multiplier / avg_comp_multiplier if avg_comp_multiplier > 0 else our_multiplier
-            # Clamp to reasonable range (0.4x to 1.3x) to avoid extreme adjustments
-            multiplier = max(0.40, min(1.30, multiplier))
-        else:
-            # No condition data on comps — use raw multiplier as before
-            multiplier = our_multiplier
-
-        # Calculate suggested price
-        suggested_price = round(base_price * multiplier, 2)
+        # Use base_price directly — condition filtering is handled by the
+        # Browse API query, so comps already match our condition bucket.
+        suggested_price = round(base_price, 2)
 
         # --- Free Shipping Buffer ---
         # When offering free shipping, bake the estimated shipping cost into the price
@@ -489,17 +274,16 @@ class PricingEngine:
         # Sanitize: guard against NaN/infinity and enforce price bounds
         suggested_price = self._sanitize_price(suggested_price)
 
-        reasoning = f"{reasoning_prefix} of {len(prices)} sales (${base_price:.2f}) x {multiplier:.0%} condition adj."
+        reasoning = f"{reasoning_prefix} of {len(prices)} listings (${base_price:.2f})"
         if shipping_buffered:
             reasoning += f" + ${shipping_cost:.2f} shipping"
         if margin_boost:
             reasoning += f" (Boosted for ${min_margin} min margin)"
-            
+
         return {
             "suggested_price": suggested_price,
             "comp_count": len(prices),
             "median_price": round(median_price, 2),
-            "multiplier": multiplier,
             "reasoning": reasoning,
             "projected_profit": round(suggested_price - est_fees - acquisition_cost - shipping_cost, 2)
         }
@@ -682,9 +466,10 @@ class PricingEngine:
 
         Pricing cascade (in priority order):
         0. User override (handled by caller)
-        1. ISBN search -- Finding API (sold) -> Browse API (active)
-        1.5. MPN/Model search -- Finding API (sold) -> Browse API (active)
-        2. Keyword search -- Finding API (sold) -> Browse API (active)
+        1. ISBN search — Browse API (condition-filtered)
+        1.5. MPN/Model search — Browse API (condition-filtered)
+        2. Keyword search — Browse API (condition-filtered)
+        2.5. Research market price (AI web research)
         3. Gemini + Google Search grounding
         4. AI vision estimate (weakest signal)
         5. Fail loudly (returns None)
@@ -693,29 +478,12 @@ class PricingEngine:
 
         # --- STRATEGY 1: ISBN SEARCH (Gold Standard for Books) ---
         if isbn:
-            # Try Finding API (sold data) first
-            logger.info(f"[SEARCH] ISBN sold search: {isbn}...")
-            sold_items = self.search_finding_api(isbn, category_id, limit=15)
+            logger.info(f"[SEARCH] ISBN search: {isbn}...")
+            sold_items = self.search_sold_listings(isbn, category_id, limit=15, condition=condition)
             if sold_items:
                 sold_items = self.filter_comps(sold_items, reference_title=title)
                 price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost, availability=availability)
-                logger.info(f"   [PRICE] Sold price (ISBN): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
-                return {
-                    "suggested_price": price_data["suggested_price"],
-                    "comps": sold_items[:5],
-                    "reasoning": f"ISBN Sold Match: {price_data['reasoning']}",
-                    "projected_profit": price_data.get("projected_profit"),
-                    "source": "market_data_isbn_sold",
-                    "research_link": self.generate_ebay_search_link(isbn)
-                }
-
-            # Fallback: Browse API (active listings)
-            logger.info(f"   [WARN] No sold data for ISBN, trying active listings...")
-            sold_items = self.search_sold_listings(isbn, category_id, limit=15)
-            if sold_items:
-                sold_items = self.filter_comps(sold_items, reference_title=title)
-                price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost, availability=availability)
-                logger.info(f"   [PRICE] Active price (ISBN): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
+                logger.info(f"   [PRICE] ISBN price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
                 return {
                     "suggested_price": price_data["suggested_price"],
                     "comps": sold_items[:5],
@@ -724,7 +492,7 @@ class PricingEngine:
                     "source": "market_data_isbn",
                     "research_link": self.generate_ebay_search_link(isbn)
                 }
-            logger.info("   [WARN] No sales found for ISBN, falling back to title...")
+            logger.info("   [WARN] No listings found for ISBN, falling back to title...")
 
         # --- STRATEGY 1.5: MPN/MODEL SEARCH ---
         id_query_tried = None
@@ -738,29 +506,12 @@ class PricingEngine:
                 id_query = " ".join(id_parts)
                 id_query_tried = id_query
 
-                # Try Finding API (sold data) first
-                logger.info(f"[SEARCH] Identifier sold search: {id_query}...")
-                sold_items = self.search_finding_api(id_query, category_id, limit=15)
+                logger.info(f"[SEARCH] Identifier search: {id_query}...")
+                sold_items = self.search_sold_listings(id_query, category_id, limit=15, condition=condition)
                 if sold_items:
                     sold_items = self.filter_comps(sold_items, reference_title=title)
                     price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost, availability=availability)
-                    logger.info(f"   [PRICE] Sold price (ID): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
-                    return {
-                        "suggested_price": price_data["suggested_price"],
-                        "comps": sold_items[:5],
-                        "reasoning": f"ID Sold Match ({id_query}): {price_data['reasoning']}",
-                        "projected_profit": price_data.get("projected_profit"),
-                        "source": "market_data_id_sold",
-                        "research_link": self.generate_ebay_search_link(id_query)
-                    }
-
-                # Fallback: Browse API (active listings)
-                logger.info(f"   [WARN] No sold data for identifiers, trying active listings...")
-                sold_items = self.search_sold_listings(id_query, category_id, limit=15)
-                if sold_items:
-                    sold_items = self.filter_comps(sold_items, reference_title=title)
-                    price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost, availability=availability)
-                    logger.info(f"   [PRICE] Active price (ID): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
+                    logger.info(f"   [PRICE] ID price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
                     return {
                         "suggested_price": price_data["suggested_price"],
                         "comps": sold_items[:5],
@@ -769,7 +520,7 @@ class PricingEngine:
                         "source": "market_data_id",
                         "research_link": self.generate_ebay_search_link(id_query)
                     }
-                logger.info("   [WARN] No sales found for identifiers, trying alt part numbers...")
+                logger.info("   [WARN] No listings found for identifiers, trying alt part numbers...")
 
                 # --- STRATEGY 1.5b: ALTERNATIVE PART NUMBERS ---
                 alt_pns = identification.get('oem_part_numbers', []) or []
@@ -780,37 +531,20 @@ class PricingEngine:
                         continue
                     search_query = f"{brand} {alt_pn}" if brand else str(alt_pn)
                     logger.info(f"[SEARCH] Alt part number: {search_query}...")
-                    sold_items = self.search_finding_api(search_query, category_id, limit=10)
+                    sold_items = self.search_sold_listings(search_query, category_id, limit=10, condition=condition)
                     if sold_items:
                         sold_items = self.filter_comps(sold_items, reference_title=title)
                         price_data = self.calculate_suggested_price(
                             sold_items, condition, acquisition_cost, shipping_cost,
                             availability=availability
                         )
-                        logger.info(f"   [PRICE] Sold price (Alt PN): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
+                        logger.info(f"   [PRICE] Alt PN price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
                         return {
                             "suggested_price": price_data["suggested_price"],
                             "comps": sold_items[:5],
                             "reasoning": f"Alt PN Match ({alt_pn}): {price_data['reasoning']}",
                             "projected_profit": price_data.get("projected_profit"),
                             "source": "market_data_alt_pn",
-                            "research_link": research_link
-                        }
-                    # Also try active listings for alt PN
-                    sold_items = self.search_sold_listings(search_query, category_id, limit=10)
-                    if sold_items:
-                        sold_items = self.filter_comps(sold_items, reference_title=title)
-                        price_data = self.calculate_suggested_price(
-                            sold_items, condition, acquisition_cost, shipping_cost,
-                            availability=availability
-                        )
-                        logger.info(f"   [PRICE] Active price (Alt PN): ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
-                        return {
-                            "suggested_price": price_data["suggested_price"],
-                            "comps": sold_items[:5],
-                            "reasoning": f"Alt PN Active ({alt_pn}): {price_data['reasoning']}",
-                            "projected_profit": price_data.get("projected_profit"),
-                            "source": "market_data_alt_pn_active",
                             "research_link": research_link
                         }
 
@@ -823,35 +557,18 @@ class PricingEngine:
         if id_query_tried and search_query == id_query_tried:
             search_query = " ".join(title.split()[:8])  # Force title fallback
 
-        # Try Finding API (sold data) first
-        logger.info(f"[SEARCH] Keyword sold search: {search_query[:50]}...")
-        sold_items = self.search_finding_api(search_query, category_id, limit=15)
+        logger.info(f"[SEARCH] Keyword search: {search_query[:50]}...")
+        sold_items = self.search_sold_listings(search_query, category_id, limit=15, condition=condition)
         if sold_items:
             sold_items = self.filter_comps(sold_items, reference_title=title)
             price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost, availability=availability)
-            logger.info(f"   [PRICE] Sold price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
-            return {
-                "suggested_price": price_data["suggested_price"],
-                "comps": sold_items[:5],
-                "reasoning": f"Sold: {price_data['reasoning']}",
-                "projected_profit": price_data.get("projected_profit"),
-                "source": "market_data_sold",
-                "research_link": research_link
-            }
-
-        # Fallback: Browse API (active listings)
-        logger.info(f"   [WARN] No sold data, trying active listings: {search_query[:50]}...")
-        sold_items = self.search_sold_listings(search_query, category_id, limit=15)
-        if sold_items:
-            sold_items = self.filter_comps(sold_items, reference_title=title)
-            price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost, availability=availability)
-            logger.info(f"   [PRICE] Active price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
+            logger.info(f"   [PRICE] Keyword price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
             return {
                 "suggested_price": price_data["suggested_price"],
                 "comps": sold_items[:5],
                 "reasoning": price_data["reasoning"],
                 "projected_profit": price_data.get("projected_profit"),
-                "source": "market_data",
+                "source": "market_data_keyword",
                 "research_link": research_link
             }
 
@@ -859,9 +576,7 @@ class PricingEngine:
         if research_market_price and research_market_price.get('mid'):
             try:
                 mid = float(research_market_price['mid'])
-                # Apply condition multiplier (same logic as calculate_suggested_price)
-                multiplier = self._resolve_condition_multiplier(condition) or 0.75
-                adjusted = round(mid * multiplier, 2)
+                adjusted = round(mid, 2)
                 if shipping_cost > 0:
                     adjusted = round(adjusted + shipping_cost, 2)
                 adjusted = self._smart_round_99(adjusted)
@@ -872,7 +587,7 @@ class PricingEngine:
                 return {
                     "suggested_price": adjusted,
                     "comps": [],
-                    "reasoning": f"Phase 2 web research: ${low}-${high} range, condition adjusted ({condition})",
+                    "reasoning": f"Phase 2 web research: ${low}-${high} range ({condition})",
                     "source": "research_market_price",
                     "research_link": research_link
                 }

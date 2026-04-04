@@ -100,33 +100,42 @@ class eBayBrowseAPI:
             logger.error(f"Browse API auth failed: {e}")
             return None
     
-    def search_items(self, query: str, limit: int = 30) -> Dict:
+    def search_items(self, query: str, limit: int = 30, condition: str = None) -> Dict:
         """
         Search for items matching query and return pricing statistics.
-        
+
         Args:
             query: Search keywords
             limit: Max items to retrieve (default 30)
-            
+            condition: Optional condition enum (e.g. 'NEW', 'USED_GOOD').
+                       When provided, filters results to matching condition bucket.
+
         Returns:
             Dict with 'stats' and 'items' keys
         """
         token = self.get_access_token()
         if not token:
             return self._empty_result()
-        
+
         url = f"{self.BROWSE_URL}/item_summary/search"
-        
+
         headers = {
             "Authorization": f"Bearer {token}",
             "X-EBAY-C-MARKETPLACE-ID": "EBAY_US",
             "X-EBAY-C-ENDUSERCTX": "affiliateCampaignId=<ePNCampaignId>,affiliateReferenceId=<referenceId>"
         }
-        
+
+        filter_str = "buyingOptions:{FIXED_PRICE}"  # Only Buy It Now for clean pricing
+        if condition:
+            if condition.startswith('NEW'):
+                filter_str += ",conditions:{NEW}"
+            else:
+                filter_str += ",conditions:{USED}"
+
         params = {
             "q": query,
             "limit": min(limit, 50),  # API max is 200, but we keep it reasonable
-            "filter": "buyingOptions:{FIXED_PRICE}"  # Only Buy It Now for clean pricing
+            "filter": filter_str
         }
         
         try:

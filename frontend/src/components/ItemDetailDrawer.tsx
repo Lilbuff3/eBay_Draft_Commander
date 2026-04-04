@@ -253,11 +253,9 @@ export function ItemDetailDrawer({
                                         </div>
                                         {jobDetails?.pricing_data?.price_source_label ? (
                                             <p className={`text-[10px] mt-1 ${
-                                                jobDetails.pricing_data.price_source_label.includes('sold')
-                                                    ? 'text-emerald-600'
-                                                    : jobDetails.pricing_data.price_source_label.includes('active')
-                                                        ? 'text-amber-600'
-                                                        : 'text-stone-400'
+                                                jobDetails.pricing_data.price_source_label.includes('listings')
+                                                    ? 'text-amber-600'
+                                                    : 'text-stone-400'
                                             }`}>
                                                 {jobDetails.pricing_data.price_source_label}
                                             </p>

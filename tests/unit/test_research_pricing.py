@@ -84,7 +84,6 @@ class TestResearchPriceStrategy:
         engine = self._make_engine()
 
         # Mock all earlier strategies to return nothing
-        engine.search_finding_api = MagicMock(return_value=[])
         engine.search_sold_listings = MagicMock(return_value=[])
         engine.generate_ebay_search_link = MagicMock(return_value="https://ebay.com/test")
         engine.get_ai_price_estimate = MagicMock(return_value={"price": 999.99})
@@ -99,40 +98,13 @@ class TestResearchPriceStrategy:
         assert result["source"] == "research_market_price"
         # Gemini grounding should NOT have been called
         engine.get_ai_price_estimate.assert_not_called()
-        # Price should reflect condition multiplier (0.75) + shipping
-        # 75 * 0.75 = 56.25 + 6.50 = 62.75 -> smart_round_99 (cents 0.75 < 0.80) -> 61.99
-        assert result["suggested_price"] == 61.99
-
-    def test_research_price_applies_condition_multiplier(self):
-        """Different conditions should produce different prices from same mid."""
-        engine = self._make_engine()
-
-        engine.search_finding_api = MagicMock(return_value=[])
-        engine.search_sold_listings = MagicMock(return_value=[])
-        engine.generate_ebay_search_link = MagicMock(return_value="")
-        engine.get_ai_price_estimate = MagicMock(return_value=None)
-
-        # Like New should be higher than Used Good
-        result_ln = engine.get_price_with_comps(
-            "Widget",
-            condition="Used - Like New",
-            research_market_price={"low": 40, "mid": 100, "high": 150},
-            shipping_cost=0,
-        )
-        result_ug = engine.get_price_with_comps(
-            "Widget",
-            condition="Used - Good",
-            research_market_price={"low": 40, "mid": 100, "high": 150},
-            shipping_cost=0,
-        )
-
-        assert result_ln["suggested_price"] > result_ug["suggested_price"]
+        # Price = mid (75) + shipping (6.50) = 81.50 -> smart_round_99 (cents 0.50 < 0.80) -> 80.99
+        assert result["suggested_price"] == 80.99
 
     def test_research_price_skipped_when_no_mid(self):
         """If research_market_price has no 'mid', skip to next strategy."""
         engine = self._make_engine()
 
-        engine.search_finding_api = MagicMock(return_value=[])
         engine.search_sold_listings = MagicMock(return_value=[])
         engine.generate_ebay_search_link = MagicMock(return_value="")
         engine.get_ai_price_estimate = MagicMock(return_value={"price": 50.0, "reasoning": "AI"})
@@ -152,7 +124,6 @@ class TestResearchPriceStrategy:
         """If research_market_price is None, skip to next strategy."""
         engine = self._make_engine()
 
-        engine.search_finding_api = MagicMock(return_value=[])
         engine.search_sold_listings = MagicMock(return_value=[])
         engine.generate_ebay_search_link = MagicMock(return_value="")
         engine.get_ai_price_estimate = MagicMock(return_value={"price": 50.0, "reasoning": "AI"})
@@ -171,7 +142,6 @@ class TestResearchPriceStrategy:
         """If mid value can't be converted to float, skip gracefully."""
         engine = self._make_engine()
 
-        engine.search_finding_api = MagicMock(return_value=[])
         engine.search_sold_listings = MagicMock(return_value=[])
         engine.generate_ebay_search_link = MagicMock(return_value="")
         engine.get_ai_price_estimate = MagicMock(return_value=None)
@@ -211,7 +181,7 @@ class TestPricingCompsPassthrough:
             "suggested_price": 49.99,
             "comps": sample_comps,
             "reasoning": "Based on 2 comparable sales",
-            "source": "finding_api_sold",
+            "source": "market_data_keyword",
             "research_link": "",
         }
         agent.pricing_engine = mock_engine
@@ -226,7 +196,7 @@ class TestPricingCompsPassthrough:
 
         assert result["comps"] == sample_comps
         assert result["reasoning"] == "Based on 2 comparable sales"
-        assert result["source"] == "finding_api_sold"
+        assert result["source"] == "market_data_keyword"
         assert result["price"] == "49.99"
 
     def test_comps_empty_on_error(self):
@@ -355,8 +325,6 @@ class TestAvailabilityPricing:
         """availability should be passed from get_price_with_comps to calculate_suggested_price."""
         engine = self._make_engine()
 
-        engine.search_finding_api = MagicMock(return_value=[])
-        engine.search_sold_listings = MagicMock(return_value=[])
         engine.generate_ebay_search_link = MagicMock(return_value="")
         engine.get_ai_price_estimate = MagicMock(return_value=None)
 
@@ -368,8 +336,8 @@ class TestAvailabilityPricing:
             "reasoning": "test",
         })
 
-        # Provide sold items via Finding API so calculate_suggested_price gets called
-        engine.search_finding_api = MagicMock(return_value=[
+        # Provide sold items via search_sold_listings so calculate_suggested_price gets called
+        engine.search_sold_listings = MagicMock(return_value=[
             {"title": "Test", "price": 50.0, "condition": "Used", "end_date": "", "url": ""}
         ])
 
@@ -392,7 +360,7 @@ class TestAvailabilityPricing:
             "suggested_price": 79.99,
             "comps": [],
             "reasoning": "test",
-            "source": "market_data_sold",
+            "source": "market_data_keyword",
             "research_link": "",
         }
         agent.pricing_engine = mock_engine
@@ -511,15 +479,12 @@ class TestAltPartNumberFallback:
         engine = self._make_engine()
 
         # Primary MPN search returns nothing, alt PN search returns results
-        call_count = {"n": 0}
-        def mock_finding(query, cat_id=None, limit=15):
-            call_count["n"] += 1
+        def mock_sold(query, cat_id=None, limit=15, condition=None):
             if "ALT-001" in query:
                 return [{"title": "Alt Match", "price": 55.0, "condition": "Used"}]
             return []
 
-        engine.search_finding_api = MagicMock(side_effect=mock_finding)
-        engine.search_sold_listings = MagicMock(return_value=[])
+        engine.search_sold_listings = MagicMock(side_effect=mock_sold)
         engine.generate_ebay_search_link = MagicMock(return_value="")
         engine.calculate_suggested_price = MagicMock(return_value={
             "suggested_price": 55.0,
@@ -546,10 +511,15 @@ class TestAltPartNumberFallback:
         """When primary MPN finds results, alt PNs should not be tried."""
         engine = self._make_engine()
 
-        engine.search_finding_api = MagicMock(return_value=[
-            {"title": "Primary Match", "price": 45.0, "condition": "Used"}
-        ])
-        engine.search_sold_listings = MagicMock(return_value=[])
+        call_count = {"n": 0}
+        def mock_sold(query, cat_id=None, limit=15, condition=None):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                # First call (primary MPN) returns results
+                return [{"title": "Primary Match", "price": 45.0, "condition": "Used"}]
+            return []
+
+        engine.search_sold_listings = MagicMock(side_effect=mock_sold)
         engine.generate_ebay_search_link = MagicMock(return_value="")
         engine.calculate_suggested_price = MagicMock(return_value={
             "suggested_price": 45.0,
@@ -569,15 +539,14 @@ class TestAltPartNumberFallback:
             },
         )
 
-        assert result["source"] == "market_data_id_sold"
-        # search_finding_api should only be called once (for primary MPN)
-        engine.search_finding_api.assert_called_once()
+        assert result["source"] == "market_data_id"
+        # search_sold_listings should only be called once (for primary MPN)
+        assert call_count["n"] == 1
 
     def test_empty_alt_pn_list_skipped(self):
         """Empty or missing alt PN list should not cause errors."""
         engine = self._make_engine()
 
-        engine.search_finding_api = MagicMock(return_value=[])
         engine.search_sold_listings = MagicMock(return_value=[])
         engine.generate_ebay_search_link = MagicMock(return_value="")
         engine.get_ai_price_estimate = MagicMock(return_value=None)
@@ -601,13 +570,12 @@ class TestAltPartNumberFallback:
         """Falls back to 'alternative_part_numbers' key when 'oem_part_numbers' is empty."""
         engine = self._make_engine()
 
-        def mock_finding(query, cat_id=None, limit=15):
+        def mock_sold(query, cat_id=None, limit=15, condition=None):
             if "COMPAT-X" in query:
                 return [{"title": "Compat Match", "price": 60.0, "condition": "Used"}]
             return []
 
-        engine.search_finding_api = MagicMock(side_effect=mock_finding)
-        engine.search_sold_listings = MagicMock(return_value=[])
+        engine.search_sold_listings = MagicMock(side_effect=mock_sold)
         engine.generate_ebay_search_link = MagicMock(return_value="")
         engine.calculate_suggested_price = MagicMock(return_value={
             "suggested_price": 60.0,
@@ -630,17 +598,16 @@ class TestAltPartNumberFallback:
         assert result["source"] == "market_data_alt_pn"
         assert "COMPAT-X" in result["reasoning"]
 
-    def test_alt_pn_active_listings_fallback(self):
-        """When sold search fails but active listings exist for alt PN, use active."""
+    def test_alt_pn_browse_api_fallback(self):
+        """Alt PN results come from Browse API (the only search path now)."""
         engine = self._make_engine()
 
-        engine.search_finding_api = MagicMock(return_value=[])
-        def mock_active(query, cat_id=None, limit=15):
+        def mock_sold(query, cat_id=None, limit=10, condition=None):
             if "ALT-A" in query:
                 return [{"title": "Active Match", "price": 70.0, "condition": "Used"}]
             return []
 
-        engine.search_sold_listings = MagicMock(side_effect=mock_active)
+        engine.search_sold_listings = MagicMock(side_effect=mock_sold)
         engine.generate_ebay_search_link = MagicMock(return_value="")
         engine.calculate_suggested_price = MagicMock(return_value={
             "suggested_price": 70.0,
@@ -660,5 +627,5 @@ class TestAltPartNumberFallback:
             },
         )
 
-        assert result["source"] == "market_data_alt_pn_active"
+        assert result["source"] == "market_data_alt_pn"
         assert "ALT-A" in result["reasoning"]

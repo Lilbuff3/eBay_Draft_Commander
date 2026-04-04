@@ -1,8 +1,9 @@
 """
 eBay Price Researcher
-3. Primary: Uses eBay Browse API for reliable market pricing data.
-4. Secondary: AI-powered estimation for unique items (Gemini + Google Search)
-5. Fallback: HTML scraping (unreliable due to bot protection) - Extracts sold items.
+
+1. Primary: eBay Browse API (condition-filtered active listings)
+2. Secondary: AI-powered estimation for unique items (Gemini + Google Search)
+3. Fallback: HTML scraping (unreliable due to bot protection)
 """
 import requests
 import re
@@ -75,15 +76,16 @@ class eBayResearcher:
                 logger.warning(f"AI Estimator init failed: {e}")
                 self._use_ai = False
 
-    def search_sold(self, query: str, limit: int = 30, use_ai_fallback: bool = True) -> Dict:
+    def search_sold(self, query: str, limit: int = 30, use_ai_fallback: bool = True, condition: str = None) -> Dict:
         """
         Search for pricing data on similar items.
-        
+
         Args:
             query: Search keywords
             limit: Max items to retrieve
             use_ai_fallback: Use AI estimation if no market data found
-            
+            condition: Optional condition enum for Browse API filtering
+
         Returns:
             Dict with 'stats', 'items', and 'source' keys
         """
@@ -93,7 +95,7 @@ class eBayResearcher:
         # Try Browse API first (preferred)
         if self._use_api and self._api_client:
             try:
-                result = self._api_client.search_items(query, limit)
+                result = self._api_client.search_items(query, limit, condition=condition)
                 if result['items']:  # Got results
                     return result
             except Exception as e:
