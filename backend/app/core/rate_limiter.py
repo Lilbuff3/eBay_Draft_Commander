@@ -43,9 +43,10 @@ class RateLimiter:
         )
         
         # buckets stores named TokenBucket instances
+        # Gemini bucket: allow burst of up to 5 requests, refill at RPM rate
+        gemini_burst = min(5.0, float(GEMINI_RPM_LIMIT))
         self.buckets = {
-            # Gemini: Strict RPM. Bucket size 1, refill speed = 1/interval
-            'gemini': TokenBucket(capacity=1.0, refill_rate=1.0 / (60.0 / GEMINI_RPM_LIMIT)),
+            'gemini': TokenBucket(capacity=gemini_burst, refill_rate=GEMINI_RPM_LIMIT / 60.0),
             
             # eBay: Burst oriented. Refills over time.
             'ebay': TokenBucket(capacity=float(EBAY_BURST_LIMIT), refill_rate=float(EBAY_REFILL_RATE))

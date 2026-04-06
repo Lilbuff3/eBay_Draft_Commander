@@ -22,7 +22,7 @@ class SettingsManager:
         'AUTO_MOVE_POSTED': 'true',
         'AUTO_PUBLISH': 'true',  # If false, creates drafts instead of live listings
         'CONFIDENCE_THRESHOLD': '85',  # 0-100: minimum AI confidence to auto-publish
-        'AUTO_PUBLISH_MIN_PRICE': '15.00',  # Minimum price to auto-publish (force review below)
+        'AUTO_PUBLISH_MIN_PRICE': '10.00',  # Minimum price to auto-publish (force review below)
         'ESTIMATED_SHIPPING_COST': '6.50',  # Baked into price for free-shipping listings
         'ENABLE_BACKGROUND_REMOVAL': 'false',  # rembg background removal (off for MVP)
     }
