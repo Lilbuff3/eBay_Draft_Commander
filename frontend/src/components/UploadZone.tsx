@@ -99,9 +99,19 @@ export function UploadZone({ onUploadComplete, compact = false }: UploadZoneProp
                         border-2 border-dashed rounded-xl px-4 py-3 cursor-pointer
                         transition-colors bg-white hover:bg-stone-50
                         flex items-center justify-center gap-3
+                        focus-visible:ring-2 focus-visible:ring-sage-500 focus-visible:outline-none
                         ${isDragging ? 'border-sage-500 bg-sage-50' : 'border-stone-200'}
                     `}
                     onClick={() => document.getElementById('file-upload')?.click()}
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Upload files"
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            document.getElementById('file-upload')?.click()
+                        }
+                    }}
                 >
                     <input
                         id="file-upload"
@@ -173,9 +183,19 @@ export function UploadZone({ onUploadComplete, compact = false }: UploadZoneProp
                 className={`
                     border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer
                     transition-colors bg-white hover:bg-stone-50
+                    focus-visible:ring-2 focus-visible:ring-sage-500 focus-visible:outline-none
                     ${isDragging ? 'border-sage-500 bg-sage-50' : 'border-stone-200'}
                 `}
                 onClick={() => document.getElementById('file-upload-full')?.click()}
+                role="button"
+                tabIndex={0}
+                aria-label="Upload files"
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        document.getElementById('file-upload-full')?.click()
+                    }
+                }}
             >
                 <input
                     id="file-upload-full"
