@@ -1,7 +1,0 @@
-{
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"ls C:/Users/adam/Projects/ebay-draft-commander/inbox/ 2>/dev/null && echo \\\"---\\\" && ls C:/Users/adam/Projects/ebay-draft-commander/posted/ 2>/dev/null\",\"description\":\"Check inbox and post...",
-  "error": "Exit code 2\nmobile_upload_1774921885_dd91\n---",
-  "timestamp": "2026-03-31T03:41:34.547Z",
-  "retry_count": 1
-}

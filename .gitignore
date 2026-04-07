@@ -98,6 +98,12 @@ tools/archive/
 # Keeping them if they are useful, but ignoring temporary ones
 .claude/
 .serena/
+.omc/
+.zenflow/
+.agent/
+.gemini/
+.genkit/
+.mcp.json
 
 # Large debug logs
 backend_boot.log
