@@ -349,7 +349,7 @@ class PricingEngine:
             ```json
             {{
                 "identified_item": "Brief description of what it is",
-                "original_msrp_estimate": "$XXX.XX",
+                "original_msrp_estimate": "$0.00",
                 "listing_strategy": "Value based on [Comps|MSRP Depreciation]",
                 "price": 0.00,
                 "reasoning": "Step-by-step logic: 1. MSRP was $X. 2. Comps are scarce but similar industrial units sell for $Y. 3. Setting price to $Z to capture professional value."
