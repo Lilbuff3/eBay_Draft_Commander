@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Package, RefreshCw, AlertCircle, Download } from 'lucide-react'
+import { Package, RefreshCw, AlertCircle, Download, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api'
 import { MigrationModal } from './MigrationModal'
@@ -221,8 +221,8 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                         <Download size={16} />
                         Import
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={fetchListings} disabled={isLoading}>
-                        <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
+                    <Button variant="ghost" size="icon" onClick={fetchListings} disabled={isLoading} aria-label="Refresh listings">
+                        <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} aria-hidden="true" />
                     </Button>
                     {onClose && (
                         <Button variant="ghost" size="sm" onClick={onClose}>
@@ -282,8 +282,18 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                             {error}
                         </div>
                     ) : filteredListings.length === 0 ? (
-                        <div className="flex items-center justify-center h-64 text-stone-400">
-                            {searchQuery ? 'No matching listings' : 'No active listings found'}
+                        <div className="flex flex-col items-center justify-center h-64 text-stone-500 gap-3">
+                            {searchQuery ? (
+                                <Search size={40} className="text-stone-300" strokeWidth={1.5} />
+                            ) : (
+                                <Package size={40} className="text-stone-300" strokeWidth={1.5} />
+                            )}
+                            <p className="text-base font-medium">
+                                {searchQuery ? 'No matching listings found' : 'No active listings found'}
+                            </p>
+                            <p className="text-sm text-stone-400">
+                                {searchQuery ? 'Try adjusting your search query.' : 'Import listings to get started.'}
+                            </p>
                         </div>
                     ) : (
                         <div className="divide-y divide-stone-100">
