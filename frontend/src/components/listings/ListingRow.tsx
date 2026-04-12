@@ -119,6 +119,7 @@ export function ListingRow({
                             disabled={isFetching}
                             className="p-1 hover:bg-stone-100 rounded-full text-stone-400 hover:text-blue-500 transition-colors"
                             title="Refresh Price from eBay"
+                            aria-label="Refresh price from eBay"
                         >
                             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
                         </button>
@@ -157,6 +158,7 @@ export function ListingRow({
                             className="h-7 w-7 bg-green-500 hover:bg-green-600 text-white"
                             onClick={handleSaveClick}
                             disabled={isSaving}
+                            aria-label="Save changes"
                         >
                             <Check size={14} />
                         </Button>
@@ -166,6 +168,7 @@ export function ListingRow({
                             className="h-7 w-7 text-stone-400 hover:text-red-500"
                             onClick={onEditCancel}
                             disabled={isSaving}
+                            aria-label="Cancel editing"
                         >
                             <X size={14} />
                         </Button>
@@ -179,6 +182,7 @@ export function ListingRow({
                                 className="h-7 w-7 text-blue-500 hover:text-blue-700"
                                 onClick={() => onRelist(listing)}
                                 title="Relist"
+                                aria-label="Relist item"
                             >
                                 <RefreshCw size={14} />
                             </Button>
@@ -192,6 +196,7 @@ export function ListingRow({
                                     setEditPrice(listing.price.toString())
                                     onEditStart(listing)
                                 }}
+                                aria-label="Edit listing"
                             >
                                 <Edit2 size={14} />
                             </Button>
@@ -203,6 +208,7 @@ export function ListingRow({
                             className="h-7 w-7 text-stone-400 hover:text-stone-600"
                             onClick={() => window.open(`https://www.ebay.com/itm/${listing.listingId}`, '_blank')}
                             title="View on eBay"
+                            aria-label="View listing on eBay"
                         >
                             <ExternalLink size={14} />
                         </Button>
