@@ -326,6 +326,33 @@ export function Settings() {
                                         </span>
                                     </div>
                                 </div>
+
+                                <div className="flex items-center justify-between p-4 bg-stone-50 rounded-lg border">
+                                    <div>
+                                        <Label htmlFor="fast-mode" className="text-base font-medium">Fast Mode</Label>
+                                        <p className="text-sm text-stone-500 mt-1">
+                                            {settings['FAST_MODE'] === 'true'
+                                                ? 'Skipping web research — 5–13s faster per item'
+                                                : 'Full pipeline: Phase 2 web research + Gemini price grounding enabled'}
+                                        </p>
+                                    </div>
+                                    <button
+                                        id="fast-mode"
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={settings['FAST_MODE'] === 'true'}
+                                        onClick={() => handleChange('FAST_MODE', settings['FAST_MODE'] === 'true' ? 'false' : 'true')}
+                                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                                            settings['FAST_MODE'] === 'true' ? 'bg-emerald-600' : 'bg-stone-300'
+                                        }`}
+                                    >
+                                        <span
+                                            className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg transform transition-transform ${
+                                                settings['FAST_MODE'] === 'true' ? 'translate-x-5' : 'translate-x-0'
+                                            }`}
+                                        />
+                                    </button>
+                                </div>
                             </CardContent>
                         </Card>
                     </TabsContent>

@@ -23,6 +23,7 @@ class SettingsManager:
         'AUTO_PUBLISH': 'true',  # If false, creates drafts instead of live listings
         'CONFIDENCE_THRESHOLD': '85',  # 0-100: minimum AI confidence to auto-publish
         'AUTO_PUBLISH_MIN_PRICE': '10.00',  # Minimum price to auto-publish (force review below)
+        'FAST_MODE': 'false',  # Skip Phase 2 web research + Gemini pricing grounding (5-13s/item faster)
         'ESTIMATED_SHIPPING_COST': '6.50',  # Baked into price for free-shipping listings
         'ENABLE_BACKGROUND_REMOVAL': 'false',  # rembg background removal (off for MVP)
     }
@@ -55,6 +56,7 @@ class SettingsManager:
             'AUTO_PUBLISH',
             'CONFIDENCE_THRESHOLD',
             'AUTO_PUBLISH_MIN_PRICE',
+            'FAST_MODE',
         ],
         'Application': [
             'DEFAULT_CONDITION',

@@ -527,7 +527,11 @@ class AIAnalyzer:
 
             # --- END BOOK MODE ---
 
-            if brand or model or mpn:
+            fast_mode = os.environ.get('FAST_MODE', 'false').lower() == 'true'
+            if fast_mode:
+                logger.info("Phase 2: SKIPPED (FAST_MODE=true)")
+
+            if (brand or model or mpn) and not fast_mode:
                 logger.info("Phase 2: Researching part...")
                 material = ident.get('material', '')
                 condition_state = basic_result.get('condition', {}).get('state', 'Used')

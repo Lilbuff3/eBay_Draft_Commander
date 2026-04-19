@@ -11,15 +11,15 @@ import pytest
 
 
 class TestGeminiRpmConfig:
-    """GEMINI_RPM_LIMIT should read from env var with default of 2."""
+    """GEMINI_RPM_LIMIT should read from env var with default of 60 (paid tier)."""
 
-    def test_default_value_is_2(self, monkeypatch):
-        """When GEMINI_RPM_LIMIT is not in env, default to 2."""
+    def test_default_value_is_60(self, monkeypatch):
+        """When GEMINI_RPM_LIMIT is not in env, default to 60."""
         monkeypatch.delenv('GEMINI_RPM_LIMIT', raising=False)
         import backend.app.core.constants as constants_mod
         importlib.reload(constants_mod)
 
-        assert constants_mod.GEMINI_RPM_LIMIT == 2
+        assert constants_mod.GEMINI_RPM_LIMIT == 60
 
     def test_env_override_to_60(self, monkeypatch):
         """When GEMINI_RPM_LIMIT=60 in env, constant should be 60."""

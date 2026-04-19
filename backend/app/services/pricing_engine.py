@@ -595,8 +595,13 @@ class PricingEngine:
                 logger.warning(f"   [WARN] Research market price unusable: {e}")
 
         # --- STRATEGY 3: GEMINI GROUNDING ---
-        logger.info(f"[SEARCH] Performing AI Market Research (Gemini Grounding)...")
-        grounded_result = self.get_ai_price_estimate(title, condition)
+        fast_mode = os.environ.get('FAST_MODE', 'false').lower() == 'true'
+        if fast_mode:
+            logger.info("[FAST] Skipping Gemini grounding (FAST_MODE=true)")
+            grounded_result = None
+        else:
+            logger.info(f"[SEARCH] Performing AI Market Research (Gemini Grounding)...")
+            grounded_result = self.get_ai_price_estimate(title, condition)
         if grounded_result:
             ai_price = grounded_result['price']
             ai_reasoning = grounded_result.get('reasoning', "Researched via Gemini")
