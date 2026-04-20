@@ -163,7 +163,7 @@ export function TemplateManager({ onClose, onApply }: TemplateManagerProps) {
                     <Button size="sm" onClick={handleCreate} className="bg-purple-500 hover:bg-purple-600">
                         <Plus size={16} className="mr-1" /> New Template
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={onClose}>
+                    <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close template manager">
                         <X size={18} />
                     </Button>
                 </div>
@@ -274,6 +274,7 @@ export function TemplateManager({ onClose, onApply }: TemplateManagerProps) {
                                             onClick={(e) => handleToggleFavorite(template, e)}
                                             className="p-1.5 rounded-lg bg-white shadow-sm hover:bg-stone-50"
                                             title="Toggle Favorite"
+                                            aria-label="Toggle Favorite"
                                         >
                                             {template.isFavorite ? (
                                                 <Star size={14} className="text-amber-500 fill-amber-500" />
@@ -285,6 +286,7 @@ export function TemplateManager({ onClose, onApply }: TemplateManagerProps) {
                                             onClick={(e) => handleDelete(template.id, e)}
                                             className="p-1.5 rounded-lg bg-white shadow-sm hover:bg-red-50 text-red-400 hover:text-red-500"
                                             title="Delete Template"
+                                            aria-label="Delete Template"
                                         >
                                             <Trash2 size={14} />
                                         </button>

@@ -1,0 +1,3 @@
+## 2026-04-20 - [ARIA Labels for Icon Buttons]
+**Learning:** Found a recurring pattern of icon-only action buttons (e.g., zoom, close, remove) missing `aria-label` attributes across multiple components (`PhotoEditor`, `PreviewPanel`, `ListingRow`, etc.). This makes the buttons inaccessible to screen readers, preventing users from understanding the action.
+**Action:** Always ensure that `<Button size="icon">` and `<button>` elements containing only icons have a clear, descriptive `aria-label` property (e.g., `aria-label="Zoom in"` or `aria-label="Close"`). This pattern should be consistently applied to all interactive elements to ensure complete screen reader accessibility.
