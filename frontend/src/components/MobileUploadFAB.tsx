@@ -147,7 +147,7 @@ export function MobileUploadFAB({ onUploadComplete, className }: MobileUploadFAB
                         'flex items-center justify-center',
                         'active:scale-90 transition-all duration-200',
                     )}
-                    aria-label={isExpanded ? "Close upload options" : "Add photos"}
+                    aria-label={isExpanded ? "Close upload options" : "Open upload options"}
                 >
                     <motion.div
                         animate={{ rotate: isExpanded ? 45 : 0 }}
