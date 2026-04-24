@@ -112,7 +112,7 @@ export function MigrationModal({ onClose, onSuccess }: MigrationModalProps) {
                         <h2 className="text-lg font-semibold text-stone-800">Import Legacy Listings</h2>
                         <p className="text-sm text-stone-500">Migrate website listings to Inventory Sync</p>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={onClose}>
+                    <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}>
                         <X size={20} />
                     </Button>
                 </div>

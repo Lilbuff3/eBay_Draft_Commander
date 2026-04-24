@@ -1,0 +1,3 @@
+## 2024-04-24 - Missing ARIA labels on icon-only Buttons
+**Learning:** Icon-only buttons using `size="icon"` in this app's design system frequently lack `aria-label`s, which causes silent failures for screen reader users who cannot interpret actions like "Close", "Zoom in", "Zoom out", "Refresh", and "Delete".
+**Action:** Always ensure that icon-only `<Button>` elements (especially those with `size="icon"`) include a descriptive `aria-label` attribute to maintain keyboard and screen reader accessibility.

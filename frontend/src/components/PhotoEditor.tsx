@@ -200,7 +200,7 @@ scale(${zoom / 100})
                             Unsaved Changes
                         </Badge>
                     )}
-                    <Button variant="ghost" size="icon" onClick={onClose}>
+                    <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}>
                         <X size={18} />
                     </Button>
                 </div>
@@ -241,6 +241,7 @@ scale(${zoom / 100})
                             <Button
                                 variant="ghost"
                                 size="icon"
+                                aria-label="Zoom out"
                                 className="h-8 w-8"
                                 onClick={() => setZoom(prev => Math.max(25, prev - 25))}
                             >
@@ -252,6 +253,7 @@ scale(${zoom / 100})
                             <Button
                                 variant="ghost"
                                 size="icon"
+                                aria-label="Zoom in"
                                 className="h-8 w-8"
                                 onClick={() => setZoom(prev => Math.min(200, prev + 25))}
                             >
