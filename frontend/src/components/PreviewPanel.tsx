@@ -126,7 +126,7 @@ export function PreviewPanel({ jobId, onClose }: PreviewPanelProps) {
                         <RefreshCw size={14} className={cn("mr-1", isLoading && "animate-spin")} />
                         Refresh
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={onClose}>
+                    <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close preview">
                         <X size={18} />
                     </Button>
                 </div>
