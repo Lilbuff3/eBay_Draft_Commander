@@ -174,6 +174,7 @@ export function MediaManager({ initialMedia = [], onMediaChange }: MediaManagerP
                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-start justify-end p-2 opacity-0 group-hover:opacity-100">
                                 <Button
                                     size="icon"
+                                    aria-label="Delete image"
                                     variant="destructive"
                                     className="h-7 w-7 rounded-lg shadow-sm"
                                     onClick={(e) => {
