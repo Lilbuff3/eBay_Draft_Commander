@@ -92,7 +92,7 @@ export function AnalyticsDashboard() {
                             <TabsTrigger value="90">90 Days</TabsTrigger>
                         </TabsList>
                     </Tabs>
-                    <Button variant="outline" size="icon" onClick={fetchData} disabled={isLoading}>
+                    <Button variant="outline" size="icon" onClick={fetchData} disabled={isLoading} aria-label="Refresh analytics data">
                         <Activity className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
                     </Button>
                 </div>
