@@ -70,6 +70,7 @@ export function ListingRow({
                 checked={isSelected}
                 onChange={() => onToggleSelect(listing.sku)}
                 className="w-4 h-4 rounded border-stone-300 text-blue-600 focus:ring-blue-500"
+                aria-label={`Select ${listing.title}`}
             />
 
             {/* Item Info */}
@@ -157,6 +158,7 @@ export function ListingRow({
                             className="h-7 w-7 bg-green-500 hover:bg-green-600 text-white"
                             onClick={handleSaveClick}
                             disabled={isSaving}
+                            aria-label="Save changes"
                         >
                             <Check size={14} />
                         </Button>
@@ -166,6 +168,7 @@ export function ListingRow({
                             className="h-7 w-7 text-stone-400 hover:text-red-500"
                             onClick={onEditCancel}
                             disabled={isSaving}
+                            aria-label="Cancel editing"
                         >
                             <X size={14} />
                         </Button>
@@ -179,6 +182,7 @@ export function ListingRow({
                                 className="h-7 w-7 text-blue-500 hover:text-blue-700"
                                 onClick={() => onRelist(listing)}
                                 title="Relist"
+                                aria-label="Relist item"
                             >
                                 <RefreshCw size={14} />
                             </Button>
@@ -192,6 +196,7 @@ export function ListingRow({
                                     setEditPrice(listing.price.toString())
                                     onEditStart(listing)
                                 }}
+                                aria-label="Edit listing"
                             >
                                 <Edit2 size={14} />
                             </Button>
@@ -203,6 +208,7 @@ export function ListingRow({
                             className="h-7 w-7 text-stone-400 hover:text-stone-600"
                             onClick={() => window.open(`https://www.ebay.com/itm/${listing.listingId}`, '_blank')}
                             title="View on eBay"
+                            aria-label="View on eBay"
                         >
                             <ExternalLink size={14} />
                         </Button>

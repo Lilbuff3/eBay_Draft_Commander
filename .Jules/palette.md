@@ -1,0 +1,3 @@
+## 2024-03-21 - Icon-Only Button Accessibility in Table Rows
+**Learning:** Table row actions (like edit, save, cancel, relist) are often implemented as icon-only buttons for visual compactness. In this application, these buttons were frequently missing `aria-label` attributes (e.g., in `ListingRow.tsx`), which degrades accessibility for screen reader users who cannot infer the action from a generic 'button' element containing only an SVG.
+**Action:** Always ensure that icon-only buttons (`size="icon"`) include descriptive `aria-label` attributes, especially in recurring structures like table rows or lists where context might be lost. Added this pattern to my checklist for UI components.
