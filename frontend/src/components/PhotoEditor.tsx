@@ -200,7 +200,7 @@ scale(${zoom / 100})
                             Unsaved Changes
                         </Badge>
                     )}
-                    <Button variant="ghost" size="icon" onClick={onClose}>
+                    <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close photo editor">
                         <X size={18} />
                     </Button>
                 </div>
