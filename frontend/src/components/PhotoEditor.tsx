@@ -200,7 +200,7 @@ scale(${zoom / 100})
                             Unsaved Changes
                         </Badge>
                     )}
-                    <Button variant="ghost" size="icon" onClick={onClose}>
+                    <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close editor">
                         <X size={18} />
                     </Button>
                 </div>
@@ -242,7 +242,7 @@ scale(${zoom / 100})
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8"
-                                onClick={() => setZoom(prev => Math.max(25, prev - 25))}
+                                aria-label="Zoom out" onClick={() => setZoom(prev => Math.max(25, prev - 25))}
                             >
                                 <ZoomOut size={16} />
                             </Button>
@@ -253,7 +253,7 @@ scale(${zoom / 100})
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8"
-                                onClick={() => setZoom(prev => Math.min(200, prev + 25))}
+                                aria-label="Zoom in" onClick={() => setZoom(prev => Math.min(200, prev + 25))}
                             >
                                 <ZoomIn size={16} />
                             </Button>

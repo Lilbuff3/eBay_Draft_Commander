@@ -155,7 +155,7 @@ export function ListingRow({
                         <Button
                             size="icon"
                             className="h-7 w-7 bg-green-500 hover:bg-green-600 text-white"
-                            onClick={handleSaveClick}
+                            aria-label="Save changes" onClick={handleSaveClick}
                             disabled={isSaving}
                         >
                             <Check size={14} />
@@ -164,7 +164,7 @@ export function ListingRow({
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-stone-400 hover:text-red-500"
-                            onClick={onEditCancel}
+                            aria-label="Cancel edit" onClick={onEditCancel}
                             disabled={isSaving}
                         >
                             <X size={14} />
@@ -177,7 +177,7 @@ export function ListingRow({
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7 text-blue-500 hover:text-blue-700"
-                                onClick={() => onRelist(listing)}
+                                aria-label="Relist item" onClick={() => onRelist(listing)}
                                 title="Relist"
                             >
                                 <RefreshCw size={14} />
@@ -187,7 +187,7 @@ export function ListingRow({
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7 text-stone-400 hover:text-blue-500"
-                                onClick={() => {
+                                aria-label="Edit listing" onClick={() => {
                                     setEditQty(listing.availableQuantity.toString())
                                     setEditPrice(listing.price.toString())
                                     onEditStart(listing)
@@ -201,7 +201,7 @@ export function ListingRow({
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-stone-400 hover:text-stone-600"
-                            onClick={() => window.open(`https://www.ebay.com/itm/${listing.listingId}`, '_blank')}
+                            aria-label="View on eBay" onClick={() => window.open(`https://www.ebay.com/itm/${listing.listingId}`, '_blank')}
                             title="View on eBay"
                         >
                             <ExternalLink size={14} />

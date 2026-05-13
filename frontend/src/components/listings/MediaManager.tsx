@@ -176,7 +176,7 @@ export function MediaManager({ initialMedia = [], onMediaChange }: MediaManagerP
                                     size="icon"
                                     variant="destructive"
                                     className="h-7 w-7 rounded-lg shadow-sm"
-                                    onClick={(e) => {
+                                    aria-label="Delete image" onClick={(e) => {
                                         e.stopPropagation()
                                         removeMedia(item.id)
                                     }}

@@ -90,7 +90,7 @@ export function PriceResearch({ initialQuery = '', onClose }: PriceResearchProps
                         <p className="text-xs text-stone-400">Analyze eBay sold listings</p>
                     </div>
                 </div>
-                <Button variant="ghost" size="icon" onClick={onClose}>
+                <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close price research">
                     <X size={18} />
                 </Button>
             </div>
