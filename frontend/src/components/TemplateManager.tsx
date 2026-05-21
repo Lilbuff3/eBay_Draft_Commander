@@ -43,8 +43,8 @@ export function TemplateManager({ onClose, onApply }: TemplateManagerProps) {
 
     // Load templates on mount
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         loadTemplates()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     const categories = [...new Set(templates.map(t => t.category))]
@@ -163,7 +163,7 @@ export function TemplateManager({ onClose, onApply }: TemplateManagerProps) {
                     <Button size="sm" onClick={handleCreate} className="bg-purple-500 hover:bg-purple-600">
                         <Plus size={16} className="mr-1" /> New Template
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={onClose}>
+                    <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close template manager">
                         <X size={18} />
                     </Button>
                 </div>
@@ -257,7 +257,7 @@ export function TemplateManager({ onClose, onApply }: TemplateManagerProps) {
                                             ? 'bg-gradient-to-br from-purple-50 to-white border-purple-200 shadow-sm'
                                             : 'bg-white border-stone-100 hover:border-purple-200 hover:shadow-md'
                                     )}
-                                    // Make whole card clickable mainly for selection, 
+                                    // Make whole card clickable mainly for selection,
                                     // but prevent triggering if clicking actions
                                     onClick={() => handleApply(template)}
                                 >

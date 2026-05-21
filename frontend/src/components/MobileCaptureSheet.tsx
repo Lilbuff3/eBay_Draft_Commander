@@ -39,6 +39,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], onUploa
                 id: genId(),
                 url: URL.createObjectURL(file)
             }))
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setPhotos(newPhotos)
         }
     }, [isOpen, initialFiles])
@@ -47,6 +48,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], onUploa
     useEffect(() => {
         if (!isOpen) {
             photos.forEach(p => URL.revokeObjectURL(p.url))
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setPhotos([])
             setTitle('')
             setCondition('')

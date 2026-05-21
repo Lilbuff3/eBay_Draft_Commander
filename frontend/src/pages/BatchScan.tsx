@@ -155,7 +155,7 @@ function BatchItemCard({
                                 <SelectItem value="USED_ACCEPTABLE">Used - Acceptable</SelectItem>
                             </SelectContent>
                         </Select>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" onClick={onRemove}>
+                        <Button variant="ghost" size="icon" aria-label="Remove item" className="h-8 w-8 flex-shrink-0" onClick={onRemove}>
                             <Trash2 size={14} className="text-stone-400" />
                         </Button>
                     </div>
@@ -443,7 +443,7 @@ export function BatchScan() {
                                         <StatusBadge status={item.status} />
                                     </TableCell>
                                     <TableCell>
-                                        <Button variant="ghost" size="icon" onClick={() => dispatch({ type: 'REMOVE_ITEM', payload: item.id })}>
+                                        <Button variant="ghost" size="icon" aria-label="Remove item" onClick={() => dispatch({ type: 'REMOVE_ITEM', payload: item.id })}>
                                             <Trash2 size={16} className="text-stone-400 hover:text-red-500" />
                                         </Button>
                                     </TableCell>
