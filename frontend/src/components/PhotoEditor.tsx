@@ -200,7 +200,7 @@ scale(${zoom / 100})
                             Unsaved Changes
                         </Badge>
                     )}
-                    <Button variant="ghost" size="icon" onClick={onClose}>
+                    <Button aria-label="Close photo editor" variant="ghost" size="icon" onClick={onClose}>
                         <X size={18} />
                     </Button>
                 </div>
@@ -239,6 +239,7 @@ scale(${zoom / 100})
                         {/* Zoom Controls */}
                         <div className="absolute bottom-4 right-4 flex gap-1 bg-white/90 backdrop-blur-sm rounded-lg p-1 shadow-sm">
                             <Button
+                                aria-label="Zoom out"
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8"
@@ -250,6 +251,7 @@ scale(${zoom / 100})
                                 {zoom}%
                             </span>
                             <Button
+                                aria-label="Zoom in"
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8"

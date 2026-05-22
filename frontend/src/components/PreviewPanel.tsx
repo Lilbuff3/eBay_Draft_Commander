@@ -126,7 +126,7 @@ export function PreviewPanel({ jobId, onClose }: PreviewPanelProps) {
                         <RefreshCw size={14} className={cn("mr-1", isLoading && "animate-spin")} />
                         Refresh
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={onClose}>
+                    <Button aria-label="Close preview" variant="ghost" size="icon" onClick={onClose}>
                         <X size={18} />
                     </Button>
                 </div>
@@ -153,6 +153,7 @@ export function PreviewPanel({ jobId, onClose }: PreviewPanelProps) {
 
                         <div className="flex items-center gap-1 bg-white rounded-lg p-1 shadow-sm border border-stone-100">
                             <Button
+                                aria-label="Zoom out"
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7"
@@ -162,6 +163,7 @@ export function PreviewPanel({ jobId, onClose }: PreviewPanelProps) {
                             </Button>
                             <span className="text-xs font-medium text-stone-600 w-12 text-center">{zoom}%</span>
                             <Button
+                                aria-label="Zoom in"
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7"

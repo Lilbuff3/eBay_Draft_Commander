@@ -221,7 +221,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                         <Download size={16} />
                         Import
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={fetchListings} disabled={isLoading}>
+                    <Button aria-label="Refresh listings" variant="ghost" size="icon" onClick={fetchListings} disabled={isLoading}>
                         <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
                     </Button>
                     {onClose && (

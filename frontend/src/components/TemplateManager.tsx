@@ -163,7 +163,7 @@ export function TemplateManager({ onClose, onApply }: TemplateManagerProps) {
                     <Button size="sm" onClick={handleCreate} className="bg-purple-500 hover:bg-purple-600">
                         <Plus size={16} className="mr-1" /> New Template
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={onClose}>
+                    <Button aria-label="Close template manager" variant="ghost" size="icon" onClick={onClose}>
                         <X size={18} />
                     </Button>
                 </div>
