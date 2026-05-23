@@ -1,0 +1,3 @@
+## 2024-05-23 - Added ARIA labels to ListingRow Actions
+**Learning:** Found several icon-only action buttons (Save, Cancel, Edit, Relist, View on eBay, Refresh Price) in the ListingRow component that lacked descriptive aria-labels. Ensuring all interactive elements with size="icon" have appropriate aria-labels is crucial for screen reader users to understand the context of the buttons, especially in complex data grids where buttons appear repetitively.
+**Action:** When implementing or reviewing row actions in tables/lists, always enforce that `aria-label` is present on any `<Button size="icon">` to ensure functional parity for non-visual users.
