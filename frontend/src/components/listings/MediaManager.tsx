@@ -180,6 +180,7 @@ export function MediaManager({ initialMedia = [], onMediaChange }: MediaManagerP
                                         e.stopPropagation()
                                         removeMedia(item.id)
                                     }}
+                                    aria-label="Delete media"
                                 >
                                     <Trash2 size={14} />
                                 </Button>
