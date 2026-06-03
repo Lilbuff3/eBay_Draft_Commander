@@ -157,6 +157,7 @@ export function ListingRow({
                             className="h-7 w-7 bg-green-500 hover:bg-green-600 text-white"
                             onClick={handleSaveClick}
                             disabled={isSaving}
+                            aria-label="Save changes"
                         >
                             <Check size={14} />
                         </Button>
@@ -166,6 +167,7 @@ export function ListingRow({
                             className="h-7 w-7 text-stone-400 hover:text-red-500"
                             onClick={onEditCancel}
                             disabled={isSaving}
+                            aria-label="Cancel edit"
                         >
                             <X size={14} />
                         </Button>
@@ -192,6 +194,7 @@ export function ListingRow({
                                     setEditPrice(listing.price.toString())
                                     onEditStart(listing)
                                 }}
+                                aria-label="Edit listing"
                             >
                                 <Edit2 size={14} />
                             </Button>
