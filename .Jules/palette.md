@@ -1,0 +1,3 @@
+## 2024-06-05 - ARIA Labels in Tables/Grids
+**Learning:** Table and grid components often contain rows with multiple inline actions (e.g., Save, Edit, Cancel, External Link) implemented as icon-only buttons to save space. Without proper `aria-label`s, screen readers read these simply as "button", completely hiding their function and the context (the specific item being modified) from the user.
+**Action:** Always verify that interactive elements within repeating structures (like lists, tables, and grids) provide sufficient context via `aria-label`—such as `"Edit " + item.title` instead of just `"Edit"`—to prevent ambiguity when users navigate via keyboard or assistive technology.
