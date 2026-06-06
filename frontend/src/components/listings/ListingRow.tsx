@@ -154,6 +154,7 @@ export function ListingRow({
                     <>
                         <Button
                             size="icon"
+                            aria-label={`Save ${listing.title}`}
                             className="h-7 w-7 bg-green-500 hover:bg-green-600 text-white"
                             onClick={handleSaveClick}
                             disabled={isSaving}
@@ -163,6 +164,7 @@ export function ListingRow({
                         <Button
                             variant="ghost"
                             size="icon"
+                            aria-label={`Cancel editing ${listing.title}`}
                             className="h-7 w-7 text-stone-400 hover:text-red-500"
                             onClick={onEditCancel}
                             disabled={isSaving}
@@ -176,6 +178,7 @@ export function ListingRow({
                             <Button
                                 variant="ghost"
                                 size="icon"
+                                aria-label={`Relist ${listing.title}`}
                                 className="h-7 w-7 text-blue-500 hover:text-blue-700"
                                 onClick={() => onRelist(listing)}
                                 title="Relist"
@@ -186,6 +189,7 @@ export function ListingRow({
                             <Button
                                 variant="ghost"
                                 size="icon"
+                                aria-label={`Edit ${listing.title}`}
                                 className="h-7 w-7 text-stone-400 hover:text-blue-500"
                                 onClick={() => {
                                     setEditQty(listing.availableQuantity.toString())
@@ -200,6 +204,7 @@ export function ListingRow({
                         <Button
                             variant="ghost"
                             size="icon"
+                            aria-label={`View ${listing.title} on eBay`}
                             className="h-7 w-7 text-stone-400 hover:text-stone-600"
                             onClick={() => window.open(`https://www.ebay.com/itm/${listing.listingId}`, '_blank')}
                             title="View on eBay"
