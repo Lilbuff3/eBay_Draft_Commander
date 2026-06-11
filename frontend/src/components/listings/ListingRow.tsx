@@ -119,6 +119,7 @@ export function ListingRow({
                             disabled={isFetching}
                             className="p-1 hover:bg-stone-100 rounded-full text-stone-400 hover:text-blue-500 transition-colors"
                             title="Refresh Price from eBay"
+                            aria-label={`Refresh price for ${listing.title}`}
                         >
                             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
                         </button>
@@ -156,6 +157,7 @@ export function ListingRow({
                             size="icon"
                             className="h-7 w-7 bg-green-500 hover:bg-green-600 text-white"
                             onClick={handleSaveClick}
+                            aria-label={`Save changes for ${listing.title}`}
                             disabled={isSaving}
                         >
                             <Check size={14} />
@@ -165,6 +167,7 @@ export function ListingRow({
                             size="icon"
                             className="h-7 w-7 text-stone-400 hover:text-red-500"
                             onClick={onEditCancel}
+                            aria-label={`Cancel editing ${listing.title}`}
                             disabled={isSaving}
                         >
                             <X size={14} />
@@ -179,6 +182,7 @@ export function ListingRow({
                                 className="h-7 w-7 text-blue-500 hover:text-blue-700"
                                 onClick={() => onRelist(listing)}
                                 title="Relist"
+                                aria-label={`Relist ${listing.title}`}
                             >
                                 <RefreshCw size={14} />
                             </Button>
@@ -187,6 +191,7 @@ export function ListingRow({
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7 text-stone-400 hover:text-blue-500"
+                                aria-label={`Edit ${listing.title}`}
                                 onClick={() => {
                                     setEditQty(listing.availableQuantity.toString())
                                     setEditPrice(listing.price.toString())
@@ -203,6 +208,7 @@ export function ListingRow({
                             className="h-7 w-7 text-stone-400 hover:text-stone-600"
                             onClick={() => window.open(`https://www.ebay.com/itm/${listing.listingId}`, '_blank')}
                             title="View on eBay"
+                            aria-label={`View ${listing.title} on eBay`}
                         >
                             <ExternalLink size={14} />
                         </Button>
