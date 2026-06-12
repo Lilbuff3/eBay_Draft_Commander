@@ -94,3 +94,22 @@ def test_path_validation(tmp_path):
     traversal = inbox / ".." / "private"
     with pytest.raises(ValidationError):
         validate_safe_path(str(traversal), base_dir=inbox)
+
+
+def test_image_filename_validation():
+    from backend.app.core.validator import is_allowed_image_file
+
+    assert is_allowed_image_file("photo.jpg") is True
+    assert is_allowed_image_file("PHOTO.JPEG") is True
+    assert is_allowed_image_file("scan.png") is True
+    assert is_allowed_image_file("pic.webp") is True
+    assert is_allowed_image_file("old.gif") is True
+    assert is_allowed_image_file("raw.bmp") is True
+
+    assert is_allowed_image_file("malware.exe") is False
+    assert is_allowed_image_file("notes.txt") is False
+    assert is_allowed_image_file("photo.heic") is False  # no pillow-heif installed
+    assert is_allowed_image_file("archive.zip") is False
+    assert is_allowed_image_file("noextension") is False
+    assert is_allowed_image_file("") is False
+    assert is_allowed_image_file(None) is False

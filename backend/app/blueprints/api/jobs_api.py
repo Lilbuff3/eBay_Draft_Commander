@@ -7,7 +7,7 @@ from werkzeug.utils import secure_filename
 from backend.app.blueprints.api.helpers import error_response
 from backend.app.services.image_service import ImageService
 from backend.app.core.constants import SUPPORTED_IMAGE_EXTENSIONS, EBAY_FINAL_VALUE_FEE_RATE, EBAY_PAYMENT_PROCESSING_FEE
-from backend.app.core.validator import validate_price, validate_title, validate_isbn, validate_condition, ValidationError
+from backend.app.core.validator import validate_price, validate_title, validate_isbn, validate_condition, is_allowed_image_file, ValidationError
 from backend.app.core.logger import get_logger
 from backend.app.services.queue_job import resolve_thumbnail
 from backend.app.services.pricing_engine import format_price_source
@@ -406,12 +406,18 @@ def upload_files():
     job_folder = inbox_dir / folder_name
     job_folder.mkdir(exist_ok=True)
     saved_count = 0
+    rejected = []
     try:
         for file in files:
             if file and file.filename:
+                if not is_allowed_image_file(file.filename):
+                    rejected.append(file.filename)
+                    continue
                 filename = secure_filename(file.filename)
                 file.save(str(job_folder / filename)); saved_count += 1
-        if saved_count == 0: return error_response('No valid files saved', 400)
+        if saved_count == 0:
+            job_folder.rmdir()
+            return error_response(f"No supported image files. Rejected: {', '.join(rejected)}" if rejected else 'No valid files saved', 400)
         
         metadata = {}
         try:
@@ -424,7 +430,10 @@ def upload_files():
             
         job = qm.add_folder(str(job_folder), metadata=metadata if metadata else None)
         if not qm.is_processing(): qm.start_processing()
-        return jsonify({'success': True, 'message': f'Successfully uploaded {saved_count} photos', 'jobId': job.id, 'folder': folder_name})
+        msg = f'Successfully uploaded {saved_count} photos'
+        if rejected:
+            msg += f" ({len(rejected)} skipped, unsupported type: {', '.join(rejected)})"
+        return jsonify({'success': True, 'message': msg, 'jobId': job.id, 'folder': folder_name, 'rejected': rejected})
     except Exception as e: return error_response(str(e))
 
 @jobs_bp.route('/listing/create-from-photos', methods=['POST'])
@@ -440,9 +449,12 @@ def create_listing_from_photos():
         job_folder.mkdir(exist_ok=True)
         saved_count = 0
         for file in files:
-            if file and file.filename:
+            if file and file.filename and is_allowed_image_file(file.filename):
                 filename = secure_filename(file.filename)
                 file.save(str(job_folder / filename)); saved_count += 1
+        if saved_count == 0:
+            job_folder.rmdir()
+            return error_response('No supported image files provided', 400)
         try:
             metadata = {
                 'user_title': validate_title(request.form.get('itemName')) if request.form.get('itemName') else None,

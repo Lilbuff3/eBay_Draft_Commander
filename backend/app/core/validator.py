@@ -143,3 +143,15 @@ def validate_condition(condition):
          raise ValidationError(f"Invalid condition: {condition}. Must be one of: {', '.join(sorted(allowed))}", "condition")
          
     return final_cond
+
+
+# Image formats the processing pipeline (Pillow + Gemini upload) can handle.
+# HEIC/HEIF deliberately excluded: pillow-heif is not installed, and accepting
+# them creates jobs doomed to fail at the image-processing stage.
+ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'}
+
+def is_allowed_image_file(filename):
+    """True when the filename has an extension the image pipeline supports."""
+    if not filename or '.' not in filename:
+        return False
+    return filename.rsplit('.', 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
