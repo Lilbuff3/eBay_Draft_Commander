@@ -79,6 +79,13 @@ def clear_failed():
     result = qm.clear_failed(delete_folders=delete_folders)
     return jsonify({'success': True, **result})
 
+@queue_bp.route('/purge-stale', methods=['POST'])
+def purge_stale_jobs():
+    """Remove jobs whose source folder no longer exists on disk."""
+    qm = current_app.queue_manager
+    result = qm.purge_missing_folders()
+    return jsonify({'success': True, **result})
+
 @queue_bp.route('/scan', methods=['POST'])
 def scan_inbox_endpoint():
     """Trigger scan of inbox directory"""

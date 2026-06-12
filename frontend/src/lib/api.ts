@@ -128,6 +128,10 @@ export async function clearFailed(deleteFolders = false): Promise<ClearResult> {
     })
 }
 
+export async function purgeStaleJobs(): Promise<{ success: boolean; count: number }> {
+    return apiFetch(`${API_BASE}/purge-stale`, { method: 'POST' })
+}
+
 export async function deleteJob(jobId: string, deleteFolder = false): Promise<{ success: boolean }> {
     return apiFetch(`${API_BASE}/jobs/bulk-delete`, {
         method: 'POST',

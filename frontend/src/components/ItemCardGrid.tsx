@@ -27,6 +27,7 @@ interface ItemCardGridProps {
     onBulkDelete: () => void
     onClearFailed?: () => void
     onClearCompleted?: () => void
+    onPurgeStale?: () => void
     onDeleteJob?: (id: string) => void
 }
 
@@ -45,6 +46,7 @@ export function ItemCardGrid({
     onBulkDelete,
     onClearFailed,
     onClearCompleted,
+    onPurgeStale,
     onDeleteJob,
 }: ItemCardGridProps) {
     const activeFilter = useCommanderStore(state => state.activeFilter) as FilterTab
@@ -114,6 +116,10 @@ export function ItemCardGrid({
         ),
         ...(counts.history > 0 && onClearCompleted
             ? [{ label: 'Clear Done', icon: Trash2, onClick: onClearCompleted, disabled: false }]
+            : []
+        ),
+        ...(onPurgeStale
+            ? [{ label: 'Clear Stale', icon: Trash2, onClick: onPurgeStale, disabled: false }]
             : []
         ),
     ]

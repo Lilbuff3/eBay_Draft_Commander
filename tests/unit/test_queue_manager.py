@@ -393,3 +393,58 @@ def run_all_tests():
 if __name__ == "__main__":
     success = run_all_tests()
     sys.exit(0 if success else 1)
+
+
+@patch('backend.app.services.queue_manager.get_data_dir')
+def test_purge_missing_folders(mock_get_data_dir):
+    """Jobs whose folder no longer exists on disk get purged; live jobs stay."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        mock_get_data_dir.return_value = Path(tmpdir)
+        qm = QueueManager(Path(tmpdir))
+
+        keep = Path(tmpdir) / "still-here"
+        keep.mkdir()
+        gone = Path(tmpdir) / "deleted-later"
+        gone.mkdir()
+
+        kept_job = qm.add_folder(str(keep))
+        dead_job = qm.add_folder(str(gone))
+        shutil.rmtree(gone)
+
+        result = qm.purge_missing_folders()
+
+        assert result['count'] == 1
+        remaining = [j.id for j in qm.get_all_jobs()]
+        assert kept_job.id in remaining
+        assert dead_job.id not in remaining
+    finally:
+        try:
+            shutil.rmtree(tmpdir)
+        except Exception:
+            pass
+
+
+@patch('backend.app.services.queue_manager.get_data_dir')
+def test_purge_missing_folders_never_touches_active(mock_get_data_dir):
+    """A processing job is never purged even if its folder vanished mid-run."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        mock_get_data_dir.return_value = Path(tmpdir)
+        qm = QueueManager(Path(tmpdir))
+
+        f = Path(tmpdir) / "in-flight"
+        f.mkdir()
+        job = qm.add_folder(str(f))
+        qm.update_job(job.id, {'status': JobStatus.PROCESSING})
+        shutil.rmtree(f)
+
+        result = qm.purge_missing_folders()
+
+        assert result['count'] == 0
+        assert [j.id for j in qm.get_all_jobs()] == [job.id]
+    finally:
+        try:
+            shutil.rmtree(tmpdir)
+        except Exception:
+            pass

@@ -651,6 +651,27 @@ class QueueManager:
         finally:
             session.close()
     
+    def purge_missing_folders(self) -> dict:
+        """Remove jobs whose source folder no longer exists on disk (stale
+        test rows, manually deleted inbox folders). Active jobs are exempt —
+        a folder vanishing mid-processing is the pipeline's problem to report,
+        not silent row deletion. Returns {'count': N}."""
+        session = self.SessionFactory()
+        try:
+            jobs = session.query(self.JobModel).filter(
+                self.JobModel.status != JobStatus.PROCESSING.value
+            ).all()
+            stale = [j for j in jobs if not j.folder_path or not Path(j.folder_path).exists()]
+            for db_job in stale:
+                session.delete(db_job)
+            session.commit()
+            return {'count': len(stale)}
+        except Exception:
+            session.rollback()
+            return {'count': 0}
+        finally:
+            session.close()
+
     def clear_all(self):
         """Clear all jobs from the queue"""
         session = self.SessionFactory()
