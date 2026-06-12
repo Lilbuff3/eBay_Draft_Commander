@@ -61,7 +61,7 @@ backend/                    Flask app factory
       database.py           SQLAlchemy models (JobModel, TemplateModel, OrphanedMedia, AppToken)
       models.py             InternalListing dataclass (adapter pattern)
       settings_manager.py   .env read/write singleton
-      rate_limiter.py       Token-bucket (gemini: 2 RPM, ebay: 5 burst)
+      rate_limiter.py       Token-bucket (gemini: GEMINI_RPM_LIMIT env, default 60; ebay: 5 burst)
       token_manager.py      Centralized eBay access token management (SQLite-backed)
       validator.py          Input validation (price, title, ISBN, paths)
       paths.py              Cross-platform path resolution
@@ -70,7 +70,7 @@ backend/                    Flask app factory
       prompts.py            AI prompt templates
       results_logger.py     JSONL listing outcome logger (data/listing_results.jsonl)
     services/
-      queue_service.py      Job lifecycle, background threads, Socket.IO events
+      queue_manager.py      Job lifecycle, background threads, Socket.IO events
       listing_ai_agent.py   AI-powered listing creation orchestrator
       scanner_service.py    Inbox folder scanning and detection
       ai_analyzer.py        Google Gemini vision + research
@@ -164,7 +164,7 @@ SQLite pragmas: `journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=5000`
 
 ## Rate Limits
 
-- **Gemini**: 2 RPM (free tier) — token bucket 1 capacity, refill 1/30s
+- **Gemini**: `GEMINI_RPM_LIMIT` env var, default 60 (paid tier; set 2 for free tier) — token bucket, burst min(5, RPM)
 - **eBay**: 5 burst, 2 tokens/sec refill — enforced in ebay_request() wrapper
 
 ## Environment (.env)

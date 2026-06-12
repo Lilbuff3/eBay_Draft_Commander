@@ -88,14 +88,38 @@ Publish                 → Creates live eBay listing
 ### Web Dashboard & Mobile App (Recommended)
 
 ```bash
-python web_server.py
+python backend/wsgi.py        # or double-click launch_app.bat
 ```
 
 Then open your browser to `http://localhost:5000/app`
 
-**Mobile Access:**  
-Scan the QR code printed in the terminal to access on your phone.  
-**To Install:** Tap "Share" -> "Add to Home Screen" (iOS) or "Install App" (Android).
+### Phone Access
+
+**Same Wi-Fi (works now):** open `http://<PC-LAN-IP>:5000/app` on the phone
+(find the IP with `ipconfig` → IPv4 Address). Plain HTTP means no service
+worker: the app works fully, but no offline cache and no real PWA install.
+"Add to Home Screen" still gives a launcher icon.
+
+**Anywhere + HTTPS + installable PWA (recommended):** install
+[Tailscale](https://tailscale.com) on PC and phone (same account), then:
+
+```powershell
+tailscale serve --bg 5000
+```
+
+Open the printed `https://<pc-name>.<tailnet>.ts.net` URL on the phone.
+HTTPS unlocks the service worker → offline support and full PWA install,
+and the app works away from home over cell data. Traffic stays on your
+private tailnet — the server is never exposed to the internet.
+
+**Start server automatically at logon:** create
+`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\start-draft-commander.bat`:
+
+```bat
+@echo off
+cd /d "C:\Users\adam\Projects\ebay-draft-commander"
+start "eBay Draft Commander Server" /min cmd /c "python backend\wsgi.py"
+```
 
 **Features:**
 
