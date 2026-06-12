@@ -1,10 +1,29 @@
+import re
+
 from flask import Flask
 from flask_socketio import SocketIO
 from backend.config import Config
 import logging
 
-# Primary Socket.IO instance — allow all origins in development
-socketio = SocketIO(cors_allowed_origins="*")
+# Origins allowed to open the Socket.IO event bus: localhost (any port, for
+# Vite dev on 5175), private LAN ranges (phone on home Wi-Fi), Tailscale CGNAT
+# range and *.ts.net HTTPS hostnames. The LAN IP is DHCP-assigned, so this is
+# a pattern rather than a fixed list.
+_ALLOWED_ORIGIN_RE = re.compile(
+    r'^https?://('
+    r'localhost|127\.0\.0\.1'
+    r'|192\.168\.\d{1,3}\.\d{1,3}'
+    r'|10\.\d{1,3}\.\d{1,3}\.\d{1,3}'
+    r'|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}'
+    r'|100\.\d{1,3}\.\d{1,3}\.\d{1,3}'
+    r'|[\w-]+\.[\w-]+\.ts\.net'
+    r')(:\d+)?$'
+)
+
+def _is_allowed_origin(origin):
+    return bool(origin and _ALLOWED_ORIGIN_RE.match(origin))
+
+socketio = SocketIO(cors_allowed_origins=_is_allowed_origin)
 
 def create_app(config_class=Config, queue_manager=None):
     """
