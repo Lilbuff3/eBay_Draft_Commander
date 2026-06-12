@@ -3,8 +3,9 @@ import { ItemCardGrid } from '@/components/ItemCardGrid'
 import { ItemDetailDrawer } from '@/components/ItemDetailDrawer'
 import { UploadZone } from '@/components/UploadZone'
 import { InstallPrompt } from '@/components/InstallPrompt'
-import { createListing, fetchJobDetails, fetchJobImages, type JobDetails, type ItemDraft, clearCompleted, clearFailed, deleteJob, bulkDeleteJobs } from '@/lib/api'
+import { createListing, fetchJobDetails, fetchJobImages, fetchJobs, type JobDetails, type ItemDraft, clearCompleted, clearFailed, deleteJob, bulkDeleteJobs, purgeStaleJobs } from '@/lib/api'
 import { resolveDraftPrice } from '@/lib/draftPrice'
+import { mergeDraft } from '@/lib/mergeDraft'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ScannerListener } from '@/components/ScannerListener'
@@ -73,7 +74,13 @@ export function Dashboard() {
         categoryName: ''
     })
 
+    // Fields the user has edited for the currently selected job. Server
+    // refreshes (socket job_update -> details refetch) must not overwrite them.
+    const touchedFieldsRef = useRef<Set<string>>(new Set())
+    const draftJobIdRef = useRef<string | null>(null)
+
     const updateDraft = (updates: Partial<ItemDraft>) => {
+        Object.keys(updates).forEach(key => touchedFieldsRef.current.add(key))
         setDraft(prev => ({ ...prev, ...updates }))
     }
     const [isCreating, setIsCreating] = useState(false)
@@ -117,6 +124,17 @@ export function Dashboard() {
 
     const handleClearFailed = () => {
         setConfirmDialog({ type: 'clear-failed' })
+    }
+
+    const handlePurgeStale = async () => {
+        try {
+            const result = await purgeStaleJobs()
+            toast.success(result.count > 0 ? `Removed ${result.count} stale jobs` : 'No stale jobs found')
+            setJobs(await fetchJobs())
+        } catch (e) {
+            console.error(e)
+            toast.error('Failed to purge stale jobs')
+        }
     }
 
     const handleDeleteSingleJob = (jobId: string) => {
@@ -180,6 +198,21 @@ export function Dashboard() {
     // Fetch job details when job is selected
     useEffect(() => {
         if (selectedJob) {
+            if (draftJobIdRef.current !== selectedJob.id) {
+                // Different job selected: discard edits and start clean
+                draftJobIdRef.current = selectedJob.id
+                touchedFieldsRef.current = new Set()
+                setDraft({
+                    title: '',
+                    price: '',
+                    condition: '',
+                    shipping: null,
+                    scheduledTime: '',
+                    itemSpecifics: {},
+                    categoryId: '',
+                    categoryName: ''
+                })
+            }
             setIsLoadingDetails(true)
             setJobDetails(null)
             fetchJobDetails(selectedJob.id)
@@ -215,12 +248,16 @@ export function Dashboard() {
                     if (details.item_specifics) {
                         newDraft.itemSpecifics = { ...details.item_specifics }
                     }
-                    updateDraft(newDraft)
+                    // Merge instead of overwrite: job_update socket events
+                    // re-run this effect while the user may be mid-edit
+                    setDraft(prev => mergeDraft(newDraft, prev, touchedFieldsRef.current))
                 })
                 .catch(err => console.error("Failed to load job details", err))
                 .finally(() => setIsLoadingDetails(false))
         } else {
             setJobDetails(null)
+            draftJobIdRef.current = null
+            touchedFieldsRef.current = new Set()
             setDraft({
                 title: '',
                 price: '',
@@ -354,6 +391,7 @@ export function Dashboard() {
                         onBulkDelete={handleBulkDelete}
                         onClearCompleted={handleClearCompleted}
                         onClearFailed={handleClearFailed}
+                        onPurgeStale={handlePurgeStale}
                         onDeleteJob={handleDeleteSingleJob}
                     />
                 </div>
