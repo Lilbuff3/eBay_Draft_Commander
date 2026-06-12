@@ -193,6 +193,41 @@ class PricingEngine:
 
         return title_filtered
 
+    # Ordered: multi-word grades first so 'very good' never matches 'good',
+    # 'like new' never matches 'new'.
+    _GRADE_KEYWORDS = [
+        ('like new', 'like_new'),
+        ('very good', 'very_good'),
+        ('excellent', 'excellent'),
+        ('acceptable', 'acceptable'),
+        ('parts', 'parts'),
+        ('good', 'good'),
+        ('new', 'new'),
+    ]
+
+    @classmethod
+    def _grade_of(cls, condition) -> Optional[str]:
+        if not condition:
+            return None
+        text = str(condition).lower().replace('_', ' ')
+        for keyword, grade in cls._GRADE_KEYWORDS:
+            if keyword in text:
+                return grade
+        return None
+
+    @classmethod
+    def prefer_same_grade_comps(cls, sold_items: List[Dict], our_condition, min_count: int = 4) -> tuple:
+        """eBay's Browse API condition filter only buckets NEW/USED, so 'USED'
+        comps mix Excellent with Acceptable grades. When enough comps share our
+        exact grade, price from those alone. Returns (subset, filtered)."""
+        our_grade = cls._grade_of(our_condition)
+        if not our_grade:
+            return sold_items, False
+        matches = [item for item in sold_items if cls._grade_of(item.get('condition')) == our_grade]
+        if len(matches) >= min_count:
+            return matches, True
+        return sold_items, False
+
     def calculate_suggested_price(self, sold_items: List[Dict], our_condition: str = "Used - Good", acquisition_cost: float = 0.0, shipping_cost: float = 0.0, availability: str = None) -> Dict[str, Any]:
         """
         Calculate a suggested price based on sold items data.
@@ -219,6 +254,8 @@ class PricingEngine:
                 "reasoning": "No comparable sales found"
             }
         
+        sold_items, grade_filtered = self.prefer_same_grade_comps(sold_items, our_condition)
+
         prices = [item["price"] for item in sold_items if item["price"] > 0]
 
         if not prices:
@@ -275,6 +312,8 @@ class PricingEngine:
         suggested_price = self._sanitize_price(suggested_price)
 
         reasoning = f"{reasoning_prefix} of {len(prices)} listings (${base_price:.2f})"
+        if grade_filtered:
+            reasoning += " [same-grade comps]"
         if shipping_buffered:
             reasoning += f" + ${shipping_cost:.2f} shipping"
         if margin_boost:

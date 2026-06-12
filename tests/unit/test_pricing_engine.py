@@ -379,3 +379,58 @@ class TestPriceSourceLabeling:
     def test_unknown_source_returns_raw(self):
         from backend.app.services.pricing_engine import format_price_source
         assert format_price_source('something_custom') == 'something_custom'
+
+
+class TestSameGradeComps:
+    """Within the eBay USED bucket, prefer comps matching our exact grade."""
+
+    def _comps(self):
+        return [
+            {"title": "A", "price": 199.99, "condition": "Pre-owned - Excellent"},
+            {"title": "B", "price": 200.00, "condition": "Pre-owned - Excellent"},
+            {"title": "C", "price": 185.00, "condition": "Used - Excellent"},
+            {"title": "D", "price": 190.00, "condition": "Pre-owned - Excellent"},
+            {"title": "E", "price": 80.00, "condition": "Pre-owned - Good"},
+            {"title": "F", "price": 74.99, "condition": "Pre-owned - Good"},
+        ]
+
+    def test_filters_to_matching_grade_when_enough(self):
+        from backend.app.services.pricing_engine import PricingEngine
+        subset, filtered = PricingEngine.prefer_same_grade_comps(self._comps(), "USED_EXCELLENT")
+        assert filtered is True
+        assert len(subset) == 4
+        assert all("Excellent" in c["condition"] for c in subset)
+
+    def test_keeps_all_when_too_few_match(self):
+        from backend.app.services.pricing_engine import PricingEngine
+        subset, filtered = PricingEngine.prefer_same_grade_comps(self._comps(), "USED_GOOD")
+        assert filtered is False
+        assert len(subset) == 6
+
+    def test_unknown_condition_keeps_all(self):
+        from backend.app.services.pricing_engine import PricingEngine
+        subset, filtered = PricingEngine.prefer_same_grade_comps(self._comps(), None)
+        assert filtered is False
+        assert len(subset) == 6
+
+    def test_very_good_not_confused_with_good(self):
+        from backend.app.services.pricing_engine import PricingEngine
+        comps = [
+            {"title": "A", "price": 50, "condition": "Pre-owned - Very Good"},
+            {"title": "B", "price": 52, "condition": "Pre-owned - Very Good"},
+            {"title": "C", "price": 55, "condition": "Pre-owned - Very Good"},
+            {"title": "D", "price": 51, "condition": "Pre-owned - Very Good"},
+            {"title": "E", "price": 20, "condition": "Pre-owned - Good"},
+        ]
+        subset, filtered = PricingEngine.prefer_same_grade_comps(comps, "USED_VERY_GOOD")
+        assert filtered is True
+        assert len(subset) == 4
+
+    def test_median_uses_same_grade_subset(self):
+        from backend.app.services.pricing_engine import PricingEngine
+        engine = PricingEngine()
+        result = engine.calculate_suggested_price(self._comps(), our_condition="USED_EXCELLENT")
+        # Median of the 4 Excellent comps (185, 190, 199.99, 200) = 194.995,
+        # NOT the all-6 median dragged down by the Good pairs
+        assert result["median_price"] > 150
+        assert "same-grade" in result["reasoning"]
