@@ -11,6 +11,7 @@ import uuid
 import shutil
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Callable, Dict, Any
@@ -608,9 +609,12 @@ class QueueManager:
             count = len(jobs)
             folders_deleted = 0
             if delete_folders:
-                for db_job in jobs:
-                    if self._delete_folder(db_job.folder_path):
-                        folders_deleted += 1
+                folder_paths = [db_job.folder_path for db_job in jobs if db_job.folder_path]
+                if folder_paths:
+                    with ThreadPoolExecutor(max_workers=min(len(folder_paths), 10)) as executor:
+                        results = list(executor.map(self._delete_folder, folder_paths))
+                    folders_deleted = sum(1 for r in results if r)
+
             for db_job in jobs:
                 session.delete(db_job)
             session.commit()
@@ -632,9 +636,11 @@ class QueueManager:
             count = len(jobs)
             folders_deleted = 0
             if delete_folders:
-                for db_job in jobs:
-                    if self._delete_folder(db_job.folder_path):
-                        folders_deleted += 1
+                folder_paths = [db_job.folder_path for db_job in jobs if db_job.folder_path]
+                if folder_paths:
+                    with ThreadPoolExecutor(max_workers=min(len(folder_paths), 10)) as executor:
+                        results = list(executor.map(self._delete_folder, folder_paths))
+                    folders_deleted = sum(1 for r in results if r)
             for db_job in jobs:
                 session.delete(db_job)
             session.commit()
