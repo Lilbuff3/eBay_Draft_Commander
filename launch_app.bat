@@ -1,28 +1,43 @@
 @echo off
+title eBay Draft Commander
 cd /d "%~dp0"
-echo Starting eBay Draft Commander...
 
-:: Check for virtual environment and activate if present
+echo ============================================
+echo   eBay Draft Commander - Starting...
+echo ============================================
+echo.
+
+:: Activate virtual environment if present (global Python works too)
 if exist "venv\Scripts\activate.bat" (
-    echo Activating virtual environment (venv)...
     call venv\Scripts\activate.bat
 ) else if exist ".venv\Scripts\activate.bat" (
-    echo Activating virtual environment (.venv)...
     call .venv\Scripts\activate.bat
 )
 
-echo Starting Backend Server...
-:: Run in a new window but keep it open on error
-start "eBay Draft Commander Backend" cmd /k "python backend\wsgi.py || (echo. & echo ------------------------------------------------ & echo CRITICAL ERROR: Backend failed to start! & echo ------------------------------------------------ & echo. & pause & exit)"
+:: Check if server is already running
+curl -s http://localhost:5000/api/system/health >nul 2>&1
+if %errorlevel%==0 (
+    echo Server already running! Opening browser...
+    start "" http://localhost:5000/app
+    timeout /t 3
+    exit
+)
 
-echo Waiting for server to initialize...
-timeout /t 5 >nul
-
-echo Opening Dashboard...
-start http://localhost:5000/app
-
+:: Start the backend server in THIS window
+echo Starting backend server on port 5000...
+echo Close this window to stop the server.
 echo.
-echo If the browser shows an error, check the "eBay Draft Commander Backend" window.
-echo You can close this launcher window now.
-timeout /t 10
-exit
+
+:: Open browser after a delay (in background)
+start "" cmd /c "timeout /t 5 >nul && start http://localhost:5000/app"
+
+:: Run server in foreground (keeps window open)
+python backend\wsgi.py
+
+:: If we get here, server crashed
+echo.
+echo ============================================
+echo   SERVER STOPPED OR CRASHED
+echo ============================================
+echo.
+pause
