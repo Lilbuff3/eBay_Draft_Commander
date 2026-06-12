@@ -4,6 +4,7 @@ import { ItemDetailDrawer } from '@/components/ItemDetailDrawer'
 import { UploadZone } from '@/components/UploadZone'
 import { InstallPrompt } from '@/components/InstallPrompt'
 import { createListing, fetchJobDetails, fetchJobImages, type JobDetails, type ItemDraft, clearCompleted, clearFailed, deleteJob, bulkDeleteJobs } from '@/lib/api'
+import { resolveDraftPrice } from '@/lib/draftPrice'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ScannerListener } from '@/components/ScannerListener'
@@ -63,7 +64,7 @@ export function Dashboard() {
     const [isScannerOpen, setIsScannerOpen] = useState(false)
     const [draft, setDraft] = useState<ItemDraft>({
         title: '',
-        price: '29.99',
+        price: '',
         condition: '',
         shipping: null,
         scheduledTime: '',
@@ -190,7 +191,7 @@ export function Dashboard() {
                     setJobDetails(details)
                     const newDraft: Partial<ItemDraft> = {
                         title: details.user_title || details.ai_title || selectedJob.name,
-                        price: details.suggested_price ? String(details.suggested_price) : '29.99',
+                        price: resolveDraftPrice(details),
                         condition: details.condition
                             ? (typeof details.condition === 'object' && details.condition !== null
                                 ? String((details.condition as Record<string, unknown>).state ?? (details.condition as Record<string, unknown>).value ?? '')
@@ -222,7 +223,7 @@ export function Dashboard() {
             setJobDetails(null)
             setDraft({
                 title: '',
-                price: '29.99',
+                price: '',
                 condition: '',
                 shipping: null,
                 scheduledTime: '',

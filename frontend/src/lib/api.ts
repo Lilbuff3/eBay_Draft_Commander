@@ -258,6 +258,7 @@ export interface JobDetails {
     user_title?: string
     user_price?: string
     user_description?: string
+    price?: string | null
     scheduled_time?: string | null
     category_id?: string
     category_name?: string
