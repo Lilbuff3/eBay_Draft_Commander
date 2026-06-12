@@ -95,9 +95,17 @@ export function UploadZone({ onUploadComplete, compact = false }: UploadZoneProp
                     animate={{
                         borderColor: isDragging ? '#84A98C' : '#e7e5e4'
                     }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            document.getElementById('file-upload')?.click()
+                        }
+                    }}
                     className={`
                         border-2 border-dashed rounded-xl px-4 py-3 cursor-pointer
-                        transition-colors bg-white hover:bg-stone-50
+                        transition-colors bg-white hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-500 focus-visible:ring-offset-2
                         flex items-center justify-center gap-3
                         ${isDragging ? 'border-sage-500 bg-sage-50' : 'border-stone-200'}
                     `}
@@ -170,9 +178,17 @@ export function UploadZone({ onUploadComplete, compact = false }: UploadZoneProp
                     scale: isDragging ? 1.02 : 1,
                     borderColor: isDragging ? '#84A98C' : '#e7e5e4'
                 }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        document.getElementById('file-upload-full')?.click()
+                    }
+                }}
                 className={`
                     border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer
-                    transition-colors bg-white hover:bg-stone-50
+                    transition-colors bg-white hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-500 focus-visible:ring-offset-2
                     ${isDragging ? 'border-sage-500 bg-sage-50' : 'border-stone-200'}
                 `}
                 onClick={() => document.getElementById('file-upload-full')?.click()}
