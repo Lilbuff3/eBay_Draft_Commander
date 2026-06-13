@@ -341,6 +341,79 @@ def get_valid_condition_ids(category_id: str) -> list:
     return []
 
 
+# Ordered display-name preferences per condition enum. The first preference a
+# category actually offers wins; otherwise the caller falls back to the generic
+# CONDITION_ID_MAP id. Conservative: when an exact tier is absent we degrade
+# down (Very Good -> Good), never up, to avoid over-grading and buyer disputes.
+_GRADE_PREFERENCE = {
+    'LIKE_NEW': ['like new', 'excellent'],
+    'USED_EXCELLENT': ['excellent'],
+    'USED_VERY_GOOD': ['very good', 'good'],
+    'USED_GOOD': ['good'],
+    'USED_ACCEPTABLE': ['acceptable', 'fair'],
+    'FOR_PARTS_OR_NOT_WORKING': ['parts', 'not working'],
+}
+
+
+def match_condition_by_grade(condition_enum: str, category_conditions: list):
+    """Map a condition enum to a category condition id by display-name match.
+
+    category_conditions: list of {'id': str, 'name': str} from eBay metadata.
+    Returns the matching id, or None when the category offers no tier for this
+    grade (caller should then use the generic CONDITION_ID_MAP fallback)."""
+    prefs = _GRADE_PREFERENCE.get(condition_enum)
+    if not prefs or not category_conditions:
+        return None
+    named = [(c.get('id'), (c.get('name') or '').lower()) for c in category_conditions]
+    for pref in prefs:
+        for cid, name in named:
+            if pref in name:
+                return cid
+    return None
+
+
+def get_category_conditions(category_id: str) -> list:
+    """Valid conditions for a category as [{'id', 'name'}], cached. Names are
+    eBay's display descriptions (e.g. 'Pre-owned - Excellent')."""
+    if not category_id:
+        return []
+    cache_key = f"conditions_named:{category_id}"
+    cached = _check_cache(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        url = ('https://api.ebay.com/sell/metadata/v1/marketplace/EBAY_US/'
+               'get_item_condition_policies?filter=categoryIds:{' + str(category_id) + '}')
+        response = requests.get(url, headers=_get_headers(), timeout=15)
+        if response.status_code == 200:
+            data = response.json()
+            for policy in data.get('itemConditionPolicies', []):
+                if str(policy.get('categoryId')) == str(category_id):
+                    conds = [{'id': str(c.get('conditionId')),
+                              'name': c.get('conditionDescription') or ''}
+                             for c in policy.get('itemConditions', [])]
+                    _save_cache(cache_key, conds)
+                    return conds
+            _save_cache(cache_key, [])
+            return []
+        logger.warning(f"get_category_conditions returned {response.status_code}")
+    except Exception as e:
+        logger.warning(f"get_category_conditions failed: {e}")
+    return []
+
+
+def resolve_condition_id(condition_enum: str, category_id: str, fallback_id: str) -> str:
+    """Pick the correct eBay condition id for our grade in this category.
+
+    Prefers a display-name match (so USED_EXCELLENT -> 2990 'Pre-owned -
+    Excellent' in shoes, not 3000 'Good'); otherwise validates the generic
+    CONDITION_ID_MAP fallback against the category."""
+    matched = match_condition_by_grade(condition_enum, get_category_conditions(category_id))
+    if matched:
+        return matched
+    return validate_condition_for_category(fallback_id, category_id)
+
+
 def validate_condition_for_category(condition_id: str, category_id: str) -> str:
     """
     Validate a condition ID against a category's allowed conditions.

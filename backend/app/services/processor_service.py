@@ -285,14 +285,15 @@ class ProcessorService:
             title = validate_title(title[:TITLE_MAX_LENGTH])
             final_price = str(validate_price(final_price))
             condition = validate_condition(condition)
-            condition_id = CONDITION_ID_MAP.get(condition, '3000')
+            generic_id = CONDITION_ID_MAP.get(condition, '3000')
 
-            # Validate condition ID against category's allowed conditions
-            from backend.app.services.ebay.taxonomy import validate_condition_for_category
-            validated_id = validate_condition_for_category(condition_id, category_id)
-            if validated_id != condition_id:
-                logger.warning(f"Condition ID adjusted: {condition_id} -> {validated_id} for category {category_id}")
-                condition_id = validated_id
+            # Resolve to the category's actual condition id. Graded categories
+            # (shoes/apparel/bags) map USED_EXCELLENT to 'Pre-owned - Excellent'
+            # (e.g. 2990), not generic 3000 which displays as 'Good' there.
+            from backend.app.services.ebay.taxonomy import resolve_condition_id
+            condition_id = resolve_condition_id(condition, category_id, generic_id)
+            if condition_id != generic_id:
+                logger.info(f"Condition resolved: {condition} ({generic_id}) -> {condition_id} for category {category_id}")
 
             cleaned_aspects = {}
             for k, v in item_specifics.items():
