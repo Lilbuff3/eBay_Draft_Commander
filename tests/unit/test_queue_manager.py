@@ -448,3 +448,69 @@ def test_purge_missing_folders_never_touches_active(mock_get_data_dir):
             shutil.rmtree(tmpdir)
         except Exception:
             pass
+
+
+def test_base_path_isolates_database(tmp_path):
+    """QueueManager(base_path=...) must keep its database under base_path.
+
+    Regression: base_path was ignored for db_path, so tests passing
+    base_path=tmp_path silently wrote job rows into the real data/commander.db.
+    Intentionally does NOT patch get_data_dir — isolation must come from base_path.
+    """
+    qm = QueueManager(base_path=tmp_path)
+    assert qm.db_path.is_relative_to(tmp_path), (
+        f"db_path {qm.db_path} escaped base_path {tmp_path}"
+    )
+
+
+@patch('backend.app.services.queue_manager.get_data_dir')
+def test_remove_job_allows_pending_review(mock_get_data_dir):
+    """A draft awaiting review must be deletable (user discards a bad result)."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        mock_get_data_dir.return_value = Path(tmpdir)
+        qm = QueueManager(Path(tmpdir))
+        f = Path(tmpdir) / "review-item"
+        f.mkdir()
+        job = qm.add_folder(str(f))
+        qm.update_job(job.id, {'status': JobStatus.PENDING_REVIEW})
+
+        assert qm.remove_job(job.id) is True
+        assert job.id not in [j.id for j in qm.get_all_jobs()]
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+@patch('backend.app.services.queue_manager.get_data_dir')
+def test_remove_job_allows_completed(mock_get_data_dir):
+    """Completed jobs can be removed from the dashboard."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        mock_get_data_dir.return_value = Path(tmpdir)
+        qm = QueueManager(Path(tmpdir))
+        f = Path(tmpdir) / "done-item"
+        f.mkdir()
+        job = qm.add_folder(str(f))
+        qm.update_job(job.id, {'status': JobStatus.COMPLETED})
+
+        assert qm.remove_job(job.id) is True
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+@patch('backend.app.services.queue_manager.get_data_dir')
+def test_remove_job_blocks_actively_processing(mock_get_data_dir):
+    """A job that is actively processing must NOT be deletable mid-run."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        mock_get_data_dir.return_value = Path(tmpdir)
+        qm = QueueManager(Path(tmpdir))
+        f = Path(tmpdir) / "running-item"
+        f.mkdir()
+        job = qm.add_folder(str(f))
+        qm.update_job(job.id, {'status': JobStatus.PROCESSING})
+
+        assert qm.remove_job(job.id) is False
+        assert job.id in [j.id for j in qm.get_all_jobs()]
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)

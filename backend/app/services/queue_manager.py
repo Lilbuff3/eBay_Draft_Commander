@@ -40,7 +40,9 @@ class QueueManager:
         self.logger = get_logger('queue_manager', level='DEBUG')
 
         self.base_path = base_path or get_data_dir().parent
-        self.data_path = get_data_dir()
+        # base_path must fully isolate storage (tests rely on this for DB isolation)
+        self.data_path = (Path(base_path) / "data") if base_path else get_data_dir()
+        self.data_path.mkdir(parents=True, exist_ok=True)
         self.db_path = self.data_path / "commander.db"
         
         from backend.app.core.database import init_db, JobModel
@@ -565,11 +567,20 @@ class QueueManager:
             session.close()
 
     def remove_job(self, job_id: str, delete_folder: bool = False) -> bool:
-        """Remove a job from the queue (only if pending or failed)"""
+        """Remove a job from the queue. Allowed for any state EXCEPT a job that
+        is actively processing — deleting mid-run would orphan the worker
+        thread and its in-flight eBay/AI calls. All other states (pending,
+        failed, skipped, completed, pending_review, needs_review, scheduled,
+        paused) are user-discardable from the dashboard."""
+        # Never delete the job the worker thread is currently running.
+        current = self._current_job
+        if current and current.id == job_id:
+            self.logger.warning(f"Refusing to remove actively-processing job {job_id}")
+            return False
         session = self.SessionFactory()
         try:
             db_job = session.query(self.JobModel).filter_by(id=job_id).first()
-            if db_job and db_job.status in [JobStatus.PENDING.value, JobStatus.FAILED.value, JobStatus.SKIPPED.value]:
+            if db_job and db_job.status != JobStatus.PROCESSING.value:
                 folder_path = db_job.folder_path
                 session.delete(db_job)
                 session.commit()
