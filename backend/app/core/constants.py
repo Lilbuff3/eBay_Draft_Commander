@@ -97,6 +97,10 @@ SHIPPING_LOOKUP = {
 }
 MEDIA_MAIL_COST = 3.50  # USPS Media Mail (books, CDs, DVDs)
 DEFAULT_SHIPPING_COST = 6.50
+# Package weight fallback for the Trading API. eBay requires a weight on
+# Authenticity-Guarantee items (high-value sneakers, handbags, watches) or it
+# rejects the listing with error 717. Used when the AI gives no estimate.
+DEFAULT_PACKAGE_WEIGHT_LBS = float(os.getenv('DEFAULT_PACKAGE_WEIGHT_LBS', '2'))
 
 # eBay book/media category IDs (top-level and common subcategories)
 MEDIA_MAIL_CATEGORIES = {

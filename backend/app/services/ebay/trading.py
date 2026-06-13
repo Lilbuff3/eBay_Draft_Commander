@@ -5,7 +5,31 @@ import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape as xml_escape
 from datetime import datetime, timedelta, timezone
 from backend.app.core.logger import get_logger
-from backend.app.core.constants import TRADING_API_TIMEOUT, TRADING_API_MAX_RETRIES, TRADING_API_PAGE_SIZE
+from backend.app.core.constants import TRADING_API_TIMEOUT, TRADING_API_MAX_RETRIES, TRADING_API_PAGE_SIZE, DEFAULT_PACKAGE_WEIGHT_LBS
+
+
+def build_shipping_package_xml(weight_lbs) -> str:
+    """ShippingPackageDetails block with a valid package weight. eBay rejects
+    Authenticity-Guarantee items (error 717) without one. Falls back to
+    DEFAULT_PACKAGE_WEIGHT_LBS when the estimate is missing or non-positive."""
+    try:
+        w = float(weight_lbs)
+    except (TypeError, ValueError):
+        w = 0
+    if w <= 0:
+        w = DEFAULT_PACKAGE_WEIGHT_LBS
+    major = int(w)
+    minor = int(round((w - major) * 16))
+    if minor == 16:  # rounding pushed oz to a full pound
+        major += 1
+        minor = 0
+    return (
+        "<ShippingPackageDetails>"
+        "<MeasurementSystem>English</MeasurementSystem>"
+        f'<WeightMajor unit="lbs">{major}</WeightMajor>'
+        f'<WeightMinor unit="oz">{minor}</WeightMinor>'
+        "</ShippingPackageDetails>"
+    )
 from backend.app.services.ebay.policies import load_env
 from backend.app.core.token_manager import get_token_manager
 
@@ -302,6 +326,7 @@ class TradingService:
                     {seller_profiles}
                     {tag('PostalCode', item_data.get('postal_code'))}
                     {tag('Location', item_data.get('item_location', os.environ.get('EBAY_ITEM_LOCATION', 'Clovis, CA')))}
+                    {build_shipping_package_xml(item_data.get('weight_lbs'))}
                     <ItemSpecifics>
                         {self._build_item_specifics_xml(item_data.get('item_specifics', {}))}
                     </ItemSpecifics>

@@ -266,7 +266,7 @@ class ProcessorService:
             logger.error(f"Template rendering failed: {e}")
             return {"html": f"<p>{description}</p>", "timing": time.time() - timing_start}
 
-    def _create_trading_api_listing(self, title: str, final_price: str, condition: str, category_id: str, html_description: str, image_urls: list, item_specifics: dict, shipping_policy: str, scheduled_time: str = None) -> dict:
+    def _create_trading_api_listing(self, title: str, final_price: str, condition: str, category_id: str, html_description: str, image_urls: list, item_specifics: dict, shipping_policy: str, scheduled_time: str = None, estimated_weight_lbs=None) -> dict:
         """Create eBay Listing via Trading API"""
         timing_start = time.time()
         sku = 'DC-' + uuid.uuid4().hex[:8].upper()
@@ -299,7 +299,8 @@ class ProcessorService:
                 'return_policy_id': current_app.config.get('EBAY_RETURN_POLICY'),
                 'fulfillment_policy_id': shipping_policy or current_app.config.get('EBAY_FULFILLMENT_POLICY'),
                 'item_specifics': cleaned_aspects, 'postal_code': current_app.config.get('EBAY_POSTAL_CODE'),
-                'item_location': os.environ.get('EBAY_ITEM_LOCATION', 'Clovis, CA')
+                'item_location': os.environ.get('EBAY_ITEM_LOCATION', 'Clovis, CA'),
+                'weight_lbs': estimated_weight_lbs
             }
 
             api_result = self.ebay_service.create_trading_api_listing(item_data, schedule_time=scheduled_time)
@@ -584,7 +585,8 @@ class ProcessorService:
             category_id=cat_result['id'], html_description=template["html"],
             image_urls=upload_urls, item_specifics=analysis['item_specifics'],
             shipping_policy=job_obj.job_metadata.get('fulfillment_policy') if job_obj.job_metadata else None,
-            scheduled_time=listing_schedule_time
+            scheduled_time=listing_schedule_time,
+            estimated_weight_lbs=(analysis.get('ai_data', {}).get('identification', {}) or {}).get('estimated_weight_lbs')
         )
         
         if "error" in bundle:
