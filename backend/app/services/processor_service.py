@@ -110,6 +110,58 @@ class ProcessorService:
 
         return current_condition
 
+    @staticmethod
+    def _backfill_aspects_from_text(required_aspects: list, specifics: dict, text: str) -> list:
+        """Fill missing required aspects from listing text against each aspect's
+        own allowed-value list. Category-agnostic: Color picks 'Black' from the
+        title, Department picks 'Men' from "Men's", US Shoe Size picks '9.5'
+        from 'Size 9.5'. The AI tends to extract niche specifics while missing
+        these basics that sit in the title.
+
+        Word aspects (Color, Department): pick the earliest allowed value in the
+        text (title order ~ dominance), longest on a tie. Word-boundary matching
+        avoids 'Men' matching 'Women'.
+
+        Size aspects (name contains 'size'): a bare number in a title is usually
+        a model/style code ("Romaleos 4"), so the value is only taken when it
+        directly follows a size cue ("Size 9.5", "Sz 9.5") — never guessed from
+        a loose number. Existing values are never overwritten. Returns
+        [(name, value)].
+        """
+        import re
+        filled = []
+        text_l = f" {(text or '').lower()} "
+        for aspect in required_aspects:
+            name = aspect.get('name')
+            if not name or specifics.get(name):
+                continue
+            values = aspect.get('values') or []
+            if not values:
+                continue
+            allowed_lower = {str(v).lower(): v for v in values if str(v)}
+            chosen = None
+
+            if 'size' in name.lower():
+                # Only accept a number that directly follows a size cue word.
+                m = re.search(r'\b(?:size|sz)\b[\s:]*([0-9]+(?:\.[0-9]+)?)', text_l)
+                if m:
+                    chosen = allowed_lower.get(m.group(1))
+            else:
+                matches = []  # (position, -length, original)
+                for low, orig in allowed_lower.items():
+                    # Optional plural/possessive so 'Men' matches "Mens"/"Men's".
+                    mm = re.search(r"(?<![\w.])" + re.escape(low) + r"(?:'?s)?(?![\w.])", text_l)
+                    if mm:
+                        matches.append((mm.start(), -len(low), orig))
+                if matches:
+                    matches.sort()
+                    chosen = matches[0][2]
+
+            if chosen is not None:
+                specifics[name] = chosen
+                filled.append((name, chosen))
+        return filled
+
     def _validate_and_enrich_specifics(self, category_id: str, specifics: dict, _log=None) -> list:
         """
         Fetch eBay's required/recommended aspects for the category,
@@ -453,6 +505,21 @@ class ProcessorService:
                                 'Country/Region of Manufacture', 'California Prop 65 Warning'}
         missing_aspects = []
         if ebay_aspect_schema:
+            # Backfill required aspects the AI missed (Size/Color/Department) from
+            # the title + identification text before flagging anything as missing.
+            required_aspects = [a for a in ebay_aspect_schema if a.get('isRequired')]
+            ident = analysis.get('ai_data', {}).get('identification', {}) or {}
+            backfill_text = ' '.join(str(v) for v in [
+                analysis.get('title', ''),
+                ident.get('brand', ''), ident.get('model', ''),
+                analysis.get('raw_description', ''),
+            ] if v)
+            backfilled = self._backfill_aspects_from_text(
+                required_aspects, analysis['item_specifics'], backfill_text
+            )
+            for name, value in backfilled:
+                _log(f"Backfilled required aspect from title: {name} = {value}")
+
             for aspect in ebay_aspect_schema:
                 name = aspect.get('name', '')
                 if not aspect.get('isRequired'):
