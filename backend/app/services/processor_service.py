@@ -58,6 +58,16 @@ class ProcessorService:
         'for parts or not working': 'FOR_PARTS_OR_NOT_WORKING',
     }
 
+    @staticmethod
+    def _metadata_condition(job_metadata: dict):
+        """Read an explicit condition from job metadata. Mobile uploads store
+        the user's choice under 'user_condition'; the folder scanner uses
+        'condition'. Prefer the explicit user choice so the AI cannot override
+        it (which underprices items graded above the AI's estimate)."""
+        if not job_metadata:
+            return None
+        return job_metadata.get('user_condition') or job_metadata.get('condition')
+
     def _determine_condition(self, folder_path: Path, metadata_condition: str, user_condition: str, log_callback=None) -> Optional[str]:
         """Determine item condition with explicit priority"""
         def _log(msg, level='info'):
@@ -329,7 +339,7 @@ class ProcessorService:
             return {"success": False, "error_type": "folder_not_found", "error_message": f"Folder not found: {folder_path}"}
 
         # 1. Initial Condition (may be refined after AI analysis)
-        metadata_condition = job_obj.job_metadata.get('condition') if job_obj.job_metadata else None
+        metadata_condition = self._metadata_condition(job_obj.job_metadata)
         condition = self._determine_condition(folder_path, metadata_condition, job_obj.user_condition, log_callback)
         has_user_override = bool(job_obj.user_condition)
         has_metadata = bool(metadata_condition)
