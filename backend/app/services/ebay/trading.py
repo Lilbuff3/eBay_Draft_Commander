@@ -201,10 +201,14 @@ class TradingService:
             logger.error(f"Trading Light Error: {e}")
             return {'error': str(e)}, 500
 
-    def add_fixed_price_item(self, item_data: dict, schedule_time: str = None):
+    def add_fixed_price_item(self, item_data: dict, schedule_time: str = None, verify_only: bool = False):
         """
         Creates a Fixed Price Listing using the Trading API (AddFixedPriceItem).
         Supports native eBay scheduling via `schedule_time`.
+
+        When verify_only=True, calls VerifyAddFixedPriceItem instead: eBay
+        validates the exact same listing XML and returns the same fees/errors
+        but creates nothing. Use it to dry-run a listing before publishing.
 
         Args:
             item_data (dict): Dictionary containing item details:
@@ -300,8 +304,9 @@ class TradingService:
                     logger.warning(f"Could not parse schedule_time '{schedule_time}': {e}. Skipping schedule.")
                     schedule_tag = ""
 
+            call_name = 'VerifyAddFixedPriceItem' if verify_only else 'AddFixedPriceItem'
             xml_request = f"""<?xml version="1.0" encoding="utf-8"?>
-            <AddFixedPriceItemRequest xmlns="{xmlns}">
+            <{call_name}Request xmlns="{xmlns}">
                 <RequesterCredentials>
                     <eBayAuthToken>{token}</eBayAuthToken>
                 </RequesterCredentials>
@@ -331,13 +336,13 @@ class TradingService:
                         {self._build_item_specifics_xml(item_data.get('item_specifics', {}))}
                     </ItemSpecifics>
                 </Item>
-            </AddFixedPriceItemRequest>
+            </{call_name}Request>
             """
 
             headers = {
                 'X-EBAY-API-SITEID': '0',
                 'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
-                'X-EBAY-API-CALL-NAME': 'AddFixedPriceItem',
+                'X-EBAY-API-CALL-NAME': call_name,
                 'Content-Type': 'text/xml'
             }
 
@@ -396,13 +401,18 @@ class TradingService:
             ack = root.find('.//e:Ack', ns).text
             
             if ack in ['Success', 'Warning']:
-                item_id = root.find('.//e:ItemID', ns).text
-                start_time = root.find('.//e:StartTime', ns).text
+                # Verify responses (and malformed ones) omit ItemID/StartTime —
+                # read defensively so parsing never throws on a valid Ack.
+                item_id_el = root.find('.//e:ItemID', ns)
+                start_time_el = root.find('.//e:StartTime', ns)
+                item_id = item_id_el.text if item_id_el is not None else None
+                start_time = start_time_el.text if start_time_el is not None else None
+                status = 'Verified' if verify_only else ('Scheduled' if schedule_time else 'Active')
                 return {
-                    'success': True, 
-                    'item_id': item_id, 
+                    'success': True,
+                    'item_id': item_id,
                     'start_time': start_time,
-                    'status': 'Scheduled' if schedule_time else 'Active'
+                    'status': status
                 }
             else:
                 # Extract Errors
