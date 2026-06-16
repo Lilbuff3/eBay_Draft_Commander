@@ -7,7 +7,7 @@ interface BulkActionBarProps {
     selectedSkus: Set<string>
     listings: Listing[] | undefined
     isBulkActing: boolean
-    filterStatus: 'active' | 'ended'
+    filterStatus: 'active' | 'ended' | 'sold'
     onRefresh: () => void
     setIsBulkActing: (val: boolean) => void
     onClearSelection: () => void

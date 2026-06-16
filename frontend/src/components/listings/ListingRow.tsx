@@ -9,7 +9,7 @@ interface ListingRowProps {
     listing: Listing
     isSelected: boolean
     isEditing: boolean
-    filterStatus: 'active' | 'ended'
+    filterStatus: 'active' | 'ended' | 'sold'
     isFetching: boolean
     onToggleSelect: (sku: string) => void
     onEditStart: (listing: Listing) => void
