@@ -425,6 +425,9 @@ def upload_files():
                 metadata['user_title'] = validate_title(request.form.get('title'))
             if request.form.get('condition'):
                 metadata['user_condition'] = validate_condition(request.form.get('condition'))
+            if request.form.get('category'):
+                # Soft hint from category-first capture (clothing/shoes/electronics/books)
+                metadata['category_hint'] = request.form.get('category')[:32]
         except ValidationError as e:
             return error_response(str(e), 400)
             

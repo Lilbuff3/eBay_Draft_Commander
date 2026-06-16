@@ -5,9 +5,11 @@ import { cn } from '@/lib/utils'
 import { useHaptics } from '@/hooks/useHaptics'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { getCaptureCategory } from '@/lib/categories'
 
 const genId = () => Math.random().toString(36).substring(7)
 
+// Generic fallback when no category is chosen.
 const CONDITIONS = [
     { label: 'New', value: 'NEW' },
     { label: 'Like New', value: 'LIKE_NEW' },
@@ -20,10 +22,14 @@ interface MobileCaptureSheetProps {
     isOpen: boolean
     onClose: () => void
     initialFiles?: File[]
-    onUpload: (files: File[], metadata: { title: string; condition: string }) => Promise<void>
+    /** category id from the picker (clothing/shoes/electronics/books) */
+    category?: string
+    onUpload: (files: File[], metadata: { title: string; condition: string; category?: string }) => Promise<void>
 }
 
-export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], onUpload }: MobileCaptureSheetProps) {
+export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], category, onUpload }: MobileCaptureSheetProps) {
+    const captureCategory = getCaptureCategory(category)
+    const conditions = captureCategory?.conditions ?? CONDITIONS
     const [photos, setPhotos] = useState<{ file: File; id: string; url: string }[]>([])
     const [title, setTitle] = useState('')
     const [condition, setCondition] = useState<string>('')
@@ -84,7 +90,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], onUploa
         try {
             await onUpload(
                 photos.map(p => p.file),
-                { title, condition }
+                { title, condition, category }
             )
             onClose()
         } catch (err) {
@@ -175,9 +181,11 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], onUploa
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-sm font-semibold text-stone-700">Condition (Optional)</label>
+                                <label className="text-sm font-semibold text-stone-700">
+                                    Condition{captureCategory ? ` · ${captureCategory.label}` : ' (Optional)'}
+                                </label>
                                 <div className="flex flex-wrap gap-2">
-                                    {CONDITIONS.map((cond) => (
+                                    {conditions.map((cond) => (
                                         <button
                                             key={cond.value}
                                             onClick={() => {

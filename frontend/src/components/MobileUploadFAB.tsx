@@ -1,8 +1,9 @@
-import { useRef, useState, useCallback } from 'react'
-import { Plus, Camera, ImagePlus } from 'lucide-react'
+import { useState, useCallback } from 'react'
+import { Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useHaptics } from '@/hooks/useHaptics'
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
+import { CategoryPicker } from './CategoryPicker'
 import { MobileCaptureSheet } from './MobileCaptureSheet'
 import { useCommanderStore } from '@/store/useCommanderStore'
 import { uploadFiles } from '@/lib/api'
@@ -13,168 +14,53 @@ interface MobileUploadFABProps {
 }
 
 export function MobileUploadFAB({ onUploadComplete, className }: MobileUploadFABProps) {
-    const galleryInputRef = useRef<HTMLInputElement>(null)
-    const [isExpanded, setIsExpanded] = useState(false)
+    const [isCategoryOpen, setIsCategoryOpen] = useState(false)
     const [isCaptureSheetOpen, setIsCaptureSheetOpen] = useState(false)
-    const [initialFiles, setInitialFiles] = useState<File[]>([])
+    const [category, setCategory] = useState<string | undefined>(undefined)
     const { press, tap } = useHaptics()
 
-    const toggleExpanded = useCallback(() => {
+    const openPicker = useCallback(() => {
         press()
-        setIsExpanded(prev => !prev)
+        setIsCategoryOpen(true)
     }, [press])
 
-    const handleCamera = useCallback(() => {
+    const handlePick = useCallback((categoryId: string) => {
         tap()
-        setInitialFiles([])
+        setCategory(categoryId)
+        setIsCategoryOpen(false)
         setIsCaptureSheetOpen(true)
-        setIsExpanded(false)
     }, [tap])
-
-    const handleGallery = useCallback(() => {
-        tap()
-        galleryInputRef.current?.click()
-        setIsExpanded(false)
-    }, [tap])
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files.length > 0) {
-            setInitialFiles(Array.from(e.target.files))
-            setIsCaptureSheetOpen(true)
-            e.target.value = ''
-        }
-    }
-
-    const handleScrimClick = useCallback(() => {
-        setIsExpanded(false)
-    }, [])
 
     return (
         <>
-            {/* Scrim overlay */}
-            <AnimatePresence>
-                {isExpanded && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="fixed inset-0 z-30 fab-scrim md:hidden"
-                        onClick={handleScrimClick}
-                    />
-                )}
-            </AnimatePresence>
-
-            {/* Speed dial container */}
-            <div className={cn("fixed z-40 md:hidden bottom-20 right-4", className)}>
-                {/* Mini FABs — Camera & Gallery */}
-                <AnimatePresence>
-                    {isExpanded && (
-                        <>
-                            {/* Gallery option */}
-                            <motion.button
-                                initial={{ opacity: 0, scale: 0.3, y: 20 }}
-                                animate={{ opacity: 1, scale: 1, y: 0 }}
-                                exit={{ opacity: 0, scale: 0.3, y: 20 }}
-                                transition={{ duration: 0.2, delay: 0.05 }}
-                                type="button"
-                                onClick={handleGallery}
-                                className={cn(
-                                    "absolute bottom-[136px] right-0",
-                                    "w-12 h-12 rounded-2xl",
-                                    "bg-white shadow-lg shadow-stone-900/15",
-                                    "flex items-center justify-center",
-                                    "active:scale-90 transition-transform",
-                                )}
-                                aria-label="Choose from gallery"
-                            >
-                                <ImagePlus size={22} className="text-persimmon-600" />
-                            </motion.button>
-
-                            {/* Gallery label */}
-                            <motion.span
-                                initial={{ opacity: 0, x: 10 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: 10 }}
-                                transition={{ duration: 0.15, delay: 0.1 }}
-                                className="absolute bottom-[146px] right-16 text-sm font-semibold text-white whitespace-nowrap bg-stone-800/80 px-3 py-1.5 rounded-lg"
-                            >
-                                Gallery
-                            </motion.span>
-
-                            {/* Camera option */}
-                            <motion.button
-                                initial={{ opacity: 0, scale: 0.3, y: 20 }}
-                                animate={{ opacity: 1, scale: 1, y: 0 }}
-                                exit={{ opacity: 0, scale: 0.3, y: 20 }}
-                                transition={{ duration: 0.2, delay: 0 }}
-                                type="button"
-                                onClick={handleCamera}
-                                className={cn(
-                                    "absolute bottom-[76px] right-0",
-                                    "w-12 h-12 rounded-2xl",
-                                    "bg-white shadow-lg shadow-stone-900/15",
-                                    "flex items-center justify-center",
-                                    "active:scale-90 transition-transform",
-                                )}
-                                aria-label="Take photo"
-                            >
-                                <Camera size={22} className="text-persimmon-600" />
-                            </motion.button>
-
-                            {/* Camera label */}
-                            <motion.span
-                                initial={{ opacity: 0, x: 10 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: 10 }}
-                                transition={{ duration: 0.15, delay: 0.05 }}
-                                className="absolute bottom-[86px] right-16 text-sm font-semibold text-white whitespace-nowrap bg-stone-800/80 px-3 py-1.5 rounded-lg"
-                            >
-                                Camera
-                            </motion.span>
-                        </>
-                    )}
-                </AnimatePresence>
-
-                {/* Main FAB */}
+            {/* Main FAB — opens the category-first picker */}
+            <div className={cn('fixed z-40 md:hidden bottom-20 right-4', className)}>
                 <button
                     type="button"
-                    onClick={toggleExpanded}
+                    onClick={openPicker}
                     className={cn(
-                        'w-14 h-14 rounded-2xl',
-                        'bg-persimmon-500',
-                        'shadow-lg shadow-persimmon-500/30',
-                        'flex items-center justify-center',
-                        'active:scale-90 transition duration-200',
+                        'w-14 h-14 rounded-2xl bg-persimmon-500 shadow-lg shadow-persimmon-500/30',
+                        'flex items-center justify-center active:scale-90 transition duration-200',
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-paper',
                     )}
-                    aria-label={isExpanded ? "Close upload options" : "Add photos"}
+                    aria-label="Add an item"
                 >
-                    <motion.div
-                        animate={{ rotate: isExpanded ? 45 : 0 }}
-                        transition={{ duration: 0.2, ease: 'easeOut' }}
-                    >
+                    <motion.div animate={{ rotate: isCategoryOpen ? 45 : 0 }} transition={{ duration: 0.2, ease: 'easeOut' }}>
                         <Plus size={24} className="text-white" strokeWidth={2.5} />
                     </motion.div>
                 </button>
             </div>
 
-            {/* Hidden file input for gallery picker */}
-            <input
-                ref={galleryInputRef}
-                type="file"
-                multiple
-                accept="image/*"
-                title="Gallery Input"
-                aria-label="Gallery Input"
-                placeholder="Select photos"
-                onChange={handleChange}
-                className="hidden"
+            <CategoryPicker
+                isOpen={isCategoryOpen}
+                onClose={() => setIsCategoryOpen(false)}
+                onPick={handlePick}
             />
 
             <MobileCaptureSheet
                 isOpen={isCaptureSheetOpen}
                 onClose={() => setIsCaptureSheetOpen(false)}
-                initialFiles={initialFiles}
+                category={category}
                 onUpload={async (files, metadata) => {
                     const setProgress = useCommanderStore.getState().setUploadProgress
                     setProgress({ loaded: 0, total: 1, fileCount: files.length })
