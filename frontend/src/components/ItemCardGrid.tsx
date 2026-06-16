@@ -3,13 +3,15 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Play, Pause, Search, Package, Trash2, MoreVertical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ItemCard } from '@/components/ItemCard'
-import { CompactItemRow } from '@/components/CompactItemRow'
+import { ItemPhotoCard } from '@/components/ItemPhotoCard'
 import { cn } from '@/lib/utils'
 import type { Job } from '@/lib/api'
+import { getStatusBucket } from '@/lib/status'
 import { useHaptics } from '@/hooks/useHaptics'
 import { useCommanderStore } from '@/store/useCommanderStore'
 
-type FilterTab = 'all' | 'inbox' | 'processing' | 'action' | 'history'
+type FilterTab = 'all' | 'working' | 'live' | 'needs_you'
+const FILTER_BUCKETS = ['working', 'live', 'needs_you'] as const
 
 interface ItemCardGridProps {
     jobs: Job[]
@@ -78,43 +80,40 @@ export function ItemCardGrid({
         return () => document.removeEventListener('click', handleClick)
     }, [showOverflow])
 
-    // Filter jobs by status tab
+    // Filter jobs by the 3-state bucket (unknown/legacy filter -> show all)
     const filteredJobs = useMemo(() => jobs.filter(job => {
-        if (activeFilter === 'all') return true
-        if (activeFilter === 'inbox') return job.status === 'pending' || job.status === 'processing' || job.status === 'scheduled'
-        if (activeFilter === 'history') return job.status === 'completed'
-        if (activeFilter === 'action') return job.status === 'failed' || job.status === 'needs_review'
-        return true
+        if (!FILTER_BUCKETS.includes(activeFilter as typeof FILTER_BUCKETS[number])) return true
+        return getStatusBucket(job.status) === activeFilter
     }), [jobs, activeFilter])
 
     // Counts for tabs
     const counts = useMemo(() => ({
         all: jobs.length,
-        inbox: jobs.filter(j => j.status === 'pending' || j.status === 'processing' || j.status === 'scheduled').length,
-        history: jobs.filter(j => j.status === 'completed').length,
-        action: jobs.filter(j => j.status === 'failed' || j.status === 'needs_review').length,
+        working: jobs.filter(j => getStatusBucket(j.status) === 'working').length,
+        live: jobs.filter(j => getStatusBucket(j.status) === 'live').length,
+        needs_you: jobs.filter(j => getStatusBucket(j.status) === 'needs_you').length,
     }), [jobs])
 
     const tabs: { key: FilterTab; label: string; mobileLabel: string; count: number }[] = [
         { key: 'all', label: 'All', mobileLabel: 'All', count: counts.all },
-        { key: 'inbox', label: 'Queue', mobileLabel: 'Queue', count: counts.inbox },
-        { key: 'action', label: 'Failed', mobileLabel: 'Failed', count: counts.action },
-        { key: 'history', label: 'Listed', mobileLabel: 'Listed', count: counts.history },
+        { key: 'working', label: 'Working', mobileLabel: 'Working', count: counts.working },
+        { key: 'live', label: 'Live', mobileLabel: 'Live', count: counts.live },
+        { key: 'needs_you', label: 'Needs you', mobileLabel: 'Needs', count: counts.needs_you },
     ]
 
     const overflowActions = [
-        { label: isScanning ? 'Scanning...' : 'Scan Inbox', icon: Search, onClick: onScan, disabled: isScanning },
+        { label: isScanning ? 'Scanning…' : 'Scan Inbox', icon: Search, onClick: onScan, disabled: isScanning },
         ...(isProcessing
             ? [{ label: 'Pause Queue', icon: Pause, onClick: onPause, disabled: false }]
-            : counts.inbox > 0
+            : counts.working > 0
                 ? [{ label: 'Process All', icon: Play, onClick: onStart, disabled: false }]
                 : []
         ),
-        ...(counts.action > 0 && onClearFailed
+        ...(counts.needs_you > 0 && onClearFailed
             ? [{ label: 'Clear Failed', icon: Trash2, onClick: onClearFailed, disabled: false, destructive: true }]
             : []
         ),
-        ...(counts.history > 0 && onClearCompleted
+        ...(counts.live > 0 && onClearCompleted
             ? [{ label: 'Clear Done', icon: Trash2, onClick: onClearCompleted, disabled: false }]
             : []
         ),
@@ -131,7 +130,7 @@ export function ItemCardGrid({
                 ═══════════════════════════════════════════════ */}
             <div className={cn(
                 'md:hidden sticky top-0 z-30 -mx-4 px-4 pt-2 pb-2 transition-shadow',
-                'bg-stone-50',
+                'bg-paper/95 backdrop-blur-sm',
                 isScrolled && 'shadow-sm',
             )}>
                 {/* Selection mode bar */}
@@ -160,9 +159,9 @@ export function ItemCardGrid({
                                         key={tab.key}
                                         onClick={() => { tap(); setActiveFilter(tab.key) }}
                                         className={cn(
-                                            'flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap',
+                                            'flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500/50',
                                             activeFilter === tab.key
-                                                ? 'bg-stone-800 text-white shadow-sm'
+                                                ? 'bg-ink-800 text-paper shadow-sm'
                                                 : 'bg-white text-stone-500 border border-stone-200 active:bg-stone-100'
                                         )}
                                     >
@@ -170,7 +169,7 @@ export function ItemCardGrid({
                                         {tab.count > 0 && (
                                             <span className={cn(
                                                 'ml-1',
-                                                activeFilter === tab.key ? 'text-stone-300' : 'text-stone-400'
+                                                activeFilter === tab.key ? 'text-persimmon-400' : 'text-stone-400'
                                             )}>
                                                 {tab.count}
                                             </span>
@@ -220,22 +219,22 @@ export function ItemCardGrid({
                 ═══════════════════════════════════════════════ */}
             <div className="hidden md:flex items-center justify-between mb-4 flex-wrap gap-3">
                 {/* Filter Tabs */}
-                <div className="flex gap-1 p-1 bg-stone-100 rounded-xl">
+                <div className="flex gap-1 p-1 bg-stone-200/50 rounded-xl">
                     {tabs.map(tab => (
                         <button
                             key={tab.key}
                             onClick={() => setActiveFilter(tab.key)}
                             className={`
-                                px-3 py-1.5 rounded-lg text-xs font-semibold transition-all
+                                px-3.5 py-1.5 rounded-lg text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500/50
                                 ${activeFilter === tab.key
-                                    ? 'bg-white shadow-sm text-stone-800'
-                                    : 'text-stone-400 hover:text-stone-600'
+                                    ? 'bg-white shadow-sm text-ink-800'
+                                    : 'text-stone-500 hover:text-stone-700'
                                 }
                             `}
                         >
                             {tab.label}
                             {tab.count > 0 && (
-                                <span className={`ml-1.5 ${activeFilter === tab.key ? 'text-stone-500' : 'text-stone-300'}`}>
+                                <span className={`ml-1.5 ${activeFilter === tab.key ? 'text-persimmon-500' : 'text-stone-400'}`}>
                                     {tab.count}
                                 </span>
                             )}
@@ -270,7 +269,7 @@ export function ItemCardGrid({
                                 className="text-xs h-8"
                             >
                                 <Search size={14} className={`mr-1 ${isScanning ? 'animate-spin' : ''}`} />
-                                {isScanning ? 'Scanning...' : 'Scan Inbox'}
+                                {isScanning ? 'Scanning…' : 'Scan Inbox'}
                             </Button>
                             {isProcessing ? (
                                 <Button
@@ -282,18 +281,18 @@ export function ItemCardGrid({
                                     Pause Queue
                                 </Button>
                             ) : (
-                                counts.inbox > 0 && (
+                                counts.working > 0 && (
                                     <Button
                                         size="sm"
                                         onClick={onStart}
-                                        className="text-xs h-8 bg-gradient-to-r from-sage-600 to-sage-700 hover:from-sage-700 hover:to-sage-800 text-white"
+                                        className="text-xs h-8 bg-persimmon-500 hover:bg-persimmon-600 text-white shadow-sm"
                                     >
                                         <Play size={14} className="mr-1" />
                                         Process All
                                     </Button>
                                 )
                             )}
-                            {counts.action > 0 && onClearFailed && (
+                            {counts.needs_you > 0 && onClearFailed && (
                                 <Button
                                     size="sm"
                                     variant="outline"
@@ -304,7 +303,7 @@ export function ItemCardGrid({
                                     Clear Failed
                                 </Button>
                             )}
-                            {counts.history > 0 && onClearCompleted && (
+                            {counts.live > 0 && onClearCompleted && (
                                 <Button
                                     size="sm"
                                     variant="outline"
@@ -325,22 +324,22 @@ export function ItemCardGrid({
                 ═══════════════════════════════════════════════ */}
             {filteredJobs.length > 0 ? (
                 <>
-                    {/* Mobile: Compact list with enter/exit animations */}
-                    <div className="md:hidden bg-white rounded-xl border border-stone-200 overflow-hidden mt-2">
+                    {/* Mobile: single-column photo cards with enter/exit animations */}
+                    <div className="md:hidden grid grid-cols-1 gap-3 mt-2">
                         <AnimatePresence initial={false}>
                             {filteredJobs.map((job, index) => (
                                 <motion.div
                                     layout="position"
                                     key={job.id}
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: 'auto' }}
-                                    exit={{ opacity: 0, height: 0, transition: { duration: 0.2 } }}
+                                    initial={{ opacity: 0, scale: 0.97 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.97, transition: { duration: 0.2 } }}
                                     transition={{
                                         opacity: { duration: 0.2, delay: index < 10 ? index * 0.03 : 0 },
-                                        height: { duration: 0.25 },
+                                        scale: { duration: 0.2 },
                                     }}
                                 >
-                                    <CompactItemRow
+                                    <ItemPhotoCard
                                         job={job}
                                         isSelected={selectedJob?.id === job.id || selectedJobIds.has(job.id)}
                                         isSelectionMode={isSelectionMode}

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Package, RefreshCw, AlertCircle, Download } from 'lucide-react'
+import { Package, RefreshCw, AlertCircle, Download, ShoppingBag } from 'lucide-react'
 import { toast } from 'sonner'
-import { apiFetch } from '@/lib/api'
+import { apiFetch, fetchRecentOrders, type Order } from '@/lib/api'
 import { MigrationModal } from './MigrationModal'
 import { EditListingDialog } from './listings/EditListingDialog'
 import { Button } from '@/components/ui/button'
@@ -53,7 +53,31 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
     const [isBulkActing, setIsBulkActing] = useState(false)
 
     // Tabs
-    const [filterStatus, setFilterStatus] = useState<'active' | 'ended'>('active')
+    const [filterStatus, setFilterStatus] = useState<'active' | 'ended' | 'sold'>('active')
+
+    // Sold orders
+    const [orders, setOrders] = useState<Order[]>([])
+    const [ordersLoading, setOrdersLoading] = useState(false)
+    const [ordersError, setOrdersError] = useState<string | null>(null)
+
+    const fetchOrders = async () => {
+        setOrdersLoading(true)
+        setOrdersError(null)
+        try {
+            const res = await fetchRecentOrders('90', 100)
+            setOrders(res.orders)
+        } catch (e) {
+            setOrdersError(e instanceof Error ? e.message : 'Failed to load orders')
+        } finally {
+            setOrdersLoading(false)
+        }
+    }
+
+    useEffect(() => {
+        if (filterStatus === 'sold' && orders.length === 0 && !ordersLoading) {
+            fetchOrders()
+        }
+    }, [filterStatus]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const fetchListings = async () => {
         setIsLoading(true)
@@ -185,30 +209,27 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="bg-white rounded-3xl border border-stone-200 shadow-xl overflow-hidden flex flex-col h-[75vh] w-full max-w-5xl mx-auto"
+            className="bg-white flex flex-col h-full w-full overflow-hidden"
         >
             {/* Header */}
-            <div className="px-6 py-4 border-b border-stone-100 bg-gradient-to-r from-blue-50 to-white flex items-center justify-between shrink-0">
+            <div className="px-6 py-4 border-b border-stone-100 bg-persimmon-50/40 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center text-white shadow-sm">
+                    <div className="w-10 h-10 rounded-xl bg-persimmon-500 flex items-center justify-center text-white shadow-sm">
                         <Package size={20} />
                     </div>
                     <div>
-                        <h2 className="font-semibold text-stone-800">Inventory Manager</h2>
+                        <h2 className="font-display font-bold text-ink-800 text-lg tracking-tight">Inventory Manager</h2>
                         <div className="flex items-center gap-2 mt-1">
                             <div className="flex bg-stone-100 rounded-lg p-0.5">
-                                <button
-                                    className={`px-3 py-0.5 text-xs font-medium rounded-md transition-all ${filterStatus === 'active' ? 'bg-white shadow text-blue-600' : 'text-stone-500 hover:text-stone-700'}`}
-                                    onClick={() => setFilterStatus('active')}
-                                >
-                                    Active
-                                </button>
-                                <button
-                                    className={`px-3 py-0.5 text-xs font-medium rounded-md transition-all ${filterStatus === 'ended' ? 'bg-white shadow text-blue-600' : 'text-stone-500 hover:text-stone-700'}`}
-                                    onClick={() => setFilterStatus('ended')}
-                                >
-                                    Ended
-                                </button>
+                                {(['active', 'ended', 'sold'] as const).map(tab => (
+                                    <button
+                                        key={tab}
+                                        className={`px-3 py-0.5 text-xs font-medium rounded-md transition capitalize ${filterStatus === tab ? 'bg-white shadow text-persimmon-600' : 'text-stone-500 hover:text-stone-700'}`}
+                                        onClick={() => setFilterStatus(tab)}
+                                    >
+                                        {tab}
+                                    </button>
+                                ))}
                             </div>
                             <span className="text-xs text-stone-400 ml-2">
                                 {data?.total || 0} total
@@ -217,7 +238,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setShowMigration(true)} className="gap-2 text-blue-600 bg-blue-50 border-blue-100 hover:bg-blue-100">
+                    <Button variant="outline" size="sm" onClick={() => setShowMigration(true)} className="gap-2 text-persimmon-600 bg-persimmon-50 border-persimmon-100 hover:bg-persimmon-100">
                         <Download size={16} />
                         Import
                     </Button>
@@ -232,90 +253,159 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                 </div>
             </div>
 
-            {/* Bulk Action Bar */}
-            <BulkActionBar
-                selectedSkus={selectedSkus}
-                listings={data?.listings}
-                isBulkActing={isBulkActing}
-                filterStatus={filterStatus}
-                onRefresh={fetchListings}
-                setIsBulkActing={setIsBulkActing}
-                onClearSelection={() => setSelectedSkus(new Set())}
-            />
+            {/* Bulk Action Bar — only for active/ended */}
+            {filterStatus !== 'sold' && (
+                <BulkActionBar
+                    selectedSkus={selectedSkus}
+                    listings={data?.listings}
+                    isBulkActing={isBulkActing}
+                    filterStatus={filterStatus}
+                    onRefresh={fetchListings}
+                    setIsBulkActing={setIsBulkActing}
+                    onClearSelection={() => setSelectedSkus(new Set())}
+                />
+            )}
 
             {/* Search & Filter */}
             <div className="px-6 py-3 border-b border-stone-100 shrink-0 bg-stone-50 flex items-center gap-4">
-                <input
-                    type="checkbox"
-                    checked={filteredListings.length > 0 && selectedSkus.size === filteredListings.length}
-                    onChange={toggleSelectAll}
-                    className="w-4 h-4 rounded border-stone-300 text-blue-600 focus:ring-blue-500"
-                />
+                {filterStatus !== 'sold' && (
+                    <input
+                        type="checkbox"
+                        checked={filteredListings.length > 0 && selectedSkus.size === filteredListings.length}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4 rounded border-stone-300 text-persimmon-600 focus:ring-persimmon-500"
+                    />
+                )}
                 <Input
-                    placeholder="Search by Title or SKU..."
+                    placeholder={filterStatus === 'sold' ? 'Search orders…' : 'Search by Title or SKU…'}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="bg-white"
                 />
             </div>
 
-            {/* Listings Header */}
-            <div className="px-6 py-2 border-b border-stone-100 bg-stone-50 grid grid-cols-[auto_1fr_100px_80px_100px] gap-4 text-xs font-semibold text-stone-500">
-                <div className="w-4"></div> {/* Checkbox spacer */}
-                <div>ITEM</div>
-                <div className="text-right">PRICE</div>
-                <div className="text-center">QTY</div>
-                <div className="text-right">ACTIONS</div>
-            </div>
+            {filterStatus === 'sold' ? (
+                <>
+                    {/* Orders Header */}
+                    <div className="px-6 py-2 border-b border-stone-100 bg-stone-50 grid grid-cols-[1fr_100px_80px_120px] gap-4 text-xs font-semibold text-stone-500">
+                        <div>ORDER</div>
+                        <div className="text-right">TOTAL</div>
+                        <div className="text-center">ITEMS</div>
+                        <div className="text-right">DATE</div>
+                    </div>
 
-            {/* Listings Grid */}
-            <div className="flex-1 overflow-hidden relative">
-                <ScrollArea className="h-full">
-                    {isLoading ? (
-                        <div className="flex items-center justify-center h-64 text-stone-400">
-                            <RefreshCw size={24} className="animate-spin mr-2" />
-                            Loading inventory...
-                        </div>
-                    ) : error ? (
-                        <div className="flex items-center justify-center h-64 text-red-500 p-4 gap-2">
-                            <AlertCircle size={20} />
-                            {error}
-                        </div>
-                    ) : filteredListings.length === 0 ? (
-                        <div className="flex items-center justify-center h-64 text-stone-400">
-                            {searchQuery ? 'No matching listings' : 'No active listings found'}
-                        </div>
-                    ) : (
-                        <div className="divide-y divide-stone-100">
-                            {filteredListings.map(listing => (
-                                <ListingRow
-                                    key={listing.sku}
-                                    listing={listing}
-                                    isSelected={selectedSkus.has(listing.sku)}
-                                    // Use editingListing state instead of editingSku
-                                    isEditing={false}
-                                    filterStatus={filterStatus}
-                                    isFetching={fetchingSkus.has(listing.sku)}
-                                    onToggleSelect={toggleSelect}
-                                    onEditStart={(l) => setEditingListing(l)}
-                                    onEditCancel={() => setEditingListing(null)}
-                                    onSave={(sku, qty, price) => handleSave(sku, { quantity: qty, price })}
-                                    onRefreshPrice={refreshPrice}
-                                    onRelist={handleRelist}
-                                />
-                            ))}
-                        </div>
-                    )}
-                </ScrollArea>
-            </div>
+                    {/* Orders Grid */}
+                    <div className="flex-1 overflow-hidden relative">
+                        <ScrollArea className="h-full">
+                            {ordersLoading ? (
+                                <div className="flex items-center justify-center h-64 text-stone-400">
+                                    <RefreshCw size={24} className="animate-spin mr-2" />
+                                    Loading orders…
+                                </div>
+                            ) : ordersError ? (
+                                <div className="flex items-center justify-center h-64 text-red-500 p-4 gap-2">
+                                    <AlertCircle size={20} />
+                                    {ordersError}
+                                </div>
+                            ) : orders.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center h-64 text-stone-400 gap-2">
+                                    <ShoppingBag size={32} className="text-stone-200" />
+                                    No orders in the last 90 days
+                                </div>
+                            ) : (
+                                <div className="divide-y divide-stone-100">
+                                    {orders
+                                        .filter(o => !searchQuery || o.orderId.toLowerCase().includes(searchQuery.toLowerCase()) || o.buyer.toLowerCase().includes(searchQuery.toLowerCase()))
+                                        .map(order => (
+                                            <div key={order.orderId} className="px-6 py-3 grid grid-cols-[1fr_100px_80px_120px] gap-4 items-center hover:bg-stone-50 transition-colors">
+                                                <div>
+                                                    <p className="text-sm font-medium text-ink-800 truncate">{order.orderId}</p>
+                                                    <p className="text-[11px] text-stone-400 mt-0.5">{order.buyer}</p>
+                                                </div>
+                                                <div className="text-right font-semibold text-sage-700">${order.total.toFixed(2)}</div>
+                                                <div className="text-center">
+                                                    <span className="text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full">{order.itemCount}</span>
+                                                </div>
+                                                <div className="text-right text-xs text-stone-400">
+                                                    {new Date(order.creationDate).toLocaleDateString()}
+                                                </div>
+                                            </div>
+                                        ))
+                                    }
+                                </div>
+                            )}
+                        </ScrollArea>
+                    </div>
 
-            {/* Footer */}
-            <div className="px-6 py-3 bg-stone-50 border-t border-stone-100 flex items-center justify-between text-xs text-stone-400 shrink-0">
-                <span>
-                    {selectedSkus.size > 0 ? `${selectedSkus.size} selected` : `Showing ${filteredListings.length} items`}
-                </span>
-                <span>eBay Inventory Sync</span>
-            </div>
+                    {/* Footer */}
+                    <div className="px-6 py-3 bg-stone-50 border-t border-stone-100 flex items-center justify-between text-xs text-stone-400 shrink-0">
+                        <span>Showing {orders.length} orders · last 90 days</span>
+                        <button onClick={fetchOrders} className="hover:text-persimmon-600 transition-colors flex items-center gap-1">
+                            <RefreshCw size={11} className={ordersLoading ? 'animate-spin' : ''} />
+                            Refresh
+                        </button>
+                    </div>
+                </>
+            ) : (
+                <>
+                    {/* Listings Header */}
+                    <div className="px-6 py-2 border-b border-stone-100 bg-stone-50 grid grid-cols-[auto_1fr_100px_80px_100px] gap-4 text-xs font-semibold text-stone-500">
+                        <div className="w-4"></div>
+                        <div>ITEM</div>
+                        <div className="text-right">PRICE</div>
+                        <div className="text-center">QTY</div>
+                        <div className="text-right">ACTIONS</div>
+                    </div>
+
+                    {/* Listings Grid */}
+                    <div className="flex-1 overflow-hidden relative">
+                        <ScrollArea className="h-full">
+                            {isLoading ? (
+                                <div className="flex items-center justify-center h-64 text-stone-400">
+                                    <RefreshCw size={24} className="animate-spin mr-2" />
+                                    Loading inventory…
+                                </div>
+                            ) : error ? (
+                                <div className="flex items-center justify-center h-64 text-red-500 p-4 gap-2">
+                                    <AlertCircle size={20} />
+                                    {error}
+                                </div>
+                            ) : filteredListings.length === 0 ? (
+                                <div className="flex items-center justify-center h-64 text-stone-400">
+                                    {searchQuery ? 'No matching listings' : filterStatus === 'active' ? 'No active listings' : 'No ended listings'}
+                                </div>
+                            ) : (
+                                <div className="divide-y divide-stone-100">
+                                    {filteredListings.map(listing => (
+                                        <ListingRow
+                                            key={listing.sku}
+                                            listing={listing}
+                                            isSelected={selectedSkus.has(listing.sku)}
+                                            isEditing={false}
+                                            filterStatus={filterStatus}
+                                            isFetching={fetchingSkus.has(listing.sku)}
+                                            onToggleSelect={toggleSelect}
+                                            onEditStart={(l) => setEditingListing(l)}
+                                            onEditCancel={() => setEditingListing(null)}
+                                            onSave={(sku, qty, price) => handleSave(sku, { quantity: qty, price })}
+                                            onRefreshPrice={refreshPrice}
+                                            onRelist={handleRelist}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </ScrollArea>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="px-6 py-3 bg-stone-50 border-t border-stone-100 flex items-center justify-between text-xs text-stone-400 shrink-0">
+                        <span>
+                            {selectedSkus.size > 0 ? `${selectedSkus.size} selected` : `Showing ${filteredListings.length} items`}
+                        </span>
+                        <span>eBay Inventory Sync</span>
+                    </div>
+                </>
+            )}
 
 
             <AnimatePresence>

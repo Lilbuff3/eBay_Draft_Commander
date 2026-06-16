@@ -98,20 +98,20 @@ export function Settings() {
         return (
             <div className="flex h-full items-center justify-center text-stone-500">
                 <Loader2 className="h-8 w-8 animate-spin mr-2" />
-                Loading configuration...
+                Loading configuration…
             </div>
         )
     }
 
     return (
-        <div className="h-full overflow-auto bg-stone-50 p-6">
+        <div className="h-full overflow-auto bg-transparent p-6">
             <div className="mx-auto max-w-4xl space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div>
-                        <h1 className="text-2xl font-bold text-stone-800">Settings</h1>
+                        <h1 className="text-2xl font-display font-bold text-ink-800 tracking-tight text-balance">Settings</h1>
                         <p className="text-stone-500 text-sm">Configure API keys and application defaults</p>
                     </div>
-                    <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto">
+                    <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
                         {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                         Save Changes
                     </Button>

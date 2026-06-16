@@ -63,9 +63,9 @@ function SortableThumbnail({ img, index, selectedIndex, onSelect }: { img: Galle
             className={cn(
                 "relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all touch-none",
                 index === selectedIndex
-                    ? "border-sage-500 ring-1 ring-sage-500/30"
+                    ? "border-persimmon-500 ring-1 ring-persimmon-500/30"
                     : "border-transparent hover:border-stone-300 opacity-70 hover:opacity-100",
-                isDragging && "opacity-50 scale-105 shadow-xl border-sage-500"
+                isDragging && "opacity-50 scale-105 shadow-xl border-persimmon-500"
             )}
         >
             <img

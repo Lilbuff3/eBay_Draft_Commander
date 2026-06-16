@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap');
 @import "tw-animate-css";
 @import "tailwindcss";
 
@@ -34,23 +34,45 @@
   --color-clay-500: #D08C2A;
   --color-clay-600: #B87A24;
 
+  /* Persimmon — primary accent */
+  --color-persimmon-50: #FBE9E2;
+  --color-persimmon-100: #F8D2C4;
+  --color-persimmon-200: #F4B49C;
+  --color-persimmon-300: #F4906F;
+  --color-persimmon-400: #F2622E;
+  --color-persimmon-500: #F0532B;
+  --color-persimmon-600: #C23E1C;
+  --color-persimmon-700: #9E3322;
+
+  /* Ink — warm charcoal (command rail) */
+  --color-ink-400: #6F6A60;
+  --color-ink-500: #4A4239;
+  --color-ink-600: #322B23;
+  --color-ink-700: #2B251E;
+  --color-ink-800: #211D18;
+  --color-ink-900: #1B1813;
+
+  /* Paper — warm canvas */
+  --color-paper: #F6F3EC;
+  --color-paper-card: #FCFAF5;
+
   /* Fonts */
-  --font-sans: 'Inter', system-ui, sans-serif;
-  --font-display: 'Outfit', system-ui, sans-serif;
+  --font-sans: 'Hanken Grotesk', system-ui, sans-serif;
+  --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
 }
 
 /* Base styles */
 @layer base {
   body {
-    @apply bg-stone-50 text-stone-800 antialiased;
+    @apply text-stone-800 antialiased;
     font-family: var(--font-sans);
-    /* Premium Gradient Mesh Background */
-    background: 
-      radial-gradient(at 0% 0%, hsla(110, 40%, 88%, 0.5) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, hsla(30, 40%, 90%, 0.5) 0px, transparent 50%),
-      radial-gradient(at 100% 100%, hsla(110, 40%, 88%, 0.5) 0px, transparent 50%),
-      radial-gradient(at 0% 100%, hsla(30, 40%, 90%, 0.5) 0px, transparent 50%),
-      #FAFBF9; /* Fallback base color */
+    color: var(--color-ink-800);
+    /* Warm paper canvas with a barely-there grain so flat areas feel intentional */
+    background-color: var(--color-paper);
+    background-image:
+      radial-gradient(at 100% 0%, hsla(20, 55%, 88%, 0.35) 0px, transparent 55%),
+      radial-gradient(at 0% 100%, hsla(40, 40%, 86%, 0.30) 0px, transparent 55%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
     background-attachment: fixed;
   }
 
@@ -140,8 +162,8 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: #F6F3EC;
+  --foreground: #211D18;
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
@@ -212,7 +234,33 @@
     @apply border-border outline-ring/50;
   }
 
+  html {
+    color-scheme: light;
+  }
+
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* Snappier mobile taps — kill the 300ms double-tap delay + default grey flash */
+  button,
+  a,
+  [role="button"],
+  summary,
+  label {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Honor reduced-motion: collapse CSS animations/transitions */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

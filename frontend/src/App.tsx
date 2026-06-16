@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useMemo } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, MotionConfig } from 'framer-motion'
 import { AnalyticsDashboard } from '@/components/AnalyticsDashboard'
 import { ActiveListings } from '@/components/ActiveListings'
 import { Sidebar } from '@/components/Sidebar'
@@ -110,7 +110,8 @@ export default function App() {
   }), [isMobile])
 
   return (
-    <div className="flex h-screen bg-stone-50">
+    <MotionConfig reducedMotion="user">
+    <div className="flex h-screen bg-transparent">
       <OfflineIndicator />
       <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
 
@@ -197,5 +198,6 @@ export default function App() {
       <Toaster position={isMobile ? "top-center" : "bottom-right"} richColors />
       <InstallPrompt />
     </div>
+    </MotionConfig>
   )
 }

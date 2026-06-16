@@ -5,9 +5,11 @@ import { cn } from '@/lib/utils'
 import { useHaptics } from '@/hooks/useHaptics'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { getCaptureCategory } from '@/lib/categories'
 
 const genId = () => Math.random().toString(36).substring(7)
 
+// Generic fallback when no category is chosen.
 const CONDITIONS = [
     { label: 'New', value: 'NEW' },
     { label: 'Like New', value: 'LIKE_NEW' },
@@ -20,10 +22,14 @@ interface MobileCaptureSheetProps {
     isOpen: boolean
     onClose: () => void
     initialFiles?: File[]
-    onUpload: (files: File[], metadata: { title: string; condition: string }) => Promise<void>
+    /** category id from the picker (clothing/shoes/electronics/books) */
+    category?: string
+    onUpload: (files: File[], metadata: { title: string; condition: string; category?: string }) => Promise<void>
 }
 
-export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], onUpload }: MobileCaptureSheetProps) {
+export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], category, onUpload }: MobileCaptureSheetProps) {
+    const captureCategory = getCaptureCategory(category)
+    const conditions = captureCategory?.conditions ?? CONDITIONS
     const [photos, setPhotos] = useState<{ file: File; id: string; url: string }[]>([])
     const [title, setTitle] = useState('')
     const [condition, setCondition] = useState<string>('')
@@ -84,7 +90,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], onUploa
         try {
             await onUpload(
                 photos.map(p => p.file),
-                { title, condition }
+                { title, condition, category }
             )
             onClose()
         } catch (err) {
@@ -123,11 +129,11 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], onUploa
                     <div className="space-y-3">
                         <div className="flex items-center justify-between">
                             <h3 className="font-semibold text-stone-800 flex items-center gap-2">
-                                <Camera size={18} className="text-sage-600" />
+                                <Camera size={18} className="text-persimmon-600" />
                                 Photos <span className="text-stone-500 font-normal">({photos.length})</span>
                             </h3>
                             {photos.length > 0 && (
-                                <button onClick={handleAddPhoto} className="text-sm font-medium text-sage-600 px-2 py-1">
+                                <button onClick={handleAddPhoto} className="text-sm font-medium text-persimmon-600 px-2 py-1">
                                     + Add More
                                 </button>
                             )}
@@ -175,9 +181,11 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], onUploa
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-sm font-semibold text-stone-700">Condition (Optional)</label>
+                                <label className="text-sm font-semibold text-stone-700">
+                                    Condition{captureCategory ? ` · ${captureCategory.label}` : ' (Optional)'}
+                                </label>
                                 <div className="flex flex-wrap gap-2">
-                                    {CONDITIONS.map((cond) => (
+                                    {conditions.map((cond) => (
                                         <button
                                             key={cond.value}
                                             onClick={() => {
@@ -187,7 +195,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], onUploa
                                             className={cn(
                                                 "px-4 py-2 rounded-full text-sm font-medium border transition-colors",
                                                 condition === cond.value
-                                                    ? "bg-sage-600 text-white border-sage-600"
+                                                    ? "bg-persimmon-500 text-white border-persimmon-500"
                                                     : "bg-white text-stone-600 border-stone-200 hover:border-stone-300"
                                             )}
                                         >
@@ -205,10 +213,10 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], onUploa
                     <Button 
                         onClick={handleSubmit} 
                         disabled={photos.length === 0 || isUploading}
-                        className="w-full h-14 rounded-2xl text-base font-semibold shadow-md bg-sage-600 hover:bg-sage-700"
+                        className="w-full h-14 rounded-2xl text-base font-semibold shadow-md bg-persimmon-500 hover:bg-persimmon-600"
                     >
                         {isUploading ? (
-                            <span>Uploading...</span>
+                            <span>Uploading…</span>
                         ) : (
                             <span className="flex items-center gap-2">
                                 <Upload size={20} />
