@@ -113,6 +113,41 @@ def test_successful_listing_creation(test_app, mock_deps, tmp_path):
     mock_deps['ebay'].create_trading_api_listing.assert_called_once()
 
 
+def test_missing_required_aspect_auto_resolves_not_review(test_app, mock_deps, tmp_path, monkeypatch):
+    """NO-BLOCKS: a missing category-specific required aspect is auto-resolved and the
+    item lists itself — it is never routed to pending_review."""
+    mock_deps['ai_agent'].analyze_item.return_value = {
+        'success': True, 'title': 'Test Shoe',
+        'raw_description': 'A shoe', 'item_specifics': {'Brand': 'TestBrand'},
+        'ai_suggested_price': '50.00',
+    }
+    # eBay says 'Size' is required (with allowed values) and the AI didn't fill it.
+    monkeypatch.setattr(
+        'backend.app.services.ebay.taxonomy.get_item_aspects',
+        lambda cat_id: {'required': [{'name': 'Size', 'values': ['8', '9', '10']}], 'optional': []},
+    )
+    # The resolver fills it (mocked — unit-tested separately).
+    mock_deps['ai_agent'].ai_analyzer.resolve_missing_required_aspects.return_value = {
+        'Size': {'value': '9', 'confidence': 0.8, 'source': 'image'},
+    }
+
+    job_folder = tmp_path / "shoe"
+    job_folder.mkdir()
+    (job_folder / "p.jpg").touch()
+    mock_job = _make_mock_job(job_folder)
+    service = ProcessorService()
+
+    with test_app.app_context():
+        result = service.create_listing(mock_job)
+
+    # Listed, not reviewed; resolver ran; provenance persisted.
+    assert result['success'] is True
+    assert result.get('status') != 'pending_review'
+    mock_deps['ai_agent'].ai_analyzer.resolve_missing_required_aspects.assert_called_once()
+    mock_deps['ebay'].create_trading_api_listing.assert_called_once()
+    assert 'Size' in (mock_job.ai_data.get('auto_filled_aspects') or {})
+
+
 def test_ai_failure_stops_pipeline(test_app, mock_deps, tmp_path):
     """Test that AI analysis failure returns error and stops further processing"""
     mock_deps['ai_agent'].analyze_item.return_value = {

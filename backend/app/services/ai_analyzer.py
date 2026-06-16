@@ -12,8 +12,11 @@ from google.genai import types
 
 from backend.app.core.logger import get_logger
 from backend.app.core.rate_limiter import limiter
-from backend.app.core.constants import AI_MODEL_NAME
-from backend.app.core.prompts import EBAY_LISTING_PROMPT, INDUSTRIAL_RESEARCH_PROMPT, ASPECT_ENRICHMENT_PROMPT
+from backend.app.core.constants import AI_MODEL_NAME, ASPECT_RESOLVE_CONFIDENCE_FLOOR
+from backend.app.core.prompts import (
+    EBAY_LISTING_PROMPT, INDUSTRIAL_RESEARCH_PROMPT,
+    ASPECT_ENRICHMENT_PROMPT, ASPECT_RESOLVE_PROMPT,
+)
 
 logger = get_logger('ai_analyzer')
 
@@ -349,6 +352,117 @@ class AIAnalyzer:
         except Exception as e:
             logger.warning(f"Aspect enrichment failed (non-fatal): {e}")
             return existing_specifics
+
+    def resolve_missing_required_aspects(self, missing: list, title: str,
+                                         identification: dict, category_name: str,
+                                         image_paths: list, research_specs=None) -> dict:
+        """No-blocks resolver: guarantee a value for EVERY still-missing required aspect.
+
+        A confident, in-list (when constrained) model value wins; otherwise a
+        deterministic safe default is filled (first allowed value, else
+        "Does Not Apply"). Never raises — the pipeline must never block on data.
+
+        Args:
+            missing: list of {name, values:[allowed...]} required aspects still empty
+        Returns:
+            { aspect_name: {"value", "confidence", "source"} } for every input aspect
+        """
+        if not missing:
+            return {}
+
+        def _default(aspect):
+            values = aspect.get('values') or []
+            return str(values[0])[:65] if values else 'Does Not Apply'
+
+        model_values = {}
+        if self.client:
+            try:
+                aspect_lines = []
+                for aspect in missing:
+                    name = aspect.get('name', '')
+                    values = aspect.get('values') or []
+                    if values:
+                        val_str = ", ".join(str(v) for v in values[:20])
+                        if len(values) > 20:
+                            val_str += f" ... ({len(values)} total)"
+                        aspect_lines.append(f"- {name}: Allowed values: [{val_str}]")
+                    else:
+                        aspect_lines.append(f"- {name}: (free text)")
+
+                research_specs_section = ""
+                if research_specs:
+                    specs_lines = [f"- {k}: {v}" for k, v in research_specs.items() if v]
+                    if specs_lines:
+                        research_specs_section = (
+                            "WEB-VERIFIED SPECIFICATIONS (ground truth):\n" + "\n".join(specs_lines)
+                        )
+
+                prompt = ASPECT_RESOLVE_PROMPT.format(
+                    title=title,
+                    brand=(identification or {}).get('brand', 'Unknown'),
+                    model=(identification or {}).get('model', ''),
+                    category_name=category_name,
+                    research_specs_section=research_specs_section,
+                    aspect_list="\n".join(aspect_lines),
+                )
+
+                from PIL import Image as PILImage
+                contents = [prompt]
+                for path in (image_paths or [])[:4]:
+                    try:
+                        contents.append(PILImage.open(path))
+                    except Exception:
+                        continue
+
+                limiter.wait_if_needed('gemini')
+                config = types.GenerateContentConfig(
+                    temperature=0.1,
+                    max_output_tokens=2000,
+                    response_mime_type="application/json",
+                )
+                response = self.client.models.generate_content(
+                    model=AI_MODEL_NAME, contents=contents, config=config,
+                )
+                text = response.text.strip() if response.text else "{}"
+                if text.startswith('```json'):
+                    text = text.split('```json')[1].split('```')[0]
+                elif text.startswith('```'):
+                    text = text.split('```')[1].split('```')[0]
+                parsed = json.loads(text.strip())
+                if isinstance(parsed, dict):
+                    model_values = parsed
+            except Exception as e:
+                logger.warning(f"Aspect resolve failed (non-fatal, using defaults): {e}")
+
+        resolved = {}
+        for aspect in missing:
+            name = aspect.get('name')
+            if not name:
+                continue
+            allowed = aspect.get('values') or []
+            entry = model_values.get(name)
+            if isinstance(entry, dict):
+                val, conf, src = entry.get('value'), entry.get('confidence', 0), entry.get('source', 'inferred')
+            elif isinstance(entry, str):
+                val, conf, src = entry, 0.6, 'inferred'  # tolerate a bare-string answer
+            else:
+                val, conf, src = None, 0, None
+            try:
+                conf = float(conf)
+            except (TypeError, ValueError):
+                conf = 0.0
+
+            chosen = None
+            if val:
+                val = str(val)[:65]
+                in_list = (not allowed) or (val in allowed)
+                if in_list and conf >= ASPECT_RESOLVE_CONFIDENCE_FLOOR:
+                    chosen = {"value": val, "confidence": conf, "source": src or 'inferred'}
+            if chosen is None:
+                chosen = {"value": _default(aspect), "confidence": 0.0, "source": "default"}
+            resolved[name] = chosen
+
+        return resolved
 
     def analyze_folder(self, folder_path):
         """Analyze all images in a folder"""

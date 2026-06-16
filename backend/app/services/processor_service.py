@@ -503,16 +503,11 @@ class ProcessorService:
         )
         result["timing"]["templating"] = template["timing"]
 
-        # 8. Hybrid Publishing Logic (Phase 2 Intercept)
-        auto_publish = str(os.environ.get('AUTO_PUBLISH', 'false')).lower() == 'true'
-        threshold_raw = float(os.environ.get('CONFIDENCE_THRESHOLD', 85))
-        threshold = threshold_raw / 100 if threshold_raw > 1 else threshold_raw
-
-        # CATEGORY GUARD: Force review if category is missing
-        missing_category = not cat_result.get('id')
-        # REQUIRED ASPECTS GUARD: Auto-fill safe defaults, flag truly missing ones
+        # 8. Required-aspects completion (NO-BLOCKS ENGINE)
+        # REQUIRED ASPECTS GUARD: Auto-fill safe defaults, resolve the rest (below).
         # eBay accepts "Does Not Apply" for generic aspects (Brand, MPN, etc.)
-        # but rejects listings missing category-specific aspects (Size, Color, etc.)
+        # but rejects listings missing category-specific aspects (Size, Color, etc.) —
+        # those get resolved instead of routed to review.
         SAFE_DEFAULT_ASPECTS = {'Brand', 'MPN', 'Type', 'Model', 'UPC', 'EAN',
                                 'Country/Region of Manufacture', 'California Prop 65 Warning'}
         missing_aspects = []
@@ -545,46 +540,50 @@ class ProcessorService:
                 else:
                     missing_aspects.append(name)
             if missing_aspects:
-                _log(f"Missing {len(missing_aspects)} required aspects: {', '.join(missing_aspects)}", level='warning')
-
-        user_approved = job_obj.job_metadata.get('user_approved', False) if job_obj.job_metadata else False
-
-        if not user_approved and (not auto_publish or confidence_score < threshold or missing_category or missing_aspects):
-            if missing_aspects:
-                reason = f"Missing Required Aspects: {', '.join(missing_aspects[:5])}"
-            elif missing_category:
-                reason = "Missing Category (AI could not determine accurate eBay category)"
-            elif not auto_publish:
-                reason = "AUTO_PUBLISH=false"
-            else:
-                reason = f"Low Confidence ({confidence_score:.2f} < {threshold:.2f})"
-            
-            _log(f"Routing to Review Queue: {reason}", level='warning')
-            
-            # Persist missing aspects for frontend to show
-            if missing_aspects:
+                # NO-BLOCKS ENGINE: resolve the last missing required aspects instead of
+                # routing to review. eBay allowed-values -> batched Gemini -> safe default;
+                # guarantees every required aspect is valued so the listing never blocks.
+                _log(f"Resolving {len(missing_aspects)} missing required aspects: {', '.join(missing_aspects)}")
+                missing_specs = [a for a in ebay_aspect_schema
+                                 if a.get('isRequired') and a.get('name') in missing_aspects]
+                try:
+                    resolved = self.ai_agent.ai_analyzer.resolve_missing_required_aspects(
+                        missing=missing_specs,
+                        title=analysis['title'],
+                        identification=ai_data.get('identification', {}) or {},
+                        category_name=cat_result.get('name', ''),
+                        image_paths=(analysis.get('ai_data', {}).get('image_paths') or [])[:4],
+                        research_specs=(job_obj.ai_data or {}).get('research', {}).get('specifications'),
+                    )
+                except Exception as e:
+                    _log(f"Aspect resolver error (using safe defaults): {e}", level='warning')
+                    resolved = {}
+                auto_filled = {}
+                for name, info in resolved.items():
+                    analysis['item_specifics'][name] = info['value']
+                    auto_filled[name] = info
+                    _log(f"Auto-resolved: {name} = {info['value']} ({info['source']}, conf {info['confidence']:.2f})")
                 ai_data = job_obj.ai_data or {}
-                ai_data['missing_required_aspects'] = missing_aspects
+                ai_data['auto_filled_aspects'] = auto_filled
+                ai_data.pop('missing_required_aspects', None)  # nothing is "missing" anymore
                 job_obj.ai_data = ai_data
+                missing_aspects = []  # resolver guarantees fill
 
-            result.update({
-                "success": True,
-                "status": "pending_review",
-                "price": pricing_result["price"],
-                "title": analysis['title'],
-                "condition": condition,
-                "confidence_score": confidence_score,
-                "missing_aspects": missing_aspects,
-                "timing": {**result["timing"], "total": time.time() - start_time}
-            })
-            log_listing_result(job_obj, result, analysis, pricing_result,
-                               cat_result, condition, confidence_score)
-            return result
+        # CATEGORY FALLBACK: never block on a missing category.
+        if not cat_result.get('id'):
+            cat_result['id'] = DEFAULT_CATEGORY_ID
+            _log(f"No category determined -> fallback {DEFAULT_CATEGORY_ID}", level='warning')
 
-        # 9. Listing Creation (Proceed if High Confidence & Auto-Publish)
-        # Auto-schedule at optimal traffic time if no manual schedule set
+        # NO REVIEW GATE (fully-auto): data is guaranteed complete, so the item lists
+        # itself. Capture is the only human step. A genuine error during listing
+        # creation below is the only path to "Needs you".
+
+        # 9. Listing Creation
+        # Auto-schedule at optimal traffic time if no manual schedule set.
+        # Default ON (AUTO_SCHEDULE_OPTIMAL) — posts at peak traffic and gives a
+        # quiet cancel window; set AUTO_SCHEDULE_OPTIMAL=false to list immediately.
         listing_schedule_time = job_obj.scheduled_time
-        if not listing_schedule_time and auto_publish:
+        if not listing_schedule_time:
             auto_schedule = str(os.environ.get('AUTO_SCHEDULE_OPTIMAL', 'true')).lower() == 'true'
             if auto_schedule:
                 from backend.app.core.constants import get_next_optimal_listing_time

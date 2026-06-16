@@ -165,3 +165,29 @@ Return JSON:
     "Aspect Name": "Value",
     "Another Aspect": "Value"
 }}"""
+
+
+ASPECT_RESOLVE_PROMPT = """You are resolving the LAST missing required eBay item specifics so a listing can post. This listing is editable/scheduled, so a confident best-guess is better than leaving it blank — but accuracy still matters.
+
+Item:
+- Title: {title}
+- Brand: {brand}
+- Model: {model}
+- Category: {category_name}
+
+{research_specs_section}
+Resolve EVERY aspect below. For each, give your best value for THIS specific item.
+
+{aspect_list}
+
+INSTRUCTIONS:
+1. For aspects with allowed values, the value MUST be an EXACT match from that aspect's list.
+2. For free-text aspects, give ONE specific value (never "Varies" or a list).
+3. Give your best guess for every aspect — use the photos, title, brand, and research. Do not omit any.
+4. For each aspect include a confidence 0.0–1.0 (how sure you are) and a one-word source: "image", "research", or "inferred".
+5. Values are strings, max 65 characters.
+
+Return ONLY a JSON object mapping each aspect name to an object:
+{{
+    "Aspect Name": {{"value": "...", "confidence": 0.0, "source": "image"}}
+}}"""
