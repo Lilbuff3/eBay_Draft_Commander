@@ -8,6 +8,7 @@ import { resolveDraftPrice } from '@/lib/draftPrice'
 import { mergeDraft } from '@/lib/mergeDraft'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { ScoreboardBanner } from '@/components/ScoreboardBanner'
 import { ScannerListener } from '@/components/ScannerListener'
 import { ScannerModal } from '@/components/ScannerModal'
 import { useCommanderStore } from '@/store/useCommanderStore'
@@ -320,6 +321,9 @@ export function Dashboard() {
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                    {/* Scoreboard */}
+                    <ScoreboardBanner />
+
                     {/* Header: Mobile/Desktop layout */}
                     <header className="mb-6">
                         <div className="flex justify-between items-start">
