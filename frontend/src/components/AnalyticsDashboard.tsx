@@ -77,11 +77,11 @@ export function AnalyticsDashboard() {
     // StatCard is now defined at file scope above
 
     return (
-        <div className="flex flex-col h-full bg-stone-50 overflow-hidden">
+        <div className="flex flex-col h-full bg-transparent overflow-hidden">
             {/* Header */}
-            <div className="border-b bg-white px-8 py-4 flex items-center justify-between shrink-0">
+            <div className="border-b border-stone-200/70 bg-paper-card/60 px-8 py-4 flex items-center justify-between shrink-0">
                 <div>
-                    <h1 className="text-2xl font-display font-bold text-stone-900">Analytics</h1>
+                    <h1 className="text-2xl font-display font-bold text-ink-800 tracking-tight">Analytics</h1>
                     <p className="text-stone-500">Track your sales performance and revenue</p>
                 </div>
                 <div className="flex items-center gap-2">

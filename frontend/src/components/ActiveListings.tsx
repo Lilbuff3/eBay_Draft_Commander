@@ -188,23 +188,23 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
             className="bg-white rounded-3xl border border-stone-200 shadow-xl overflow-hidden flex flex-col h-[75vh] w-full max-w-5xl mx-auto"
         >
             {/* Header */}
-            <div className="px-6 py-4 border-b border-stone-100 bg-gradient-to-r from-blue-50 to-white flex items-center justify-between shrink-0">
+            <div className="px-6 py-4 border-b border-stone-100 bg-persimmon-50/40 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center text-white shadow-sm">
+                    <div className="w-10 h-10 rounded-xl bg-persimmon-500 flex items-center justify-center text-white shadow-sm">
                         <Package size={20} />
                     </div>
                     <div>
-                        <h2 className="font-semibold text-stone-800">Inventory Manager</h2>
+                        <h2 className="font-display font-bold text-ink-800 text-lg tracking-tight">Inventory Manager</h2>
                         <div className="flex items-center gap-2 mt-1">
                             <div className="flex bg-stone-100 rounded-lg p-0.5">
                                 <button
-                                    className={`px-3 py-0.5 text-xs font-medium rounded-md transition-all ${filterStatus === 'active' ? 'bg-white shadow text-blue-600' : 'text-stone-500 hover:text-stone-700'}`}
+                                    className={`px-3 py-0.5 text-xs font-medium rounded-md transition ${filterStatus === 'active' ? 'bg-white shadow text-persimmon-600' : 'text-stone-500 hover:text-stone-700'}`}
                                     onClick={() => setFilterStatus('active')}
                                 >
                                     Active
                                 </button>
                                 <button
-                                    className={`px-3 py-0.5 text-xs font-medium rounded-md transition-all ${filterStatus === 'ended' ? 'bg-white shadow text-blue-600' : 'text-stone-500 hover:text-stone-700'}`}
+                                    className={`px-3 py-0.5 text-xs font-medium rounded-md transition ${filterStatus === 'ended' ? 'bg-white shadow text-persimmon-600' : 'text-stone-500 hover:text-stone-700'}`}
                                     onClick={() => setFilterStatus('ended')}
                                 >
                                     Ended
@@ -217,7 +217,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setShowMigration(true)} className="gap-2 text-blue-600 bg-blue-50 border-blue-100 hover:bg-blue-100">
+                    <Button variant="outline" size="sm" onClick={() => setShowMigration(true)} className="gap-2 text-persimmon-600 bg-persimmon-50 border-persimmon-100 hover:bg-persimmon-100">
                         <Download size={16} />
                         Import
                     </Button>
@@ -249,7 +249,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                     type="checkbox"
                     checked={filteredListings.length > 0 && selectedSkus.size === filteredListings.length}
                     onChange={toggleSelectAll}
-                    className="w-4 h-4 rounded border-stone-300 text-blue-600 focus:ring-blue-500"
+                    className="w-4 h-4 rounded border-stone-300 text-persimmon-600 focus:ring-persimmon-500"
                 />
                 <Input
                     placeholder="Search by Title or SKU..."

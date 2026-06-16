@@ -88,7 +88,7 @@ export function MobileUploadFAB({ onUploadComplete, className }: MobileUploadFAB
                                 )}
                                 aria-label="Choose from gallery"
                             >
-                                <ImagePlus size={22} className="text-sage-600" />
+                                <ImagePlus size={22} className="text-persimmon-600" />
                             </motion.button>
 
                             {/* Gallery label */}
@@ -119,7 +119,7 @@ export function MobileUploadFAB({ onUploadComplete, className }: MobileUploadFAB
                                 )}
                                 aria-label="Take photo"
                             >
-                                <Camera size={22} className="text-sage-600" />
+                                <Camera size={22} className="text-persimmon-600" />
                             </motion.button>
 
                             {/* Camera label */}
@@ -142,10 +142,10 @@ export function MobileUploadFAB({ onUploadComplete, className }: MobileUploadFAB
                     onClick={toggleExpanded}
                     className={cn(
                         'w-14 h-14 rounded-2xl',
-                        'bg-gradient-to-br from-sage-500 to-sage-600',
-                        'shadow-lg shadow-sage-500/30',
+                        'bg-persimmon-500',
+                        'shadow-lg shadow-persimmon-500/30',
                         'flex items-center justify-center',
-                        'active:scale-90 transition-all duration-200',
+                        'active:scale-90 transition duration-200',
                     )}
                     aria-label={isExpanded ? "Close upload options" : "Add photos"}
                 >

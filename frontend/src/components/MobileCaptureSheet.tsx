@@ -123,11 +123,11 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], onUploa
                     <div className="space-y-3">
                         <div className="flex items-center justify-between">
                             <h3 className="font-semibold text-stone-800 flex items-center gap-2">
-                                <Camera size={18} className="text-sage-600" />
+                                <Camera size={18} className="text-persimmon-600" />
                                 Photos <span className="text-stone-500 font-normal">({photos.length})</span>
                             </h3>
                             {photos.length > 0 && (
-                                <button onClick={handleAddPhoto} className="text-sm font-medium text-sage-600 px-2 py-1">
+                                <button onClick={handleAddPhoto} className="text-sm font-medium text-persimmon-600 px-2 py-1">
                                     + Add More
                                 </button>
                             )}
@@ -187,7 +187,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], onUploa
                                             className={cn(
                                                 "px-4 py-2 rounded-full text-sm font-medium border transition-colors",
                                                 condition === cond.value
-                                                    ? "bg-sage-600 text-white border-sage-600"
+                                                    ? "bg-persimmon-500 text-white border-persimmon-500"
                                                     : "bg-white text-stone-600 border-stone-200 hover:border-stone-300"
                                             )}
                                         >
@@ -205,10 +205,10 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], onUploa
                     <Button 
                         onClick={handleSubmit} 
                         disabled={photos.length === 0 || isUploading}
-                        className="w-full h-14 rounded-2xl text-base font-semibold shadow-md bg-sage-600 hover:bg-sage-700"
+                        className="w-full h-14 rounded-2xl text-base font-semibold shadow-md bg-persimmon-500 hover:bg-persimmon-600"
                     >
                         {isUploading ? (
-                            <span>Uploading...</span>
+                            <span>Uploading…</span>
                         ) : (
                             <span className="flex items-center gap-2">
                                 <Upload size={20} />

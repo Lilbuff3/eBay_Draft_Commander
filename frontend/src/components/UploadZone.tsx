@@ -93,7 +93,7 @@ export function UploadZone({ onUploadComplete, compact = false }: UploadZoneProp
                     onDragLeave={() => setIsDragging(false)}
                     onDrop={handleDrop}
                     animate={{
-                        borderColor: isDragging ? '#84A98C' : '#e7e5e4'
+                        borderColor: isDragging ? '#F2622E' : '#e7e5e4'
                     }}
                     role="button"
                     tabIndex={0}
@@ -105,9 +105,9 @@ export function UploadZone({ onUploadComplete, compact = false }: UploadZoneProp
                     }}
                     className={`
                         border-2 border-dashed rounded-xl px-4 py-3 cursor-pointer
-                        transition-colors bg-white hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-500 focus-visible:ring-offset-2
+                        transition-colors bg-white hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2
                         flex items-center justify-center gap-3
-                        ${isDragging ? 'border-sage-500 bg-sage-50' : 'border-stone-200'}
+                        ${isDragging ? 'border-persimmon-400 bg-persimmon-50' : 'border-stone-200'}
                     `}
                     onClick={() => document.getElementById('file-upload')?.click()}
                 >
@@ -123,13 +123,13 @@ export function UploadZone({ onUploadComplete, compact = false }: UploadZoneProp
 
                     {isUploading ? (
                         <>
-                            <Loader2 size={18} className="text-sage-500 animate-spin" />
-                            <span className="text-sm text-stone-600 font-medium">Uploading...</span>
+                            <Loader2 size={18} className="text-persimmon-500 animate-spin" />
+                            <span className="text-sm text-stone-600 font-medium">Uploading…</span>
                         </>
                     ) : (
                         <>
-                            <div className="w-8 h-8 rounded-full bg-sage-100 flex items-center justify-center flex-shrink-0">
-                                <Plus size={16} className="text-sage-600" />
+                            <div className="w-8 h-8 rounded-full bg-persimmon-100 flex items-center justify-center flex-shrink-0">
+                                <Plus size={16} className="text-persimmon-600" />
                             </div>
                             <span className="text-sm text-stone-600">
                                 <span className="font-medium text-stone-700">Drop photos</span>
@@ -176,7 +176,7 @@ export function UploadZone({ onUploadComplete, compact = false }: UploadZoneProp
                 onDrop={handleDrop}
                 animate={{
                     scale: isDragging ? 1.02 : 1,
-                    borderColor: isDragging ? '#84A98C' : '#e7e5e4'
+                    borderColor: isDragging ? '#F2622E' : '#e7e5e4'
                 }}
                 role="button"
                 tabIndex={0}
@@ -188,8 +188,8 @@ export function UploadZone({ onUploadComplete, compact = false }: UploadZoneProp
                 }}
                 className={`
                     border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer
-                    transition-colors bg-white hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-500 focus-visible:ring-offset-2
-                    ${isDragging ? 'border-sage-500 bg-sage-50' : 'border-stone-200'}
+                    transition-colors bg-white hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2
+                    ${isDragging ? 'border-persimmon-400 bg-persimmon-50' : 'border-stone-200'}
                 `}
                 onClick={() => document.getElementById('file-upload-full')?.click()}
             >
@@ -205,13 +205,13 @@ export function UploadZone({ onUploadComplete, compact = false }: UploadZoneProp
 
                 {isUploading ? (
                     <div className="flex flex-col items-center gap-3">
-                        <Loader2 className="w-10 h-10 text-sage-500 animate-spin" />
-                        <p className="text-stone-600 font-medium">Uploading...</p>
+                        <Loader2 className="w-10 h-10 text-persimmon-500 animate-spin" />
+                        <p className="text-stone-600 font-medium">Uploading…</p>
                     </div>
                 ) : (
                     <div className="flex flex-col items-center gap-3">
-                        <div className="w-14 h-14 rounded-full bg-sage-100 flex items-center justify-center">
-                            <Upload className="w-7 h-7 text-sage-600" />
+                        <div className="w-14 h-14 rounded-full bg-persimmon-100 flex items-center justify-center">
+                            <Upload className="w-7 h-7 text-persimmon-600" />
                         </div>
                         <div>
                             <p className="text-stone-800 font-semibold text-lg">

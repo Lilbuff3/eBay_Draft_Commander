@@ -157,7 +157,7 @@ export function ReviewQueue() {
                 <div className="space-y-4">
                     <div className="flex items-center gap-3 px-4 py-2 text-xs font-bold text-stone-400 uppercase tracking-wider">
                         <button onClick={toggleSelectAll} aria-label={selectedIds.length === pendingListings.length ? 'Deselect all' : 'Select all'} className="hover:text-stone-600 transition-colors">
-                            {selectedIds.length === pendingListings.length ? <CheckSquare size={18} className="text-sage-600" /> : <Square size={18} />}
+                            {selectedIds.length === pendingListings.length ? <CheckSquare size={18} className="text-persimmon-600" /> : <Square size={18} />}
                         </button>
                         <div className="flex-1 grid grid-cols-12 gap-4">
                             <span className="col-span-1">Item</span>
@@ -171,8 +171,8 @@ export function ReviewQueue() {
                     <div className="space-y-3">
                         {pendingListings.map(listing => (
                             <Card key={listing.id} className={cn(
-                                "border-stone-200 overflow-hidden transition-all duration-200 hover:border-sage-300 hover:shadow-md",
-                                selectedIds.includes(listing.id) && "ring-2 ring-sage-500 border-transparent shadow-lg bg-sage-50/30"
+                                "border-stone-200 overflow-hidden transition-all duration-200 hover:border-persimmon-300 hover:shadow-md",
+                                selectedIds.includes(listing.id) && "ring-2 ring-persimmon-500 border-transparent shadow-lg bg-persimmon-50/30"
                             )}>
                                 <CardContent className="p-0">
                                     <div className="flex items-stretch">
@@ -184,7 +184,7 @@ export function ReviewQueue() {
                                             aria-label={selectedIds.includes(listing.id) ? 'Deselect listing' : 'Select listing'}
                                         >
                                             {selectedIds.includes(listing.id) ?
-                                                <CheckSquare size={20} className="text-sage-600" /> :
+                                                <CheckSquare size={20} className="text-persimmon-600" /> :
                                                 <Square size={20} className="text-stone-300" />
                                             }
                                         </div>
@@ -206,7 +206,7 @@ export function ReviewQueue() {
                                                 {editingId === listing.id ? (
                                                     <input
                                                         type="text"
-                                                        className="w-full px-2 py-1 text-sm font-bold text-stone-900 border border-sage-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sage-500"
+                                                        className="w-full px-2 py-1 text-sm font-bold text-stone-900 border border-persimmon-300 rounded-md focus:outline-none focus:ring-2 focus:ring-persimmon-500"
                                                         value={editValues.title}
                                                         onChange={e => setEditValues(prev => ({ ...prev, title: e.target.value }))}
                                                         autoFocus
@@ -227,7 +227,7 @@ export function ReviewQueue() {
                                                 {editingId === listing.id ? (
                                                     <input
                                                         type="text"
-                                                        className="w-24 px-2 py-1 text-sm font-bold text-stone-900 border border-sage-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sage-500"
+                                                        className="w-24 px-2 py-1 text-sm font-bold text-stone-900 border border-persimmon-300 rounded-md focus:outline-none focus:ring-2 focus:ring-persimmon-500"
                                                         value={editValues.price}
                                                         onChange={e => setEditValues(prev => ({ ...prev, price: e.target.value }))}
                                                         placeholder="0.00"
@@ -252,7 +252,7 @@ export function ReviewQueue() {
                                             <div className="col-span-2 flex items-center justify-end gap-2">
                                                 {editingId === listing.id ? (
                                                     <>
-                                                        <Button variant="ghost" size="icon" className="h-9 w-9 text-sage-600 hover:text-sage-800 hover:bg-sage-50" onClick={handleSaveEdit} aria-label="Save changes">
+                                                        <Button variant="ghost" size="icon" className="h-9 w-9 text-persimmon-600 hover:text-persimmon-800 hover:bg-persimmon-50" onClick={handleSaveEdit} aria-label="Save changes">
                                                             <Save size={18} />
                                                         </Button>
                                                         <Button variant="ghost" size="icon" className="h-9 w-9 text-stone-400 hover:text-stone-900 hover:bg-stone-100" onClick={handleCancelEdit} aria-label="Cancel editing">

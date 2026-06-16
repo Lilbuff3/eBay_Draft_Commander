@@ -324,8 +324,8 @@ export function Dashboard() {
                     <header className="mb-6">
                         <div className="flex justify-between items-start">
                             <div>
-                                <h1 className="font-display font-bold text-2xl sm:text-3xl text-stone-800">Workspace</h1>
-                                <p className="text-stone-400 text-sm">
+                                <h1 className="font-display font-bold text-2xl sm:text-3xl text-ink-800 tracking-tight text-balance">Workspace</h1>
+                                <p className="text-stone-500 text-sm mt-0.5">
                                     {queueStats.total > 0
                                         ? `${queueStats.total} items \u00B7 ${queueStats.pending} pending`
                                         : 'Drop photos to get started'}
@@ -337,14 +337,14 @@ export function Dashboard() {
                         </div>
                         <div className="flex items-center gap-2 mt-3 flex-wrap">
                             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${ebayStatus === 'connected'
-                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                ? 'bg-sage-50 text-sage-700 border-sage-200'
                                 : 'bg-red-50 text-red-700 border-red-200'
                                 }`}>
-                                <div className={`w-1.5 h-1.5 rounded-full ${ebayStatus === 'connected' ? 'bg-blue-500' : 'bg-red-500'}`} />
+                                <div className={`w-1.5 h-1.5 rounded-full ${ebayStatus === 'connected' ? 'bg-sage-500' : 'bg-red-500'}`} />
                                 {ebayStatus === 'connected' ? 'eBay Linked' : 'eBay Offline'}
                             </div>
-                            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-stone-100">
-                                <div className={`w-2 h-2 rounded-full ${isProcessing ? 'bg-green-500 animate-pulse' : 'bg-stone-300'}`} />
+                            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-stone-200/70">
+                                <div className={`w-2 h-2 rounded-full ${isProcessing ? 'bg-persimmon-500 animate-pulse' : 'bg-stone-300'}`} />
                                 <span className="text-xs font-medium text-stone-600">
                                     {isProcessing ? 'Active' : 'Ready'}
                                 </span>

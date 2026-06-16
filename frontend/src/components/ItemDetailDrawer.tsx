@@ -482,33 +482,27 @@ export function ItemDetailDrawer({
                 {job && (
                     <div className="flex-shrink-0 border-t border-stone-100 px-6 py-3 bg-white pb-safe">
                         {(() => {
-                            const hasMissingRequiredSpecifics = jobDetails?.ebay_aspect_schema?.some(aspect =>
-                                aspect.isRequired && !draft.itemSpecifics[aspect.name]
-                            ) || false;
-
+                            // No-blocks: the engine guarantees every required aspect is
+                            // filled, so listing is never gated on missing specifics.
                             return (
                                 <button
                                     onClick={onCreateListing}
-                                    disabled={isCreating || hasMissingRequiredSpecifics}
-                                    className={`w-full py-3 px-4 rounded-xl font-medium text-white transition-all ${isCreating
+                                    disabled={isCreating}
+                                    className={`w-full py-3 px-4 rounded-xl font-semibold text-white transition ${isCreating
                                         ? 'bg-stone-400 cursor-wait'
-                                        : hasMissingRequiredSpecifics
-                                            ? 'bg-stone-300 cursor-not-allowed text-stone-500'
-                                            : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/25'
+                                        : 'bg-persimmon-500 hover:bg-persimmon-600 shadow-lg shadow-persimmon-500/25'
                                         }`}
                                 >
                                     {isCreating ? (
                                         <span className="flex items-center justify-center gap-2">
                                             <Loader2 className="w-4 h-4 animate-spin" />
-                                            Creating...
+                                            Creating…
                                         </span>
                                     ) : createResult?.success ? (
                                         <span className="flex items-center justify-center gap-2">
                                             <Check className="w-4 h-4" />
                                             Listed Successfully
                                         </span>
-                                    ) : hasMissingRequiredSpecifics ? (
-                                        'Missing Required Specifics'
                                     ) : (
                                         draft.scheduledTime ? 'Schedule Listing' : 'Create eBay Listing'
                                     )}

@@ -61,7 +61,7 @@ export function ListingRow({
 
     return (
         <div
-            className={`px-6 py-3 transition-colors grid grid-cols-[auto_1fr_100px_80px_100px] gap-4 items-center ${isSelected || isEditing ? 'bg-blue-50/40' : 'hover:bg-stone-50'
+            className={`px-6 py-3 transition-colors grid grid-cols-[auto_1fr_100px_80px_100px] gap-4 items-center ${isSelected || isEditing ? 'bg-persimmon-50/40' : 'hover:bg-stone-50'
                 }`}
         >
             {/* Checkbox */}
@@ -70,7 +70,7 @@ export function ListingRow({
                 checked={isSelected}
                 onChange={() => onToggleSelect(listing.sku)}
                 aria-label={`Select ${listing.title}`}
-                className="w-4 h-4 rounded border-stone-300 text-blue-600 focus:ring-blue-500"
+                className="w-4 h-4 rounded border-stone-300 text-persimmon-600 focus:ring-persimmon-500"
             />
 
             {/* Item Info */}
@@ -118,7 +118,7 @@ export function ListingRow({
                         <button
                             onClick={() => onRefreshPrice(listing.sku)}
                             disabled={isFetching}
-                            className="p-1 hover:bg-stone-100 rounded-full text-stone-400 hover:text-blue-500 transition-colors"
+                            className="p-1 hover:bg-stone-100 rounded-full text-stone-400 hover:text-persimmon-500 transition-colors"
                             title="Refresh Price from eBay"
                             aria-label={`Refresh price for ${listing.title}`}
                         >
@@ -180,7 +180,7 @@ export function ListingRow({
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-blue-500 hover:text-blue-700"
+                                className="h-7 w-7 text-persimmon-500 hover:text-persimmon-700"
                                 onClick={() => onRelist(listing)}
                                 title="Relist"
                                 aria-label={`Relist ${listing.title}`}
@@ -191,7 +191,7 @@ export function ListingRow({
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-stone-400 hover:text-blue-500"
+                                className="h-7 w-7 text-stone-400 hover:text-persimmon-500"
                                 onClick={() => {
                                     setEditQty(listing.availableQuantity.toString())
                                     setEditPrice(listing.price.toString())
