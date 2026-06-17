@@ -112,7 +112,7 @@ export function MigrationModal({ onClose, onSuccess }: MigrationModalProps) {
                         <h2 className="text-lg font-semibold text-stone-800">Import Legacy Listings</h2>
                         <p className="text-sm text-stone-500">Migrate website listings to Inventory Sync</p>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={onClose}>
+                    <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close migration modal" title="Close">
                         <X size={20} />
                     </Button>
                 </div>
@@ -173,6 +173,7 @@ export function MigrationModal({ onClose, onSuccess }: MigrationModalProps) {
                                                 onChange={() => toggleSelect(item.listingId)}
                                                 disabled={item.inInventory}
                                                 className="w-4 h-4 rounded border-stone-300 text-blue-600 focus:ring-blue-500"
+                                                aria-label={`Select ${item.title}`}
                                             />
 
                                             <div className="w-12 h-12 rounded bg-stone-100 overflow-hidden shrink-0 border border-stone-200">

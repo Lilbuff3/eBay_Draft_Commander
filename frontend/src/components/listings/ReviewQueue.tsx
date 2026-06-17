@@ -210,6 +210,7 @@ export function ReviewQueue() {
                                                         value={editValues.title}
                                                         onChange={e => setEditValues(prev => ({ ...prev, title: e.target.value }))}
                                                         autoFocus
+                                                        aria-label={`Edit title for ${listing.display_name || listing.name}`}
                                                     />
                                                 ) : (
                                                     <>
@@ -231,6 +232,7 @@ export function ReviewQueue() {
                                                         value={editValues.price}
                                                         onChange={e => setEditValues(prev => ({ ...prev, price: e.target.value }))}
                                                         placeholder="0.00"
+                                                        aria-label={`Edit price for ${listing.display_name || listing.name}`}
                                                     />
                                                 ) : (
                                                     <span className="font-display font-bold text-lg text-stone-900">${listing.price || '0.00'}</span>

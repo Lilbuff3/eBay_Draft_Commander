@@ -274,6 +274,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                         checked={filteredListings.length > 0 && selectedSkus.size === filteredListings.length}
                         onChange={toggleSelectAll}
                         className="w-4 h-4 rounded border-stone-300 text-persimmon-600 focus:ring-persimmon-500"
+                        aria-label="Select all listings"
                     />
                 )}
                 <Input
