@@ -32,7 +32,8 @@ def _make_item(captures: Path):
     return item
 
 
-def test_capture_registers_job_and_assigns_slot(app):
+def test_capture_registers_job_and_assigns_slot(app, monkeypatch):
+    monkeypatch.setattr(app.queue_manager, 'start_processing', lambda: None)
     captures = Path(app.config['CAPTURES_DIR'])
     item = _make_item(captures)
     client = app.test_client()
@@ -80,7 +81,8 @@ def test_capture_rejects_nonexistent_path(app):
     assert resp.status_code == 404
 
 
-def test_capture_two_items_get_distinct_slots(app):
+def test_capture_two_items_get_distinct_slots(app, monkeypatch):
+    monkeypatch.setattr(app.queue_manager, 'start_processing', lambda: None)
     captures = Path(app.config['CAPTURES_DIR'])
     item1 = captures / "item1"
     item1.mkdir()
@@ -110,3 +112,26 @@ def test_capture_returns_500_if_slot_write_fails(app, monkeypatch):
     data = resp.get_json()
     assert data['success'] is False
     assert data['job_id']
+
+
+def test_capture_starts_queue_when_idle(app, monkeypatch):
+    captures = Path(app.config['CAPTURES_DIR'])
+    item = _make_item(captures)
+    monkeypatch.setattr(app.queue_manager, 'is_processing', lambda: False)
+    monkeypatch.setattr(app.queue_manager, 'is_paused', lambda: False)
+    started = {'n': 0}
+    monkeypatch.setattr(app.queue_manager, 'start_processing', lambda: started.__setitem__('n', started['n'] + 1))
+    resp = app.test_client().post('/api/capture', json={'path': str(item)})
+    assert resp.status_code == 200
+    assert started['n'] == 1
+
+
+def test_capture_does_not_restart_when_busy(app, monkeypatch):
+    captures = Path(app.config['CAPTURES_DIR'])
+    item = _make_item(captures)
+    monkeypatch.setattr(app.queue_manager, 'is_processing', lambda: True)
+    started = {'n': 0}
+    monkeypatch.setattr(app.queue_manager, 'start_processing', lambda: started.__setitem__('n', started['n'] + 1))
+    resp = app.test_client().post('/api/capture', json={'path': str(item)})
+    assert resp.status_code == 200
+    assert started['n'] == 0

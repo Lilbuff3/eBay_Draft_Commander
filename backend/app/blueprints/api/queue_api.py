@@ -188,7 +188,7 @@ def capture_item():
         batch_id = f"hermes_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         job = qm.add_folder(
             str(src),
-            metadata={'capture_source': 'hermes', 'auto_schedule': True},
+            metadata={'capture_source': 'hermes'},
             batch_id=batch_id,
         )
         booked = qm.get_booked_schedule_times()
@@ -202,6 +202,9 @@ def capture_item():
             'error': 'Job created but slot assignment failed',
             'job_id': job.id,
         }), 500
+
+    if not qm.is_processing() and not qm.is_paused():
+        qm.start_processing()
 
     logger.info(f"Captured job {job.id} scheduled for {slot}")
     return jsonify({
