@@ -1,11 +1,14 @@
 from flask import Blueprint, jsonify, request, current_app
 from datetime import datetime
+from pathlib import Path
+import threading
 from backend.app.blueprints.api.helpers import error_response
 from backend.app.core.validator import validate_safe_path, ValidationError
 from backend.app.core.logger import get_logger
 
 queue_bp = Blueprint('queue', __name__)
 logger = get_logger('api.queue')
+_capture_lock = threading.Lock()
 
 @queue_bp.route('/status')
 def get_status():
@@ -149,4 +152,54 @@ def add_folder_to_queue():
         'jobIds': added_jobs,
         'batch_id': batch_id,
         'message': f"Added {len(added_jobs)} jobs to queue (Batch: {batch_id})"
+    })
+
+@queue_bp.route('/capture', methods=['POST'])
+def capture_item():
+    """Register a pre-written captures/<id> folder as a job, auto-assign an eBay slot.
+
+    The Hermes WhatsApp bridge writes an item's images directly into a folder
+    under CAPTURES_DIR, then calls this endpoint with that folder's path.
+    There is no file move and no use of the inbox watcher — the job is
+    registered directly from the captures folder.
+
+    Body: {"path": "<abs path under CAPTURES_DIR, already holding the item's images>"}
+    """
+    from backend.app.core.constants import SUPPORTED_IMAGE_EXTENSIONS, get_next_optimal_listing_time
+
+    data = request.json or {}
+    raw_path = data.get('path')
+    if not raw_path:
+        return error_response('path required', 400)
+
+    captures_root = current_app.config['CAPTURES_DIR']
+    try:
+        src = validate_safe_path(raw_path, base_dir=captures_root)
+    except ValidationError as e:
+        return error_response(e.args[0], 403)
+
+    if not src.exists() or not src.is_dir():
+        return error_response('path not found', 404)
+    if not any(f.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
+               for f in src.iterdir() if f.is_file()):
+        return error_response('No images found in folder', 400)
+
+    qm = current_app.queue_manager
+    with _capture_lock:
+        batch_id = f"hermes_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        job = qm.add_folder(
+            str(src),
+            metadata={'capture_source': 'hermes', 'auto_schedule': True},
+            batch_id=batch_id,
+        )
+        booked = qm.get_booked_schedule_times()
+        slot = get_next_optimal_listing_time(exclude_times=booked)
+        qm.update_job(job.id, {'scheduled_time': slot})
+
+    logger.info(f"Captured job {job.id} scheduled for {slot}")
+    return jsonify({
+        'success': True,
+        'job_id': job.id,
+        'scheduled_time': slot,
+        'status': 'scheduled_pending_analysis',
     })
