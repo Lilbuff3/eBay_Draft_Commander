@@ -40,7 +40,7 @@ def test_cancel_listed_job_ends_then_removes(app, monkeypatch):
     monkeypatch.setattr(qm, 'remove_job', lambda jid, delete_folder=False: removed.setdefault('id', jid) or True)
     ended = {}
     fake_svc = MagicMock()
-    fake_svc.end_listing = lambda iid: (ended.setdefault('id', iid) or {'success': True})
+    fake_svc.end_listing = lambda iid: (ended.update({'id': iid}) or {'success': True})
     monkeypatch.setattr(jobs_api, 'eBayService', lambda: fake_svc)
     resp = app.test_client().post('/api/jobs/abc123/cancel')
     assert resp.status_code == 200
@@ -63,3 +63,17 @@ def test_cancel_missing_job_404(app, monkeypatch):
     monkeypatch.setattr(app.queue_manager, 'get_job_by_id', lambda jid: None)
     resp = app.test_client().post('/api/jobs/nope/cancel')
     assert resp.status_code == 404
+
+
+def test_cancel_ebay_failure_returns_502_and_keeps_job(app, monkeypatch):
+    qm = app.queue_manager
+    fake_job = MagicMock(); fake_job.listing_id = '777'
+    monkeypatch.setattr(qm, 'get_job_by_id', lambda jid: fake_job)
+    removed = {}
+    monkeypatch.setattr(qm, 'remove_job', lambda jid, delete_folder=False: removed.setdefault('id', jid) or True)
+    fake_svc = MagicMock()
+    fake_svc.end_listing = lambda iid: {'success': False, 'error': 'eBay says no'}
+    monkeypatch.setattr(jobs_api, 'eBayService', lambda: fake_svc)
+    resp = app.test_client().post('/api/jobs/zz/cancel')
+    assert resp.status_code == 502
+    assert 'id' not in removed  # job must NOT be removed when the eBay end fails

@@ -297,7 +297,7 @@ def cancel_job(job_id):
         except Exception as e:
             logger.exception("cancel_job: end_listing failed")
             return error_response(f'Failed to end eBay listing: {e}', 502)
-        if isinstance(ended, dict) and not ended.get('success', True):
+        if not ended.get('success'):
             return error_response(f"eBay end failed: {ended.get('error')}", 502)
 
     qm.remove_job(job_id, delete_folder=True)
