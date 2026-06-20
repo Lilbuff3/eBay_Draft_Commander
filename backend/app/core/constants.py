@@ -185,41 +185,39 @@ PEAK_WINDOWS_PT = [
 ]
 
 
-def get_next_optimal_listing_time():
-    """Calculate the next optimal eBay listing time based on peak traffic windows.
+def get_next_optimal_listing_time(exclude_times=None):
+    """Next optimal eBay listing time (ISO 8601 UTC), >= 75 min ahead, within 21 days.
 
-    Returns an ISO 8601 UTC datetime string for the ScheduleTime field.
-    eBay requires schedule times to be at least 1 hour in the future.
+    exclude_times: optional iterable of ISO-8601-UTC strings already booked. The
+    soonest peak window NOT in this set is returned, so concurrent items stagger
+    across distinct windows instead of colliding on one time.
     """
     from datetime import datetime, timedelta, timezone
     import pytz
 
+    exclude = set(exclude_times or [])
     pt = pytz.timezone('America/Los_Angeles')
     now_utc = datetime.now(timezone.utc)
     now_pt = now_utc.astimezone(pt)
-
-    # Minimum 75 minutes from now (eBay requires 1 hour, add buffer)
-    min_time = now_pt + timedelta(minutes=75)
+    min_time = now_pt + timedelta(minutes=75)  # eBay requires >= 1h; add buffer
 
     candidates = []
-    for day_offset in range(8):  # Check next 7 days
+    for day_offset in range(22):  # today .. 21 days ahead (eBay cap)
         check_date = now_pt + timedelta(days=day_offset)
         for dow, hour in PEAK_WINDOWS_PT:
             if check_date.weekday() == dow:
-                candidate = check_date.replace(hour=hour, minute=0, second=0, microsecond=0)
-                if candidate > min_time:
-                    candidates.append(candidate)
+                cand = check_date.replace(hour=hour, minute=0, second=0, microsecond=0)
+                if cand > min_time:
+                    candidates.append(cand)
+    candidates.sort()
 
-    if not candidates:
-        # Fallback: next Sunday 6 PM PT
-        days_until_sunday = (6 - now_pt.weekday()) % 7
-        if days_until_sunday == 0:
-            days_until_sunday = 7
-        fallback = (now_pt + timedelta(days=days_until_sunday)).replace(
-            hour=18, minute=0, second=0, microsecond=0
-        )
-        candidates.append(fallback)
+    for cand in candidates:
+        iso = cand.astimezone(timezone.utc).isoformat()
+        if iso not in exclude:
+            return iso
 
-    # Pick the soonest optimal window
-    best = min(candidates)
-    return best.astimezone(timezone.utc).isoformat()
+    # Every peak window within 21 days is booked: stagger off the soonest window
+    # in deterministic 20-minute steps so no two items collide.
+    base = candidates[0] if candidates else min_time
+    staggered = base + timedelta(minutes=20 * (len(exclude) + 1))
+    return staggered.astimezone(timezone.utc).isoformat()

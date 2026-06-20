@@ -271,9 +271,31 @@ class QueueManager:
             
         if self.on_job_added:
             self.on_job_added(job)
-            
+
         return job
 
+    def get_booked_schedule_times(self):
+        """Set of ISO-8601-UTC strings for every job that currently holds a schedule slot.
+
+        Normalized identically to get_next_optimal_listing_time() output (always +00:00)
+        so slot exclusion compares correctly regardless of how SQLite stored the value.
+        """
+        from datetime import timezone
+        session = self.SessionFactory()
+        try:
+            rows = session.query(self.JobModel.scheduled_time).filter(
+                self.JobModel.scheduled_time.isnot(None)
+            ).all()
+            out = set()
+            for (st,) in rows:
+                if not st:
+                    continue
+                if st.tzinfo is None:
+                    st = st.replace(tzinfo=timezone.utc)
+                out.add(st.astimezone(timezone.utc).isoformat())
+            return out
+        finally:
+            session.close()
 
     def update_job(self, job_id: str, updates: Dict[str, Any]) -> bool:
         """Update a job's fields directly in the database.
