@@ -32,6 +32,10 @@ def build_item_folder(image_paths, captures_dir):
         img.save(folder / f"{idx:02d}.jpg", 'JPEG', quality=90)
         saved += 1
     if saved == 0:
+        try:
+            folder.rmdir()  # don't leave an empty folder behind
+        except OSError:
+            pass
         raise ValueError("No readable images")
     return str(folder)
 
@@ -59,7 +63,10 @@ def capture(image_paths, api_base=None, captures_dir=None, poll_interval=3, poll
         prefix_warn = f"(warning: {extra} extra photo(s) dropped - eBay max 12) "
 
     folder = build_item_folder(image_paths, captures_dir)
-    resp = requests.post(f"{api_base}/api/capture", json={'path': folder}, timeout=30)
+    try:
+        resp = requests.post(f"{api_base}/api/capture", json={'path': folder}, timeout=30)
+    except requests.RequestException as e:
+        return f"Capture request failed: {e}"
     if resp.status_code != 200 or not resp.json().get('success'):
         return f"Capture failed: {resp.status_code} {resp.text[:200]}"
     job_id = resp.json()['job_id']
@@ -67,19 +74,28 @@ def capture(image_paths, api_base=None, captures_dir=None, poll_interval=3, poll
     deadline = time.time() + poll_timeout
     last = {}
     while time.time() < deadline:
-        g = requests.get(f"{api_base}/api/jobs/{job_id}", timeout=15)
+        try:
+            g = requests.get(f"{api_base}/api/job/{job_id}/details", timeout=15)
+        except requests.RequestException:
+            time.sleep(poll_interval)
+            continue
         if g.status_code == 200:
             last = g.json()
-            if str(last.get('status')) in TERMINAL_STATUSES:
+            if str(last.get('status', '')).lower() in TERMINAL_STATUSES:
                 break
         time.sleep(poll_interval)
 
-    status = str(last.get('status'))
+    status = str(last.get('status', '')).lower()
+    when = last.get('scheduled_time') or resp.json().get('scheduled_time')
     if status == 'failed':
         return f"Couldn't analyze the item (job {job_id}). Bad photos? Nothing scheduled."
-    title = last.get('user_title') or last.get('title') or '(untitled)'
-    price = last.get('price') or last.get('user_price') or '?'
-    when = last.get('scheduled_time') or resp.json().get('scheduled_time')
+    if status not in TERMINAL_STATUSES:
+        # Poll window elapsed before analysis finished. The slot was already assigned
+        # at capture time, so the item IS scheduled — just title/price aren't final yet.
+        return (f"{prefix_warn}Captured & scheduled for {when} (job {job_id}), "
+                f"still analyzing - title/price pending. Check Draft Commander, or 'cancel last' to undo.")
+    title = last.get('user_title') or last.get('ai_title') or '(untitled)'
+    price = last.get('user_price') or last.get('suggested_price') or '?'
     return f"{prefix_warn}Scheduled: {title} - ${price} - live {when} (job {job_id}). Reply 'cancel last' to undo."
 
 
