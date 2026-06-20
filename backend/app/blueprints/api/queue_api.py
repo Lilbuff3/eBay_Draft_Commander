@@ -1,6 +1,5 @@
 from flask import Blueprint, jsonify, request, current_app
 from datetime import datetime
-from pathlib import Path
 import threading
 from backend.app.blueprints.api.helpers import error_response
 from backend.app.core.validator import validate_safe_path, ValidationError
@@ -194,12 +193,20 @@ def capture_item():
         )
         booked = qm.get_booked_schedule_times()
         slot = get_next_optimal_listing_time(exclude_times=booked)
-        qm.update_job(job.id, {'scheduled_time': slot})
+        ok = qm.update_job(job.id, {'scheduled_time': slot})
+
+    if not ok:
+        logger.error(f"capture: job {job.id} created but scheduled_time write failed")
+        return jsonify({
+            'success': False,
+            'error': 'Job created but slot assignment failed',
+            'job_id': job.id,
+        }), 500
 
     logger.info(f"Captured job {job.id} scheduled for {slot}")
     return jsonify({
         'success': True,
         'job_id': job.id,
         'scheduled_time': slot,
-        'status': 'scheduled_pending_analysis',
+        'scheduled': True,
     })

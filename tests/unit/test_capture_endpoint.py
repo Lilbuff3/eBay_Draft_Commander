@@ -42,6 +42,7 @@ def test_capture_registers_job_and_assigns_slot(app):
     assert data['success'] is True
     assert data['job_id']
     assert data['scheduled_time']
+    assert data['scheduled'] is True
     job = app.queue_manager.get_job_by_id(data['job_id'])
     assert job is not None
     assert job.scheduled_time
@@ -97,3 +98,15 @@ def test_capture_two_items_get_distinct_slots(app):
     slot1 = resp1.get_json()['scheduled_time']
     slot2 = resp2.get_json()['scheduled_time']
     assert slot1 != slot2
+
+
+def test_capture_returns_500_if_slot_write_fails(app, monkeypatch):
+    captures = Path(app.config['CAPTURES_DIR'])
+    item = _make_item(captures)
+    monkeypatch.setattr(app.queue_manager, 'update_job', lambda *a, **k: False)
+    client = app.test_client()
+    resp = client.post('/api/capture', json={'path': str(item)})
+    assert resp.status_code == 500
+    data = resp.get_json()
+    assert data['success'] is False
+    assert data['job_id']
