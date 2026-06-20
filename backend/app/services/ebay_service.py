@@ -38,6 +38,10 @@ class eBayService:
         """
         return self.trading_service.add_fixed_price_item(item_data, schedule_time)
 
+    def end_listing(self, item_id: str) -> Dict[str, Any]:
+        """End a live or scheduled fixed-price listing by its eBay ItemID."""
+        return self.trading_service.end_fixed_price_item(item_id)
+
     # --- Connection Check --- 
     
     def check_connection_status(self) -> Tuple[Dict[str, str], int]:

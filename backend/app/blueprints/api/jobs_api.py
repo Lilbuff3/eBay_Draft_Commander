@@ -6,6 +6,7 @@ import uuid
 from werkzeug.utils import secure_filename
 from backend.app.blueprints.api.helpers import error_response
 from backend.app.services.image_service import ImageService
+from backend.app.services.ebay_service import eBayService
 from backend.app.core.constants import SUPPORTED_IMAGE_EXTENSIONS, EBAY_FINAL_VALUE_FEE_RATE, EBAY_PAYMENT_PROCESSING_FEE
 from backend.app.core.validator import validate_price, validate_title, validate_isbn, validate_condition, is_allowed_image_file, ValidationError
 from backend.app.core.logger import get_logger
@@ -280,6 +281,27 @@ def update_job_metadata(job_id):
             qm.start_processing()
 
     return jsonify({'success': True, 'message': 'Job updated'})
+
+@jobs_bp.route('/jobs/<job_id>/cancel', methods=['POST'])
+def cancel_job(job_id):
+    """Cancel a captured/scheduled item: end its eBay listing (if any), remove the job."""
+    qm = current_app.queue_manager
+    job = qm.get_job_by_id(job_id)
+    if not job:
+        return error_response('Job not found', 404)
+
+    listing_id = getattr(job, 'listing_id', None)
+    if listing_id:
+        try:
+            ended = eBayService().end_listing(str(listing_id))
+        except Exception as e:
+            logger.exception("cancel_job: end_listing failed")
+            return error_response(f'Failed to end eBay listing: {e}', 502)
+        if isinstance(ended, dict) and not ended.get('success', True):
+            return error_response(f"eBay end failed: {ended.get('error')}", 502)
+
+    qm.remove_job(job_id, delete_folder=True)
+    return jsonify({'success': True, 'job_id': job_id, 'ebay_ended': bool(listing_id)})
 
 @jobs_bp.route('/jobs/bulk-update', methods=['POST'])
 def bulk_update_jobs():
