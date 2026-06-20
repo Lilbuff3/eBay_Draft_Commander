@@ -54,6 +54,10 @@ class Config:
     DATA_DIR = BASE_DIR / 'data'
     INBOX_DIR = Path(os.environ.get('INBOX_PATH', BASE_DIR / 'inbox'))
 
+    # Hermes WhatsApp capture intake — sibling directory next to inbox/
+    CAPTURES_DIR = INBOX_DIR.parent / 'captures'
+    CAPTURES_DIR.mkdir(parents=True, exist_ok=True)
+
     FRONTEND_DIR = BASE_DIR / 'frontend' / 'dist'
     
     # feature flags and limits...
