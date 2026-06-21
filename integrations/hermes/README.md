@@ -1,8 +1,14 @@
 # Hermes → Draft Commander capture
 
-Bridge that turns photos sent to a dedicated Hermes WhatsApp chat into eBay **scheduled**
-listings, using Draft Commander (DC) as the unchanged engine. Hermes = capture + notify;
-DC = analyze + schedule. See the design/plan under `docs/superpowers/`.
+Bridge that turns WhatsApp photos into eBay **scheduled** listings, using Draft Commander
+(DC) as the unchanged engine. Hermes = capture + notify; DC = analyze + schedule. See the
+design/plan under `docs/superpowers/`.
+
+## Mode: WhatsApp self-chat + keyword
+This Hermes runs in WhatsApp **self-chat mode** — it watches your "Message yourself" chat,
+not a separate number. To avoid every photo becoming a listing, capture is gated by a
+**caption keyword**: only photos you caption with **"sell"** are listed. (No
+`EBAY_CAPTURE_CHAT_ID` is needed in this mode — the keyword is the gate.)
 
 ## Components
 - `capture_to_dc.py` — the bridge script (version-controlled + unit-tested here). Normalizes an
@@ -15,22 +21,20 @@ DC = analyze + schedule. See the design/plan under `docs/superpowers/`.
    `C:\Users\adam\AppData\Local\hermes\skills\productivity\ebay-capture\SKILL.md`
    (copy of `integrations/hermes/SKILL.md`).
 2. Add to `C:\Users\adam\AppData\Local\hermes\.env`:
-   - `DC_REPO=C:\Users\adam\Projects\ebay-draft-commander`
+   - `DC_REPO=C:/Users/adam/Projects/ebay-draft-commander`
    - `DC_API_BASE=http://127.0.0.1:5000`
-   - `DC_CAPTURES_DIR=C:\Users\adam\Projects\ebay-draft-commander\captures`
-     (must match DC's `CAPTURES_DIR`, which is `<repo>/captures` — a sibling of `inbox/`.
-     If you set `INBOX_PATH` in DC's `.env`, captures becomes `<INBOX_PATH>/../captures`; keep these in sync.)
-   - `EBAY_CAPTURE_CHAT_ID=<the WhatsApp chat/group id to dedicate as the eBay inbox>`
+   - `DC_CAPTURES_DIR=C:/Users/adam/Projects/ebay-draft-commander/captures`
+     (must match DC's `CAPTURES_DIR` = `<repo>/captures`, a sibling of `inbox/`.)
 3. Make sure the python Hermes invokes can import `pillow` and `requests`
    (use DC's venv, or `uv pip install pillow requests`).
-4. Find the chat id in Hermes' `channel_directory.json` after sending one message from the
-   chat you want to dedicate.
+4. Restart Hermes so it loads the new skill.
 
 ## Use
-- Send an item's photos (one WhatsApp message) to the dedicated eBay chat → you get a status line
-  back with a `job <id>`. The listing is scheduled into the next eBay peak window; review/edit it in
+- In WhatsApp on the linked number, open **"Message yourself"** and send an item's photos
+  in one message with a caption containing **"sell"** → you get a status line back with a
+  `job <id>`. The listing is scheduled into the next eBay peak window; review/edit it in
   Seller Hub before it goes live.
-- Reply "cancel last" → ends the eBay listing (if created) and removes the DC job.
+- Reply **"cancel last"** → ends the eBay listing (if created) and removes the DC job.
 
 ## Requires
 - Draft Commander running: `python backend/wsgi.py` (port 5000).

@@ -1,6 +1,6 @@
 ---
 name: ebay-capture
-description: Use when a photo arrives in the dedicated eBay chat. Turns that message's photos into one eBay scheduled listing via Draft Commander, and supports "cancel last" to undo the most recent one.
+description: Use when a photo captioned "sell" arrives in the WhatsApp self-chat. Turns that message's photos into one eBay scheduled listing via Draft Commander; supports "cancel last".
 version: 1.0.0
 author: Adam
 license: MIT
@@ -13,52 +13,47 @@ metadata:
 # eBay Capture
 
 ## Overview
-Bridge incoming WhatsApp photos into eBay **scheduled** listings via Draft Commander (DC).
-One message = one item. Only photos posted in the dedicated eBay chat are processed — photos
-in any other chat are left to Hermes' other skills. DC runs the full AI pipeline and schedules
-the listing into an eBay peak-traffic window; you review/edit it in eBay Seller Hub before it
-goes live.
+Turn WhatsApp photos into eBay **scheduled** listings via Draft Commander (DC). This Hermes
+runs in WhatsApp **self-chat mode**, so it watches your note-to-self chat. To avoid every
+photo becoming a listing, the trigger is a **caption keyword**: only photos you caption with
+**"sell"** are listed. One message = one item. DC schedules the listing into an eBay peak
+window; review/edit it in Seller Hub before it goes live.
 
 ## When to Use
-- A photo message arrives in the chat whose id equals `EBAY_CAPTURE_CHAT_ID` (from `~/.hermes/.env`).
-- The user says "cancel last" / "undo last" in that chat.
-- **Don't use for:** photos in any other chat — ignore them, they belong to other skills.
+- A self-chat message has **one or more photos AND a caption/text containing the word
+  "sell"** (case-insensitive). That message = one item.
+- The user says **"cancel last"** / "undo last".
+- **Don't use for:** photos WITHOUT a "sell" caption (ignore them / leave for other skills),
+  or any text that isn't a cancel request.
 
 ## Capture a new item
-1. Confirm the message's channel id equals `EBAY_CAPTURE_CHAT_ID`. If it does not, do nothing.
+1. Confirm the message has at least one image AND its caption/text contains "sell". If not, do nothing here.
 2. Collect ALL image attachments of THIS message, in order, and resolve their on-disk paths.
-3. Run the bridge via the `terminal` tool, passing the image paths as arguments
-   (`DC_API_BASE` and `DC_CAPTURES_DIR` are read from the environment by the script):
+3. Run the bridge via the `terminal` tool (DC_API_BASE / DC_CAPTURES_DIR are read from `~/.hermes/.env`):
    ```
    python "%DC_REPO%\integrations\hermes\capture_to_dc.py" <path1> <path2> ...
    ```
-   (PowerShell: use `$env:DC_REPO`. The script needs `requests` + `pillow` importable —
-   point it at DC's venv python if those aren't on the default interpreter.)
-4. The script prints a single status line to stdout. Send that line back to the chat verbatim.
-   It will be one of:
+   (PowerShell: use `$env:DC_REPO`. The python must have `requests` + `pillow`.)
+4. The script prints ONE status line to stdout. Reply with that line **verbatim** — do not embellish it:
    - `Scheduled: <title> - $<price> - live <time> (job <id>). Reply 'cancel last' to undo.`
    - `Captured & scheduled for <time> (job <id>), still analyzing - title/price pending. ...`
-   - `Couldn't analyze the item (job <id>). ...` / `Draft Commander is offline. ...`
-5. Remember the most recent `job <id>` from a successful line — you'll need it for "cancel last".
+   - `Couldn't analyze ...` / `Draft Commander is offline. ...`
+5. Remember the most recent `job <id>` from a success line — needed for "cancel last".
 
 ## Cancel last
-1. Recall the most recent `job_id` you captured in this chat (from the prior status line).
-2. Run via `terminal`:
-   ```
-   curl -X POST "%DC_API_BASE%/api/jobs/<job_id>/cancel"
-   ```
-3. On `{"success": true}`, reply "Cancelled <job_id>." On failure, relay the error.
+1. Recall the most recent `job_id` from the prior status line.
+2. `terminal`: `curl -X POST "%DC_API_BASE%/api/jobs/<job_id>/cancel"`
+3. On `{"success": true}` reply "Cancelled <job_id>."; otherwise relay the error.
 
 ## Common Pitfalls
-1. Processing photos from the wrong chat — only `EBAY_CAPTURE_CHAT_ID` is in scope.
-2. Splitting one item across multiple messages — each message is a separate item.
-3. Reporting "Scheduled" when the script returned the "still analyzing" line — send the
-   actual stdout line; don't paraphrase it into a stronger claim.
-4. DC not running — the script returns an offline message; tell the user to start DC, photos are not lost.
-5. More than 12 photos in one message — eBay caps at 12; the script keeps the first 12 (cover = first) and warns.
+1. Listing a photo that wasn't meant to sell — require the "sell" caption every time.
+2. Splitting one item across messages — each message is a separate item; put all of an item's photos in one captioned message.
+3. Paraphrasing the script output into a stronger claim — send the actual stdout line ("still analyzing" is NOT "Scheduled").
+4. DC not running — the script returns an offline message; start DC (`python backend/wsgi.py`), photos aren't lost.
+5. More than 12 photos — eBay caps at 12; the script keeps the first 12 (cover = first photo) and warns.
 
 ## Verification Checklist
-- [ ] A photo in the eBay chat yields a status line containing a `job <id>`.
-- [ ] The reply matches the script's stdout exactly (no embellishment).
-- [ ] "cancel last" removes the most recent scheduled item (Seller Hub no longer shows it).
-- [ ] A photo in a different chat is ignored by this skill.
+- [ ] A photo captioned "sell" in the self-chat yields a status line with a `job <id>`.
+- [ ] A photo with NO "sell" caption is ignored by this skill.
+- [ ] The reply matches the script's stdout exactly.
+- [ ] "cancel last" removes the most recent scheduled item (gone from Seller Hub).
