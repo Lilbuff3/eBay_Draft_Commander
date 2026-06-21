@@ -185,23 +185,20 @@ def capture_item():
 
     qm = current_app.queue_manager
     with _capture_lock:
+        # Compute the slot FIRST, then create the job already holding it, so the
+        # job is persisted with its scheduled_time in a single transaction. If we
+        # created the job slotless and assigned the slot in a second write, the
+        # background worker could grab the pending job in between and fall back to
+        # its own un-staggered scheduling — defeating the exclude_times staggering.
         batch_id = f"hermes_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        booked = qm.get_booked_schedule_times()
+        slot = get_next_optimal_listing_time(exclude_times=booked)
         job = qm.add_folder(
             str(src),
             metadata={'capture_source': 'hermes'},
             batch_id=batch_id,
+            scheduled_time=slot,
         )
-        booked = qm.get_booked_schedule_times()
-        slot = get_next_optimal_listing_time(exclude_times=booked)
-        ok = qm.update_job(job.id, {'scheduled_time': slot})
-
-    if not ok:
-        logger.error(f"capture: job {job.id} created but scheduled_time write failed")
-        return jsonify({
-            'success': False,
-            'error': 'Job created but slot assignment failed',
-            'job_id': job.id,
-        }), 500
 
     if not qm.is_processing() and not qm.is_paused():
         qm.start_processing()

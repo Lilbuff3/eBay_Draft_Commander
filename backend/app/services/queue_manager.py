@@ -225,27 +225,32 @@ class QueueManager:
                 time.sleep(300) # Retry sooner on error
     # ... existing methods ...
 
-    def add_folder(self, folder_path: str, metadata: dict = None, batch_id: str = None) -> QueueJob:
+    def add_folder(self, folder_path: str, metadata: dict = None, batch_id: str = None, scheduled_time: str = None) -> QueueJob:
         """
         Add a folder to the queue.
-        
+
         Args:
             folder_path: Path to the item folder
             metadata: Optional job metadata (e.g. condition)
             batch_id: Optional ID to group this job into a batch
-            
+            scheduled_time: Optional ISO-8601 schedule slot. Set on the job
+                before the initial commit so the job is persisted with its slot
+                atomically — the background worker can never observe it slotless.
+
         Returns:
             The created QueueJob
         """
         path_obj = Path(folder_path)
         job_id = str(uuid.uuid4())[:8]
-        
+
         job = QueueJob(
             id=job_id,
             folder_path=str(path_obj),
             folder_name=path_obj.name,
             batch_id=batch_id
         )
+        if scheduled_time:
+            job.scheduled_time = scheduled_time
         if metadata:
             job.job_metadata.update(metadata)
             if 'condition' in metadata:

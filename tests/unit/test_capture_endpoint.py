@@ -102,16 +102,22 @@ def test_capture_two_items_get_distinct_slots(app, monkeypatch):
     assert slot1 != slot2
 
 
-def test_capture_returns_500_if_slot_write_fails(app, monkeypatch):
+def test_capture_returns_500_if_add_folder_fails(app, monkeypatch):
+    """Slot is now assigned atomically inside add_folder. If add_folder fails,
+    no slotless job is left behind and the request surfaces a 500 via the
+    blueprint error handler."""
     captures = Path(app.config['CAPTURES_DIR'])
     item = _make_item(captures)
-    monkeypatch.setattr(app.queue_manager, 'update_job', lambda *a, **k: False)
+
+    def _boom(*a, **k):
+        raise RuntimeError('db write failed')
+
+    monkeypatch.setattr(app.queue_manager, 'add_folder', _boom)
     client = app.test_client()
     resp = client.post('/api/capture', json={'path': str(item)})
     assert resp.status_code == 500
     data = resp.get_json()
-    assert data['success'] is False
-    assert data['job_id']
+    assert data['error'] == 'Internal server error'
 
 
 def test_capture_starts_queue_when_idle(app, monkeypatch):
