@@ -467,6 +467,22 @@ class ProcessorService:
         )
         result["timing"]["pricing"] = pricing_result["timing"]
 
+        # Price floor guard: weak pricing signals (e.g. eBay comp-scraper 403 -> no comps ->
+        # AI estimate defaulting to 0) can yield an invalid/too-low price that eBay rejects
+        # with Trading API error 73 ("below the minimum price of FIXED_PRICE"). Clamp to
+        # DEFAULT_PRICE so the listing still succeeds; flag it so the user can review.
+        from backend.app.core.constants import MIN_LISTING_PRICE
+        try:
+            _priced = float(pricing_result.get("price") or 0)
+        except (TypeError, ValueError):
+            _priced = 0.0
+        if _priced < MIN_LISTING_PRICE:
+            _fallback_price = float(os.getenv('DEFAULT_PRICE', '29.99'))
+            _log(f"Price ${_priced:.2f} below floor ${MIN_LISTING_PRICE} (weak pricing signal) "
+                 f"-> using DEFAULT_PRICE ${_fallback_price:.2f}; review before go-live", level='warning')
+            pricing_result["price"] = _fallback_price
+            pricing_result["price_floored"] = True
+
         # Persist pricing comps and reasoning for user inspection
         ai_data = job_obj.ai_data or {}
         ai_data['pricing_comps'] = pricing_result.get('comps', [])
