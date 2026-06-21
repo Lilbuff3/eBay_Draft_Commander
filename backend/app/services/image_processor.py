@@ -73,6 +73,13 @@ class ImageProcessor:
             if fixtures_dir.exists():
                 allowed_dirs.append(fixtures_dir.resolve())
 
+            # Also allow the Hermes capture intake dir (config.CAPTURES_DIR; sibling of inbox)
+            captures_env = os.getenv('CAPTURES_DIR')
+            if captures_env:
+                allowed_dirs.append(Path(captures_env).resolve())
+            elif inbox_dir:
+                allowed_dirs.append((Path(inbox_dir).resolve().parent / 'captures').resolve())
+
             if allowed_dirs and not any(folder_path == d or folder_path.is_relative_to(d) for d in allowed_dirs):
                 raise ValueError(f"Image folder outside allowed directories: {folder_path}")
 
