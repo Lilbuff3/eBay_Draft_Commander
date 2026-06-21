@@ -1,8 +1,9 @@
 """Hermes -> Draft Commander capture bridge.
 
-Invoked by the Hermes 'ebay-capture' skill with the inbound photo paths for ONE item.
-Normalizes images to ordered JPEGs, writes them to DC's captures dir, POSTs /api/capture,
-polls the job to completion, and returns a WhatsApp-ready status line.
+Invoked by the Hermes 'ebay-capture' plugin (pre_gateway_dispatch hook) with the inbound
+photo paths for ONE item, or with --cancel to undo the last capture. Normalizes images to
+ordered JPEGs, writes them to DC's captures dir, POSTs /api/capture, polls the job, and
+returns a WhatsApp-ready status line (also posted back to the chat via --chat-id).
 """
 import os
 import sys
@@ -70,6 +71,10 @@ def capture(image_paths, api_base=None, captures_dir=None, poll_interval=3, poll
     if resp.status_code != 200 or not resp.json().get('success'):
         return f"Capture failed: {resp.status_code} {resp.text[:200]}"
     job_id = resp.json()['job_id']
+    try:
+        (Path(captures_dir) / '.last_job').write_text(job_id, encoding='utf-8')
+    except OSError:
+        pass
 
     deadline = time.time() + poll_timeout
     last = {}
@@ -99,9 +104,61 @@ def capture(image_paths, api_base=None, captures_dir=None, poll_interval=3, poll
     return f"{prefix_warn}Scheduled: {title} - ${price} - live {when} (job {job_id}). Reply 'cancel last' to undo."
 
 
+def send_whatsapp(message, chat_id, bridge_port=3000):
+    """Reply into the WhatsApp chat via the local Hermes bridge /send endpoint."""
+    try:
+        requests.post(f"http://127.0.0.1:{bridge_port}/send",
+                      json={'chatId': chat_id, 'message': message}, timeout=15)
+    except requests.RequestException as e:
+        print(f"send_whatsapp failed: {e}", file=sys.stderr)
+
+
+def cancel_last(api_base=None, captures_dir=None):
+    """Cancel the most recently captured job, read from <captures_dir>/.last_job."""
+    api_base = api_base or DEFAULT_API_BASE
+    captures_dir = captures_dir or DEFAULT_CAPTURES_DIR
+    marker = (Path(captures_dir) / '.last_job') if captures_dir else None
+    if not marker or not marker.exists():
+        return "Nothing to cancel."
+    job_id = marker.read_text(encoding='utf-8').strip()
+    if not job_id:
+        return "Nothing to cancel."
+    try:
+        r = requests.post(f"{api_base}/api/jobs/{job_id}/cancel", timeout=30)
+    except requests.RequestException as e:
+        return f"Cancel request failed: {e}"
+    if r.status_code == 200 and r.json().get('success'):
+        try:
+            marker.unlink()
+        except OSError:
+            pass
+        return f"Cancelled {job_id}."
+    return f"Cancel failed for {job_id}: {r.status_code} {r.text[:160]}"
+
+
 if __name__ == '__main__':
+    import argparse
     try:
         sys.stdout.reconfigure(encoding='utf-8')
     except Exception:
         pass
-    print(capture(sys.argv[1:]))
+    parser = argparse.ArgumentParser(description="Hermes -> Draft Commander eBay capture bridge")
+    parser.add_argument('images', nargs='*', help="image file paths for ONE item")
+    parser.add_argument('--chat-id', default=None, help="WhatsApp chat id to reply into")
+    parser.add_argument('--bridge-port', default='3000', help="Hermes WhatsApp bridge port")
+    parser.add_argument('--cancel', action='store_true', help="cancel the last captured listing")
+    args = parser.parse_args()
+
+    def reply(msg):
+        print(msg)
+        if args.chat_id:
+            send_whatsapp(msg, args.chat_id, args.bridge_port)
+
+    if args.cancel:
+        reply(cancel_last())
+    elif not args.images:
+        reply("No images provided.")
+    else:
+        if args.chat_id:  # immediate ack so the user isn't left hanging during analysis
+            send_whatsapp("Got it - capturing & scheduling your listing...", args.chat_id, args.bridge_port)
+        reply(capture(args.images))

@@ -1,0 +1,6 @@
+name: ebay-capture
+version: 1.0.0
+description: Run the eBay capture bridge deterministically on WhatsApp photos captioned "sell".
+author: Adam
+kind: standalone
+provides_hooks: [pre_gateway_dispatch]
