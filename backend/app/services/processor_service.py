@@ -4,6 +4,7 @@ Consolidates logic for creating eBay listings from folder items.
 Refactored to delegate core tasks to ListingAIAgent and ImageProcessor.
 """
 import os
+import re
 import uuid
 import time
 from pathlib import Path
@@ -31,6 +32,44 @@ from backend.app.core.constants import (
 )
 
 logger = get_logger('processor_service')
+
+# A single leading positive number, optionally followed by a letter/symbol unit
+# ("7", "7.5", "12 oz", "3ct", "8 oz/yd²"). Rejects ranges ("7-8"), descriptive
+# text ("Mid-weight"), and "Does Not Apply".
+_NUMERIC_ASPECT_RE = re.compile(r'^\s*([0-9]+(?:\.[0-9]+)?)\s*[A-Za-z²/.]*\s*$')
+
+
+def sanitize_numeric_aspects(specifics: dict, schema: list, log=None) -> None:
+    """Coerce or drop NUMBER-typed eBay item specifics in place.
+
+    eBay's Trading API rejects a listing (error 21919323) when an aspect whose
+    category dataType is NUMBER carries a non-numeric value — e.g. the AI emitting
+    Fabric Weight = "Mid-weight (approx. 7-8 oz)". For each such aspect we keep a
+    clean positive number (rounded to 1 decimal, per eBay's format rule) or drop the
+    aspect entirely. Mutates `specifics`; returns None.
+    """
+    if not schema:
+        return
+    numeric_names = {a.get('name') for a in schema
+                     if (a.get('type') or '').upper() == 'NUMBER' and a.get('name')}
+    for name in list(specifics.keys()):
+        if name not in numeric_names:
+            continue
+        raw = specifics[name]
+        val = raw[0] if isinstance(raw, list) else raw
+        match = _NUMERIC_ASPECT_RE.match(str(val)) if val is not None else None
+        num = float(match.group(1)) if match else 0.0
+        if match and num > 0:
+            rounded = round(num, 1)
+            coerced = str(int(rounded)) if rounded == int(rounded) else str(rounded)
+            if coerced != str(val) and log:
+                log(f"Coerced numeric aspect: {name} = '{val}' -> '{coerced}'")
+            specifics[name] = coerced
+        else:
+            del specifics[name]
+            if log:
+                log(f"Dropped non-numeric value for NUMBER aspect '{name}': '{val}'")
+
 
 class ProcessorService:
     def __init__(self):
@@ -605,6 +644,11 @@ class ProcessorService:
                 from backend.app.core.constants import get_next_optimal_listing_time
                 listing_schedule_time = get_next_optimal_listing_time()
                 _log(f"Auto-scheduled for peak traffic: {listing_schedule_time}")
+
+        # Final gate: NUMBER-typed aspects must be a clean positive number or eBay
+        # rejects the whole listing (error 21919323). Runs after all enrich/backfill/
+        # resolve passes so a late text value (e.g. "Does Not Apply") can't slip through.
+        sanitize_numeric_aspects(analysis['item_specifics'], ebay_aspect_schema, log=_log)
 
         bundle = self._create_trading_api_listing(
             title=analysis['title'], final_price=pricing_result["price"], condition=condition,

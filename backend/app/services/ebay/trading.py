@@ -23,9 +23,11 @@ def build_shipping_package_xml(weight_lbs) -> str:
     if minor == 16:  # rounding pushed oz to a full pound
         major += 1
         minor = 0
+    # No <MeasurementSystem>: eBay's AddFixedPriceItem schema doesn't declare it here
+    # (Trading API warning 21927 — "not a declared element ... will be ignored"). The
+    # unit is already carried on the WeightMajor/WeightMinor attributes.
     return (
         "<ShippingPackageDetails>"
-        "<MeasurementSystem>English</MeasurementSystem>"
         f'<WeightMajor unit="lbs">{major}</WeightMajor>'
         f'<WeightMinor unit="oz">{minor}</WeightMinor>'
         "</ShippingPackageDetails>"
