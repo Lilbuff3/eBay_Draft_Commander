@@ -341,25 +341,48 @@ class PricingEngine:
         search_terms = "+".join(title.split()[:6])
         return f"https://www.ebay.com/sch/i.html?_nkw={quote(search_terms)}&LH_Complete=1&LH_Sold=1"
     
-    def get_ai_price_estimate(self, title: str, condition: str) -> Optional[Dict[str, Union[float, str]]]:
-        """Estimate price using Gemini with Google Search grounding"""
+    def get_ai_price_estimate(self, title: str, condition: str, identification: Optional[Dict] = None) -> Optional[Dict[str, Union[float, str]]]:
+        """Estimate price using Gemini with Google Search grounding.
+
+        identification (brand/model/mpn/part numbers) is woven into the prompt so the model
+        can search for the EXACT item — the single biggest factor for obscure/industrial parts.
+        """
         if not self.ai_client:
             return None
-            
+
         try:
             from google.genai import types
-            
+
             # IMPORTANT: Search Grounding + JSON Mode often conflicts (INVALID_ARGUMENT).
             # We must use TEXT mode and parse the JSON out manually.
-            
+
+            # Identifier block — part numbers/MPN are the best way to find an obscure item.
+            ident = identification or {}
+            _id_lines = []
+            for _label, _key in (("Brand", "brand"), ("Model", "model"), ("MPN", "mpn")):
+                _v = ident.get(_key)
+                if _v:
+                    _id_lines.append(f"{_label}: {_v}")
+            _parts = [str(p) for p in ((ident.get('oem_part_numbers') or []) + (ident.get('alternative_part_numbers') or [])) if p]
+            if _parts:
+                _id_lines.append("Part numbers (search these EXACT numbers): " + ", ".join(_parts[:6]))
+            identifier_block = "\n            ".join(_id_lines) if _id_lines else "(no specific identifiers extracted)"
+
             prompt = f"""You are a High-End Industrial Appraiser and eBay Pricing Strategist.
             The user has an item that may be rare, industrial, or undervalued.
             Do NOT default to a low price just because direct sales data is scarce.
+            NEVER return 0 or a token price: if you cannot find the exact item, estimate from the
+            closest comparable or from its category/MSRP and explain. Always justify a positive price.
             IMPORTANT: Return the BASE market value only. Do NOT include ANY shipping
             costs or shipping buffers. Shipping is handled separately by the caller.
 
             Item Title: {title}
             Condition: {condition}
+            Identifiers:
+            {identifier_block}
+
+            Use the EXACT part numbers / MPN above in your web searches first — they are the single
+            best way to find this specific item's market price.
             
             YOUR MISSION: Determine the maximum realistic list price.
             
@@ -640,7 +663,7 @@ class PricingEngine:
             grounded_result = None
         else:
             logger.info(f"[SEARCH] Performing AI Market Research (Gemini Grounding)...")
-            grounded_result = self.get_ai_price_estimate(title, condition)
+            grounded_result = self.get_ai_price_estimate(title, condition, identification=identification)
         if grounded_result:
             ai_price = grounded_result['price']
             ai_reasoning = grounded_result.get('reasoning', "Researched via Gemini")
