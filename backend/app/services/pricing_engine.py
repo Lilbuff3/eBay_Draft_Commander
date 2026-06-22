@@ -500,10 +500,10 @@ class PricingEngine:
         3. First 8 words of title (last resort)
         """
         if identification:
-            brand = identification.get('brand', '').strip()
-            mpn = identification.get('mpn', '').strip()
-            model = identification.get('model', '').strip()
-            product_type = identification.get('product_type', '').strip()
+            brand = (identification.get('brand') or '').strip()
+            mpn = (identification.get('mpn') or '').strip()
+            model = (identification.get('model') or '').strip()
+            product_type = (identification.get('product_type') or '').strip()
 
             # Strategy: brand + mpn + product_type
             if brand and mpn:
