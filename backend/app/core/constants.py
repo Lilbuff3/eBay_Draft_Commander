@@ -78,7 +78,7 @@ AI_PRICING_MODEL = os.getenv('AI_PRICING_MODEL', 'gemini-3-flash-preview')  # Pr
 
 # No-blocks engine: minimum confidence to accept a model-guessed required aspect.
 # Deliberately low — a best-guess on an editable/scheduled listing beats blocking.
-ASPECT_RESOLVE_CONFIDENCE_FLOOR = 0.45
+ASPECT_RESOLVE_CONFIDENCE_FLOOR = 0.65
 
 # --- Pricing Constants ---
 EBAY_FINAL_VALUE_FEE_RATE = 0.1325       # 13.25% eBay final value fee

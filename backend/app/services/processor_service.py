@@ -160,33 +160,38 @@ class ProcessorService:
         return current_condition
 
     @staticmethod
-    def _backfill_aspects_from_text(required_aspects: list, specifics: dict, text: str) -> list:
-        """Fill missing required aspects from listing text against each aspect's
-        own allowed-value list. Category-agnostic: Color picks 'Black' from the
-        title, Department picks 'Men' from "Men's", US Shoe Size picks '9.5'
-        from 'Size 9.5'. The AI tends to extract niche specifics while missing
-        these basics that sit in the title.
-
-        Word aspects (Color, Department): pick the earliest allowed value in the
-        text (title order ~ dominance), longest on a tie. Word-boundary matching
-        avoids 'Men' matching 'Women'.
-
-        Size aspects (name contains 'size'): a bare number in a title is usually
-        a model/style code ("Romaleos 4"), so the value is only taken when it
-        directly follows a size cue ("Size 9.5", "Sz 9.5") — never guessed from
-        a loose number. Existing values are never overwritten. Returns
-        [(name, value)].
+    def _backfill_aspects_from_text(aspect_schema: list, specifics: dict, text: str) -> list:
+        """Fill missing required and optional aspects from listing text against each aspect's
+        own allowed-value list. Category-agnostic: Brand, Model, Color, Department, etc.
+        Existing values are never overwritten. Returns [(name, value)].
         """
         import re
         filled = []
         text_l = f" {(text or '').lower()} "
-        for aspect in required_aspects:
+        
+        # Tokenize and clean text into lowercase words for O(1) n-gram set lookup
+        words = re.findall(r'\b[\w.-]+\b', (text or '').lower())
+        
+        # Generate n-grams (unigrams, bigrams, trigrams) with their word indexes
+        ngrams = []
+        for i in range(len(words)):
+            # Unigram
+            ngrams.append((words[i], i))
+            # Bigram
+            if i < len(words) - 1:
+                ngrams.append((f"{words[i]} {words[i+1]}", i))
+            # Trigram
+            if i < len(words) - 2:
+                ngrams.append((f"{words[i]} {words[i+1]} {words[i+2]}", i))
+
+        for aspect in aspect_schema:
             name = aspect.get('name')
             if not name or specifics.get(name):
                 continue
             values = aspect.get('values') or []
             if not values:
                 continue
+            
             allowed_lower = {str(v).lower(): v for v in values if str(v)}
             chosen = None
 
@@ -196,13 +201,21 @@ class ProcessorService:
                 if m:
                     chosen = allowed_lower.get(m.group(1))
             else:
+                # Fast O(N) n-gram set lookup
                 matches = []  # (position, -length, original)
-                for low, orig in allowed_lower.items():
-                    # Optional plural/possessive so 'Men' matches "Mens"/"Men's".
-                    mm = re.search(r"(?<![\w.])" + re.escape(low) + r"(?:'?s)?(?![\w.])", text_l)
-                    if mm:
-                        matches.append((mm.start(), -len(low), orig))
+                for ngram, pos in ngrams:
+                    # Check plural/possessive fallback for exact matches (e.g. "mens" / "men's" -> "men")
+                    orig = allowed_lower.get(ngram)
+                    if not orig and ngram.endswith('s'):
+                        # Try stripping possessive 's or trailing s
+                        stripped = ngram[:-2] if ngram.endswith("'s") else ngram[:-1]
+                        orig = allowed_lower.get(stripped)
+                    
+                    if orig:
+                        matches.append((pos, -len(ngram), orig))
+                
                 if matches:
+                    # Sort by earliest position (first), then by longest match length (longest)
                     matches.sort()
                     chosen = matches[0][2]
 
@@ -210,6 +223,63 @@ class ProcessorService:
                 specifics[name] = chosen
                 filled.append((name, chosen))
         return filled
+
+    def _map_research_specs_to_aspects(self, aspect_schema: list, specifics: dict, research_specs: dict, _log=None) -> None:
+        """Map research specifications programmatically to eBay aspect schema.
+        
+        For each aspect in the schema that is not yet filled in specifics,
+        we check if any key in research_specs matches the aspect name (case-insensitively,
+        ignoring underscores and spaces). If a match is found:
+        - If the aspect has allowed values, check if the research value matches
+          or can be fuzzy matched/sub-string matched.
+        - If the aspect is free-text, map the value directly.
+        """
+        import re
+        if not research_specs or not aspect_schema:
+            return
+
+        # Build lookup of clean aspect names to their original names and allowed values
+        schema_lookup = {}
+        for aspect in aspect_schema:
+            name = aspect.get('name')
+            if not name:
+                continue
+            clean_name = re.sub(r'[\s_-]+', '', name.lower())
+            schema_lookup[clean_name] = aspect
+
+        for key, val in research_specs.items():
+            if not val or not isinstance(val, str):
+                continue
+            clean_key = re.sub(r'[\s_-]+', '', key.lower())
+            aspect = schema_lookup.get(clean_key)
+            if not aspect:
+                continue
+            
+            name = aspect['name']
+            # Don't overwrite existing specifics
+            if name in specifics and specifics[name]:
+                continue
+
+            allowed_values = aspect.get('values') or []
+            if allowed_values:
+                # Find matching value in allowed list
+                val_lower = val.lower()
+                matched_val = None
+                for allowed in allowed_values:
+                    allowed_lower = allowed.lower()
+                    if val_lower == allowed_lower or val_lower in allowed_lower:
+                        matched_val = allowed
+                        break
+                
+                if matched_val:
+                    specifics[name] = matched_val
+                    if _log:
+                        _log(f"Mapped research spec (allowed): {name} = '{val}' -> '{matched_val}'")
+            else:
+                # Free text aspect
+                specifics[name] = val[:65]
+                if _log:
+                    _log(f"Mapped research spec (free text): {name} = '{val}'")
 
     def _validate_and_enrich_specifics(self, category_id: str, specifics: dict, _log=None) -> list:
         """
@@ -436,6 +506,15 @@ class ProcessorService:
         ebay_aspect_schema = self._validate_and_enrich_specifics(
             cat_result.get('id'), analysis['item_specifics'], _log=_log
         )
+        # 4bc. Programmatic research spec mapper: fill empty specifics from web research before AI second pass
+        research_specs = (job_obj.ai_data or {}).get('research', {}).get('specifications')
+        if research_specs and ebay_aspect_schema:
+            try:
+                self._map_research_specs_to_aspects(
+                    ebay_aspect_schema, analysis['item_specifics'], research_specs, _log=_log
+                )
+            except Exception as e:
+                _log(f"Programmatic research mapping skipped: {e}", level='warning')
         # 4c. Two-pass AI enrichment: fill remaining required aspects using images + schema
         if ebay_aspect_schema and analysis.get('ai_data', {}).get('image_paths'):
             try:
@@ -567,9 +646,8 @@ class ProcessorService:
                                 'Country/Region of Manufacture', 'California Prop 65 Warning'}
         missing_aspects = []
         if ebay_aspect_schema:
-            # Backfill required aspects the AI missed (Size/Color/Department) from
+            # Backfill required/optional aspects the AI missed from
             # the title + identification text before flagging anything as missing.
-            required_aspects = [a for a in ebay_aspect_schema if a.get('isRequired')]
             ident = analysis.get('ai_data', {}).get('identification', {}) or {}
             backfill_text = ' '.join(str(v) for v in [
                 analysis.get('title', ''),
@@ -577,10 +655,10 @@ class ProcessorService:
                 analysis.get('raw_description', ''),
             ] if v)
             backfilled = self._backfill_aspects_from_text(
-                required_aspects, analysis['item_specifics'], backfill_text
+                ebay_aspect_schema, analysis['item_specifics'], backfill_text
             )
             for name, value in backfilled:
-                _log(f"Backfilled required aspect from title: {name} = {value}")
+                _log(f"Backfilled aspect from title: {name} = {value}")
 
             for aspect in ebay_aspect_schema:
                 name = aspect.get('name', '')
