@@ -206,7 +206,15 @@ def get_next_optimal_listing_time(exclude_times=None):
         check_date = now_pt + timedelta(days=day_offset)
         for dow, hour in PEAK_WINDOWS_PT:
             if check_date.weekday() == dow:
-                cand = check_date.replace(hour=hour, minute=0, second=0, microsecond=0)
+                # Construct naive local datetime for the peak window time
+                naive_cand = datetime(check_date.year, check_date.month, check_date.day, hour, 0, 0, 0)
+                # Localize properly using America/Los_Angeles timezone to correctly calculate DST offset
+                try:
+                    cand = pt.localize(naive_cand, is_dst=None)
+                except pytz.InvalidTimeError:
+                    # Fallback for invalid or ambiguous local times (e.g. spring forward skipped hour)
+                    cand = pt.localize(naive_cand, is_dst=False)
+                
                 if cand > min_time:
                     candidates.append(cand)
     candidates.sort()
