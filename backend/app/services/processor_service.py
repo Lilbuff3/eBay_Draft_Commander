@@ -647,6 +647,7 @@ class ProcessorService:
             analysis['title'], analysis['raw_description'], upload_urls,
             analysis['item_specifics'], condition, research=research
         )
+        job_obj.description = template["html"]
         result["timing"]["templating"] = template["timing"]
 
         # 8. Required-aspects completion (NO-BLOCKS ENGINE)
@@ -761,6 +762,7 @@ class ProcessorService:
         result.update({
             "success": True, "listing_id": bundle['listing_id'], "status": bundle['status'],
             "price": pricing_result["price"], "title": analysis['title'],
+            "description": template["html"],
             "condition": condition,
             "scheduled_time": listing_schedule_time,
             "timing": {**result["timing"], "api": bundle["timing"], "total": time.time() - start_time}

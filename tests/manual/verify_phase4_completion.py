@@ -1,7 +1,5 @@
-
 import pytest
 import json
-import shutil
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 from backend.app import create_app
@@ -13,44 +11,69 @@ from backend.app.services.processor_service import ProcessorService
 @pytest.fixture
 def mock_dependencies():
     with patch('backend.app.services.processor_service.eBayService') as mock_ebay, \
-         patch('backend.app.services.processor_service.AIAnalyzer') as mock_ai, \
-         patch('backend.app.services.processor_service.PricingEngine') as mock_pricing, \
-         patch('backend.app.services.processor_service.upload_folder') as mock_upload, \
+         patch('backend.app.services.processor_service.ListingAIAgent') as mock_agent, \
+         patch('backend.app.services.processor_service.ImageProcessor') as mock_image_processor, \
          patch('backend.app.services.processor_service.get_template_manager') as mock_tmpl:
         
         # Setup specific mock behaviors
         
-        # AI Analyzer: returns basic data
-        mock_ai.return_value.analyze_with_research.return_value = {
-            "listing": {
-                "suggested_title": "AI Generated Title",
-                "suggested_price": "20.00",
-                "description": "AI Description"
-            },
-            "item_specifics": {"Brand": "TestBrand"},
-            "condition": {"state": "Used", "is_nos": False}
-        }
+        # Listing AI Agent: returns basic analysis data
+        def mock_analyze_item(job_obj, images, condition, log_callback=None):
+            title = job_obj.user_title or "AI Generated Title"
+            raw_desc = job_obj.user_description or "AI Description"
+            return {
+                "success": True,
+                "ai_data": {
+                    "listing": {
+                        "suggested_title": "AI Generated Title",
+                        "suggested_price": "20.00",
+                        "description": "AI Description"
+                    },
+                    "identification": {"brand": "TestBrand", "category_id": "12345"},
+                    "condition": {"state": "Used", "is_nos": False}
+                },
+                "title": title,
+                "raw_description": raw_desc,
+                "item_specifics": {"Brand": "TestBrand"},
+                "ai_suggested_price": "20.00",
+                "shipping_cost": 6.50,
+                "category_id": "12345",
+                "confidence_score": 0.9
+            }
+        mock_agent.return_value.analyze_item.side_effect = mock_analyze_item
         
-        # Pricing: returns a price
-        mock_pricing.return_value.get_price_with_comps.return_value = {
-            "suggested_price": "20.00",
-            "confidence": "high"
-        }
+        # Listing AI Agent: returns a price
+        def mock_get_final_pricing(title, condition, ai_suggested_price, user_price, **kwargs):
+            price = user_price if user_price else "20.00"
+            return {
+                "price": str(price),
+                "timing": 0.1,
+                "comps": [],
+                "reasoning": "Mock price reasoning",
+                "source": "mock"
+            }
+        mock_agent.return_value.get_final_pricing.side_effect = mock_get_final_pricing
         
         # eBay: succeeds in creation
-        mock_inventory = MagicMock()
-        mock_inventory.create_inventory_item.return_value = ({}, 200)
-        mock_inventory.create_offer.return_value = ({'offerId': 'OFFER_123'}, 200)
-        mock_ebay.return_value.inventory_service = mock_inventory
-        mock_ebay.return_value.publish_listing.return_value = ({'listingId': 'LIST_123'}, 200)
+        mock_ebay.return_value.create_trading_api_listing.return_value = {
+            "success": True,
+            "item_id": "LIST_123",
+            "status": "Scheduled"
+        }
         
-        # Image Upload: returns dummy URLs
-        mock_upload.return_value = ["http://img.com/1.jpg"]
+        # Image Processor: returns dummy URLs
+        mock_image_processor.return_value.upload_images.return_value = {
+            "urls": ["http://img.com/1.jpg"],
+            "timing": 0.2
+        }
+        
+        # Template Manager: returns mock HTML
+        mock_tmpl.return_value.render_description.return_value = "<html>Rendered HTML</html>"
         
         yield {
-            'ebay': mock_inventory,
-            'ai': mock_ai.return_value, 
-            'pricing': mock_pricing.return_value
+            'ebay': mock_ebay.return_value, 
+            'agent': mock_agent.return_value, 
+            'image_processor': mock_image_processor.return_value
         }
 
 @pytest.fixture
@@ -78,20 +101,21 @@ def test_full_listing_lifecycle(app_context):
     1. Upload/Creation of Job
     2. Overriding Metadata via API
     3. Processing of Job (using overrides)
-    4. Successful Completion
+    4. Successful Completion and Description Preview
     """
     client = app_context['client']
     qm = app_context['qm']
     inbox = app_context['inbox']
     mocks = app_context['mocks']
     
+    # Pause queue processing to prevent background worker from starting before overrides are applied
+    qm.pause()
+
     # 1. Create Job (Simulate 'Create from Photos')
-    # We can just manually create the folder to skip file upload parsing complexity in test
     job_folder = inbox / "web_upload_test_123"
     job_folder.mkdir()
     (job_folder / "test_image.jpg").touch()
     
-    # Register via QM directly or API? Let's use QM to verify internal state first
     job = qm.add_folder(str(job_folder))
     assert job.status == JobStatus.PENDING
     
@@ -109,43 +133,42 @@ def test_full_listing_lifecycle(app_context):
     assert res.status_code == 200
     assert res.json['success'] == True
     
-    # Verify job.json was written
-    job_json_path = job_folder / "job.json"
-    assert job_json_path.exists()
-    with open(job_json_path) as f:
-        data = json.load(f)
-    assert data['user_title'] == "User Overridden Title"
-    assert data['user_price'] == "55.00"
-    assert data['fulfillment_policy'] == "POLICY_VIP_SHIPPING"
+    # Resume processing now that overrides are set in DB
+    qm.resume()
     
-    # 3. Processing
-    # Since 'process_now' was True, and we are in a test env where threads might be tricky,
-    # let's manually run the processing step to be deterministic, OR check if the logical flow triggers it.
-    # The API calls `qm.start_processing()`, which starts a thread.
-    # In a test, waiting for thread might be readable.
+    # Verify updates were persisted to DB
+    updated_job = qm.get_job_by_id(job.id)
+    assert updated_job.user_title == "User Overridden Title"
+    assert float(updated_job.user_price) == 55.0
+    assert updated_job.job_metadata.get('fulfillment_policy') == "POLICY_VIP_SHIPPING"
+
     
-    # Wait for processing to complete (with timeout)
+    # 3. Wait for processing to complete
     import time
     timeout = 5
     start = time.time()
     while job.status in [JobStatus.PENDING, JobStatus.PROCESSING] and time.time() - start < timeout:
         time.sleep(0.1)
+        # Fetch updated job details to refresh state from DB
+        db_job = qm.get_job_by_id(job.id)
+        if db_job:
+            job = db_job
         
-    assert job.status == JobStatus.COMPLETED
-    assert job.offer_id == "OFFER_123"
-    assert job.price == "55.00" # Should match override
+    assert job.status in [JobStatus.COMPLETED, JobStatus.SCHEDULED]
+    assert job.listing_id == "LIST_123"
+    assert float(job.price) == 55.0 # Should match override
     
     # 4. Verify eBay Calls used Overrides
-    # Check Title
-    create_args = mocks['ebay'].create_inventory_item.call_args[0]
-    item_payload = create_args[1]
-    assert item_payload['product']['title'] == "User Overridden Title"
-    assert item_payload['condition'] == "NEW" # Condition override
-    
-    # Check Price (create_offer)
-    offer_args = mocks['ebay'].create_offer.call_args[0]
-    offer_payload = offer_args[0]
-    assert offer_payload['pricingSummary']['price']['value'] == "55.00"
-    assert offer_payload['listingPolicies']['fulfillmentPolicyId'] == "POLICY_VIP_SHIPPING"
+    create_args = mocks['ebay'].create_trading_api_listing.call_args[0]
+    item_payload = create_args[0]
+    assert item_payload['title'] == "User Overridden Title"
+    assert float(item_payload['price']) == 55.0
+    assert item_payload['fulfillment_policy_id'] == "POLICY_VIP_SHIPPING"
+    assert item_payload['condition_id'] == "1000" # NEW is mapped to 1000
 
-    print("\n✅ Verification Successful: API -> Overrides -> Processor -> eBay Draft")
+    # 5. Verify Preview Endpoint works as expected
+    preview_res = client.get(f"/api/job/{job.id}/preview")
+    assert preview_res.status_code == 200
+    assert "<html>Rendered HTML</html>" in preview_res.text
+
+    print("\n✅ Verification Successful: API -> Overrides -> Processor -> eBay Draft & Preview")

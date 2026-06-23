@@ -271,7 +271,7 @@ def update_job_metadata(job_id):
         from backend.app.services.queue_manager import JobStatus
         
         # Mark as user approved so it doesn't get kicked back to review queue
-        metadata = job.job_metadata or {}
+        metadata = dict(updates.get('job_metadata', job.job_metadata or {}))
         metadata['user_approved'] = True
         qm.update_job(job_id, {'job_metadata': metadata})
         
@@ -585,3 +585,87 @@ def save_photo_edits():
     edits = data.get('edits', {})
     result, status = image_service.save_edits(job_id, edits, qm)
     return jsonify(result), status
+
+
+@jobs_bp.route('/job/<job_id>/preview', methods=['GET', 'POST'])
+def get_job_preview(job_id):
+    qm = current_app.queue_manager
+    job = qm.get_job_by_id(job_id)
+    if not job:
+        return error_response('Job not found', 404)
+
+    # 1. Return frozen HTML description if already completed/scheduled and saved in DB
+    # Only if it's a GET request (POST request implies live editing/previewing)
+    if request.method == 'GET' and job.description:
+        return job.description
+
+    # 2. Dynamic template render for drafts (or POST edits)
+    try:
+        from backend.app.services.processor_service import ProcessorService
+        processor = ProcessorService()
+
+        ai_data = job.ai_data or {}
+        listing = ai_data.get('listing', {})
+        
+        post_data = {}
+        if request.method == 'POST':
+            try:
+                post_data = request.json or {}
+            except Exception:
+                pass
+        
+        # Priority: POST override -> user override -> resolved job title -> AI suggested title -> folder name
+        title = post_data.get('title') or job.user_title or job.title or listing.get('suggested_title') or ai_data.get('seo_title') or job.folder_name
+        
+        # Priority: POST override -> user override -> AI HTML description -> AI plain text description -> fallback
+        raw_description = post_data.get('description') or job.user_description or listing.get('description_html') or listing.get('description') or ai_data.get('description') or ''
+        
+        # Priority: POST override -> user override -> resolved job condition -> default
+        condition = post_data.get('condition') or job.user_condition or job.condition or 'USED_GOOD'
+        
+        # Resolve images as local serving URLs
+        images = []
+        job_folder = Path(job.folder_path)
+        ordered_images = post_data.get('ordered_images') or (job.job_metadata.get('ordered_images') if job.job_metadata else None)
+        
+        if job_folder.exists():
+            local_files = [f.name for f in job_folder.iterdir() if f.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS and not f.name.endswith('.orig')]
+            if ordered_images:
+                img_map = {name: name for name in local_files}
+                sorted_names = []
+                for name in ordered_images:
+                    if name in img_map:
+                        sorted_names.append(img_map.pop(name))
+                sorted_names.extend(sorted(img_map.values()))
+                local_files = sorted_names
+            else:
+                local_files = sorted(local_files)
+                
+            for filename in local_files[:12]:
+                images.append(f'/api/job/{job_id}/image/{filename}')
+
+        # Clean aspect values
+        aspects = post_data.get('item_specifics') or job.item_specifics or ai_data.get('item_specifics') or {}
+        cleaned_aspects = {}
+        for k, v in aspects.items():
+            if not v:
+                continue
+            val = v[0] if isinstance(v, list) else v
+            cleaned_aspects[k] = [str(val)]
+
+        research = ai_data.get('research', {})
+
+        rendered = processor._render_listing_template(
+            title=title,
+            description=raw_description,
+            images=images,
+            aspects=cleaned_aspects,
+            condition=condition,
+            research=research
+        )
+        return rendered.get("html", "")
+    except Exception as e:
+        logger.exception(f"Preview rendering failed for job {job_id}")
+        return f"<h3>Preview failed: {e}</h3>"
+
+

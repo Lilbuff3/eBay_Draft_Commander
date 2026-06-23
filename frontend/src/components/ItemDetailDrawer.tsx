@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ImageGallery } from '@/components/ImageGallery'
 import { ShippingSelector } from '@/components/ShippingSelector'
 import { LogViewer, type LogEntry } from '@/components/LogViewer'
@@ -74,6 +75,42 @@ export function ItemDetailDrawer({
     const [isSearchingCategories, setIsSearchingCategories] = useState(false)
     const categorySearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
     const isMobile = useIsMobile()
+
+    const [previewHtml, setPreviewHtml] = useState<string>('')
+    const [isGeneratingPreview, setIsGeneratingPreview] = useState(false)
+    const [activeTab, setActiveTab] = useState<string>('details')
+
+    const loadPreview = useCallback(async () => {
+        if (!job) return
+        setIsGeneratingPreview(true)
+        try {
+            const response = await fetch(`/api/job/${job.id}/preview`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: draft.title,
+                    price: draft.price,
+                    description: jobDetails?.user_description || jobDetails?.ai_description,
+                    condition: draft.condition,
+                    item_specifics: draft.itemSpecifics,
+                    ordered_images: images.map(img => img.name)
+                })
+            })
+            const html = await response.text()
+            setPreviewHtml(html)
+        } catch (err) {
+            console.error('Preview error', err)
+            setPreviewHtml('<h3>Failed to load preview</h3>')
+        } finally {
+            setIsGeneratingPreview(false)
+        }
+    }, [job, draft, images, jobDetails])
+
+    useEffect(() => {
+        if (activeTab === 'preview' && open && job) {
+            loadPreview()
+        }
+    }, [activeTab, open, job?.id, loadPreview])
 
     const [localSchema, setLocalSchema] = useState<Array<{ name: string; values: string[]; isRequired?: boolean }> | null>(null)
 
@@ -170,8 +207,31 @@ export function ItemDetailDrawer({
                     </SheetDescription>
                 </SheetHeader>
 
-                <ScrollArea className="flex-1 min-h-0">
-                    <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+                    <div className="px-6 py-2 border-b border-stone-100 bg-stone-50/50 flex-shrink-0 flex items-center justify-between">
+                        <TabsList className="bg-stone-200/50 p-[2px] h-8">
+                            <TabsTrigger value="details" className="text-xs h-7 py-1 px-3">Edit Details</TabsTrigger>
+                            <TabsTrigger value="preview" className="text-xs h-7 py-1 px-3">Live Preview</TabsTrigger>
+                        </TabsList>
+                        
+                        {job && (
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border tracking-wide uppercase ${
+                                job.status === 'needs_review' 
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200' 
+                                    : job.status === 'scheduled' 
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                    : job.status === 'completed'
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                    : 'bg-stone-50 text-stone-600 border-stone-200'
+                            }`}>
+                                {job.status}
+                            </span>
+                        )}
+                    </div>
+
+                    <TabsContent value="details" className="flex-1 min-h-0 flex flex-col m-0 outline-none">
+                        <ScrollArea className="flex-1 min-h-0">
+                            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
                         {/* Loading skeleton */}
                         {isLoadingDetails && (
                             <div className="flex flex-col gap-4 animate-pulse">
@@ -475,8 +535,45 @@ export function ItemDetailDrawer({
                                 )}
                             </div>
                         )}
-                    </div>
-                </ScrollArea>
+                            </div>
+                        </ScrollArea>
+                    </TabsContent>
+
+                    <TabsContent value="preview" className="flex-1 min-h-0 flex flex-col m-0 outline-none bg-stone-50 relative">
+                        <div className="p-3 border-b border-stone-100 bg-white flex justify-between items-center flex-shrink-0">
+                            <span className="text-xs font-semibold text-stone-500 font-display">Rendered eBay Description</span>
+                            <button
+                                onClick={loadPreview}
+                                disabled={isGeneratingPreview}
+                                className="text-xs font-bold text-blue-600 hover:text-blue-700 disabled:text-stone-400 flex items-center gap-1"
+                            >
+                                {isGeneratingPreview ? (
+                                    <>
+                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                        Refreshing...
+                                    </>
+                                ) : (
+                                    'Refresh Preview'
+                                )}
+                            </button>
+                        </div>
+                        <div className="flex-1 relative">
+                            {isGeneratingPreview && (
+                                <div className="absolute inset-0 bg-white/50 flex items-center justify-center z-10">
+                                    <Loader2 className="w-8 h-8 animate-spin text-persimmon-500" />
+                                </div>
+                            )}
+                            {job && (
+                                <iframe 
+                                    srcDoc={previewHtml || '<p style="padding:20px;color:#666;">Loading preview...</p>'}
+                                    className="w-full h-full border-0 bg-white"
+                                    title="eBay Listing Preview"
+                                    sandbox="allow-same-origin allow-scripts"
+                                />
+                            )}
+                        </div>
+                    </TabsContent>
+                </Tabs>
 
                 {/* Sticky CTA — always visible at bottom of drawer */}
                 {job && (

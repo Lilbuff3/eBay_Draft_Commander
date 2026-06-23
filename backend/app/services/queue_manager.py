@@ -415,6 +415,7 @@ class QueueManager:
             offer_id=job.offer_id,
             price=job.price,
             title=job.title,
+            description=job.description,
             condition=job.condition,
             user_title=job.user_title,
             user_price=job.user_price,
@@ -448,6 +449,7 @@ class QueueManager:
             offer_id=db_j.offer_id,
             price=db_j.price,
             title=db_j.title,
+            description=db_j.description,
             condition=db_j.condition,
             user_title=db_j.user_title,
             user_price=db_j.user_price,
@@ -468,6 +470,7 @@ class QueueManager:
             thumbnail_name=getattr(db_j, 'thumbnail_name', None),
             confidence_score=db_j.confidence_score,
         )
+
 
     def _watch_inbox(self):
         """Background thread to watch for new items in inbox"""
@@ -930,6 +933,7 @@ class QueueManager:
                     job.offer_id = result.get('offer_id')
                     job.price = result.get('price')
                     job.title = result.get('title')
+                    job.description = result.get('description')
                     job.condition = result.get('condition')
                     job.timing = result.get('timing', {'total': elapsed})
                 else:
@@ -968,6 +972,7 @@ class QueueManager:
             'offer_id': job.offer_id,
             'price': job.price,
             'title': job.title,
+            'description': job.description,
             'condition': job.condition,
             'confidence_score': job.confidence_score,
             'timing': job.timing,

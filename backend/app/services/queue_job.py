@@ -53,6 +53,7 @@ class QueueJob:
     offer_id: Optional[str] = None
     price: Optional[str] = None
     title: Optional[str] = None
+    description: Optional[str] = None
     condition: Optional[str] = None
     confidence_score: Optional[float] = None
 
