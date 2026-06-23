@@ -20,6 +20,46 @@ from backend.app.core.prompts import (
 
 logger = get_logger('ai_analyzer')
 
+
+def _extract_json_object(text):
+    """Parse the FIRST complete JSON object from a model response.
+
+    Gemini occasionally returns a valid object followed by trailing data — a second
+    JSON object, prose, or a stray token. A naive ``json.loads`` over the whole string
+    then dies with ``Extra data: line N column 1``. We strip markdown fences, locate the
+    first ``{`` (or ``[``), and use ``raw_decode`` to consume exactly one JSON value,
+    ignoring whatever follows. Top-level arrays return their first dict element.
+
+    Returns a ``dict`` on success, or ``None`` if no valid JSON object is present.
+    """
+    if not text or not isinstance(text, str):
+        return None
+
+    cleaned = text.replace('```json', '').replace('```', '').strip()
+    decoder = json.JSONDecoder()
+
+    # Scan for the first position where a JSON value actually decodes. Models may emit
+    # leading prose ("Sure, here is the JSON:") before the object.
+    for opener in ('{', '['):
+        idx = cleaned.find(opener)
+        while idx != -1:
+            try:
+                value, _ = decoder.raw_decode(cleaned, idx)
+            except json.JSONDecodeError:
+                idx = cleaned.find(opener, idx + 1)
+                continue
+            if isinstance(value, dict):
+                return value
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict):
+                        return item
+            # Decoded a non-object JSON value (number/string); keep looking.
+            idx = cleaned.find(opener, idx + 1)
+
+    return None
+
+
 class AIAnalyzer:
     """Analyzes product images using Gemini AI"""
     
@@ -117,7 +157,7 @@ class AIAnalyzer:
 
             # Config for JSON response
             config = types.GenerateContentConfig(
-                temperature=0.2,
+                temperature=0.1,  # low temp for stable, deterministic extraction
                 top_p=0.95,
                 max_output_tokens=4000,
                 response_mime_type="application/json",
@@ -151,38 +191,12 @@ class AIAnalyzer:
 
             logger.debug(f"Raw AI response text: {response_text[:200]}...")
 
-            # Robust Pattern Matching for JSON
-            import re
-            # Match { ... } blocks, including nested braces
-            # This is a simple regex, for complex cases a parser is better, but this handles most GenAI outputs
-            json_pattern = r'(\{.*\})' 
-            match = re.search(json_pattern, response_text, re.DOTALL)
-            
-            clean_text = response_text
-            if match:
-                clean_text = match.group(1)
-            
-            logger.debug(f"Cleaned AI response text: {clean_text[:200]}...")
-
-            # Remove markdown code blocks if present (common in AI responses)
-            clean_text = clean_text.replace('```json', '').replace('```', '').strip()
-
-            try:
-                data = json.loads(clean_text)
-            except json.JSONDecodeError as e:
-                # If regex failed, try to repair common issues or just logging
-                logger.warning(f"JSON decode failed on cleaned text: {e}")
-                # Try to find the first '{' and last '}' explicitly if regex failed
-                start = response_text.find('{')
-                end = response_text.rfind('}')
-                if start != -1 and end != -1:
-                    try:
-                        data = json.loads(response_text[start:end+1])
-                    except json.JSONDecodeError as e2:
-                         logger.debug(f"Fallback JSON parsing also failed: {e2}")
-                         return {"error": "Failed to parse JSON", "raw": response_text[:200]}
-                else:
-                    return {"error": "No JSON found in response", "raw": response_text[:200]}
+            # Parse the first complete JSON object, ignoring any trailing data
+            # (Gemini sometimes emits a second object or prose after the first).
+            data = _extract_json_object(response_text)
+            if data is None:
+                logger.warning(f"JSON extraction failed on AI response: {response_text[:200]}")
+                return {"error": "Failed to parse JSON", "raw": response_text[:200]}
 
             # Validate response structure
             if not isinstance(data, dict):
@@ -326,14 +340,7 @@ class AIAnalyzer:
                 config=config,
             )
 
-            text = response.text.strip() if response.text else "{}"
-            # Clean markdown wrappers
-            if text.startswith('```json'):
-                text = text.split('```json')[1].split('```')[0]
-            elif text.startswith('```'):
-                text = text.split('```')[1].split('```')[0]
-
-            enriched = json.loads(text.strip())
+            enriched = _extract_json_object(response.text)
 
             if not isinstance(enriched, dict):
                 logger.warning("Aspect enrichment returned non-dict")
@@ -423,12 +430,7 @@ class AIAnalyzer:
                 response = self.client.models.generate_content(
                     model=AI_MODEL_NAME, contents=contents, config=config,
                 )
-                text = response.text.strip() if response.text else "{}"
-                if text.startswith('```json'):
-                    text = text.split('```json')[1].split('```')[0]
-                elif text.startswith('```'):
-                    text = text.split('```')[1].split('```')[0]
-                parsed = json.loads(text.strip())
+                parsed = _extract_json_object(response.text)
                 if isinstance(parsed, dict):
                     model_values = parsed
             except Exception as e:
@@ -548,20 +550,13 @@ class AIAnalyzer:
                                 'url': chunk.web.uri
                             })
             
-            # Parse response
-            response_text = response.text.strip() if response.text else "{}"
-            if '```json' in response_text:
-                response_text = response_text.split('```json')[1].split('```')[0]
-            elif '```' in response_text:
-                response_text = response_text.split('```')[1].split('```')[0]
-            
-            import json
-            try:
-                research_data = json.loads(response_text.strip())
-            except json.JSONDecodeError as e:
-                logger.debug(f"Could not parse JSON from research response: {e}")
+            # Parse response — first complete JSON object, ignore trailing data
+            response_text = response.text or ""
+            research_data = _extract_json_object(response_text)
+            if research_data is None:
+                logger.debug(f"Could not parse JSON from research response: {response_text[:200]}")
                 research_data = {"error": "Could not parse JSON from research", "raw": response_text[:200]}
-                
+
             research_data['sources'] = sources[:5]  # Keep top 5 sources
             research_data['researched'] = True
             
