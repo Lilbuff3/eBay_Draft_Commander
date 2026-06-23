@@ -71,6 +71,24 @@ def sanitize_numeric_aspects(specifics: dict, schema: list, log=None) -> None:
                 log(f"Dropped non-numeric value for NUMBER aspect '{name}': '{val}'")
 
 
+def _match_ngram_value(allowed_lower: dict, ngrams: list):
+    """Pick the allowed value that appears earliest among the title's n-grams
+    (longest match wins a tie). Strips a trailing plural/possessive so "mens" /
+    "men's" match "men". Returns the original-cased value, or None."""
+    matches = []  # (position, -length, original)
+    for ngram, pos in ngrams:
+        orig = allowed_lower.get(ngram)
+        if not orig and ngram.endswith('s'):
+            stripped = ngram[:-2] if ngram.endswith("'s") else ngram[:-1]
+            orig = allowed_lower.get(stripped)
+        if orig:
+            matches.append((pos, -len(ngram), orig))
+    if matches:
+        matches.sort()
+        return matches[0][2]
+    return None
+
+
 class ProcessorService:
     def __init__(self):
         self.ebay_service = eBayService()
@@ -196,28 +214,22 @@ class ProcessorService:
             chosen = None
 
             if 'size' in name.lower():
-                # Only accept a number that directly follows a size cue word.
+                # Numeric sizes (e.g. shoes "9.5"): only accept a number directly
+                # after a size cue — a bare number in a title is usually a model code.
                 m = re.search(r'\b(?:size|sz)\b[\s:]*([0-9]+(?:\.[0-9]+)?)', text_l)
                 if m:
                     chosen = allowed_lower.get(m.group(1))
+                if chosen is None:
+                    # Word sizes (apparel "Large"/"XL") are spelled out, never after a
+                    # cue, so the rule above misses them. Match them as whole title
+                    # tokens — but only alphabetic values (never bare numbers) so the
+                    # "don't guess a number" rule above still holds.
+                    word_sizes = {k: v for k, v in allowed_lower.items()
+                                  if len(k) >= 2 and any(c.isalpha() for c in k)}
+                    chosen = _match_ngram_value(word_sizes, ngrams)
             else:
-                # Fast O(N) n-gram set lookup
-                matches = []  # (position, -length, original)
-                for ngram, pos in ngrams:
-                    # Check plural/possessive fallback for exact matches (e.g. "mens" / "men's" -> "men")
-                    orig = allowed_lower.get(ngram)
-                    if not orig and ngram.endswith('s'):
-                        # Try stripping possessive 's or trailing s
-                        stripped = ngram[:-2] if ngram.endswith("'s") else ngram[:-1]
-                        orig = allowed_lower.get(stripped)
-                    
-                    if orig:
-                        matches.append((pos, -len(ngram), orig))
-                
-                if matches:
-                    # Sort by earliest position (first), then by longest match length (longest)
-                    matches.sort()
-                    chosen = matches[0][2]
+                # Fast n-gram set lookup against all allowed values.
+                chosen = _match_ngram_value(allowed_lower, ngrams)
 
             if chosen is not None:
                 specifics[name] = chosen

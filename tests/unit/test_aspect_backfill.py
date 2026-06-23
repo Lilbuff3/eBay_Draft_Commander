@@ -86,6 +86,39 @@ def test_multiword_value_matches_whole_phrase():
     assert specifics["Department"] == "Unisex Adults"
 
 
+APPAREL_SIZE = ["S", "M", "L", "XL", "XXL", "Small", "Medium", "Large", "X-Large", "2XS"]
+
+
+def test_word_size_filled_from_title():
+    # Apparel sizes are spelled-out words ("Large"), never preceded by a "Size" cue.
+    # The numeric-cue rule misses them, so they must be matched as whole title tokens.
+    specifics = {}
+    backfill([_aspect("Size", APPAREL_SIZE)], specifics,
+             "ST. JOHN'S BAY Men's Large Light Wash Denim Button Down Shirt Blue")
+    assert specifics["Size"] == "Large"
+
+
+def test_word_size_abbreviation_filled():
+    specifics = {}
+    backfill([_aspect("Size", APPAREL_SIZE)], specifics, "Carhartt Mens XL Hoodie")
+    assert specifics["Size"] == "XL"
+
+
+def test_word_size_fallback_never_grabs_bare_number():
+    # Regression guard: the word-size fallback must NOT match a bare numeric value
+    # without a size cue (that number is usually a model/style code).
+    specifics = {}
+    backfill([_aspect("Size", ["4", "9.5", "Large"])], specifics, "Nike Romaleos 9.5 Blue")
+    assert "Size" not in specifics
+
+
+def test_word_size_does_not_false_match_single_letter():
+    # A stray single-letter value (S/M/L) must not match random words in the title.
+    specifics = {}
+    backfill([_aspect("Size", ["S", "M", "L"])], specifics, "Slim Mens Leather Belt")
+    assert "Size" not in specifics
+
+
 @pytest.fixture
 def service():
     return ProcessorService()
