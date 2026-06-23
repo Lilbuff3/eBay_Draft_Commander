@@ -136,6 +136,33 @@ def cancel_last(api_base=None, captures_dir=None):
     return f"Cancel failed for {job_id}: {r.status_code} {r.text[:160]}"
 
 
+def collect_and_capture(chat_id, api_base=None, captures_dir=None, debounce=3.0):
+    """Flush a chat's buffered photos (written by the Hermes plugin) into one listing.
+
+    WhatsApp delivers an album as separate messages, so the plugin stages each photo
+    under <captures>/.pending/<chat_id>/. We wait `debounce` seconds for any trailing
+    album frames to land, then capture all staged photos as a single item and clear
+    the buffer."""
+    import re as _re
+    api_base = api_base or DEFAULT_API_BASE
+    captures_dir = captures_dir or DEFAULT_CAPTURES_DIR
+    if not captures_dir:
+        return "DC_CAPTURES_DIR not configured - cannot capture."
+    safe = _re.sub(r"[^A-Za-z0-9_.-]", "_", str(chat_id))
+    staging = Path(captures_dir) / ".pending" / safe
+    time.sleep(debounce)  # let trailing album frames arrive before we gather
+    if not staging.is_dir():
+        return "No photos found to list."
+    paths = sorted(str(p) for p in staging.iterdir() if p.is_file())
+    if not paths:
+        return "No photos found to list."
+    try:
+        return capture(paths, api_base=api_base, captures_dir=captures_dir)
+    finally:
+        import shutil as _sh
+        _sh.rmtree(staging, ignore_errors=True)  # clear the buffer regardless of outcome
+
+
 if __name__ == '__main__':
     import argparse
     try:
@@ -147,6 +174,8 @@ if __name__ == '__main__':
     parser.add_argument('--chat-id', default=None, help="WhatsApp chat id to reply into")
     parser.add_argument('--bridge-port', default='3000', help="Hermes WhatsApp bridge port")
     parser.add_argument('--cancel', action='store_true', help="cancel the last captured listing")
+    parser.add_argument('--collect', default=None, metavar='CHAT_ID',
+                        help="flush this chat's buffered photos into one listing")
     args = parser.parse_args()
 
     def reply(msg):
@@ -156,6 +185,10 @@ if __name__ == '__main__':
 
     if args.cancel:
         reply(cancel_last())
+    elif args.collect:
+        if args.chat_id:  # immediate ack while the album finishes arriving + analysis runs
+            send_whatsapp("Got it - capturing & scheduling your listing...", args.chat_id, args.bridge_port)
+        reply(collect_and_capture(args.collect))
     elif not args.images:
         reply("No images provided.")
     else:
