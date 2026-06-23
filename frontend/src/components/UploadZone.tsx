@@ -157,6 +157,7 @@ export function UploadZone({ onUploadComplete, compact = false }: UploadZoneProp
                             <button
                                 onClick={(e) => { e.stopPropagation(); setUploadStatus(null) }}
                                 aria-label="Dismiss upload status"
+                                title="Dismiss upload status"
                             >
                                 <X size={14} />
                             </button>
@@ -243,6 +244,7 @@ export function UploadZone({ onUploadComplete, compact = false }: UploadZoneProp
                         <button
                             onClick={() => setUploadStatus(null)}
                             aria-label="Dismiss upload status"
+                            title="Dismiss upload status"
                         >
                             <X size={16} />
                         </button>

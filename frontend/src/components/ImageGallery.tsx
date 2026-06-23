@@ -167,6 +167,7 @@ export function ImageGallery({ images, onReorder, jobId, className }: ImageGalle
                                 onClick={(e) => { e.stopPropagation(); goPrev() }}
                                 className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-1.5 rounded-full opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                                 aria-label="Previous image"
+                                title="Previous image"
                             >
                                 <ChevronLeft size={18} />
                             </button>
@@ -176,6 +177,7 @@ export function ImageGallery({ images, onReorder, jobId, className }: ImageGalle
                                 onClick={(e) => { e.stopPropagation(); goNext() }}
                                 className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-1.5 rounded-full opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                                 aria-label="Next image"
+                                title="Next image"
                             >
                                 <ChevronRight size={18} />
                             </button>
