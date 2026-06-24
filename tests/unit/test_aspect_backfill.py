@@ -238,3 +238,40 @@ class TestResearchSpecsMapper:
         service._map_research_specs_to_aspects(aspect_schema, specifics, research_specs)
         
         assert specifics.get("Color") == "Red"
+
+    def test_backfill_department_men_from_title(self, service):
+        """Test a men's title sets Department to Men."""
+        aspect_schema = [
+            {"name": "Department", "isRequired": True, "values": ["Men", "Women", "Unisex"]}
+        ]
+        specifics = {}
+        # Simulate backfill_text containing the product_type "Men's Shoes"
+        text = "Nike Air Max Men's Shoes"
+        service._backfill_aspects_from_text(aspect_schema, specifics, text)
+        assert specifics.get("Department") == "Men"
+
+    def test_backfill_ambiguous_title_no_department(self, service):
+        """Test an ambiguous title leaves Department absent."""
+        aspect_schema = [
+            {"name": "Department", "isRequired": True, "values": ["Men", "Women", "Unisex"]}
+        ]
+        specifics = {}
+        text = "Nike Air Max Running Shoes"
+        service._backfill_aspects_from_text(aspect_schema, specifics, text)
+        assert "Department" not in specifics
+
+    def test_optional_aspects_are_skipped_in_backfill(self, service):
+        """Test that an optional aspect with allowed values in the title is NOT auto-filled."""
+        aspect_schema = [
+            {"name": "Theme", "isRequired": False, "values": ["Classic", "Modern", "Retro"]},
+            {"name": "Department", "isRequired": True, "values": ["Men", "Women"]}
+        ]
+        specifics = {}
+        text = "Classic Men's Shoes Retro Style"
+        
+        service._backfill_aspects_from_text(aspect_schema, specifics, text)
+        
+        # Required aspect was filled
+        assert specifics.get("Department") == "Men"
+        # Optional aspects were skipped even though 'Classic' and 'Retro' are in text
+        assert "Theme" not in specifics

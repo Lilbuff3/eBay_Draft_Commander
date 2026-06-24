@@ -203,6 +203,8 @@ class ProcessorService:
                 ngrams.append((f"{words[i]} {words[i+1]} {words[i+2]}", i))
 
         for aspect in aspect_schema:
+            if not aspect.get('isRequired'):
+                continue
             name = aspect.get('name')
             if not name or specifics.get(name):
                 continue
@@ -665,6 +667,7 @@ class ProcessorService:
             backfill_text = ' '.join(str(v) for v in [
                 analysis.get('title', ''),
                 ident.get('brand', ''), ident.get('model', ''),
+                ident.get('product_type', ''),
                 analysis.get('raw_description', ''),
             ] if v)
             backfilled = self._backfill_aspects_from_text(
