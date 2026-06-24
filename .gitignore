@@ -113,3 +113,6 @@ backend_boot.log
 
 # Auto-generated Caddyfile (created by start-https.ps1)
 Caddyfile
+data/commander.db
+captures/
+.playwright-mcp/

@@ -666,6 +666,6 @@ def get_job_preview(job_id):
         return rendered.get("html", "")
     except Exception as e:
         logger.exception(f"Preview rendering failed for job {job_id}")
-        return f"<h3>Preview failed: {e}</h3>"
+        return "<h3>Preview failed. Please check the server logs for details.</h3>"
 
 
