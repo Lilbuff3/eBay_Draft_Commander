@@ -9,8 +9,9 @@ GOAL: Extract structured data from product images for eBay listings.
 
 CRITICAL RULE: Your ONLY source of information is the images provided. Do NOT use
 general knowledge about the brand or product line. Every value you return must come
-from what you can SEE in the photos. If a detail is not visible, output null — never
-fill in generic brand information or "Varies" values.
+from what you can SEE in the photos. If a detail is not visible, output EXACTLY null 
+(or "unknown" if required) — NEVER invent, guess, or fabricate values. Never
+fill in generic brand information, catalog specs, or "Varies".
 
 PRIORITY ORDER (spend most effort on #1 and #2):
 1. IDENTIFICATION (most important): Find Brand, Model, MPN (Part Number), Serial Number.
@@ -31,9 +32,9 @@ PRIORITY ORDER (spend most effort on #1 and #2):
    - Consider technical differences (e.g., a printer drum is NOT a musical drum).
    - If NONE of the suggestions are accurate, return `null` for the `category_id`.
 4. SPECIFICS: Extract ONLY what you can see or read from the images.
-   - Size: transcribe from size tag (e.g. "L/XL", "Medium", "32x30")
+   - Size: transcribe EXACTLY from size tag (e.g. "L/XL", "Medium", "32x30")
    - Color: describe the PRIMARY color you see (e.g. "Teal", "Black", "Red")
-   - Material: transcribe from content tag (e.g. "100% Polyester Fleece")
+   - Material: transcribe EXACTLY from content tag (e.g. "100% Polyester Fleece")
    - Other specs: Voltage, Amps, Capacity — only from visible labels.
    - NEVER return "Varies" or lists of possible options. One specific value per field.
 5. TITLE: Generate a search-optimized title (max 80 chars).
@@ -41,16 +42,16 @@ PRIORITY ORDER (spend most effort on #1 and #2):
    market research. Do NOT spend effort researching pricing — just give your best
    guess of the BASE market value (no shipping included).
 
-OUTPUT FORMAT: Return a JSON object with this EXACT structure:
+OUTPUT FORMAT: Return a JSON object with this EXACT structure (use null for any missing values, DO NOT GUESS):
 {{
     "identification": {{
-        "brand": "Brand Name from label/tag",
-        "model": "Model Number from tag or null",
-        "mpn": "Part Number from tag or null",
+        "brand": "Exact brand name from label/tag or null",
+        "model": "Exact model number from tag or null",
+        "mpn": "Exact part number from tag or null",
         "oem_part_numbers": ["Alt P/N 1"],
-        "serial_number": "SNString or null",
-        "product_type": "Specific noun (e.g. Fleece Hat, Laser Printer, Wool Jacket)",
-        "material": "From content tag or null",
+        "serial_number": "Exact SN string or null",
+        "product_type": "Specific noun (e.g. Fleece Hat, Laser Printer, Wool Jacket) or null",
+        "material": "Exact text from content tag or null",
         "compatible_systems": ["System 1", "System 2"],
         "estimated_weight_lbs": 0.0,
         "package_size": "small|medium|large|heavy",
@@ -68,18 +69,18 @@ OUTPUT FORMAT: Return a JSON object with this EXACT structure:
         "suggested_price": 0.00
     }},
     "item_specifics": {{
-        "Brand": "Exact value from tag",
+        "Brand": "Exact value from tag or null",
         "Model": "Exact value from tag or null",
         "MPN": "Exact value from tag or null",
-        "Type": "Specific product type",
+        "Type": "Specific product type or null",
         "Size": "Exact size from tag or null",
-        "Color": "Primary color observed",
-        "Material": "From content tag or null"
+        "Color": "Primary color observed or null",
+        "Material": "Exact text from content tag or null"
     }}
 }}
 
 REMINDER: Every value must come from the images. "Varies", "Options include", or
-generic brand catalog info is WRONG. If you cannot see it, return null.
+generic brand catalog info is WRONG. If you cannot see it, return null. Do NOT invent values.
 """
 
 INDUSTRIAL_RESEARCH_PROMPT = """Research this specific product for eBay listing pricing:

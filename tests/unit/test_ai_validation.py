@@ -113,3 +113,28 @@ def test_json_parsing_resilience(analyzer):
     
     assert "error" not in result
     assert result["identification"]["brand"] == "Sony"
+
+def test_explicit_nulls_for_missing_values(analyzer):
+    """Test that missing values are parsed as nulls or 'unknown' as required by prompt."""
+    data = {
+        "identification": {
+            "brand": "Sony",
+            "model": None,
+            "mpn": "unknown",
+            "confidence_score": 90
+        },
+        "listing": {
+            "suggested_title": "Sony Item",
+            "suggested_price": 100.00
+        }
+    }
+    
+    mock_response = MagicMock()
+    mock_response.text = json.dumps(data)
+    analyzer.client.models.generate_content.return_value = mock_response
+    
+    result = analyzer.analyze_item(["fake/path.jpg"])
+    
+    assert "error" not in result
+    assert result["identification"]["model"] is None
+    assert result["identification"]["mpn"] == "unknown"
