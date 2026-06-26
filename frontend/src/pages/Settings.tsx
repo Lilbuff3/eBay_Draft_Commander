@@ -353,6 +353,56 @@ export function Settings() {
                                         />
                                     </button>
                                 </div>
+
+                                <div className="flex items-center justify-between p-4 bg-stone-50 rounded-lg border">
+                                    <div className="flex-1 pr-6">
+                                        <Label htmlFor="promoted-listings" className="text-base font-medium">Promoted Listings</Label>
+                                        <p className="text-sm text-stone-500 mt-1">
+                                            {settings['PROMOTED_LISTINGS_ENABLED'] === 'true'
+                                                ? 'New listings will automatically be promoted at the ad rate below'
+                                                : 'Promoted Listings disabled'}
+                                        </p>
+                                        
+                                        {settings['PROMOTED_LISTINGS_ENABLED'] === 'true' && (
+                                            <div className="mt-4 flex items-center gap-4">
+                                                <div className="flex items-center">
+                                                    <Input
+                                                        id="ad-rate"
+                                                        type="number"
+                                                        min="0"
+                                                        max="100"
+                                                        step="0.1"
+                                                        className="w-24 rounded-r-none border-r-0"
+                                                        value={settings['PROMOTED_LISTINGS_AD_RATE'] || '5.0'}
+                                                        onChange={e => handleChange('PROMOTED_LISTINGS_AD_RATE', e.target.value)}
+                                                    />
+                                                    <div className="flex items-center justify-center h-10 px-3 bg-stone-100 border border-input rounded-r-md text-stone-500 select-none">
+                                                        %
+                                                    </div>
+                                                </div>
+                                                <Label htmlFor="ad-rate" className="text-sm font-normal text-stone-500">
+                                                    Ad Rate (Bid Percentage)
+                                                </Label>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button
+                                        id="promoted-listings"
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={settings['PROMOTED_LISTINGS_ENABLED'] === 'true'}
+                                        onClick={() => handleChange('PROMOTED_LISTINGS_ENABLED', settings['PROMOTED_LISTINGS_ENABLED'] === 'true' ? 'false' : 'true')}
+                                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer self-start rounded-full border-2 border-transparent transition-colors ${
+                                            settings['PROMOTED_LISTINGS_ENABLED'] === 'true' ? 'bg-emerald-600' : 'bg-stone-300'
+                                        }`}
+                                    >
+                                        <span
+                                            className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg transform transition-transform ${
+                                                settings['PROMOTED_LISTINGS_ENABLED'] === 'true' ? 'translate-x-5' : 'translate-x-0'
+                                            }`}
+                                        />
+                                    </button>
+                                </div>
                             </CardContent>
                         </Card>
                     </TabsContent>
