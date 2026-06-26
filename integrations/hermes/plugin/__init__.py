@@ -23,6 +23,19 @@ import shutil
 import subprocess
 
 
+def _derive_note(text):
+    """Caption minus the 'sell' trigger -> trusted seller note (may be empty).
+
+    Removes 'sell' as a whole word (case-insensitive), collapses whitespace, trims.
+    Residual filler is harmless — it's context for the AI, not shown verbatim.
+    """
+    if not text:
+        return ""
+    cleaned = re.sub(r"\bsell\b", " ", str(text), flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
+
 def _staging_dir(chat_id):
     """Per-chat photo buffer under <DC_CAPTURES_DIR>/.pending/<safe chat id>."""
     captures = os.environ.get("DC_CAPTURES_DIR", "")
@@ -34,7 +47,8 @@ def _staging_dir(chat_id):
 
 def register(ctx):
     def on_message(event=None, gateway=None, session_store=None, **kwargs):
-        text = (getattr(event, "text", "") or "").lower()
+        raw_text = getattr(event, "text", "") or ""
+        text = raw_text.lower()
         media = list(getattr(event, "media_urls", None) or [])
         chat_id = getattr(getattr(event, "source", None), "chat_id", None)
         if not chat_id:
@@ -61,16 +75,18 @@ def register(ctx):
 
         # "sell" -> flush the whole staged set (covers single + multi-photo albums)
         if "sell" in text:
+            note = _derive_note(raw_text)
+            note_args = ["--note", note] if note else []
             if staging and (staged_any or os.path.isdir(staging)):
                 subprocess.Popen(
                     [sys.executable, script, "--collect", chat_id,
-                     "--chat-id", chat_id, "--bridge-port", port],
+                     "--chat-id", chat_id, "--bridge-port", port, *note_args],
                     creationflags=flags,
                 )
             elif media:
                 # Staging unavailable -> original single-message behavior.
                 subprocess.Popen(
-                    [sys.executable, script, "--chat-id", chat_id, "--bridge-port", port, *media],
+                    [sys.executable, script, "--chat-id", chat_id, "--bridge-port", port, *note_args, *media],
                     creationflags=flags,
                 )
             else:

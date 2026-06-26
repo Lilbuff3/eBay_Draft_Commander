@@ -18,6 +18,7 @@ from backend.app.core.constants import (
     RARITY_PERCENTILE_THRESHOLD,
 )
 from backend.app.core.logger import get_logger
+from backend.app.core.prompts import build_seller_note_block
 
 logger = get_logger('pricing_engine')
 
@@ -341,7 +342,7 @@ class PricingEngine:
         search_terms = "+".join(title.split()[:6])
         return f"https://www.ebay.com/sch/i.html?_nkw={quote(search_terms)}&LH_Complete=1&LH_Sold=1"
     
-    def get_ai_price_estimate(self, title: str, condition: str, identification: Optional[Dict] = None) -> Optional[Dict[str, Union[float, str]]]:
+    def get_ai_price_estimate(self, title: str, condition: str, identification: Optional[Dict] = None, seller_note: str = "") -> Optional[Dict[str, Union[float, str]]]:
         """Estimate price using Gemini with Google Search grounding.
 
         identification (brand/model/mpn/part numbers) is woven into the prompt so the model
@@ -367,6 +368,7 @@ class PricingEngine:
             if _parts:
                 _id_lines.append("Part numbers (search these EXACT numbers): " + ", ".join(_parts[:6]))
             identifier_block = "\n            ".join(_id_lines) if _id_lines else "(no specific identifiers extracted)"
+            seller_note_block = build_seller_note_block(seller_note)
 
             prompt = f"""You are a High-End Industrial Appraiser and eBay Pricing Strategist.
             The user has an item that may be rare, industrial, or undervalued.
@@ -380,6 +382,7 @@ class PricingEngine:
             Condition: {condition}
             Identifiers:
             {identifier_block}
+            {seller_note_block}
 
             Use the EXACT part numbers / MPN above in your web searches first — they are the single
             best way to find this specific item's market price.
@@ -522,7 +525,7 @@ class PricingEngine:
         # Fallback: first 8 words of title
         return " ".join(title.split()[:8])
 
-    def get_price_with_comps(self, title: str, condition: str = "Used - Good", category_id: Optional[str] = None, ai_suggested_price: Optional[str] = None, acquisition_cost: float = 0.0, isbn: Optional[str] = None, shipping_cost: float = 0.0, identification: Optional[Dict] = None, research_market_price: Optional[Dict] = None, availability: Optional[str] = None) -> Dict[str, Any]:
+    def get_price_with_comps(self, title: str, condition: str = "Used - Good", category_id: Optional[str] = None, ai_suggested_price: Optional[str] = None, acquisition_cost: float = 0.0, isbn: Optional[str] = None, shipping_cost: float = 0.0, identification: Optional[Dict] = None, research_market_price: Optional[Dict] = None, availability: Optional[str] = None, seller_note: str = "") -> Dict[str, Any]:
         """
         Main entry point: Get suggested price and comparable sales data.
 
@@ -663,7 +666,7 @@ class PricingEngine:
             grounded_result = None
         else:
             logger.info(f"[SEARCH] Performing AI Market Research (Gemini Grounding)...")
-            grounded_result = self.get_ai_price_estimate(title, condition, identification=identification)
+            grounded_result = self.get_ai_price_estimate(title, condition, identification=identification, seller_note=seller_note)
         if grounded_result:
             ai_price = grounded_result['price']
             ai_reasoning = grounded_result.get('reasoning', "Researched via Gemini")

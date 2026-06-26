@@ -63,7 +63,10 @@ class ListingAIAgent:
                 else:
                     sug_text = "No eBay category suggestions found. Use your best judgment."
 
-                ai_data = self.ai_analyzer.analyze_with_research(images, category_suggestions=sug_text)
+                seller_note = job_obj.job_metadata.get('note', '') if job_obj.job_metadata else ''
+                ai_data = self.ai_analyzer.analyze_with_research(
+                    images, category_suggestions=sug_text, seller_note=seller_note
+                )
 
                 if ai_data.get('error'):
                     raise Exception(f"AI Analyzer Error: {ai_data['error']}")
@@ -109,7 +112,7 @@ class ListingAIAgent:
             logger.error(f"AI Analysis failed: {e}")
             return {"success": False, "error": str(e)}
 
-    def get_final_pricing(self, title, condition, ai_suggested_price, user_price, shipping_cost=None, log_callback=None, identification=None, research_market_price=None, availability=None):
+    def get_final_pricing(self, title, condition, ai_suggested_price, user_price, shipping_cost=None, log_callback=None, identification=None, research_market_price=None, availability=None, seller_note=""):
         """Determine the final price using research engine and user overrides.
 
         When free shipping is active (shipping_cost > 0), the estimated
@@ -143,6 +146,7 @@ class ListingAIAgent:
                 identification=identification,
                 research_market_price=research_market_price,
                 availability=availability,
+                seller_note=seller_note,
             )
             final_price = str(price_result['suggested_price']) if price_result['suggested_price'] else "0.00"
             _log(f"Suggested Price: ${final_price}")

@@ -586,6 +586,7 @@ class ProcessorService:
         job_obj.ai_data = ai_data
         research_market_price = ai_data.get('research', {}).get('market_price')
         availability = ai_data.get('research', {}).get('availability')
+        seller_note = job_obj.job_metadata.get('note', '') if job_obj.job_metadata else ''
         pricing_result = self.ai_agent.get_final_pricing(
             analysis['title'],
             condition,
@@ -596,6 +597,7 @@ class ProcessorService:
             identification=ai_data.get('identification'),
             research_market_price=research_market_price,
             availability=availability,
+            seller_note=seller_note,
         )
         result["timing"]["pricing"] = pricing_result["timing"]
 

@@ -2,6 +2,25 @@
 Centralized storage for AI prompts used in eBay Draft Commander
 """
 
+
+def build_seller_note_block(seller_note: str) -> str:
+    """Render the trusted seller-note context block for AI prompts.
+
+    The seller supplies this with their photos because it matters and may not be
+    visible in the images. Empty/whitespace -> "" so prompts stay byte-identical to
+    the no-note path.
+    """
+    note = (seller_note or "").strip()
+    if not note:
+        return ""
+    return (
+        "\nSELLER-PROVIDED CONTEXT (trusted — the seller supplied this because it "
+        "matters and may not be visible in the photos; use it, and let it complement "
+        "the images without contradicting clearly visible evidence):\n"
+        f"{note}\n"
+    )
+
+
 EBAY_LISTING_PROMPT = """{category_suggestions}
 
 ROLE: You are a meticulous inventory inspector and eBay listing specialist.
@@ -12,7 +31,7 @@ general knowledge about the brand or product line. Every value you return must c
 from what you can SEE in the photos. If a detail is not visible, output EXACTLY null 
 (or "unknown" if required) — NEVER invent, guess, or fabricate values. Never
 fill in generic brand information, catalog specs, or "Varies".
-
+{seller_note}
 PRIORITY ORDER (spend most effort on #1 and #2):
 1. IDENTIFICATION (most important): Find Brand, Model, MPN (Part Number), Serial Number.
    - Read ALL visible text on tags, labels, stickers, and engravings in the images.

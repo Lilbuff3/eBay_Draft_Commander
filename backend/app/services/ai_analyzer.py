@@ -16,6 +16,7 @@ from backend.app.core.constants import AI_MODEL_NAME, ASPECT_RESOLVE_CONFIDENCE_
 from backend.app.core.prompts import (
     EBAY_LISTING_PROMPT, INDUSTRIAL_RESEARCH_PROMPT,
     ASPECT_ENRICHMENT_PROMPT, ASPECT_RESOLVE_PROMPT,
+    build_seller_note_block,
 )
 
 logger = get_logger('ai_analyzer')
@@ -118,7 +119,7 @@ class AIAnalyzer:
         images = sorted(set(images))[:max_images]
         return [str(img) for img in images]
     
-    def analyze_item(self, image_paths, category_suggestions: str = ""):
+    def analyze_item(self, image_paths, category_suggestions: str = "", seller_note: str = ""):
         if not image_paths:
             return {"error": "No images provided"}
         
@@ -132,8 +133,12 @@ class AIAnalyzer:
         if not encoded_images:
             return {"error": "Could not encode any images"}
         
-        # Build the prompt
-        prompt = EBAY_LISTING_PROMPT.format(category_suggestions=category_suggestions)
+        # Build the prompt (seller_note is trusted context; empty -> no-op)
+        note_block = build_seller_note_block(seller_note)
+        prompt = EBAY_LISTING_PROMPT.format(
+            category_suggestions=category_suggestions,
+            seller_note=note_block,
+        )
 
         # Prepare content: Modern GenAI SDK accepts text strings and PIL images directly
         from PIL import Image as PILImage
@@ -567,7 +572,7 @@ class AIAnalyzer:
             logger.warning(f"Research failed: {e}")
             return {"error": str(e), "researched": False}
 
-    def analyze_with_research(self, image_paths: list, category_suggestions: str = "") -> dict:
+    def analyze_with_research(self, image_paths: list, category_suggestions: str = "", seller_note: str = "") -> dict:
         """
         Two-phase analysis: 
         1. Basic image analysis to extract identifiers
@@ -578,7 +583,9 @@ class AIAnalyzer:
         """
         # Phase 1: Basic analysis
         logger.info("Phase 1: Analyzing images...")
-        basic_result = self.analyze_item(image_paths, category_suggestions=category_suggestions)
+        basic_result = self.analyze_item(
+            image_paths, category_suggestions=category_suggestions, seller_note=seller_note
+        )
         
         if basic_result.get('error'):
             return basic_result
