@@ -224,3 +224,20 @@ class TestCaptureBridgeNote:
 
         assert posted['json']['note'] == "no charger"
         assert posted['json']['path']
+
+
+class TestPluginDeriveNote:
+    def test_strips_sell_trigger_keeps_rest(self):
+        from integrations.hermes.plugin import _derive_note
+        assert _derive_note("blue widget no charger sell") == "blue widget no charger"
+        assert _derive_note("SELL antique not replica") == "antique not replica"
+
+    def test_empty_or_trigger_only(self):
+        from integrations.hermes.plugin import _derive_note
+        assert _derive_note("sell") == ""
+        assert _derive_note("") == ""
+        assert _derive_note(None) == ""
+
+    def test_collapses_whitespace(self):
+        from integrations.hermes.plugin import _derive_note
+        assert _derive_note("new   old   stock  sell") == "new old stock"
