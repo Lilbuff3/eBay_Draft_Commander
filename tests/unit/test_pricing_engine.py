@@ -33,16 +33,18 @@ class TestCalculateSuggestedPrice:
     def test_median_calculation(self, engine):
         items = _make_sold_items([10, 20, 30, 40, 50])
         result = engine.calculate_suggested_price(items, our_condition="New")
-        # median=30, no multiplier, price=30 -> >15 smart pricing -> floor(30)-0.01=29.99
+        # median=30, ACTIVE_TO_SOLD_FACTOR=0.87 -> base=30*0.87=26.1
+        # >15 smart pricing -> floor(26.1)=26, cents=0.1<0.80 -> 25.99
         assert result["median_price"] == 30.0
-        assert result["suggested_price"] == 29.99
+        assert result["suggested_price"] == 25.99
 
     def test_no_multiplier_applied(self, engine):
         """Condition filtering happens at API level, not via multiplier."""
         items = _make_sold_items([100])
         result = engine.calculate_suggested_price(items, our_condition="Used - Good")
-        # No multiplier — base_price=100, smart pricing: floor(100)-0.01=99.99
-        assert result["suggested_price"] == 99.99
+        # No condition multiplier — base_price=100*0.87(asking->sold)=87.0
+        # smart pricing: floor(87)-0.01=86.99
+        assert result["suggested_price"] == 86.99
         assert "multiplier" not in result
 
     def test_condition_does_not_affect_price(self, engine):
@@ -67,31 +69,32 @@ class TestCalculateSuggestedPrice:
     def test_shipping_buffer_applied(self, engine):
         items = _make_sold_items([40])
         result = engine.calculate_suggested_price(items, our_condition="New", shipping_cost=6.50)
-        # base=40 + 6.50 = 46.50
-        # smart pricing: floor(46.50)=46, cents=0.50 < 0.80 -> 46-0.01 = 45.99
-        assert result["suggested_price"] == 45.99
+        # base=40*0.87(asking->sold)=34.80, + 6.50 shipping = 41.30
+        # smart pricing: floor(41.30)=41, cents=0.30 < 0.80 -> 41-0.01 = 40.99
+        assert result["suggested_price"] == 40.99
         assert "shipping" in result["reasoning"]
 
     def test_smart_99_above_15(self, engine):
         items = _make_sold_items([45])
         result = engine.calculate_suggested_price(items, our_condition="New")
-        # base=45.0 -> >15 -> floor(45)-0.01 = 44.99
-        assert result["suggested_price"] == 44.99
+        # base=45*0.87=39.15 -> >15 -> floor(39.15)=39, cents=0.15<0.80 -> 38.99
+        assert result["suggested_price"] == 38.99
 
     def test_no_smart_pricing_at_or_below_15(self, engine):
         items = _make_sold_items([10])
         result = engine.calculate_suggested_price(items, our_condition="New")
-        # base=10.0 -> NOT > 15 -> stays 10.0
-        assert result["suggested_price"] == 10.0
+        # base=10*0.87=8.7 -> NOT > 15 -> stays 8.7
+        assert result["suggested_price"] == 8.7
 
     def test_margin_boost_triggered(self, engine):
         items = _make_sold_items([40])
         result = engine.calculate_suggested_price(
             items, our_condition="Used - Good", acquisition_cost=50, shipping_cost=6.50
         )
-        # base=40 + 6.50 = 46.50
-        # est_fees = 46.50*0.1325 + 0.30 = 6.16 + 0.30 = 6.46
-        # projected_profit = 46.50 - 6.46 - 50 - 6.50 = -16.46 (< 10)
+        # base=40*0.87(asking->sold)=34.80, + 6.50 shipping = 41.30
+        # est_fees = 41.30*0.1325 + 0.30 = 5.47 + 0.30 = 5.77
+        # projected_profit = 41.30 - 5.77 - 50 - 6.50 = -20.97 (< 10) -> boost triggers
+        # target_price formula doesn't depend on base_price/discount, so it's unchanged:
         # target_price = (50 + 10 + 0.30) / (1 - 0.1325) = 60.30 / 0.8675 = 69.51...
         # margin_boost=True -> smart pricing: floor(69.51)=69, cents=0.51 < 0.80 -> 68.99
         assert result["suggested_price"] == 68.99
@@ -102,6 +105,42 @@ class TestCalculateSuggestedPrice:
         result = engine.calculate_suggested_price(items, our_condition="Used - Good")
         # acquisition_cost=0 (default) -> no boost
         assert "Boosted" not in result["reasoning"]
+
+
+# ---------------------------------------------------------------------------
+# TestActiveToSoldFactor
+# ---------------------------------------------------------------------------
+
+
+class TestActiveToSoldFactor:
+    """Comps come from eBay Browse API ACTIVE listings (asking prices), which
+    run higher than actual sold prices. calculate_suggested_price discounts
+    base_price by ACTIVE_TO_SOLD_FACTOR (0.87) before deriving suggested_price,
+    but median_price stays raw/undiscounted for transparency."""
+
+    def test_suggested_price_discounted_below_raw_median(self, engine):
+        items = _make_sold_items([100, 100, 100])
+        result = engine.calculate_suggested_price(items, our_condition="New")
+        # median=100, base=100*0.87=87.0 -> >15 smart pricing: floor(87)-0.01=86.99
+        assert result["suggested_price"] == 86.99
+        assert result["suggested_price"] < 100.0
+
+    def test_median_price_field_stays_raw_undiscounted(self, engine):
+        items = _make_sold_items([100, 100, 100])
+        result = engine.calculate_suggested_price(items, our_condition="New")
+        # median_price must report the RAW comp median, not the discounted value
+        assert result["median_price"] == 100.0
+
+    def test_factor_of_one_restores_undiscounted_price(self, engine, monkeypatch):
+        """Monkeypatching the factor to 1.0 proves the discount is what moved the price."""
+        import backend.app.services.pricing_engine as pricing_engine_module
+        monkeypatch.setattr(pricing_engine_module, "ACTIVE_TO_SOLD_FACTOR", 1.0)
+
+        items = _make_sold_items([100, 100, 100])
+        result = engine.calculate_suggested_price(items, our_condition="New")
+        # With factor=1.0, base=100*1.0=100 -> floor(100)-0.01=99.99 (undiscounted)
+        assert result["suggested_price"] == 99.99
+        assert result["median_price"] == 100.0
 
 
 # ---------------------------------------------------------------------------
@@ -213,34 +252,34 @@ class TestSmartPricingRounding:
     """
 
     def test_price_below_80_cents_rounds_down(self, engine):
-        """$44.32 -> floor is $44, cents=0.32 < 0.80, so $43.99"""
+        """$44.32 * 0.87(asking->sold) = $38.56 -> floor is $38, cents=0.56 < 0.80, so $37.99"""
         items = _make_sold_items([44.32])
         result = engine.calculate_suggested_price(items, our_condition="New")
-        assert result["suggested_price"] == 43.99
+        assert result["suggested_price"] == 37.99
 
     def test_price_above_80_cents_rounds_up(self, engine):
-        """$44.85 -> floor is $44, cents=0.85 >= 0.80, so $44.99"""
+        """$44.85 * 0.87(asking->sold) = $39.02 -> floor is $39, cents=0.02 < 0.80, so $38.99"""
         items = _make_sold_items([44.85])
         result = engine.calculate_suggested_price(items, our_condition="New")
-        assert result["suggested_price"] == 44.99
+        assert result["suggested_price"] == 38.99
 
     def test_price_at_whole_number_stays_99(self, engine):
-        """$45.00 -> floor is $45, cents=0.00 < 0.80, so $44.99"""
+        """$45.00 * 0.87(asking->sold) = $39.15 -> floor is $39, cents=0.15 < 0.80, so $38.99"""
         items = _make_sold_items([45.00])
         result = engine.calculate_suggested_price(items, our_condition="New")
-        assert result["suggested_price"] == 44.99
+        assert result["suggested_price"] == 38.99
 
     def test_price_just_above_whole_rounds_down(self, engine):
-        """$45.01 -> floor is $45, cents=0.01 < 0.80, so $44.99"""
+        """$45.01 * 0.87(asking->sold) = $39.16 -> floor is $39, cents=0.16 < 0.80, so $38.99"""
         items = _make_sold_items([45.01])
         result = engine.calculate_suggested_price(items, our_condition="New")
-        assert result["suggested_price"] == 44.99
+        assert result["suggested_price"] == 38.99
 
     def test_price_under_15_no_rounding(self, engine):
-        """Prices <= $15 should NOT be smart-rounded"""
+        """Prices <= $15 should NOT be smart-rounded. $8.50 * 0.87 = $7.395 -> rounded to $7.39"""
         items = _make_sold_items([8.50])
         result = engine.calculate_suggested_price(items, our_condition="New")
-        assert result["suggested_price"] == 8.50
+        assert result["suggested_price"] == 7.39
 
 
 # ---------------------------------------------------------------------------

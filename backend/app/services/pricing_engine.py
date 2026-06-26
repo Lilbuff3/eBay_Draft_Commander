@@ -16,6 +16,7 @@ from backend.app.core.constants import (
     MIN_LISTING_PRICE,
     MAX_LISTING_PRICE,
     RARITY_PERCENTILE_THRESHOLD,
+    ACTIVE_TO_SOLD_FACTOR,
 )
 from backend.app.core.logger import get_logger
 from backend.app.core.prompts import build_seller_note_block
@@ -280,6 +281,11 @@ class PricingEngine:
             base_price = median_price
             reasoning_prefix = "Median"
 
+        # Comps come from ACTIVE listings (asking prices), which run higher than
+        # actual sold prices. Discount base_price toward estimated sold value.
+        raw_market_price = base_price
+        base_price = base_price * ACTIVE_TO_SOLD_FACTOR
+
         # Use base_price directly — condition filtering is handled by the
         # Browse API query, so comps already match our condition bucket.
         suggested_price = round(base_price, 2)
@@ -312,7 +318,7 @@ class PricingEngine:
         # Sanitize: guard against NaN/infinity and enforce price bounds
         suggested_price = self._sanitize_price(suggested_price)
 
-        reasoning = f"{reasoning_prefix} of {len(prices)} listings (${base_price:.2f})"
+        reasoning = f"{reasoning_prefix} of {len(prices)} listings (${raw_market_price:.2f} asking x{ACTIVE_TO_SOLD_FACTOR:g} = ${base_price:.2f})"
         if grade_filtered:
             reasoning += " [same-grade comps]"
         if shipping_buffered:
