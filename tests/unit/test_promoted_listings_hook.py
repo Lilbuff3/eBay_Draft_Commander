@@ -18,12 +18,12 @@ def test_promotion_hook_enabled_success(processor, monkeypatch):
     # Mock settings manager
     mock_settings = MagicMock()
     mock_settings.get.side_effect = lambda k, d=None: 'true' if k == 'PROMOTED_LISTINGS_ENABLED' else '5.5' if k == 'PROMOTED_LISTINGS_AD_RATE' else d
-    monkeypatch.setattr('backend.app.services.processor_service.get_settings_manager', lambda: mock_settings)
+    monkeypatch.setattr('backend.app.core.settings_manager.get_settings_manager', lambda: mock_settings)
     
     # Mock Marketing API
     mock_marketing_api_instance = MagicMock()
     mock_marketing_api_instance.promote_listing.return_value = {'success': True}
-    monkeypatch.setattr('backend.app.services.processor_service.MarketingAPI', lambda: mock_marketing_api_instance)
+    monkeypatch.setattr('backend.app.services.ebay.marketing.MarketingAPI', lambda: mock_marketing_api_instance)
 
     # We need to test the hook specifically inside create_listing. To avoid all the AI analysis,
     # let's just mock everything up to _create_trading_api_listing.
@@ -77,10 +77,10 @@ def test_promotion_hook_disabled(processor, monkeypatch):
     # Mock settings manager
     mock_settings = MagicMock()
     mock_settings.get.side_effect = lambda k, d=None: 'false' if k == 'PROMOTED_LISTINGS_ENABLED' else d
-    monkeypatch.setattr('backend.app.services.processor_service.get_settings_manager', lambda: mock_settings)
+    monkeypatch.setattr('backend.app.core.settings_manager.get_settings_manager', lambda: mock_settings)
     
     mock_marketing_api_instance = MagicMock()
-    monkeypatch.setattr('backend.app.services.processor_service.MarketingAPI', lambda: mock_marketing_api_instance)
+    monkeypatch.setattr('backend.app.services.ebay.marketing.MarketingAPI', lambda: mock_marketing_api_instance)
 
     # Setup the same mocks
     monkeypatch.setattr(processor, '_metadata_condition', lambda x: 'USED_EXCELLENT')
@@ -112,11 +112,11 @@ def test_promotion_hook_failure_does_not_block(processor, monkeypatch):
     # Mock settings manager
     mock_settings = MagicMock()
     mock_settings.get.side_effect = lambda k, d=None: 'true' if k == 'PROMOTED_LISTINGS_ENABLED' else '5.0' if k == 'PROMOTED_LISTINGS_AD_RATE' else d
-    monkeypatch.setattr('backend.app.services.processor_service.get_settings_manager', lambda: mock_settings)
+    monkeypatch.setattr('backend.app.core.settings_manager.get_settings_manager', lambda: mock_settings)
     
     mock_marketing_api_instance = MagicMock()
     mock_marketing_api_instance.promote_listing.side_effect = Exception("API Down")
-    monkeypatch.setattr('backend.app.services.processor_service.MarketingAPI', lambda: mock_marketing_api_instance)
+    monkeypatch.setattr('backend.app.services.ebay.marketing.MarketingAPI', lambda: mock_marketing_api_instance)
 
     # Setup the same mocks
     monkeypatch.setattr(processor, '_metadata_condition', lambda x: 'USED_EXCELLENT')
