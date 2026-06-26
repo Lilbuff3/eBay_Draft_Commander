@@ -86,6 +86,7 @@ EBAY_PAYMENT_PROCESSING_FEE = 0.30       # $0.30 per-order payment processing
 MIN_LISTING_PRICE = 4.99                  # Floor price for any listing
 MAX_LISTING_PRICE = 9999.99               # Ceiling price sanity check
 RARITY_PERCENTILE_THRESHOLD = 75          # Use 75th percentile for rare items
+ACTIVE_TO_SOLD_FACTOR = float(os.getenv('ACTIVE_TO_SOLD_FACTOR', '0.87'))  # comps are ACTIVE asking prices; discount toward estimated sold value
 
 # --- Trading API Constants ---
 TRADING_API_TIMEOUT = 30                  # seconds
