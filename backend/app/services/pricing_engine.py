@@ -18,6 +18,7 @@ from backend.app.core.constants import (
     RARITY_PERCENTILE_THRESHOLD,
 )
 from backend.app.core.logger import get_logger
+from backend.app.core.prompts import build_seller_note_block
 
 logger = get_logger('pricing_engine')
 
@@ -341,7 +342,7 @@ class PricingEngine:
         search_terms = "+".join(title.split()[:6])
         return f"https://www.ebay.com/sch/i.html?_nkw={quote(search_terms)}&LH_Complete=1&LH_Sold=1"
     
-    def get_ai_price_estimate(self, title: str, condition: str, identification: Optional[Dict] = None) -> Optional[Dict[str, Union[float, str]]]:
+    def get_ai_price_estimate(self, title: str, condition: str, identification: Optional[Dict] = None, seller_note: str = "") -> Optional[Dict[str, Union[float, str]]]:
         """Estimate price using Gemini with Google Search grounding.
 
         identification (brand/model/mpn/part numbers) is woven into the prompt so the model
@@ -367,6 +368,7 @@ class PricingEngine:
             if _parts:
                 _id_lines.append("Part numbers (search these EXACT numbers): " + ", ".join(_parts[:6]))
             identifier_block = "\n            ".join(_id_lines) if _id_lines else "(no specific identifiers extracted)"
+            seller_note_block = build_seller_note_block(seller_note)
 
             prompt = f"""You are a High-End Industrial Appraiser and eBay Pricing Strategist.
             The user has an item that may be rare, industrial, or undervalued.
@@ -380,6 +382,7 @@ class PricingEngine:
             Condition: {condition}
             Identifiers:
             {identifier_block}
+            {seller_note_block}
 
             Use the EXACT part numbers / MPN above in your web searches first — they are the single
             best way to find this specific item's market price.
