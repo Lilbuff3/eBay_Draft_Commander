@@ -19,6 +19,26 @@ DEFAULT_CAPTURES_DIR = os.environ.get('DC_CAPTURES_DIR', '')
 TERMINAL_STATUSES = {'scheduled', 'completed', 'failed'}
 
 
+def _format_when_pt(iso_utc):
+    """Render a UTC ISO-8601 timestamp as friendly US Pacific time for chat replies.
+
+    Peak windows store 7 PM PT as 02:00 UTC, which reads as "2 AM" if shown raw.
+    e.g. '2026-07-01T02:00:00+00:00' -> 'Tue Jun 30, 7:00 PM PT'. Uses pytz (bundled
+    tz data, no tzdata dependency). Returns the input unchanged if it can't parse.
+    """
+    if not iso_utc:
+        return iso_utc
+    try:
+        from datetime import datetime
+        import pytz
+        dt = datetime.fromisoformat(str(iso_utc))
+        pt = dt.astimezone(pytz.timezone('America/Los_Angeles'))
+        hour12 = pt.hour % 12 or 12
+        return f"{pt.strftime('%a %b')} {pt.day}, {hour12}:{pt.minute:02d} {pt.strftime('%p')} PT"
+    except Exception:
+        return iso_utc
+
+
 def build_item_folder(image_paths, captures_dir):
     """Normalize images to RGB JPEG, write as 01.jpg.. in given order. Returns folder path."""
     folder = Path(captures_dir) / uuid.uuid4().hex[:8]
@@ -95,16 +115,17 @@ def capture(image_paths, api_base=None, captures_dir=None, poll_interval=3, poll
 
     status = str(last.get('status', '')).lower()
     when = last.get('scheduled_time') or resp.json().get('scheduled_time')
+    when_disp = _format_when_pt(when)
     if status == 'failed':
         return f"Couldn't analyze the item (job {job_id}). Bad photos? Nothing scheduled."
     if status not in TERMINAL_STATUSES:
         # Poll window elapsed before analysis finished. The slot was already assigned
         # at capture time, so the item IS scheduled — just title/price aren't final yet.
-        return (f"{prefix_warn}Captured & scheduled for {when} (job {job_id}), "
+        return (f"{prefix_warn}Captured & scheduled for {when_disp} (job {job_id}), "
                 f"still analyzing - title/price pending. Check Draft Commander, or 'cancel last' to undo.")
     title = last.get('user_title') or last.get('ai_title') or '(untitled)'
     price = last.get('user_price') or last.get('suggested_price') or '?'
-    return f"{prefix_warn}Scheduled: {title} - ${price} - live {when} (job {job_id}). Reply 'cancel last' to undo."
+    return f"{prefix_warn}Scheduled: {title} - ${price} - live {when_disp} (job {job_id}). Reply 'cancel last' to undo."
 
 
 def send_whatsapp(message, chat_id, bridge_port=3000):
