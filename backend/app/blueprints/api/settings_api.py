@@ -31,6 +31,15 @@ def save_app_settings():
     allowed_keys.update(settings_manager.DEFAULTS.keys())
 
     filtered = {k: v for k, v in data.items() if k in allowed_keys}
+    
+    if 'PROMOTED_LISTINGS_AD_RATE' in filtered:
+        try:
+            rate = float(filtered['PROMOTED_LISTINGS_AD_RATE'])
+            rate = max(0.0, min(100.0, rate))
+            filtered['PROMOTED_LISTINGS_AD_RATE'] = f"{rate:.1f}"
+        except ValueError:
+            filtered['PROMOTED_LISTINGS_AD_RATE'] = "5.0"
+
     skipped = [k for k in data if k not in allowed_keys]
     if skipped:
         logger.warning(f"Settings save: rejected unknown keys: {skipped}")

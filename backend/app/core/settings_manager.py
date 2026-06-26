@@ -26,6 +26,8 @@ class SettingsManager:
         'FAST_MODE': 'false',  # Skip Phase 2 web research + Gemini pricing grounding (5-13s/item faster)
         'ESTIMATED_SHIPPING_COST': '6.50',  # Baked into price for free-shipping listings
         'ENABLE_BACKGROUND_REMOVAL': 'false',  # rembg background removal (off for MVP)
+        'PROMOTED_LISTINGS_ENABLED': 'false',
+        'PROMOTED_LISTINGS_AD_RATE': '5.0',
     }
     
     # All known setting keys organized by category
@@ -57,6 +59,8 @@ class SettingsManager:
             'CONFIDENCE_THRESHOLD',
             'AUTO_PUBLISH_MIN_PRICE',
             'FAST_MODE',
+            'PROMOTED_LISTINGS_ENABLED',
+            'PROMOTED_LISTINGS_AD_RATE',
         ],
         'Application': [
             'DEFAULT_CONDITION',
