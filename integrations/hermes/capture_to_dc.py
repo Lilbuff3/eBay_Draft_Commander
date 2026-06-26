@@ -49,7 +49,7 @@ def _health_ok(api_base):
         return False
 
 
-def capture(image_paths, api_base=None, captures_dir=None, poll_interval=3, poll_timeout=300):
+def capture(image_paths, api_base=None, captures_dir=None, poll_interval=3, poll_timeout=300, note=""):
     api_base = api_base or DEFAULT_API_BASE
     captures_dir = captures_dir or DEFAULT_CAPTURES_DIR
     if not captures_dir:
@@ -65,7 +65,10 @@ def capture(image_paths, api_base=None, captures_dir=None, poll_interval=3, poll
 
     folder = build_item_folder(image_paths, captures_dir)
     try:
-        resp = requests.post(f"{api_base}/api/capture", json={'path': folder}, timeout=30)
+        body = {'path': folder}
+        if note:
+            body['note'] = note
+        resp = requests.post(f"{api_base}/api/capture", json=body, timeout=30)
     except requests.RequestException as e:
         return f"Capture request failed: {e}"
     if resp.status_code != 200 or not resp.json().get('success'):
@@ -136,7 +139,7 @@ def cancel_last(api_base=None, captures_dir=None):
     return f"Cancel failed for {job_id}: {r.status_code} {r.text[:160]}"
 
 
-def collect_and_capture(chat_id, api_base=None, captures_dir=None, debounce=3.0):
+def collect_and_capture(chat_id, api_base=None, captures_dir=None, debounce=3.0, note=""):
     """Flush a chat's buffered photos (written by the Hermes plugin) into one listing.
 
     WhatsApp delivers an album as separate messages, so the plugin stages each photo
@@ -157,7 +160,7 @@ def collect_and_capture(chat_id, api_base=None, captures_dir=None, debounce=3.0)
     if not paths:
         return "No photos found to list."
     try:
-        return capture(paths, api_base=api_base, captures_dir=captures_dir)
+        return capture(paths, api_base=api_base, captures_dir=captures_dir, note=note)
     finally:
         import shutil as _sh
         _sh.rmtree(staging, ignore_errors=True)  # clear the buffer regardless of outcome
@@ -176,6 +179,7 @@ if __name__ == '__main__':
     parser.add_argument('--cancel', action='store_true', help="cancel the last captured listing")
     parser.add_argument('--collect', default=None, metavar='CHAT_ID',
                         help="flush this chat's buffered photos into one listing")
+    parser.add_argument('--note', default='', help="seller note (trusted context for AI/pricing)")
     args = parser.parse_args()
 
     def reply(msg):
@@ -188,10 +192,10 @@ if __name__ == '__main__':
     elif args.collect:
         if args.chat_id:  # immediate ack while the album finishes arriving + analysis runs
             send_whatsapp("Got it - capturing & scheduling your listing...", args.chat_id, args.bridge_port)
-        reply(collect_and_capture(args.collect))
+        reply(collect_and_capture(args.collect, note=args.note))
     elif not args.images:
         reply("No images provided.")
     else:
         if args.chat_id:  # immediate ack so the user isn't left hanging during analysis
             send_whatsapp("Got it - capturing & scheduling your listing...", args.chat_id, args.bridge_port)
-        reply(capture(args.images))
+        reply(capture(args.images, note=args.note))

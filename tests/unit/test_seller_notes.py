@@ -188,3 +188,39 @@ class TestCaptureNoteCleaning:
         assert _clean_capture_note(123) == ""  # non-str -> empty
         long = "x" * 1000
         assert len(_clean_capture_note(long)) == 500
+
+
+class TestCaptureBridgeNote:
+    def test_capture_posts_note_in_body(self, tmp_path, monkeypatch):
+        import integrations.hermes.capture_to_dc as bridge
+
+        # one real image so build_item_folder succeeds
+        from PIL import Image
+        img = tmp_path / "a.jpg"
+        Image.new("RGB", (10, 10)).save(img)
+        captures = tmp_path / "caps"
+        captures.mkdir()
+
+        posted = {}
+
+        class FakeResp:
+            status_code = 200
+            def json(self):
+                return {"success": True, "job_id": "j1", "scheduled_time": "soon"}
+
+        def fake_post(url, json=None, timeout=None):
+            posted['url'] = url
+            posted['json'] = json
+            return FakeResp()
+
+        monkeypatch.setattr(bridge.requests, "post", fake_post)
+        monkeypatch.setattr(bridge, "_health_ok", lambda api_base: True)
+        # short-circuit polling: return immediately as scheduled
+        monkeypatch.setattr(bridge.requests, "get", lambda *a, **k: type("G", (), {
+            "status_code": 200, "json": lambda self: {"status": "scheduled"}})())
+
+        bridge.capture([str(img)], api_base="http://x", captures_dir=str(captures),
+                       poll_interval=0, poll_timeout=0, note="no charger")
+
+        assert posted['json']['note'] == "no charger"
+        assert posted['json']['path']
