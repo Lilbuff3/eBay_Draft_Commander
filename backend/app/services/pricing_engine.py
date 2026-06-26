@@ -525,7 +525,7 @@ class PricingEngine:
         # Fallback: first 8 words of title
         return " ".join(title.split()[:8])
 
-    def get_price_with_comps(self, title: str, condition: str = "Used - Good", category_id: Optional[str] = None, ai_suggested_price: Optional[str] = None, acquisition_cost: float = 0.0, isbn: Optional[str] = None, shipping_cost: float = 0.0, identification: Optional[Dict] = None, research_market_price: Optional[Dict] = None, availability: Optional[str] = None) -> Dict[str, Any]:
+    def get_price_with_comps(self, title: str, condition: str = "Used - Good", category_id: Optional[str] = None, ai_suggested_price: Optional[str] = None, acquisition_cost: float = 0.0, isbn: Optional[str] = None, shipping_cost: float = 0.0, identification: Optional[Dict] = None, research_market_price: Optional[Dict] = None, availability: Optional[str] = None, seller_note: str = "") -> Dict[str, Any]:
         """
         Main entry point: Get suggested price and comparable sales data.
 
@@ -666,7 +666,7 @@ class PricingEngine:
             grounded_result = None
         else:
             logger.info(f"[SEARCH] Performing AI Market Research (Gemini Grounding)...")
-            grounded_result = self.get_ai_price_estimate(title, condition, identification=identification)
+            grounded_result = self.get_ai_price_estimate(title, condition, identification=identification, seller_note=seller_note)
         if grounded_result:
             ai_price = grounded_result['price']
             ai_reasoning = grounded_result.get('reasoning', "Researched via Gemini")

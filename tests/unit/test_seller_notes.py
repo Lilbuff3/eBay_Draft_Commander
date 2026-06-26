@@ -136,3 +136,25 @@ class TestPricingGroundingNote:
         # ai_client None -> returns None immediately; assert the kwarg is accepted (no TypeError)
         result = engine.get_ai_price_estimate("Widget", "Used - Good", seller_note="antique")
         assert result is None  # client not configured; call signature accepted the note
+
+
+class TestPriceWithCompsThreadsNote:
+    def test_note_reaches_grounding_estimate(self):
+        from backend.app.services.pricing_engine import PricingEngine
+        engine = PricingEngine.__new__(PricingEngine)
+        captured = {}
+
+        def fake_estimate(title, condition, identification=None, seller_note=""):
+            captured['seller_note'] = seller_note
+            return None
+
+        # Force the cascade to reach grounding: no comps, no research price.
+        engine.search_sold_listings = lambda *a, **k: []
+        engine.filter_comps = lambda comps, ref: []
+        engine.get_ai_price_estimate = fake_estimate
+        engine._build_keyword_query = lambda title, identification=None: title
+
+        engine.get_price_with_comps(
+            "Obscure Widget", condition="Used - Good", seller_note="antique, working"
+        )
+        assert captured.get('seller_note') == "antique, working"
