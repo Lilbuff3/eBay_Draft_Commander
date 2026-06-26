@@ -84,3 +84,40 @@ class TestAnalyzeWithResearchForwardsNote:
             analyzer.analyze_with_research(["/fake/img.jpg"], seller_note="antique")
 
         assert seen['seller_note'] == "antique"
+
+
+from types import SimpleNamespace
+
+
+class TestListingAgentReadsNote:
+    def _agent(self):
+        from backend.app.services.listing_ai_agent import ListingAIAgent
+        agent = ListingAIAgent.__new__(ListingAIAgent)
+        agent.ai_analyzer = MagicMock()
+        agent.ai_analyzer.analyze_with_research.return_value = {
+            "identification": {}, "listing": {"suggested_title": "X", "description_html": "d"},
+            "item_specifics": {},
+        }
+        return agent
+
+    def _job(self, metadata):
+        return SimpleNamespace(
+            id="job1", folder_path="/c/inbox/x", user_title=None, user_description=None,
+            ai_data={}, job_metadata=metadata,
+        )
+
+    def test_note_from_metadata_passed_to_analyzer(self):
+        agent = self._agent()
+        job = self._job({"note": "no power cord"})
+        with patch("backend.app.services.listing_ai_agent.taxonomy.get_category_suggestions", return_value=[]):
+            agent.analyze_item(job, ["/fake/img.jpg"], condition="Used - Good")
+        _, kwargs = agent.ai_analyzer.analyze_with_research.call_args
+        assert kwargs.get("seller_note") == "no power cord"
+
+    def test_missing_note_passes_empty_string(self):
+        agent = self._agent()
+        job = self._job({})
+        with patch("backend.app.services.listing_ai_agent.taxonomy.get_category_suggestions", return_value=[]):
+            agent.analyze_item(job, ["/fake/img.jpg"], condition="Used - Good")
+        _, kwargs = agent.ai_analyzer.analyze_with_research.call_args
+        assert kwargs.get("seller_note") == ""

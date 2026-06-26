@@ -63,7 +63,10 @@ class ListingAIAgent:
                 else:
                     sug_text = "No eBay category suggestions found. Use your best judgment."
 
-                ai_data = self.ai_analyzer.analyze_with_research(images, category_suggestions=sug_text)
+                seller_note = job_obj.job_metadata.get('note', '') if job_obj.job_metadata else ''
+                ai_data = self.ai_analyzer.analyze_with_research(
+                    images, category_suggestions=sug_text, seller_note=seller_note
+                )
 
                 if ai_data.get('error'):
                     raise Exception(f"AI Analyzer Error: {ai_data['error']}")
