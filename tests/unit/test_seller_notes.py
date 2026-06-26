@@ -69,3 +69,18 @@ class TestAnalyzeItemThreadsNote:
             mock_prompt.format.side_effect = lambda *a, **k: captured.update(k) or "P"
             analyzer.analyze_item(["/fake/img.jpg"])
         assert captured.get('seller_note') == ""
+
+
+class TestAnalyzeWithResearchForwardsNote:
+    def test_note_forwarded_to_analyze_item(self):
+        analyzer = _make_analyzer()
+        seen = {}
+
+        def fake_analyze_item(image_paths, category_suggestions="", seller_note=""):
+            seen['seller_note'] = seller_note
+            return {"error": "stop here"}  # short-circuit before research phase
+
+        with patch.object(analyzer, "analyze_item", side_effect=fake_analyze_item):
+            analyzer.analyze_with_research(["/fake/img.jpg"], seller_note="antique")
+
+        assert seen['seller_note'] == "antique"

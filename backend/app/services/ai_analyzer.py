@@ -572,7 +572,7 @@ class AIAnalyzer:
             logger.warning(f"Research failed: {e}")
             return {"error": str(e), "researched": False}
 
-    def analyze_with_research(self, image_paths: list, category_suggestions: str = "") -> dict:
+    def analyze_with_research(self, image_paths: list, category_suggestions: str = "", seller_note: str = "") -> dict:
         """
         Two-phase analysis: 
         1. Basic image analysis to extract identifiers
@@ -583,7 +583,9 @@ class AIAnalyzer:
         """
         # Phase 1: Basic analysis
         logger.info("Phase 1: Analyzing images...")
-        basic_result = self.analyze_item(image_paths, category_suggestions=category_suggestions)
+        basic_result = self.analyze_item(
+            image_paths, category_suggestions=category_suggestions, seller_note=seller_note
+        )
         
         if basic_result.get('error'):
             return basic_result
