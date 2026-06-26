@@ -763,6 +763,23 @@ class ProcessorService:
             elif "token" in error_msg.lower() or "auth" in error_msg.lower():
                 error_type = "auth_error"
             return {"success": False, "error_type": error_type, "error_message": error_msg}
+
+        # PROMOTED LISTINGS HOOK
+        from backend.app.core.settings_manager import get_settings_manager
+        settings_mgr = get_settings_manager()
+        is_promoted = str(settings_mgr.get('PROMOTED_LISTINGS_ENABLED', 'false')).lower() == 'true'
+        if is_promoted and bundle.get('listing_id'):
+            try:
+                ad_rate = float(settings_mgr.get('PROMOTED_LISTINGS_AD_RATE', '5.0'))
+                from backend.app.services.ebay.marketing import MarketingAPI
+                marketing_api = MarketingAPI()
+                promo_res = marketing_api.promote_listing(bundle['listing_id'], ad_rate)
+                if promo_res.get('success'):
+                    _log(f"Successfully promoted listing {bundle['listing_id']} at {ad_rate}%", level='success')
+                else:
+                    _log(f"Failed to promote listing {bundle['listing_id']}: {promo_res.get('error')}", level='warning')
+            except Exception as e:
+                _log(f"Error promoting listing {bundle['listing_id']}: {e}", level='warning')
             
         result.update({
             "success": True, "listing_id": bundle['listing_id'], "status": bundle['status'],
