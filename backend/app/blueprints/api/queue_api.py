@@ -9,6 +9,13 @@ queue_bp = Blueprint('queue', __name__)
 logger = get_logger('api.queue')
 _capture_lock = threading.Lock()
 
+
+def _clean_capture_note(raw) -> str:
+    """Normalize a seller-supplied capture note: str, trimmed, length-capped at 500."""
+    if not isinstance(raw, str):
+        return ""
+    return raw.strip()[:500]
+
 @queue_bp.route('/status')
 def get_status():
     qm = current_app.queue_manager
@@ -170,6 +177,7 @@ def capture_item():
     raw_path = data.get('path')
     if not raw_path:
         return error_response('path required', 400)
+    note = _clean_capture_note(data.get('note'))
 
     captures_root = current_app.config['CAPTURES_DIR']
     try:
@@ -195,7 +203,7 @@ def capture_item():
         slot = get_next_optimal_listing_time(exclude_times=booked)
         job = qm.add_folder(
             str(src),
-            metadata={'capture_source': 'hermes'},
+            metadata={'capture_source': 'hermes', 'note': note} if note else {'capture_source': 'hermes'},
             batch_id=batch_id,
             scheduled_time=slot,
         )

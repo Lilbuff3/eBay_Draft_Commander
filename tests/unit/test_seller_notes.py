@@ -178,3 +178,13 @@ class TestFinalPricingNote:
             shipping_cost=0.0, seller_note="no charger",
         )
         assert captured.get('seller_note') == "no charger"
+
+
+class TestCaptureNoteCleaning:
+    def test_clean_note_trims_and_caps(self):
+        from backend.app.blueprints.api.queue_api import _clean_capture_note
+        assert _clean_capture_note("  no charger  ") == "no charger"
+        assert _clean_capture_note(None) == ""
+        assert _clean_capture_note(123) == ""  # non-str -> empty
+        long = "x" * 1000
+        assert len(_clean_capture_note(long)) == 500
