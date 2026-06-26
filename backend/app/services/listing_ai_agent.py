@@ -112,7 +112,7 @@ class ListingAIAgent:
             logger.error(f"AI Analysis failed: {e}")
             return {"success": False, "error": str(e)}
 
-    def get_final_pricing(self, title, condition, ai_suggested_price, user_price, shipping_cost=None, log_callback=None, identification=None, research_market_price=None, availability=None):
+    def get_final_pricing(self, title, condition, ai_suggested_price, user_price, shipping_cost=None, log_callback=None, identification=None, research_market_price=None, availability=None, seller_note=""):
         """Determine the final price using research engine and user overrides.
 
         When free shipping is active (shipping_cost > 0), the estimated
@@ -146,6 +146,7 @@ class ListingAIAgent:
                 identification=identification,
                 research_market_price=research_market_price,
                 availability=availability,
+                seller_note=seller_note,
             )
             final_price = str(price_result['suggested_price']) if price_result['suggested_price'] else "0.00"
             _log(f"Suggested Price: ${final_price}")

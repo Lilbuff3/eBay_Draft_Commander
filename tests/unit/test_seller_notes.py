@@ -158,3 +158,23 @@ class TestPriceWithCompsThreadsNote:
             "Obscure Widget", condition="Used - Good", seller_note="antique, working"
         )
         assert captured.get('seller_note') == "antique, working"
+
+
+class TestFinalPricingNote:
+    def test_get_final_pricing_forwards_note(self):
+        from backend.app.services.listing_ai_agent import ListingAIAgent
+        agent = ListingAIAgent.__new__(ListingAIAgent)
+        agent._default_shipping_cost = 0.0
+        captured = {}
+
+        agent.pricing_engine = MagicMock()
+        def fake_comps(*args, **kwargs):
+            captured['seller_note'] = kwargs.get('seller_note')
+            return {"suggested_price": "10.00", "comps": [], "reasoning": "", "source": "x"}
+        agent.pricing_engine.get_price_with_comps.side_effect = fake_comps
+
+        agent.get_final_pricing(
+            "Widget", "Used - Good", ai_suggested_price=5, user_price=None,
+            shipping_cost=0.0, seller_note="no charger",
+        )
+        assert captured.get('seller_note') == "no charger"
