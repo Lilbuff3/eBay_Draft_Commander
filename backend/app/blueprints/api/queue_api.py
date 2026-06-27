@@ -188,12 +188,26 @@ def capture_item():
     )
     from backend.app.services.listing_guardrails import compute_photo_hashes, find_duplicate
     from backend.app.services.queue_job import JobStatus
+    from backend.app.services.whatsapp_notify import (
+        get_whatsapp_origin, notify_whatsapp, build_duplicate_message,
+    )
 
     data = request.json or {}
     raw_path = data.get('path')
     if not raw_path:
         return error_response('path required', 400)
     note = _clean_capture_note(data.get('note'))
+
+    # Origin: when the Hermes WhatsApp bridge passes a chat_id, remember it so the
+    # backend can message the user back later ("auto-decide + tell me").
+    chat_id = (data.get('chat_id') or '').strip() or None
+    origin = None
+    if chat_id:
+        origin = {'channel': 'whatsapp', 'chat_id': chat_id}
+        try:
+            origin['bridge_port'] = int(data.get('bridge_port')) if data.get('bridge_port') else None
+        except (TypeError, ValueError):
+            origin['bridge_port'] = None
 
     captures_root = current_app.config['CAPTURES_DIR']
     try:
@@ -248,6 +262,8 @@ def capture_item():
             metadata['note'] = note
         if photo_hashes:
             metadata['photo_hashes'] = photo_hashes
+        if origin:
+            metadata['origin'] = origin
         job = qm.add_folder(
             str(src),
             metadata=metadata,
@@ -257,6 +273,26 @@ def capture_item():
 
     if duplicate:
         dup_label = duplicate.get('listing_id') or duplicate.get('id')
+        wa_origin = get_whatsapp_origin(metadata)
+        if wa_origin:
+            # Auto-decide + tell me: skip the duplicate, message the chat. The
+            # item never lands in a review queue the WhatsApp user won't open.
+            note_msg = build_duplicate_message(None, dup_label)
+            qm.update_job(job.id, {
+                'status': JobStatus.SKIPPED,
+                'error_message': note_msg,
+            })
+            notify_whatsapp(wa_origin, note_msg)
+            logger.info(f"Captured job {job.id} auto-skipped as duplicate (whatsapp): {dup_label}")
+            return jsonify({
+                'success': True,
+                'job_id': job.id,
+                'scheduled_time': slot,
+                'scheduled': False,
+                'duplicate': True,
+                'auto_resolved': 'skipped',
+                'decision_note': note_msg,
+            })
         reason = f"possible duplicate of listing {dup_label}"
         qm.update_job(job.id, {
             'status': JobStatus.PENDING_REVIEW,

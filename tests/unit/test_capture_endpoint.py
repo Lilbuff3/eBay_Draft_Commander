@@ -238,3 +238,46 @@ def test_capture_different_photos_not_flagged_as_duplicate(app, monkeypatch):
     job2 = app.queue_manager.get_job_by_id(data2['job_id'])
     assert job2.status != JobStatus.PENDING_REVIEW
     assert job2.job_metadata.get('photo_hashes')
+
+
+# ---------------------------------------------------------------------------
+# WhatsApp origin + auto-decide ("tell me") on duplicate
+# ---------------------------------------------------------------------------
+
+def test_capture_persists_whatsapp_origin(app, monkeypatch):
+    """A capture carrying chat_id/bridge_port stores an origin block so the
+    backend can message the chat back later."""
+    monkeypatch.setattr(app.queue_manager, 'start_processing', lambda: None)
+    captures = Path(app.config['CAPTURES_DIR'])
+    item = _make_real_photo_item(captures, "wa_first", fill=(11, 22, 33))
+    resp = app.test_client().post('/api/capture', json={
+        'path': str(item), 'chat_id': '123@c.us', 'bridge_port': 3000,
+    })
+    assert resp.status_code == 200
+    job = app.queue_manager.get_job_by_id(resp.get_json()['job_id'])
+    origin = job.job_metadata.get('origin')
+    assert origin and origin['channel'] == 'whatsapp' and origin['chat_id'] == '123@c.us'
+
+
+def test_capture_whatsapp_duplicate_auto_skips_and_notifies(app, monkeypatch):
+    """A WhatsApp re-send of the same photos is auto-skipped (not stranded in
+    pending_review) and the chat is notified."""
+    monkeypatch.setattr(app.queue_manager, 'start_processing', lambda: None)
+    import backend.app.services.whatsapp_notify as wn
+    sent = []
+    monkeypatch.setattr(wn, 'notify_whatsapp', lambda origin, msg: sent.append((origin, msg)) or True)
+
+    captures = Path(app.config['CAPTURES_DIR'])
+    client = app.test_client()
+    item1 = _make_real_photo_item(captures, "wa_orig", fill=(44, 55, 66))
+    client.post('/api/capture', json={'path': str(item1), 'chat_id': '9@c.us', 'bridge_port': 3000})
+
+    item2 = _make_real_photo_item(captures, "wa_resend", fill=(44, 55, 66))
+    resp2 = client.post('/api/capture', json={'path': str(item2), 'chat_id': '9@c.us', 'bridge_port': 3000})
+    assert resp2.status_code == 200
+    data2 = resp2.get_json()
+    assert data2.get('auto_resolved') == 'skipped'
+    job2 = app.queue_manager.get_job_by_id(data2['job_id'])
+    assert job2.status == JobStatus.SKIPPED
+    assert job2.status != JobStatus.PENDING_REVIEW
+    assert sent and sent[-1][0]['chat_id'] == '9@c.us'

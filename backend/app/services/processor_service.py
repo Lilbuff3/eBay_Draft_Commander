@@ -766,18 +766,40 @@ class ProcessorService:
 
         review_reason = guardrail_result.get('review_reason')
         if review_reason:
-            _log(f"Listing-quality guardrail flagged for review: {review_reason}", level='warning')
-            result.update({
-                "success": True,
-                "status": "pending_review",
-                "title": analysis['title'],
-                "price": pricing_result.get('price'),
-                "condition": condition,
-                "confidence_score": confidence_score,
-                "error_message": review_reason,
-                "timing": {**result["timing"], "total": time.time() - start_time},
-            })
-            return result
+            from backend.app.services.whatsapp_notify import (
+                get_whatsapp_origin, notify_whatsapp, build_price_message,
+            )
+            wa_origin = get_whatsapp_origin(job_obj.job_metadata)
+            if wa_origin:
+                # Auto-decide + tell me: WhatsApp jobs list anyway at the computed
+                # price and report it in chat, instead of stalling in a review
+                # queue the user never opens. They can fix it in the eBay app.
+                decision_note = build_price_message(
+                    analysis['title'], pricing_result.get('price'), review_reason
+                )
+                _log(f"Price flag auto-resolved (list anyway, whatsapp): {review_reason}",
+                     level='warning')
+                try:
+                    md = job_obj.job_metadata or {}
+                    md['decision_note'] = decision_note
+                    job_obj.job_metadata = md
+                except Exception:
+                    pass
+                notify_whatsapp(wa_origin, decision_note)
+                # fall through to normal submission — do NOT route to review.
+            else:
+                _log(f"Listing-quality guardrail flagged for review: {review_reason}", level='warning')
+                result.update({
+                    "success": True,
+                    "status": "pending_review",
+                    "title": analysis['title'],
+                    "price": pricing_result.get('price'),
+                    "condition": condition,
+                    "confidence_score": confidence_score,
+                    "error_message": review_reason,
+                    "timing": {**result["timing"], "total": time.time() - start_time},
+                })
+                return result
 
         bundle = self._create_trading_api_listing(
             title=analysis['title'], final_price=pricing_result["price"], condition=condition,

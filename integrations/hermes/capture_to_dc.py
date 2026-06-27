@@ -69,7 +69,8 @@ def _health_ok(api_base):
         return False
 
 
-def capture(image_paths, api_base=None, captures_dir=None, poll_interval=3, poll_timeout=300, note=""):
+def capture(image_paths, api_base=None, captures_dir=None, poll_interval=3, poll_timeout=300,
+            note="", chat_id=None, bridge_port=None):
     api_base = api_base or DEFAULT_API_BASE
     captures_dir = captures_dir or DEFAULT_CAPTURES_DIR
     if not captures_dir:
@@ -88,6 +89,10 @@ def capture(image_paths, api_base=None, captures_dir=None, poll_interval=3, poll
         body = {'path': folder}
         if note:
             body['note'] = note
+        if chat_id:
+            # Lets the backend message this chat later ("auto-decide + tell me").
+            body['chat_id'] = chat_id
+            body['bridge_port'] = bridge_port
         resp = requests.post(f"{api_base}/api/capture", json=body, timeout=30)
     except requests.RequestException as e:
         return f"Capture request failed: {e}"
@@ -160,7 +165,7 @@ def cancel_last(api_base=None, captures_dir=None):
     return f"Cancel failed for {job_id}: {r.status_code} {r.text[:160]}"
 
 
-def collect_and_capture(chat_id, api_base=None, captures_dir=None, debounce=3.0, note=""):
+def collect_and_capture(chat_id, api_base=None, captures_dir=None, debounce=3.0, note="", bridge_port=None):
     """Flush a chat's buffered photos (written by the Hermes plugin) into one listing.
 
     WhatsApp delivers an album as separate messages, so the plugin stages each photo
@@ -181,7 +186,8 @@ def collect_and_capture(chat_id, api_base=None, captures_dir=None, debounce=3.0,
     if not paths:
         return "No photos found to list."
     try:
-        return capture(paths, api_base=api_base, captures_dir=captures_dir, note=note)
+        return capture(paths, api_base=api_base, captures_dir=captures_dir, note=note,
+                       chat_id=chat_id, bridge_port=bridge_port)
     finally:
         import shutil as _sh
         _sh.rmtree(staging, ignore_errors=True)  # clear the buffer regardless of outcome
@@ -213,10 +219,10 @@ if __name__ == '__main__':
     elif args.collect:
         if args.chat_id:  # immediate ack while the album finishes arriving + analysis runs
             send_whatsapp("Got it - capturing & scheduling your listing...", args.chat_id, args.bridge_port)
-        reply(collect_and_capture(args.collect, note=args.note))
+        reply(collect_and_capture(args.collect, note=args.note, bridge_port=args.bridge_port))
     elif not args.images:
         reply("No images provided.")
     else:
         if args.chat_id:  # immediate ack so the user isn't left hanging during analysis
             send_whatsapp("Got it - capturing & scheduling your listing...", args.chat_id, args.bridge_port)
-        reply(capture(args.images, note=args.note))
+        reply(capture(args.images, note=args.note, chat_id=args.chat_id, bridge_port=args.bridge_port))
