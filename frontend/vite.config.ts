@@ -60,6 +60,22 @@ export default defineConfig(({ mode }) => ({
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
     css: true,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html'],
+      // Report stays broad so untested modules (pwa.ts, offlineQueue.ts,
+      // status.ts, categories.ts — all 0% today) remain VISIBLE as future work,
+      // not hidden by a narrow include.
+      include: ['src/lib/**', 'src/store/**'],
+      thresholds: {
+        // Soft floor set just under current actuals (Phase A): fails CI only on
+        // a real regression. Ratchet these up as Phases B/C add coverage.
+        statements: 40,
+        branches: 60,
+        functions: 20,
+        lines: 40,
+      },
+    },
   },
   optimizeDeps: {
     exclude: ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities']
