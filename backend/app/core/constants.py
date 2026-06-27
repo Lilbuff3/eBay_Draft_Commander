@@ -93,6 +93,19 @@ TRADING_API_TIMEOUT = 30                  # seconds
 TRADING_API_MAX_RETRIES = 2
 TRADING_API_PAGE_SIZE = 200               # GetSellerList entries per page
 
+# --- Listing-Quality Guardrails ---
+# Photo-hash duplicate detection: max Hamming distance between two dHash
+# values to count as a "match", and how far back (days) to compare against.
+DUP_HASH_DISTANCE = int(os.getenv('DUP_HASH_DISTANCE', '6'))
+DUP_LOOKBACK_DAYS = int(os.getenv('DUP_LOOKBACK_DAYS', '30'))
+# Price sanity: no-market-data prices above this are flagged for review;
+# prices more than this multiple of the comp median are also flagged.
+PRICE_REVIEW_THRESHOLD = float(os.getenv('PRICE_REVIEW_THRESHOLD', '150.0'))
+PRICE_COMP_MULTIPLE = float(os.getenv('PRICE_COMP_MULTIPLE', '3.0'))
+# Non-brand tokens the AI sometimes emits verbatim as "Brand" — normalized to
+# "Unbranded" instead of shipping a nonsense brand value. Compared case-insensitively.
+BRAND_BLOCKLIST = ['Signed', 'Various', 'N/A', 'Unknown', 'Unbranded']
+
 # --- Shipping Tiers ---
 SHIPPING_LOOKUP = {
     'small': 4.50,   # < 1lb (USPS Ground Advantage)
