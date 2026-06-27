@@ -746,6 +746,39 @@ class ProcessorService:
         # resolve passes so a late text value (e.g. "Does Not Apply") can't slip through.
         sanitize_numeric_aspects(analysis['item_specifics'], ebay_aspect_schema, log=_log)
 
+        # LISTING-QUALITY GUARDRAILS: title hygiene + brand/aspect normalization
+        # are auto-fixed in place; price sanity (no-comp outlier, or >3x comp
+        # median) is a judgment call that routes to pending_review instead of
+        # submitting to eBay. Runs on job_obj (the guardrail's contract), so
+        # stage the current title/specifics onto it, then read the (possibly
+        # cleaned) values back for submission.
+        from backend.app.services.listing_guardrails import apply_pre_listing_guardrails
+        job_obj.title = analysis['title']
+        job_obj.item_specifics = analysis['item_specifics']
+        guardrail_result = apply_pre_listing_guardrails(
+            job_obj,
+            price=pricing_result.get('price'),
+            source=pricing_result.get('source'),
+            comps=pricing_result.get('comps'),
+        )
+        analysis['title'] = job_obj.title
+        analysis['item_specifics'] = job_obj.item_specifics
+
+        review_reason = guardrail_result.get('review_reason')
+        if review_reason:
+            _log(f"Listing-quality guardrail flagged for review: {review_reason}", level='warning')
+            result.update({
+                "success": True,
+                "status": "pending_review",
+                "title": analysis['title'],
+                "price": pricing_result.get('price'),
+                "condition": condition,
+                "confidence_score": confidence_score,
+                "error_message": review_reason,
+                "timing": {**result["timing"], "total": time.time() - start_time},
+            })
+            return result
+
         bundle = self._create_trading_api_listing(
             title=analysis['title'], final_price=pricing_result["price"], condition=condition,
             category_id=cat_result['id'], html_description=template["html"],
