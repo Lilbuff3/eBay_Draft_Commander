@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, current_app
-from datetime import datetime
+from datetime import datetime, timedelta
 import threading
 from backend.app.blueprints.api.helpers import error_response
 from backend.app.core.validator import validate_safe_path, ValidationError
@@ -170,8 +170,24 @@ def capture_item():
     registered directly from the captures folder.
 
     Body: {"path": "<abs path under CAPTURES_DIR, already holding the item's images>"}
+
+    GUARDRAIL: before registering, computes a perceptual photo-hash (dHash) of
+    the staged images and compares against recent jobs' stored hashes
+    (job_metadata['photo_hashes'], within DUP_LOOKBACK_DAYS). A near-match
+    flags the new job pending_review ("possible duplicate of listing X") and
+    skips starting processing — saving a wasted AI call on a re-send. A
+    non-matching capture stores its own hashes for future comparisons and
+    proceeds exactly as before. Different photos never trip this (conservative
+    by design) so intentional variants/multiples are safe.
     """
-    from backend.app.core.constants import SUPPORTED_IMAGE_EXTENSIONS, get_next_optimal_listing_time
+    from backend.app.core.constants import (
+        SUPPORTED_IMAGE_EXTENSIONS,
+        get_next_optimal_listing_time,
+        DUP_HASH_DISTANCE,
+        DUP_LOOKBACK_DAYS,
+    )
+    from backend.app.services.listing_guardrails import compute_photo_hashes, find_duplicate
+    from backend.app.services.queue_job import JobStatus
 
     data = request.json or {}
     raw_path = data.get('path')
@@ -187,9 +203,35 @@ def capture_item():
 
     if not src.exists() or not src.is_dir():
         return error_response('path not found', 404)
-    if not any(f.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
-               for f in src.iterdir() if f.is_file()):
+    image_files = [f for f in src.iterdir()
+                    if f.is_file() and f.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS]
+    if not image_files:
         return error_response('No images found in folder', 400)
+
+    # GUARD: photo-hash dedup. Best-effort -- if hashing fails for any reason,
+    # treat as non-duplicate rather than blocking the capture.
+    photo_hashes = []
+    duplicate = None
+    try:
+        photo_hashes = compute_photo_hashes([str(f) for f in image_files])
+        cutoff = datetime.now() - timedelta(days=DUP_LOOKBACK_DAYS)
+        qm = current_app.queue_manager
+        recent_jobs = []
+        for job in qm.get_all_jobs():
+            hashes = (job.job_metadata or {}).get('photo_hashes')
+            if not hashes:
+                continue
+            try:
+                created = datetime.fromisoformat(job.created_at)
+            except (TypeError, ValueError):
+                continue
+            if created < cutoff:
+                continue
+            recent_jobs.append({'id': job.id, 'listing_id': job.listing_id, 'photo_hashes': hashes})
+        duplicate = find_duplicate(photo_hashes, recent_jobs, max_distance=DUP_HASH_DISTANCE)
+    except Exception as e:
+        logger.error(f"Photo-hash dedup check failed (proceeding as non-duplicate): {e}")
+        duplicate = None
 
     qm = current_app.queue_manager
     with _capture_lock:
@@ -201,12 +243,34 @@ def capture_item():
         batch_id = f"hermes_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         booked = qm.get_booked_schedule_times()
         slot = get_next_optimal_listing_time(exclude_times=booked)
+        metadata = {'capture_source': 'hermes'}
+        if note:
+            metadata['note'] = note
+        if photo_hashes:
+            metadata['photo_hashes'] = photo_hashes
         job = qm.add_folder(
             str(src),
-            metadata={'capture_source': 'hermes', 'note': note} if note else {'capture_source': 'hermes'},
+            metadata=metadata,
             batch_id=batch_id,
             scheduled_time=slot,
         )
+
+    if duplicate:
+        dup_label = duplicate.get('listing_id') or duplicate.get('id')
+        reason = f"possible duplicate of listing {dup_label}"
+        qm.update_job(job.id, {
+            'status': JobStatus.PENDING_REVIEW,
+            'error_message': reason,
+        })
+        logger.info(f"Captured job {job.id} flagged pending_review: {reason}")
+        return jsonify({
+            'success': True,
+            'job_id': job.id,
+            'scheduled_time': slot,
+            'scheduled': True,
+            'duplicate': True,
+            'review_reason': reason,
+        })
 
     if not qm.is_processing() and not qm.is_paused():
         qm.start_processing()
