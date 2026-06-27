@@ -92,6 +92,7 @@ backend/                    Flask app factory
       book_service.py       Book-specific metadata lookup
       item_specifics_mapper.py  eBay item specifics mapping
       listing_guardrails.py  Pre-listing quality guards: photo-hash dedup, price sanity, title/brand hygiene
+      whatsapp_notify.py    Back-channel to the Hermes WhatsApp bridge /send (auto-decide + tell me)
       ebay/                 eBay REST/XML API modules
         auth.py             OAuth token management
         browse.py           Browse API (client credentials auth)
@@ -149,6 +150,7 @@ frontend/                   React 18 + Vite + TypeScript
 - **Seller notes** — free-text WhatsApp caption (minus the "sell" trigger) → `job_metadata['note']` → injected as trusted context into the AI vision prompt + pricing grounding estimate; surfaces in `description_html`. Helper `build_seller_note_block()` in `prompts.py`; empty note = no-op (prompts byte-identical). Capture note cleaned/capped (500 chars) by `_clean_capture_note` in `queue_api.py`.
 - **Promoted Listings** — `ebay/marketing.py` `MarketingAPI` auto-promotes new listings at `PROMOTED_LISTINGS_AD_RATE`% (COST_PER_SALE) when `PROMOTED_LISTINGS_ENABLED=true`. Hook in `processor_service.create_listing` after a `listing_id` is obtained; **failure-safe** (promotion error never blocks the listing). Needs the `sell.marketing` OAuth scope on the user token.
 - **Listing-quality guardrails** — `listing_guardrails.py` runs between AI/pricing output and eBay submit. **Auto-fix:** `clean_title` (dangling fragments, repeated words, ≤80), `normalize_aspects` (brand blocklist → "Unbranded", split "A / B"). **Route to `pending_review`:** photo-hash dedup (`compute_photo_hashes` dHash + `find_duplicate`, at capture in `queue_api`), and `check_price_sanity` (no-comp source over threshold, or >3× comp median, before `create_listing`). Photo hashes stored in `job_metadata['photo_hashes']`. Different photos never trip dedup → intentional variants safe.
+- **WhatsApp auto-decide + tell me** — review routing assumes someone watches the web Review Queue, but the Hermes WhatsApp user never opens it (a `pending_review` job is invisible to chat + the bridge poll times out). So jobs carrying a WhatsApp origin **auto-resolve instead of stalling**: duplicate → `skipped` (no dup listing); price outlier → **list anyway** at the computed price. Either way `whatsapp_notify.notify_whatsapp()` messages the chat via the Hermes bridge `/send` (best-effort, never blocks a listing). Origin `{channel,chat_id,bridge_port}` is persisted in `job_metadata['origin']` from `/api/capture` (bridge passes `chat_id`/`bridge_port`). Web-origin jobs are unchanged (still use the Review Queue). Scoped by `get_whatsapp_origin(job_metadata)`. **Real delivery needs the Hermes WhatsApp bridge running on port 3000** — if it's down, the decision still happens, the message is just dropped (logged to `whatsapp_notify.log`).
 
 ## Database
 
