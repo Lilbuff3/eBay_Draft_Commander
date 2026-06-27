@@ -1,7 +1,6 @@
 from flask import Blueprint, jsonify
 import time
 import threading
-import sys
 import os
 from backend.app.core.logger import get_logger
 
@@ -20,13 +19,35 @@ def clear_taxonomy_cache():
     _clear()
     return jsonify({'success': True, 'message': 'Taxonomy cache cleared'}), 200
 
+# Exit code that tells the supervisor (run_service.py) to relaunch the child.
+RESTART_EXIT_CODE = 42
+
+
 @system_bp.route('/restart', methods=['POST'])
 def restart_server():
-    """Soft reboot the backend server"""
+    """Soft reboot the backend server.
+
+    Requires the process to be launched under the supervisor (run_service.py),
+    which sets DC_SUPERVISED=1. The handler exits with code 42; the supervisor
+    sees it and relaunches the child into a freshly released port 5000.
+
+    os.execv was unreliable on Windows: it does not release the eventlet
+    listener socket before re-binding, leaving port 5000 unbound.
+    """
+    if not os.environ.get('DC_SUPERVISED'):
+        return jsonify({
+            'success': False,
+            'error': 'Restart unavailable: backend is not running under the '
+                     'supervisor. Launch via run_service.py to enable restart.',
+        }), 409
+
     def reboot():
-        logger.info("Soft reboot triggered. Restarting process...")
-        time.sleep(1)
-        os.execv(sys.executable, [sys.executable] + sys.argv)
+        logger.info(
+            "Soft reboot triggered. Exiting with code %d for supervisor relaunch.",
+            RESTART_EXIT_CODE,
+        )
+        time.sleep(1)  # let the HTTP response flush before the process dies
+        os._exit(RESTART_EXIT_CODE)
 
     threading.Thread(target=reboot).start()
     return jsonify({'success': True, 'message': 'Rebooting server...'}), 200
