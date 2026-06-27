@@ -85,6 +85,7 @@ backend/                    Flask app factory
       isbn_scanner.py       ISBN barcode detection
       book_service.py       Book-specific metadata lookup
       item_specifics_mapper.py  eBay item specifics mapping
+      listing_guardrails.py  Pre-listing quality guards: photo-hash dedup, price sanity, title/brand hygiene
       ebay/                 eBay REST/XML API modules
         auth.py             OAuth token management
         browse.py           Browse API (client credentials auth)
@@ -96,6 +97,7 @@ backend/                    Flask app factory
         researcher.py       eBay market research
         analytics.py        Seller analytics API
         adapters.py         TradingAPIAdapter, InventoryAPIAdapter field mappers
+        marketing.py        Promoted Listings (Marketing API: ensure_campaign, promote_listing)
 frontend/                   React 18 + Vite + TypeScript
   src/
     App.tsx                 Tab-based navigation via activeTab state, global layout
@@ -137,6 +139,10 @@ frontend/                   React 18 + Vite + TypeScript
 - **Required aspects guard** — `processor_service.py` validates required aspects before eBay submission. Auto-fills generic aspects (Brand, MPN, Type, UPC, etc.) with "Does Not Apply". Category-specific missing aspects route job to review instead of failing.
 - **Results logging** — `results_logger.py` writes JSONL to `data/listing_results.jsonl`. Each record captures title, price, category, condition, comps, source, and outcome. Use `get_results()` and `compare_last_runs()` for analysis.
 - **Pricing cascade (expanded)** — ISBN → MPN → Alt part numbers → Keywords → Research market price → Gemini grounding → AI estimate. Rarity-aware: rare/very_rare items use 75th percentile instead of median. Comps and reasoning persisted to job metadata.
+- **ACTIVE_TO_SOLD_FACTOR** — comps come from Browse API = ACTIVE asking prices (NOT sold). `calculate_suggested_price` discounts the comp median by `ACTIVE_TO_SOLD_FACTOR` (env, default 0.87) toward estimated sold value. `median_price` field stays raw; only `suggested_price` is discounted. Only the `market_data_*` comp paths use it.
+- **Seller notes** — free-text WhatsApp caption (minus the "sell" trigger) → `job_metadata['note']` → injected as trusted context into the AI vision prompt + pricing grounding estimate; surfaces in `description_html`. Helper `build_seller_note_block()` in `prompts.py`; empty note = no-op (prompts byte-identical). Capture note cleaned/capped (500 chars) by `_clean_capture_note` in `queue_api.py`.
+- **Promoted Listings** — `ebay/marketing.py` `MarketingAPI` auto-promotes new listings at `PROMOTED_LISTINGS_AD_RATE`% (COST_PER_SALE) when `PROMOTED_LISTINGS_ENABLED=true`. Hook in `processor_service.create_listing` after a `listing_id` is obtained; **failure-safe** (promotion error never blocks the listing). Needs the `sell.marketing` OAuth scope on the user token.
+- **Listing-quality guardrails** — `listing_guardrails.py` runs between AI/pricing output and eBay submit. **Auto-fix:** `clean_title` (dangling fragments, repeated words, ≤80), `normalize_aspects` (brand blocklist → "Unbranded", split "A / B"). **Route to `pending_review`:** photo-hash dedup (`compute_photo_hashes` dHash + `find_duplicate`, at capture in `queue_api`), and `check_price_sanity` (no-comp source over threshold, or >3× comp median, before `create_listing`). Photo hashes stored in `job_metadata['photo_hashes']`. Different photos never trip dedup → intentional variants safe.
 
 ## Database
 
@@ -172,6 +178,9 @@ SQLite pragmas: `journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=5000`
 Required: `EBAY_APP_ID`, `EBAY_CERT_ID`, `EBAY_USER_TOKEN`, `GOOGLE_API_KEY`
 Business policies: `EBAY_FULFILLMENT_POLICY`, `EBAY_PAYMENT_POLICY`, `EBAY_RETURN_POLICY`, `EBAY_MERCHANT_LOCATION`
 Optional: `DEFAULT_CONDITION` (USED_EXCELLENT), `DEFAULT_PRICE` (29.99), `AUTO_PUBLISH` (false), `CONFIDENCE_THRESHOLD` (85), `PORT` (5000), `ESTIMATED_SHIPPING_COST` (6.50 — baked into listing price since fulfillment policy is free shipping)
+Pricing/guardrails (optional): `ACTIVE_TO_SOLD_FACTOR` (0.87), `PRICE_REVIEW_THRESHOLD` (150.0), `PRICE_COMP_MULTIPLE` (3.0), `DUP_HASH_DISTANCE` (6), `DUP_LOOKBACK_DAYS` (30)
+Promoted Listings (optional): `PROMOTED_LISTINGS_ENABLED` (false), `PROMOTED_LISTINGS_AD_RATE` (5.0)
+OAuth scopes (`auth.py` SCOPES + `token_manager.py` EBAY_SCOPES) now include `sell.marketing`.
 
 Settings UI writes directly to .env via SettingsManager singleton.
 
@@ -237,3 +246,7 @@ cd ~/.claude/skills/playwright-skill && node run.js /tmp/playwright-test-*.js
 - **Condition ID validation** — `taxonomy.py:validate_condition_for_category()` checks condition IDs against eBay category policies. Falls back through condition hierarchy if original ID is invalid for the category.
 - **Results logger** — `results_logger.py` appends JSONL to `data/listing_results.jsonl`. NOT a test framework — it's for tracking real listing outcomes over time to improve AI quality. Use `get_results(last_n=10)` for recent entries.
 - **SAFE_DEFAULT_ASPECTS** — Set in `processor_service.py`: `{Brand, MPN, Type, Model, UPC, EAN, Country/Region of Manufacture, California Prop 65 Warning}`. These get auto-filled with "Does Not Apply" when missing. Category-specific required aspects (like Size, Color) route job to review instead.
+- **eBay OAuth re-consent is manual (no web callback)** — to add a scope (e.g. `sell.marketing`): add it to `auth.py` SCOPES + `token_manager.py` EBAY_SCOPES, then re-consent: `eBayOAuth(use_sandbox=False).get_authorization_url()` → user opens it + clicks Agree → copy the `code` from the redirect → `exchange_code_for_token(code)`. **Critical:** also call `token_manager.store_tokens(access, refresh)` — `save_tokens()` only writes `.env`, but the running app reads the access token from the SQLite DB. A token *refresh* keeps the OLD scope set; a NEW scope requires a fresh consent. `tools/exchange_token.py` helps.
+- **DC restart** — `POST /api/system/restart` uses `os.execv`, which does NOT reliably rebind the detached `pythonw backend/wsgi_service.py` service (leaves port 5000 unbound). To restart reliably: stop the PID listening on 5000, then relaunch detached (`Start-Process pythonw backend\wsgi_service.py`). Required after any backend change (no hot-reload). A fix for the endpoint is tracked separately.
+- **Tests need Python 3.12** — use `"C:\Program Files\Python312\python.exe" -m pytest tests/unit -v`. The bare `python`/`py` launchers may resolve to a 3.13 install missing project deps (Flask etc.).
+- **Listing edits: end-only, no revise** — the app has `end_listing` (EndFixedPriceItem) but no ReviseFixedPriceItem. To "fix" a live/scheduled listing's title/price/specifics, end it and re-capture (guardrails clean it on re-list), or build a revise method (the offers/markdown roadmap needs one). `/api/jobs/<id>/cancel` ends the eBay listing + removes the job; `/api/jobs/bulk-delete` removes the job record without touching eBay.
