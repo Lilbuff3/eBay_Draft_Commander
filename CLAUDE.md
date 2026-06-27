@@ -43,6 +43,10 @@ npm run test                              # Vitest
 
 ```
 backend/                    Flask app factory
+  wsgi.py                   Direct server entrypoint (socketio.run, port 5000)
+  wsgi_service.py           Headless launcher (stdout/stderr → data/backend_service.log)
+  run_service.py            Supervisor: launches wsgi_service.py as a child, relaunches on exit-42 (powers /api/system/restart)
+  mcp_server.py             Read-only eBay MCP server (search, category, aspects, price research, token status) for Claude Code
   app/
     __init__.py             create_app(), SocketIO singleton
     blueprints/
@@ -55,6 +59,7 @@ backend/                    Flask app factory
         lookup_api.py       /api/lookup (book, ISBN, category)
         analytics_api.py    /api/analytics endpoints
         system_api.py       /api/system/* (health, restart, cache clear) — url_prefix='/system'
+        migration_api.py    /api/migration/* — scan eBay for legacy active listings, flag untracked
         helpers.py          Shared utilities for API routes
       ui.py                 Serves React SPA at /app/, redirects / to /app/
     core/
@@ -131,7 +136,7 @@ frontend/                   React 18 + Vite + TypeScript
 - **Listing creation uses Trading API** — `AddFixedPriceItem` (XML), not Inventory API. Supports `ScheduleTime` for scheduled listings.
 - **Scheduled listings** — Dashboard has datetime picker; `scheduled_time` stored on job, passed through to Trading API `ScheduleTime` field.
 - **Job statuses**: pending, processing, completed, failed, paused, skipped, scheduled
-- **API is modular** — `blueprints/api/` is a package with 7 sub-modules, not a single file.
+- **API is modular** — `blueprints/api/` is a package with 8 sub-modules (jobs, queue, listings, settings, lookup, analytics, system, migration) plus `helpers.py`, not a single file.
 - **Image reordering** — `ImageGallery` uses `@dnd-kit` drag-and-drop. `ordered_images` stored in `job_metadata`, respected by `image_processor.upload_images()`. First image = eBay cover photo.
 - **Aspect schema** — `ebay_aspect_schema` (not old `ebay_required_aspects`) returns full required+optional aspects with `isRequired` flag. Dynamic refresh via `/api/lookup/category/<id>/aspects`. Fuzzy value matching in `processor_service._validate_and_enrich_specifics()`.
 - **Background removal** — `image_processor.remove_background_and_square()` uses `rembg` + Pillow. Composites subject onto 2000x2000 white JPEG canvas. Originals preserved as `.orig` files.
