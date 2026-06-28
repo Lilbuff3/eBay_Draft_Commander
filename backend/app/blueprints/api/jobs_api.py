@@ -303,6 +303,21 @@ def cancel_job(job_id):
     qm.remove_job(job_id, delete_folder=True)
     return jsonify({'success': True, 'job_id': job_id, 'ebay_ended': bool(listing_id)})
 
+@jobs_bp.route('/jobs/<job_id>/retry', methods=['POST'])
+def retry_job_endpoint(job_id):
+    """Re-queue a single job (failed/needs_review/pending_review/skipped) back to
+    pending and resume processing. Recovers items the duplicate guard skipped by
+    mistake without re-capturing."""
+    qm = current_app.queue_manager
+    job = qm.get_job_by_id(job_id)
+    if not job:
+        return error_response('Job not found', 404)
+    if not qm.retry_job(job_id):
+        return error_response(f'Job {job_id} is not in a retryable state', 409)
+    if not qm.is_processing() and not qm.is_paused():
+        qm.start_processing()
+    return jsonify({'success': True, 'job_id': job_id, 'status': 'pending'})
+
 @jobs_bp.route('/jobs/bulk-update', methods=['POST'])
 def bulk_update_jobs():
     qm = current_app.queue_manager

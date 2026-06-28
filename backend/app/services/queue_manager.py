@@ -841,11 +841,21 @@ class QueueManager:
             session.close()
     
     def retry_job(self, job_id: str) -> bool:
-        """Retry a specific failed job"""
+        """Re-queue a specific job (reset to pending).
+
+        Accepts failed / needs_review / pending_review / skipped — the last so a
+        job auto-skipped by the duplicate guard (e.g. a false positive) can be
+        recovered and listed without re-capturing.
+        """
         session = self.SessionFactory()
         try:
             db_job = session.query(self.JobModel).filter_by(id=job_id).first()
-            valid_statuses = [JobStatus.FAILED.value, JobStatus.NEEDS_REVIEW.value, JobStatus.PENDING_REVIEW.value]
+            valid_statuses = [
+                JobStatus.FAILED.value,
+                JobStatus.NEEDS_REVIEW.value,
+                JobStatus.PENDING_REVIEW.value,
+                JobStatus.SKIPPED.value,
+            ]
             if db_job and db_job.status in valid_statuses:
                 db_job.status = JobStatus.PENDING.value
                 db_job.error_type = None
