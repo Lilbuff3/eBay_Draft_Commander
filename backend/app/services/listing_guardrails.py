@@ -18,6 +18,7 @@ All functions here are pure / best-effort:
   logged — a guardrail must never block a listing by crashing. The only
   intentional "block" is returning a review_reason.
 """
+import math
 import re
 import statistics
 from typing import Any, Dict, List, Optional
@@ -181,27 +182,56 @@ def _hamming_distance(hash_a: str, hash_b: str) -> int:
     return bin(int(hash_a, 16) ^ int(hash_b, 16)).count('1')
 
 
+def _required_matches(num_new: int, min_match_fraction: float) -> int:
+    """How many of the new item's photos must match a candidate to call it a
+    duplicate. Single-photo items need 1; multi-photo items need a majority
+    (>= ceil(fraction * n)), and at least 2 — so one coincidentally-similar
+    angle of a different item never trips the guard."""
+    if num_new <= 1:
+        return 1
+    return min(num_new, max(2, math.ceil(min_match_fraction * num_new)))
+
+
 def find_duplicate(
     new_hashes: List[str],
     recent_jobs: List[Dict[str, Any]],
     max_distance: int,
+    min_match_fraction: float = 0.6,
 ) -> Optional[Dict[str, Any]]:
-    """Return {'id', 'listing_id'} for the first recent job whose stored
-    photo_hashes contain a hash within `max_distance` Hamming distance of any
-    hash in `new_hashes`; else None.
+    """Return {'id', 'listing_id'} for the first recent job that the new item
+    duplicates, else None.
+
+    A duplicate requires that ENOUGH of the new item's photos each match some
+    stored photo (within `max_distance` Hamming distance), not just one — see
+    `_required_matches`. This stops visually-similar-but-different items (e.g.
+    different gray printer parts on the same background, where a single angle
+    can collide) from being falsely flagged. A genuine re-send matches on all
+    its photos and clears the bar easily.
+
+    Hashes of differing length (e.g. an old 64-bit dHash vs a future larger
+    one) are never compared, so a hash-size change degrades to "no match"
+    rather than to garbage distances.
     """
     if not new_hashes or not recent_jobs:
         return None
 
+    required = _required_matches(len(new_hashes), min_match_fraction)
+
     for job in recent_jobs:
         stored_hashes = job.get('photo_hashes') or []
-        for stored in stored_hashes:
-            for new_hash in new_hashes:
+        if not stored_hashes:
+            continue
+        matched = 0
+        for new_hash in new_hashes:
+            for stored in stored_hashes:
                 try:
-                    if _hamming_distance(new_hash, stored) <= max_distance:
-                        return {'id': job.get('id'), 'listing_id': job.get('listing_id')}
+                    if len(new_hash) == len(stored) and _hamming_distance(new_hash, stored) <= max_distance:
+                        matched += 1
+                        break  # this new photo is accounted for; move to the next
                 except (ValueError, TypeError):
                     continue
+        if matched >= required:
+            return {'id': job.get('id'), 'listing_id': job.get('listing_id')}
     return None
 
 

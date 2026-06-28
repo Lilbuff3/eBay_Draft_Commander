@@ -185,6 +185,7 @@ def capture_item():
         get_next_optimal_listing_time,
         DUP_HASH_DISTANCE,
         DUP_LOOKBACK_DAYS,
+        DUP_MIN_MATCH_FRACTION,
     )
     from backend.app.services.listing_guardrails import compute_photo_hashes, find_duplicate
     from backend.app.services.queue_job import JobStatus
@@ -242,7 +243,11 @@ def capture_item():
             if created < cutoff:
                 continue
             recent_jobs.append({'id': job.id, 'listing_id': job.listing_id, 'photo_hashes': hashes})
-        duplicate = find_duplicate(photo_hashes, recent_jobs, max_distance=DUP_HASH_DISTANCE)
+        duplicate = find_duplicate(
+            photo_hashes, recent_jobs,
+            max_distance=DUP_HASH_DISTANCE,
+            min_match_fraction=DUP_MIN_MATCH_FRACTION,
+        )
     except Exception as e:
         logger.error(f"Photo-hash dedup check failed (proceeding as non-duplicate): {e}")
         duplicate = None

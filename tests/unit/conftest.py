@@ -22,3 +22,12 @@ def _isolate_data_dir(tmp_path, monkeypatch):
         "backend.app.services.queue_manager.get_data_dir", lambda: data_dir
     )
     yield data_dir
+
+
+@pytest.fixture(autouse=True)
+def _default_peak_window_scheduling(monkeypatch):
+    """Scheduling tests assume peak-window behavior by default. Clear the
+    LISTING_SCHEDULE_SOON_MINUTES override (which may be set in the dev .env)
+    so tests are deterministic; soon-mode tests opt in via monkeypatch.setenv.
+    """
+    monkeypatch.delenv("LISTING_SCHEDULE_SOON_MINUTES", raising=False)

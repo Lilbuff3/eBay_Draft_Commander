@@ -20,6 +20,7 @@ from backend.app.services.listing_guardrails import (
     clean_title,
     compute_photo_hashes,
     find_duplicate,
+    _required_matches,
     normalize_aspects,
 )
 from backend.app.core.constants import DUP_HASH_DISTANCE
@@ -187,6 +188,37 @@ class TestFindDuplicate:
         recent_jobs = [{"id": "job1", "listing_id": "L1", "photo_hashes": ["0000000000000000"]}]
         result = find_duplicate(["0000000000000001"], recent_jobs, max_distance=6)
         assert result == {"id": "job1", "listing_id": "L1"}
+
+    # Multi-photo agreement: one coincidentally-similar angle must NOT flag a dup
+    # (the "different Xerox parts, same background" false positive).
+    Z = "0000000000000000"
+    Y = "ffffffffffffffff"
+    W = "00000000ffffffff"
+    FAR1 = "aaaaaaaaaaaaaaaa"
+    FAR2 = "5555555555555555"
+
+    def test_single_matching_angle_among_many_not_flagged(self):
+        new = [self.Z, self.Y, self.W]                       # 3 distinct photos
+        recent_jobs = [{"id": "j", "listing_id": "L", "photo_hashes": [self.Z, self.FAR1, self.FAR2]}]
+        # Only Z matches -> 1 of 3 -> below the 2-photo requirement -> not a dup.
+        assert find_duplicate(new, recent_jobs, max_distance=6) is None
+
+    def test_true_resend_all_photos_match_flags_dup(self):
+        new = [self.Z, self.Y, self.W]
+        recent_jobs = [{"id": "j", "listing_id": "L", "photo_hashes": [self.Z, self.Y, self.W]}]
+        assert find_duplicate(new, recent_jobs, max_distance=6) == {"id": "j", "listing_id": "L"}
+
+    def test_two_photo_item_needs_both_to_match(self):
+        recent_one = [{"id": "j", "listing_id": "L", "photo_hashes": [self.Z, self.FAR1]}]
+        assert find_duplicate([self.Z, self.Y], recent_one, max_distance=6) is None  # 1/2 -> no
+        recent_both = [{"id": "j", "listing_id": "L", "photo_hashes": [self.Z, self.Y]}]
+        assert find_duplicate([self.Z, self.Y], recent_both, max_distance=6) == {"id": "j", "listing_id": "L"}
+
+    def test_required_matches_scaling(self):
+        assert _required_matches(1, 0.6) == 1
+        assert _required_matches(2, 0.6) == 2
+        assert _required_matches(3, 0.6) == 2
+        assert _required_matches(5, 0.6) == 3
 
 
 # ---------------------------------------------------------------------------
