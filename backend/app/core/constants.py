@@ -207,6 +207,7 @@ def get_next_optimal_listing_time(exclude_times=None):
     across distinct windows instead of colliding on one time.
     """
     from datetime import datetime, timedelta, timezone
+    import os
     import pytz
 
     exclude = set(exclude_times or [])
@@ -214,6 +215,26 @@ def get_next_optimal_listing_time(exclude_times=None):
     now_utc = datetime.now(timezone.utc)
     now_pt = now_utc.astimezone(pt)
     min_time = now_pt + timedelta(minutes=75)  # eBay requires >= 1h; add buffer
+
+    # "Schedule sooner" override: when LISTING_SCHEDULE_SOON_MINUTES is set, skip
+    # the peak-window logic and schedule that many minutes from now (eBay floor is
+    # ~1h, so clamp to 75). Concurrent captures stagger in 20-min steps so they
+    # don't collide. Clear the env var to restore peak-window scheduling.
+    soon_raw = (os.environ.get('LISTING_SCHEDULE_SOON_MINUTES') or '').strip()
+    if soon_raw:
+        try:
+            soon_min = max(75, int(float(soon_raw)))
+        except ValueError:
+            soon_min = 0
+        if soon_min:
+            base = now_pt + timedelta(minutes=soon_min)
+            step = 0
+            while True:
+                cand = base + timedelta(minutes=20 * step)
+                iso = cand.astimezone(timezone.utc).isoformat()
+                if iso not in exclude:
+                    return iso
+                step += 1
 
     candidates = []
     for day_offset in range(22):  # today .. 21 days ahead (eBay cap)
