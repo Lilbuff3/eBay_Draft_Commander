@@ -1,19 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
-import { ItemCardGrid } from '@/components/ItemCardGrid'
 import { ItemDetailDrawer } from '@/components/ItemDetailDrawer'
-import { UploadZone } from '@/components/UploadZone'
-import { InstallPrompt } from '@/components/InstallPrompt'
-import { createListing, fetchJobDetails, fetchJobImages, fetchJobs, type JobDetails, type ItemDraft, clearCompleted, clearFailed, deleteJob, bulkDeleteJobs, purgeStaleJobs } from '@/lib/api'
+import { createListing, fetchJobDetails, fetchJobImages, type JobDetails, type ItemDraft, clearCompleted, clearFailed, deleteJob, bulkDeleteJobs } from '@/lib/api'
 import { resolveDraftPrice } from '@/lib/draftPrice'
 import { mergeDraft } from '@/lib/mergeDraft'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { ScoreboardBanner } from '@/components/ScoreboardBanner'
 import { ScannerListener } from '@/components/ScannerListener'
 import { ScannerModal } from '@/components/ScannerModal'
 import { useCommanderStore } from '@/store/useCommanderStore'
 import { useQueryClient } from '@tanstack/react-query'
 import { BatchSummaryDialog } from '@/components/BatchSummaryDialog'
+import { DashboardHome } from '@/home/DashboardHome'
 
 export function Dashboard() {
     const queryClient = useQueryClient()
@@ -23,20 +20,11 @@ export function Dashboard() {
     const setJobs = useCommanderStore(state => state.setJobs)
     const selectedJob = useCommanderStore(state => state.selectedJob)
     const setSelectedJob = useCommanderStore(state => state.setSelectedJob)
-    const queueStats = useCommanderStore(state => state.queueStats)
-    const isProcessing = useCommanderStore(state => state.isProcessing)
-    const ebayStatus = useCommanderStore(state => state.ebayStatus)
-    const isScanning = useCommanderStore(state => state.isScanning)
     const lastUploadedJobId = useCommanderStore(state => state.lastUploadedJobId)
     const setLastUploadedJobId = useCommanderStore(state => state.setLastUploadedJobId)
     const jobLogs = useCommanderStore(state => state.jobLogs)
     const batchSummary = useCommanderStore(state => state.batchSummary)
     const setBatchSummary = useCommanderStore(state => state.setBatchSummary)
-
-    // Store Actions
-    const handleStart = useCommanderStore(state => state.handleStart)
-    const handlePause = useCommanderStore(state => state.handlePause)
-    const handleScan = useCommanderStore(state => state.handleScan)
 
     // Keep a ref to latest jobs for use in closures
     const jobsRef = useRef(jobs)
@@ -90,24 +78,8 @@ export function Dashboard() {
     const [jobDetails, setJobDetails] = useState<JobDetails | null>(null)
     const [isLoadingDetails, setIsLoadingDetails] = useState(false)
 
-    // Bulk Selection State
     const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(new Set())
-
-    const toggleJobSelection = (id: string) => {
-        const newSet = new Set(selectedJobIds)
-        if (newSet.has(id)) {
-            newSet.delete(id)
-        } else {
-            newSet.add(id)
-        }
-        setSelectedJobIds(newSet)
-    }
-
     const clearSelection = () => setSelectedJobIds(new Set())
-
-    const handleBulkDelete = () => {
-        setConfirmDialog({ type: 'bulk-delete' })
-    }
 
     // Confirmation dialog state
     const [confirmDialog, setConfirmDialog] = useState<{
@@ -118,34 +90,6 @@ export function Dashboard() {
 
     const failedCount = jobs.filter(j => j.status === 'failed').length
     const completedCount = jobs.filter(j => j.status === 'completed').length
-
-    const handleClearCompleted = () => {
-        setConfirmDialog({ type: 'clear-completed' })
-    }
-
-    const handleClearFailed = () => {
-        setConfirmDialog({ type: 'clear-failed' })
-    }
-
-    const handlePurgeStale = async () => {
-        try {
-            const result = await purgeStaleJobs()
-            toast.success(result.count > 0 ? `Removed ${result.count} stale jobs` : 'No stale jobs found')
-            setJobs(await fetchJobs())
-        } catch (e) {
-            console.error(e)
-            toast.error('Failed to purge stale jobs')
-        }
-    }
-
-    const handleDeleteSingleJob = (jobId: string) => {
-        const job = jobs.find(j => j.id === jobId)
-        setConfirmDialog({
-            type: 'delete-single',
-            jobId,
-            jobName: job?.display_name || job?.name || jobId
-        })
-    }
 
     const executeConfirm = async (deleteFolders: boolean) => {
         const { type, jobId } = confirmDialog
@@ -312,7 +256,7 @@ export function Dashboard() {
         // Scanner input handled by ScannerListener component
     }
 
-    const hasItems = jobs.length > 0
+
 
     return (
         <div className="flex-1 flex flex-col h-full overflow-hidden relative">
@@ -321,83 +265,7 @@ export function Dashboard() {
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                    {/* Scoreboard */}
-                    <ScoreboardBanner />
-
-                    {/* Header: Mobile/Desktop layout */}
-                    <header className="mb-6">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <h1 className="font-display font-bold text-2xl sm:text-3xl text-ink-800 tracking-tight text-balance">Workspace</h1>
-                                <p className="text-stone-500 text-sm mt-0.5">
-                                    {queueStats.total > 0
-                                        ? `${queueStats.total} items \u00B7 ${queueStats.pending} pending`
-                                        : 'Drop photos to get started'}
-                                </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <InstallPrompt />
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-2 mt-3 flex-wrap">
-                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${ebayStatus === 'connected'
-                                ? 'bg-sage-50 text-sage-700 border-sage-200'
-                                : 'bg-red-50 text-red-700 border-red-200'
-                                }`}>
-                                <div className={`w-1.5 h-1.5 rounded-full ${ebayStatus === 'connected' ? 'bg-sage-500' : 'bg-red-500'}`} />
-                                {ebayStatus === 'connected' ? 'eBay Linked' : 'eBay Offline'}
-                            </div>
-                            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-stone-200/70">
-                                <div className={`w-2 h-2 rounded-full ${isProcessing ? 'bg-persimmon-500 animate-pulse' : 'bg-stone-300'}`} />
-                                <span className="text-xs font-medium text-stone-600">
-                                    {isProcessing ? 'Active' : 'Ready'}
-                                </span>
-                            </div>
-                        </div>
-                    </header>
-
-                    {/* Upload Zone */}
-                    <div className="hidden md:block mb-6">
-                        <UploadZone
-                            compact={hasItems}
-                            onUploadComplete={(jobId) => {
-                                // Immediately refresh jobs list (belt-and-suspenders with Socket.IO)
-                                queryClient.invalidateQueries({ queryKey: ['jobs'] })
-                                let attempts = 0
-                                const maxAttempts = 20
-                                const trySelect = () => {
-                                    const found = jobsRef.current.find(j => j.id === jobId)
-                                    if (found) {
-                                        setSelectedJob(found)
-                                    } else if (attempts < maxAttempts) {
-                                        attempts++
-                                        setTimeout(trySelect, 300)
-                                    }
-                                }
-                                trySelect()
-                            }}
-                        />
-                    </div>
-
-                    {/* Item Card Grid */}
-                    <ItemCardGrid
-                        jobs={jobs}
-                        selectedJob={selectedJob}
-                        onSelectJob={(job) => setSelectedJob(job)}
-                        isProcessing={isProcessing}
-                        onStart={handleStart}
-                        onPause={handlePause}
-                        onScan={handleScan}
-                        isScanning={isScanning}
-                        selectedJobIds={selectedJobIds}
-                        onToggleSelect={toggleJobSelection}
-                        onClearSelection={clearSelection}
-                        onBulkDelete={handleBulkDelete}
-                        onClearCompleted={handleClearCompleted}
-                        onClearFailed={handleClearFailed}
-                        onPurgeStale={handlePurgeStale}
-                        onDeleteJob={handleDeleteSingleJob}
-                    />
+                    <DashboardHome userName="Adam" />
                 </div>
             </div>
 
