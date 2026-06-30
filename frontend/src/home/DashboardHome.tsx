@@ -35,12 +35,17 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
     const part = hr < 12 ? 'morning' : hr < 18 ? 'afternoon' : 'evening'
     const dateEyebrow = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 
-    const counts = {
-        all: jobs.length,
-        needs: jobs.filter(j => getStatusBucket(j.status) === 'needs_you').length,
-        working: jobs.filter(j => getStatusBucket(j.status) === 'working').length,
-        live: jobs.filter(j => getStatusBucket(j.status) === 'live').length,
-    }
+    // Capture-and-forget: the money strip (ScoreboardStats) is the home. The
+    // workspace below it only appears when something actually needs eyes —
+    // a job mid-flight (working) or one that errored (needs_you). Completed/live
+    // items live in Inventory, not here, so the home stays a clean money view.
+    const activeJobs = jobs.filter(j => {
+        const b = getStatusBucket(j.status)
+        return b === 'working' || b === 'needs_you'
+    })
+    const needs = activeJobs.filter(j => getStatusBucket(j.status) === 'needs_you').length
+    const working = activeJobs.filter(j => getStatusBucket(j.status) === 'working').length
+    const showWorkspace = activeJobs.length > 0
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col gap-5">
@@ -82,24 +87,35 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
             {/* Two-column: workspace + activity */}
             <div className="flex gap-5 items-start flex-wrap">
                 <div className="flex-[1.7] min-w-[420px] flex flex-col gap-4">
-                    {/* Dropzone (existing component, real upload) */}
-                    <UploadZone compact={jobs.length > 0} />
+                    {showWorkspace ? (
+                        <>
+                            {/* Dropzone (existing component, real upload) */}
+                            <UploadZone compact />
 
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                        <div className="font-sans font-bold text-[15px] tracking-tight text-ink-800">Workspace</div>
-                        <div className="flex gap-1.5 flex-wrap ml-0.5 text-[12px] font-medium">
-                            <span className="px-2.5 py-1 rounded-lg bg-ink-800 text-paper">All {counts.all}</span>
-                            <span className="px-2.5 py-1 rounded-lg bg-white border border-stone-200 text-stone-500">Needs you · {counts.needs}</span>
-                            <span className="px-2.5 py-1 rounded-lg bg-white border border-stone-200 text-stone-500">Working · {counts.working}</span>
-                            <span className="px-2.5 py-1 rounded-lg bg-white border border-stone-200 text-stone-500">Live · {counts.live}</span>
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                                <div className="font-sans font-bold text-[15px] tracking-tight text-ink-800">Workspace</div>
+                                <div className="flex gap-1.5 flex-wrap ml-0.5 text-[12px] font-medium">
+                                    {needs > 0 && (
+                                        <span className="px-2.5 py-1 rounded-lg bg-red-100 text-red-700">Needs you · {needs}</span>
+                                    )}
+                                    {working > 0 && (
+                                        <span className="px-2.5 py-1 rounded-lg bg-persimmon-100 text-persimmon-700">Working · {working}</span>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 xl:grid-cols-3 gap-3.5">
+                                {activeJobs.map(job => (
+                                    <WorkspaceCard key={job.id} job={job} onSelect={setSelectedJob} />
+                                ))}
+                            </div>
+                        </>
+                    ) : (
+                        <div className="rounded-2xl border border-ink-900/[0.07] bg-white px-4 py-5 text-[13px] text-stone-500 flex items-start gap-2 shadow-[0_1px_2px_rgba(34,28,22,0.03)]">
+                            <span className="text-sage-600 font-bold mt-px">✓</span>
+                            <span>All caught up — nothing needs you. Photos sent over WhatsApp list automatically; they’ll show here only if one needs a hand.</span>
                         </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 xl:grid-cols-3 gap-3.5">
-                        {jobs.map(job => (
-                            <WorkspaceCard key={job.id} job={job} onSelect={setSelectedJob} />
-                        ))}
-                    </div>
+                    )}
                 </div>
 
                 <div className="flex-1 min-w-[296px] sticky top-0">

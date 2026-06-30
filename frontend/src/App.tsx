@@ -76,18 +76,17 @@ export default function App() {
     }
   }, [activeTab])
 
-  // PWA update notification
+  // PWA: auto-reload onto the newest build (no manual "Reload" tap).
+  // Fires at most ONCE per tab session — the sessionStorage guard is a hard
+  // backstop against reload loops (a controllerchange-based reload can tight-loop
+  // if the SW keeps re-detecting an update). After the one reload the user is on
+  // the latest build; a second update in the same session waits for next launch.
   useEffect(() => {
     onUpdateAvailable(() => {
-      toast('Update available', {
-        id: 'pwa-update',
-        description: 'A new version of Draft Commander is ready.',
-        duration: Infinity,
-        action: {
-          label: 'Reload',
-          onClick: () => window.location.reload(),
-        },
-      })
+      if (sessionStorage.getItem('dc-pwa-updated')) return
+      sessionStorage.setItem('dc-pwa-updated', '1')
+      toast('Updating to the latest version…', { id: 'pwa-update', duration: 2500 })
+      setTimeout(() => window.location.reload(), 1200)
     })
   }, [])
 
