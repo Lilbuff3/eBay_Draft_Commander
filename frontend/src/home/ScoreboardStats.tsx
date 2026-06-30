@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { TrendingUp, Package, ShoppingBag, Clock, ChevronUp } from 'lucide-react'
-import { fetchAnalyticsSummary, fetchStatus, fetchJobs, type SalesStats } from '@/lib/api'
+import { fetchAnalyticsSummary, fetchJobs, type SalesStats } from '@/lib/api'
 import { getStatusBucket } from '@/lib/status'
 import { useCountUp } from './useCountUp'
 
@@ -10,12 +10,8 @@ import { useCountUp } from './useCountUp'
  * Replaces the old ScoreboardBanner. Pure data sources:
  *   - revenue / sold        ← /api/analytics/summary  (fetchAnalyticsSummary)
  *   - live on eBay          ← summary.active_listings_count (fallback: jobs in "live" bucket)
- *   - time saved            ← ESTIMATE: completed jobs × MINUTES_PER_ITEM.
- *                             Replace with a real backend field when available
- *                             (see README → Backend touchpoints).
+ *   - sell-through          ← summary.sell_through_rate (items sold ÷ total inventory)
  */
-
-const MINUTES_PER_ITEM = 12 // tune to your measured average
 
 function StatCard({
     label, value, sub, accent = false,
@@ -40,28 +36,25 @@ export function ScoreboardStats({ days = '30' }: { days?: string }) {
         queryFn: () => fetchAnalyticsSummary(days),
         staleTime: 60_000,
     })
-    const { data: status } = useQuery({ queryKey: ['status'], queryFn: fetchStatus, refetchInterval: 5000 })
     const { data: jobs = [] } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs })
 
     const revenue = summary?.total_revenue ?? 0
     const live = summary?.active_listings_count ?? jobs.filter(j => getStatusBucket(j.status) === 'live').length
     const sold = summary?.items_sold ?? 0
-    const completed = status?.stats.completed ?? jobs.filter(j => getStatusBucket(j.status) === 'live').length
-    const minutesSaved = completed * MINUTES_PER_ITEM
+    const sellThrough = summary?.sell_through_rate ?? 0
 
     // count-up animations (background-tab-safe)
     const revAnim = useCountUp(Math.round(revenue))
     const liveAnim = useCountUp(live)
     const soldAnim = useCountUp(sold)
-    const minAnim = useCountUp(minutesSaved)
-    const savedLabel = `${Math.floor(minAnim / 60)}h ${minAnim % 60}m`
+    const sellAnim = useCountUp(Math.round(sellThrough))
 
     return (
         <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard label="Revenue · 30d" value={`$${revAnim.toLocaleString()}`} sub="vs prior period" accent />
             <StatCard label="Live on eBay" value={String(liveAnim)} sub="active listings" />
             <StatCard label="Sold · 30d" value={String(soldAnim)} sub="orders shipped" />
-            <StatCard label="Time saved" value={savedLabel} sub="vs manual listing" />
+            <StatCard label="Sell-through · 30d" value={`${sellAnim}%`} sub="sold vs listed" />
         </section>
     )
 }

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { type Job } from '@/lib/api'
 import { getStatusStyle } from '@/lib/status'
 
@@ -16,6 +17,9 @@ import { getStatusStyle } from '@/lib/status'
 export function WorkspaceCard({ job, onSelect }: { job: Job; onSelect: (job: Job) => void }) {
     const style = getStatusStyle(job.status)
     const Icon = style.icon
+    // Old jobs can reference an image file that's since been deleted (404).
+    // Fall back to the neutral placeholder instead of a broken-image icon.
+    const [imgError, setImgError] = useState(false)
 
     const photo =
         job.thumbnail_url ||
@@ -31,8 +35,9 @@ export function WorkspaceCard({ job, onSelect }: { job: Job; onSelect: (job: Job
                        hover:-translate-y-0.5 hover:shadow-[0_12px_24px_-16px_rgba(34,28,22,0.32)]"
         >
             <div className="relative h-32 bg-stone-100">
-                {photo ? (
-                    <img src={photo} alt="" className="w-full h-full object-cover" loading="lazy" />
+                {photo && !imgError ? (
+                    <img src={photo} alt="" className="w-full h-full object-cover" loading="lazy"
+                        onError={() => setImgError(true)} />
                 ) : (
                     <div className="w-full h-full grid place-items-center text-stone-400 text-xs font-medium">
                         No photo yet
