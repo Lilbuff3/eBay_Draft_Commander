@@ -92,6 +92,7 @@ class TradingService:
                   <EndTimeTo>{end_time_to}</EndTimeTo>
                   <Sort>2</Sort>
                   <DetailLevel>ReturnAll</DetailLevel>
+                  <IncludeWatchCount>true</IncludeWatchCount>
                   <Pagination>
                     <EntriesPerPage>{TRADING_API_PAGE_SIZE}</EntriesPerPage>
                     <PageNumber>{page}</PageNumber>
@@ -104,6 +105,8 @@ class TradingService:
                   <OutputSelector>ItemArray.Item.SellingStatus.ListingStatus</OutputSelector>
                   <OutputSelector>ItemArray.Item.QuantityAvailable</OutputSelector>
                   <OutputSelector>ItemArray.Item.Quantity</OutputSelector>
+                  <OutputSelector>ItemArray.Item.WatchCount</OutputSelector>
+                  <OutputSelector>ItemArray.Item.ListingDetails.StartTime</OutputSelector>
                   <OutputSelector>ItemArray.Item.PictureDetails.GalleryURL</OutputSelector>
                   <OutputSelector>ItemArray.Item.PictureDetails.PictureURL</OutputSelector>
                 </GetSellerListRequest>"""
@@ -487,6 +490,21 @@ class TradingService:
                 if pic_url is not None:
                     image_url = pic_url.text
             
+        # Watchers (dead-stock signal). Requires IncludeWatchCount + DetailLevel ReturnAll.
+        watch_count = 0
+        wc = get_text(item, 'e:WatchCount')
+        if wc:
+            try:
+                watch_count = int(wc)
+            except (ValueError, TypeError):
+                watch_count = 0
+
+        # Listing age — StartTime lives under ListingDetails.
+        start_time = None
+        listing_details = item.find('e:ListingDetails', ns)
+        if listing_details is not None:
+            start_time = get_text(listing_details, 'e:StartTime')
+
         return {
             'sku': sku,
             'offerId': None,
@@ -497,7 +515,9 @@ class TradingService:
             'availableQuantity': quantity,
             'imageUrl': image_url,
             'status': 'Active',
-            'condition': 'Used'
+            'condition': 'Used',
+            'watchCount': watch_count,
+            'startTime': start_time
         }
 
     def end_fixed_price_item(self, item_id: str, reason: str = 'NotAvailable'):
@@ -567,4 +587,83 @@ class TradingService:
 
         except Exception as e:
             logger.exception("EndFixedPriceItem Exception")
+            return {'success': False, 'error': str(e)}
+
+    def revise_fixed_price_item(self, item_id: str, price=None, qty=None):
+        """
+        Revise a live fixed-price listing's price (and optionally quantity) using
+        Trading API ReviseFixedPriceItem. This is the in-place price-drop path for
+        Trading-API listings (which are not in the Inventory API).
+
+        Args:
+            item_id: The eBay listing ItemID to revise.
+            price: New StartPrice (USD). Required for a price drop.
+            qty: Optional new Quantity.
+
+        Returns:
+            dict: {success, price, error}
+        """
+        try:
+            from backend.app.core.token_manager import get_token_manager
+            tm = get_token_manager()
+            token = tm.get_access_token()
+            if not token:
+                creds = load_env()
+                token = creds.get('EBAY_USER_TOKEN')
+            if not token:
+                return {'success': False, 'error': 'No eBay User Token found'}
+
+            if price is None and qty is None:
+                return {'success': False, 'error': 'Nothing to revise (price or qty required)'}
+
+            fields = f"<ItemID>{item_id}</ItemID>"
+            if price is not None:
+                fields += f"<StartPrice>{float(price):.2f}</StartPrice>"
+            if qty is not None:
+                fields += f"<Quantity>{int(qty)}</Quantity>"
+
+            xmlns = "urn:ebay:apis:eBLBaseComponents"
+            xml_request = f"""<?xml version="1.0" encoding="utf-8"?>
+            <ReviseFixedPriceItemRequest xmlns="{xmlns}">
+                <RequesterCredentials>
+                    <eBayAuthToken>{token}</eBayAuthToken>
+                </RequesterCredentials>
+                <ErrorLanguage>en_US</ErrorLanguage>
+                <Item>{fields}</Item>
+            </ReviseFixedPriceItemRequest>"""
+
+            headers = {
+                'X-EBAY-API-SITEID': '0',
+                'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
+                'X-EBAY-API-CALL-NAME': 'ReviseFixedPriceItem',
+                'Content-Type': 'text/xml'
+            }
+
+            response = requests.post(
+                'https://api.ebay.com/ws/api.dll',
+                headers=headers, data=xml_request.encode('utf-8'), timeout=TRADING_API_TIMEOUT
+            )
+
+            if response.status_code != 200:
+                return {'success': False, 'error': f'HTTP {response.status_code}'}
+
+            root = ET.fromstring(response.content)
+            ns = {'e': xmlns}
+            ack_node = root.find('.//e:Ack', ns)
+            ack = ack_node.text if ack_node is not None else 'Failure'
+
+            if ack in ['Success', 'Warning']:
+                logger.info(f"Revised listing {item_id} (price={price}, qty={qty})")
+                return {'success': True, 'price': float(price) if price is not None else None}
+
+            errors = []
+            for err in root.findall('.//e:Errors', ns):
+                code = err.find('e:ErrorCode', ns)
+                msg = err.find('e:LongMessage', ns)
+                errors.append(f"{code.text if code is not None else '?'}: {msg.text if msg is not None else '?'}")
+            logger.error(f"ReviseFixedPriceItem failed: {errors}")
+            return {'success': False, 'error': '; '.join(errors) or 'Revise failed'}
+
+        except Exception as e:
+            logger.exception("ReviseFixedPriceItem Exception")
             return {'success': False, 'error': str(e)}

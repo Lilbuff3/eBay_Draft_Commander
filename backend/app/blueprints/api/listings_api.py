@@ -25,6 +25,28 @@ def get_listing_details(sku):
     result, status = ebay_service.get_listing_details(sku)
     return jsonify(result), status
 
+@listings_bp.route('/listings/<item_id>/price', methods=['POST'])
+def revise_listing_price(item_id):
+    """Drop/change a live listing's price in place (ReviseFixedPriceItem)."""
+    data = request.json or {}
+    price = data.get('price')
+    if price is None:
+        return jsonify({'error': 'price required'}), 400
+    result = ebay_service.revise_listing_price(item_id, price, data.get('quantity'))
+    return jsonify(result), 200 if result.get('success') else 502
+
+@listings_bp.route('/listings/<item_id>/end', methods=['POST'])
+def end_listing_route(item_id):
+    """End a live listing by its eBay ItemID."""
+    result = ebay_service.end_listing(item_id)
+    return jsonify(result), 200 if result.get('success') else 502
+
+@listings_bp.route('/listings/<item_id>/promote', methods=['POST'])
+def promote_listing_route(item_id):
+    """Promote a listing at the configured ad rate (Promoted Listings)."""
+    result = ebay_service.promote_listing(item_id)
+    return jsonify(result), 200 if result.get('success') else 502
+
 @listings_bp.route('/listings/<sku>', methods=['PUT', 'POST'])
 def update_listing(sku):
     """

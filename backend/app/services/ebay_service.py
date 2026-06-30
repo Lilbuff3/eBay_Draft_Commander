@@ -7,6 +7,7 @@ import requests
 from backend.app.services.ebay.trading import TradingService
 from backend.app.services.ebay.inventory import InventoryService
 from backend.app.services.ebay.analytics import AnalyticsService
+from backend.app.services.ebay.marketing import MarketingAPI
 
 logger = get_logger('ebay_service')
 
@@ -26,6 +27,7 @@ class eBayService:
         self.analytics_service = AnalyticsService(
             inventory_service_callback=lambda: self.get_active_listings()[0]
         )
+        self.marketing_service = MarketingAPI()
 
     # ... existing methods ...
 
@@ -41,6 +43,18 @@ class eBayService:
     def end_listing(self, item_id: str) -> Dict[str, Any]:
         """End a live or scheduled fixed-price listing by its eBay ItemID."""
         return self.trading_service.end_fixed_price_item(item_id)
+
+    def revise_listing_price(self, item_id: str, price, qty=None) -> Dict[str, Any]:
+        """Drop (or change) a live listing's price in place via ReviseFixedPriceItem."""
+        return self.trading_service.revise_fixed_price_item(item_id, price, qty)
+
+    def promote_listing(self, item_id: str) -> Dict[str, Any]:
+        """Promote a listing at the configured ad rate (Promoted Listings Standard)."""
+        try:
+            ad_rate = float(load_env().get('PROMOTED_LISTINGS_AD_RATE', '5.0'))
+        except (ValueError, TypeError):
+            ad_rate = 5.0
+        return self.marketing_service.promote_listing(item_id, ad_rate)
 
     # --- Connection Check --- 
     
