@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
+import { fetchWithKey } from '@/lib/api'
 
 interface BookData {
     title: string;
@@ -52,7 +53,7 @@ export function ScannerListener({ onScan }: Omit<ScannerListenerProps, 'isScanni
             try {
                 const toastId = toast.loading(`Looking up Book: ${isbn}...`);
 
-                const res = await fetch(`/api/lookup/book?isbn=${isbn}`);
+                const res = await fetchWithKey(`/api/lookup/book?isbn=${isbn}`);
                 const data = await res.json();
 
                 toast.dismiss(toastId);

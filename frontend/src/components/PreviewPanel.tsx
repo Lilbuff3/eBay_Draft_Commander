@@ -7,6 +7,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
+import { fetchWithKey } from '@/lib/api'
+import { sanitizeDescription } from '@/lib/sanitizer'
 
 interface PreviewPanelProps {
     jobId?: string
@@ -44,7 +46,7 @@ export function PreviewPanel({ jobId, onClose }: PreviewPanelProps) {
 
     // Load Templates on Mount
     useEffect(() => {
-        fetch('/api/tools/templates')
+        fetchWithKey('/api/tools/templates')
             .then(res => res.json())
             .then(data => {
                 setTemplates(data)
@@ -63,10 +65,14 @@ export function PreviewPanel({ jobId, onClose }: PreviewPanelProps) {
             if (jobId) queryFn.append('jobId', jobId)
             if (selectedTemplateId) queryFn.append('templateId', selectedTemplateId)
 
-            const res = await fetch(`/api/tools/preview?${queryFn.toString()}`)
+            const res = await fetchWithKey(`/api/tools/preview?${queryFn.toString()}`)
             const data = await res.json()
 
-            setHtmlContent(data.html || '<div style="text-align:center; padding: 50px; color: #999;">No preview available</div>')
+            // Defense-in-depth: preview HTML is server-rendered from job data,
+            // but it feeds dangerouslySetInnerHTML — sanitize client-side too
+            setHtmlContent(data.html
+                ? sanitizeDescription(data.html).html
+                : '<div style="text-align:center; padding: 50px; color: #999;">No preview available</div>')
             setValidation(data.validation || [])
         } catch (error) {
             console.error('Failed to load preview:', error)

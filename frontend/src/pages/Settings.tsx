@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getSettings, saveSettings, softRestart } from '@/lib/api'
+import { fetchWithKey, getSettings, saveSettings, softRestart } from '@/lib/api'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -71,7 +71,7 @@ export function Settings() {
 
         const check = async () => {
             try {
-                const res = await fetch('/api/system/health')
+                const res = await fetchWithKey('/api/system/health')
                 if (res.ok) {
                     toast.success("Server is back online!")
                     // Small delay to ensure everything is ready

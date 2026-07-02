@@ -10,6 +10,7 @@ import { sanitizeDescription } from '@/lib/sanitizer'
 import { toast } from 'sonner'
 import { MediaManager } from './MediaManager'
 import type { Listing } from '../ActiveListings'
+import { fetchWithKey } from '@/lib/api'
 
 interface MediaFile {
     id: string
@@ -56,7 +57,7 @@ export function EditListingDialog({ listing, isOpen, onClose, onSave }: EditList
     const fetchDetails = async () => {
         setIsLoading(true)
         try {
-            const res = await fetch(`/api/listings/${listing.sku}/details`)
+            const res = await fetchWithKey(`/api/listings/${listing.sku}/details`)
             const data = await res.json()
             if (data.error) throw new Error(data.error)
             setDescription(data.description || '(Description loading not supported in this version)')

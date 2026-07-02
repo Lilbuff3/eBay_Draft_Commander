@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { fetchWithKey } from '@/lib/api'
 
 interface PriceResearchProps {
     jobId?: string
@@ -55,7 +56,7 @@ export function PriceResearch({ initialQuery = '', onClose }: PriceResearchProps
         setIsLoading(true)
         setError(null)
         try {
-            const res = await fetch(`/api/tools/research?q=${encodeURIComponent(query)}`)
+            const res = await fetchWithKey(`/api/tools/research?q=${encodeURIComponent(query)}`)
             if (!res.ok) throw new Error('Research failed')
 
             const data: ResearchResponse = await res.json()

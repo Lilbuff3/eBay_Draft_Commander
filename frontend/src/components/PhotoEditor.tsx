@@ -10,6 +10,7 @@ import { Slider } from '@/components/ui/slider'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { fetchWithKey } from '@/lib/api'
 
 interface PhotoEditorProps {
     imagePath?: string
@@ -61,7 +62,7 @@ export function PhotoEditor({ imagePath, jobId, onClose, onSave }: PhotoEditorPr
 
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setIsLoadingImages(true)
-        fetch(`/api/job/${jobId}/images`)
+        fetchWithKey(`/api/job/${jobId}/images`)
             .then(res => res.json())
             .then(data => {
                 setImages(data.images || [])
@@ -99,7 +100,7 @@ export function PhotoEditor({ imagePath, jobId, onClose, onSave }: PhotoEditorPr
         if (!jobId) return
         setIsEnhancing(true)
         try {
-            const res = await fetch('/api/tools/photo/enhance', {
+            const res = await fetchWithKey('/api/tools/photo/enhance', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -139,7 +140,7 @@ export function PhotoEditor({ imagePath, jobId, onClose, onSave }: PhotoEditorPr
     const handleSave = async () => {
         try {
             if (removeBackground) setIsRemovingBg(true)
-            await fetch('/api/tools/photo/save', {
+            await fetchWithKey('/api/tools/photo/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

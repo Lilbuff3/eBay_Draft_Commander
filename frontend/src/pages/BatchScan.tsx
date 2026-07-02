@@ -20,6 +20,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import { fetchWithKey } from '@/lib/api'
 
 
 // --- Types ---
@@ -188,7 +189,7 @@ export function BatchScan() {
         setLastScannedId(id) // Highlight effect?
 
         try {
-            const res = await fetch(`/api/lookup/book?isbn=${isbn}`)
+            const res = await fetchWithKey(`/api/lookup/book?isbn=${isbn}`)
             const data = await res.json()
 
             if (data.success) {
@@ -258,7 +259,7 @@ export function BatchScan() {
             dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { status: 'drafting' } } })
 
             try {
-                const res = await fetch('/api/jobs/create-from-metadata', {
+                const res = await fetchWithKey('/api/jobs/create-from-metadata', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

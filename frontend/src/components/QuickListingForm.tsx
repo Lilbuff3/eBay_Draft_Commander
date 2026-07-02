@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Loader2, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
+import { fetchWithKey } from '@/lib/api'
 
 export function QuickListingForm() {
     const [photos, setPhotos] = useState<File[]>([])
@@ -34,7 +35,7 @@ export function QuickListingForm() {
             formData.append('description', description)
 
             // Upload to server
-            const response = await fetch('/api/listing/create-from-photos', {
+            const response = await fetchWithKey('/api/listing/create-from-photos', {
                 method: 'POST',
                 body: formData,
             })

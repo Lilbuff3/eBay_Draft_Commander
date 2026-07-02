@@ -124,9 +124,13 @@ export function Dashboard() {
     // Fetch all images when job is selected
     useEffect(() => {
         if (selectedJob) {
+            // Guard against a slow response for job A landing after the user
+            // has already switched to job B
+            let stale = false
             setJobImages([])
             fetchJobImages(selectedJob.id)
                 .then(data => {
+                    if (stale) return
                     if (data.images && data.images.length > 0) {
                         setJobImages(data.images.map((img: { name: string; url?: string }) => ({
                             name: img.name,
@@ -135,6 +139,7 @@ export function Dashboard() {
                     }
                 })
                 .catch(err => console.error("Failed to load job images", err))
+            return () => { stale = true }
         } else {
             setJobImages([])
         }
@@ -158,10 +163,14 @@ export function Dashboard() {
                     categoryName: ''
                 })
             }
+            // Guard against a slow response for job A landing after the user
+            // has already switched to job B (would clobber B's details/draft)
+            let stale = false
             setIsLoadingDetails(true)
             setJobDetails(null)
             fetchJobDetails(selectedJob.id)
                 .then(details => {
+                    if (stale) return
                     if (!details.success) {
                         console.warn('fetchJobDetails returned success=false', details)
                         return
@@ -198,7 +207,8 @@ export function Dashboard() {
                     setDraft(prev => mergeDraft(newDraft, prev, touchedFieldsRef.current))
                 })
                 .catch(err => console.error("Failed to load job details", err))
-                .finally(() => setIsLoadingDetails(false))
+                .finally(() => { if (!stale) setIsLoadingDetails(false) })
+            return () => { stale = true }
         } else {
             setJobDetails(null)
             draftJobIdRef.current = null

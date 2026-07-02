@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ChevronDown, Truck, Check, Loader2 } from 'lucide-react'
+import { fetchWithKey } from '@/lib/api'
 
 interface ShippingPolicy {
     id: string
@@ -24,7 +25,7 @@ export function ShippingSelector({ value, onChange, className = '' }: ShippingSe
     useEffect(() => {
         const fetchPolicies = async () => {
             try {
-                const response = await fetch('/api/policies/fulfillment')
+                const response = await fetchWithKey('/api/policies/fulfillment')
                 if (!response.ok) throw new Error('Failed to fetch policies')
 
                 const data = await response.json()

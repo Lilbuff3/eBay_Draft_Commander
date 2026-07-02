@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Edit2, Power } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { Listing } from '@/components/ActiveListings'
+import { fetchWithKey } from '@/lib/api'
 
 interface BulkActionBarProps {
     selectedSkus: Set<string>
@@ -42,7 +43,7 @@ export function BulkActionBar({
                 }
             }
             if (updates.length > 0) {
-                await fetch('/api/listings/bulk', {
+                await fetchWithKey('/api/listings/bulk', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ updates })
@@ -94,7 +95,7 @@ export function BulkActionBar({
                 }
             }
             if (updates.length > 0) {
-                const res = await fetch('/api/listings/bulk/title', {
+                const res = await fetchWithKey('/api/listings/bulk/title', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ updates })
@@ -120,7 +121,7 @@ export function BulkActionBar({
             for (const sku of selectedSkus) {
                 const item = listings?.find(l => l.sku === sku)
                 if (item?.offerId) {
-                    await fetch(`/api/listings/${item.offerId}/withdraw`, { method: 'POST' })
+                    await fetchWithKey(`/api/listings/${item.offerId}/withdraw`, { method: 'POST' })
                 }
             }
             onRefresh()

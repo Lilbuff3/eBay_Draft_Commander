@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { fetchJobs, fetchStatus, type Job, type JobStatus } from '@/lib/api'
+import { fetchWithKey, fetchJobs, fetchStatus, type Job, type JobStatus } from '@/lib/api'
 import { io, type Socket } from 'socket.io-client'
 import { toast } from 'sonner'
 import type { LogEntry } from '@/components/LogViewer'
@@ -76,7 +76,7 @@ export function useJobSync() {
         queryKey: ['ebayStatus'],
         queryFn: async () => {
             try {
-                const res = await fetch('/api/ebay/status')
+                const res = await fetchWithKey('/api/ebay/status')
                 const data = await res.json()
                 return data.status === 'connected' ? 'connected' as const : 'disconnected' as const
             } catch {

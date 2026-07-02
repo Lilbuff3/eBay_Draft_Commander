@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { fetchWithKey } from '@/lib/api'
 
 interface TemplateManagerProps {
     onClose: () => void
@@ -32,7 +33,7 @@ export function TemplateManager({ onClose, onApply }: TemplateManagerProps) {
 
     const loadTemplates = async () => {
         try {
-            const res = await fetch('/api/tools/templates')
+            const res = await fetchWithKey('/api/tools/templates')
             const data = await res.json()
             setTemplates(data)
         } catch (err) {
@@ -78,7 +79,7 @@ export function TemplateManager({ onClose, onApply }: TemplateManagerProps) {
         }
 
         try {
-            const res = await fetch('/api/tools/templates', {
+            const res = await fetchWithKey('/api/tools/templates', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(newTemplate)
@@ -100,7 +101,7 @@ export function TemplateManager({ onClose, onApply }: TemplateManagerProps) {
         setTemplates(prev => prev.map(p => p.id === t.id ? updated : p))
 
         try {
-            await fetch(`/api/tools/templates/${encodeURIComponent(t.name)}`, {
+            await fetchWithKey(`/api/tools/templates/${encodeURIComponent(t.name)}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updated)
@@ -116,7 +117,7 @@ export function TemplateManager({ onClose, onApply }: TemplateManagerProps) {
         if (!confirm("Are you sure you want to delete this template?")) return
 
         try {
-            await fetch(`/api/tools/templates/${encodeURIComponent(id)}`, { method: 'DELETE' })
+            await fetchWithKey(`/api/tools/templates/${encodeURIComponent(id)}`, { method: 'DELETE' })
             setTemplates(prev => prev.filter(t => t.id !== id))
         } catch (error) {
             console.error('Failed to delete template:', error)
@@ -131,7 +132,7 @@ export function TemplateManager({ onClose, onApply }: TemplateManagerProps) {
             const updated = { ...template, usageCount: template.usageCount + 1 }
             setTemplates(prev => prev.map(t => t.id === template.id ? updated : t))
 
-            await fetch(`/api/tools/templates/${encodeURIComponent(template.name)}`, {
+            await fetchWithKey(`/api/tools/templates/${encodeURIComponent(template.name)}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updated)

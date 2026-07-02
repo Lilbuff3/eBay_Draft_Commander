@@ -73,6 +73,12 @@ function withApiKey(init?: RequestInit): RequestInit {
     return { ...init, headers }
 }
 
+/** Drop-in fetch that attaches the API key header. For call sites that need
+ * the raw Response; prefer apiFetch<T>() for JSON endpoints. */
+export function fetchWithKey(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    return fetch(input, withApiKey(init))
+}
+
 /** Thin wrapper around fetch that checks res.ok and throws on HTTP errors */
 export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
     let res = await fetch(url, withApiKey(init))

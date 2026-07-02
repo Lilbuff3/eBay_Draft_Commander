@@ -68,13 +68,22 @@ interface CommanderState {
     setBatchSummary: (summary: CommanderState['batchSummary']) => void
 }
 
+// localStorage can throw (private browsing, storage disabled) — a throw at
+// module level would crash the whole app before first render
+function safeGetItem(key: string): string | null {
+    try { return localStorage.getItem(key) } catch { return null }
+}
+function safeSetItem(key: string, value: string) {
+    try { localStorage.setItem(key, value) } catch { /* non-persistent session */ }
+}
+
 export const useCommanderStore = create<CommanderState>((set, get) => ({
     // Navigation
-    activeTab: localStorage.getItem('activeTab') || 'dashboard',
+    activeTab: safeGetItem('activeTab') || 'dashboard',
     previousTab: 'dashboard',
     setActiveTab: (tab) => {
         const current = get().activeTab
-        localStorage.setItem('activeTab', tab)
+        safeSetItem('activeTab', tab)
         set({ activeTab: tab, previousTab: current })
     },
 

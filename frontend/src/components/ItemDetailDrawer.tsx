@@ -10,7 +10,7 @@ import { ImageGallery } from '@/components/ImageGallery'
 import { ShippingSelector } from '@/components/ShippingSelector'
 import { LogViewer, type LogEntry } from '@/components/LogViewer'
 import type { Job, JobDetails, ItemDraft, CategorySuggestion } from '@/lib/api'
-import { searchCategories, fetchCategoryAspects } from '@/lib/api'
+import { fetchWithKey, searchCategories, fetchCategoryAspects } from '@/lib/api'
 import { ItemDescriptionCard } from './item-detail/ItemDescriptionCard'
 import { ItemScheduleField } from './item-detail/ItemScheduleField'
 
@@ -84,7 +84,7 @@ export function ItemDetailDrawer({
         if (!job) return
         setIsGeneratingPreview(true)
         try {
-            const response = await fetch(`/api/job/${job.id}/preview`, {
+            const response = await fetchWithKey(`/api/job/${job.id}/preview`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

@@ -5,6 +5,7 @@ import { X, RefreshCw, Download, CheckCircle, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
+import { fetchWithKey } from '@/lib/api'
 
 interface LegacyItem {
     listingId: string
@@ -32,7 +33,7 @@ export function MigrationModal({ onClose, onSuccess }: MigrationModalProps) {
         setIsLoading(true)
         setError(null)
         try {
-            const res = await fetch('/api/migration/check')
+            const res = await fetchWithKey('/api/migration/check')
             const json = await res.json()
             if (json.error) throw new Error(json.error)
 
@@ -70,7 +71,7 @@ export function MigrationModal({ onClose, onSuccess }: MigrationModalProps) {
 
         setIsMigrating(true)
         try {
-            const res = await fetch('/api/migration/execute', {
+            const res = await fetchWithKey('/api/migration/execute', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ listingIds: Array.from(selectedIds) })
