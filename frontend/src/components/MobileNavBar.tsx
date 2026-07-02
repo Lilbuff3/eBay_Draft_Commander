@@ -1,4 +1,4 @@
-import { LayoutTemplate, Package, BarChart3, Settings } from 'lucide-react'
+import { LayoutTemplate, Package, BarChart3, Settings, ScanLine } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCommanderStore } from '@/store/useCommanderStore'
 import { useHaptics } from '@/hooks/useHaptics'
@@ -71,7 +71,7 @@ export function MobileNavBar() {
                     {/* Central AI Button */}
                     <div className="relative -top-8 flex flex-col items-center group" onClick={onAIClick}>
                         <div className="w-16 h-16 bg-gradient-to-br from-brand-400 to-brand-600 rounded-full flex items-center justify-center shadow-glow-lg group-hover:scale-105 transition-transform z-10 border-4 border-slate-950 cursor-pointer">
-                            <span className="text-white font-bold text-[22px] tracking-wider">AI</span>
+                            <ScanLine className="text-white w-7 h-7" strokeWidth={2.5} />
                         </div>
                         {/* Outer glow ring */}
                         <div className="absolute inset-0 top-1 bg-brand-500 rounded-full blur-xl opacity-50 group-hover:opacity-80 transition-opacity animate-pulse z-0 pointer-events-none"></div>

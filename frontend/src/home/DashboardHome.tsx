@@ -66,46 +66,27 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
                     </div>
                     
                     <div className="flex items-center gap-4">
-                        <div className="hidden sm:flex items-center bg-brand-500/20 border border-brand-500/50 rounded-full px-4 py-1.5 shadow-[0_0_15px_rgba(167,139,250,0.15)]">
-                            <div className="w-2 h-2 rounded-full bg-brand-400 animate-pulse mr-2"></div>
-                            <span className="text-xs font-bold text-brand-400">AI online</span>
-                        </div>
+                        <button
+                            onClick={handleScan}
+                            disabled={isScanning}
+                            className="hidden sm:flex items-center gap-2 bg-brand-500/20 border border-brand-500/50 hover:bg-brand-500/30 transition-colors rounded-full px-4 py-1.5 shadow-[0_0_15px_rgba(167,139,250,0.15)] disabled:opacity-50 cursor-pointer"
+                        >
+                            {isScanning ? (
+                                <div className="w-4 h-4 rounded-full border-2 border-brand-400 border-t-transparent animate-spin mr-1"></div>
+                            ) : (
+                                <ScanLine className="w-4 h-4 text-brand-400" />
+                            )}
+                            <span className="text-xs font-bold text-brand-400">
+                                {isScanning ? 'Scanning...' : 'Scan Inbox'}
+                            </span>
+                        </button>
                     </div>
                 </header>
 
                 {/* Stats */}
                 <ScoreboardStats days="30" />
 
-                {/* AI Scan Section */}
-                <section className="mt-2">
-                    <h2 className="text-sm font-semibold text-slate-300 mb-3 px-1">AI Scan</h2>
-                    <div className="bg-slate-900/30 backdrop-blur-2xl border border-slate-700/50 rounded-3xl p-3 relative shadow-lg max-w-2xl">
-                        {/* Image container */}
-                        <div className="relative w-full h-[250px] rounded-2xl overflow-hidden bg-slate-800">
-                            {/* We use a placeholder here for the AI scan hero, simulating the Romaleos 4 */}
-                            <img src="https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=1200&auto=format&fit=crop" alt="Shoe Scan" className="w-full h-full object-cover hue-rotate-[240deg] contrast-125" />
-                            
-                            {/* Bounding Boxes */}
-                            <div className="absolute border border-brand-400 bg-brand-500/20 rounded-md top-[35%] left-[10%] w-[55%] h-[40%] shadow-[0_0_15px_rgba(167,139,250,0.3)]">
-                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-900 border border-brand-500 text-[10px] px-2 py-0.5 rounded-full text-white font-medium whitespace-nowrap shadow-glow">Swoosh</span>
-                            </div>
-                            <div className="absolute border border-brand-400 bg-brand-500/20 rounded-md top-[20%] right-[25%] w-[15%] h-[20%] shadow-[0_0_10px_rgba(167,139,250,0.2)]">
-                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-900 border border-brand-500 text-[10px] px-2 py-0.5 rounded-full text-white font-medium whitespace-nowrap shadow-glow">Tag</span>
-                            </div>
-                            <div className="absolute border border-brand-400 bg-brand-500/20 rounded-md bottom-[10%] left-[20%] w-[45%] h-[15%] shadow-[0_0_10px_rgba(167,139,250,0.2)]">
-                                <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 border border-brand-500 text-[10px] px-2 py-0.5 rounded-full text-white font-medium whitespace-nowrap shadow-glow">Sole</span>
-                            </div>
-                        </div>
 
-                        {/* Glowing Match Button Overlapping */}
-                        <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 cursor-pointer hover:scale-105 transition-transform z-10" onClick={handleScan}>
-                            <div className="bg-slate-900 border border-brand-500 px-6 py-2.5 rounded-full flex items-center gap-2 shadow-glow">
-                                <ScanLine className="w-5 h-5 text-brand-400" />
-                                <span className="text-[14px] font-bold text-white tracking-wide">{isScanning ? 'Scanning...' : 'Scan Inbox'}</span>
-                            </div>
-                        </div>
-                    </div>
-                </section>
 
                 {/* Two-column: workspace + activity */}
                 <div className="flex gap-5 items-start flex-wrap mt-6">
