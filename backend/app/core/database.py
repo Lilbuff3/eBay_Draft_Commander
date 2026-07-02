@@ -60,7 +60,9 @@ class JobModel(Base):
     # Timing & Metrics
     attempts = Column(Integer, default=0)
     max_attempts = Column(Integer, default=3)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    # default must be a callable — a bare datetime.now() is evaluated once at
+    # import and every row would share that timestamp
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     started_at = Column(DateTime)
     completed_at = Column(DateTime)
     timing_json = Column(Text)
@@ -111,8 +113,8 @@ class TemplateModel(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(100), unique=True, nullable=False)
     data_json = Column(Text, nullable=False)  # Stores the template configuration
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     use_count = Column(Integer, default=0)
     
     @property
@@ -131,8 +133,8 @@ class AppToken(Base):
     key = Column(String(100), unique=True, nullable=False)
     value = Column(Text, nullable=False)
     expires_at = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 # Database Setup

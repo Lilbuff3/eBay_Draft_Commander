@@ -1,4 +1,5 @@
 # Core
+# Requires Python >=3.12,<3.13 (3.13 installs are missing project deps; see CLAUDE.md)
 # Floors lowered 2026-06-27 to match the known-good installed set (see
 # requirements.lock). The previous floors (e.g. flask>=3.1.3) were higher than
 # what the app actually runs on, so `pip install -r requirements.txt` would have

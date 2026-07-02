@@ -8,7 +8,7 @@ import { useCountUp } from './useCountUp'
  * Purple Mockup Bento Grid Stats.
  */
 export function ScoreboardStats({ days = '30' }: { days?: string }) {
-    const { data: summary } = useQuery<SalesStats>({
+    const { data: summary, isError: analyticsUnavailable } = useQuery<SalesStats>({
         queryKey: ['analytics-summary', days],
         queryFn: () => fetchAnalyticsSummary(days),
         staleTime: 60_000,
@@ -33,8 +33,8 @@ export function ScoreboardStats({ days = '30' }: { days?: string }) {
             {/* Revenue / Earnings (Spans left side on mobile, normal grid on desktop) */}
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="col-span-2 md:col-span-1 row-span-2 md:row-span-1 bg-slate-900/40 backdrop-blur-2xl border border-white/5 shadow-glass hover:shadow-glass-hover rounded-3xl p-4 md:p-5 flex flex-col justify-between relative overflow-hidden transition-colors cursor-pointer">
                 <div>
-                    <p className="text-xs font-medium text-slate-400 mb-1">Revenue · {days}d</p>
-                    <p className="text-2xl font-bold text-white tracking-tight">${revAnim.toLocaleString()}</p>
+                    <p className="text-xs font-medium text-slate-400 mb-1">Revenue · {days}d{analyticsUnavailable && ' · unavailable'}</p>
+                    <p className="text-2xl font-bold text-white tracking-tight">{analyticsUnavailable ? '—' : `$${revAnim.toLocaleString()}`}</p>
                 </div>
                 {/* Decorative Graph (SVG Line) */}
                 <div className="h-12 w-full mt-4 relative">

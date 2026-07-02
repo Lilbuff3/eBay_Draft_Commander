@@ -12,11 +12,22 @@ interface ScannerModalProps {
     onJobCreated: () => void
 }
 
+/** Shape of /api/lookup/book responses (see lookup_api.py) */
+interface BookLookupResult extends Record<string, unknown> {
+    success: boolean
+    error?: string
+    isbn?: string
+    title?: string
+    authors?: string[]
+    publisher?: string
+    publishedDate?: string
+    thumbnail?: string
+}
+
 export function ScannerModal({ isOpen, onOpenChange, onJobCreated }: ScannerModalProps) {
     const [isbn, setIsbn] = useState('')
     const [isLoading, setIsLoading] = useState(false)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [result, setResult] = useState<any>(null)
+    const [result, setResult] = useState<BookLookupResult | null>(null)
     const [isCreating, setIsCreating] = useState(false)
 
     const handleLookup = async () => {
@@ -25,8 +36,7 @@ export function ScannerModal({ isOpen, onOpenChange, onJobCreated }: ScannerModa
         setIsLoading(true)
         setResult(null)
         try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const data = await lookupBook(isbn) as any
+            const data = await lookupBook(isbn) as BookLookupResult
             if (data.success) {
                 setResult(data)
             } else {

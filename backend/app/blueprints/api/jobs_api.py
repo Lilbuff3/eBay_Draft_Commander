@@ -76,7 +76,7 @@ def _resolve_thumb_url(j, qm) -> str | None:
             try:
                 qm.update_thumbnail(j.id, thumb)
             except Exception:
-                pass
+                logger.debug(f"Failed to cache thumbnail for job {j.id}", exc_info=True)
     return f'/api/job/{j.id}/image/{thumb}' if thumb else None
 
 

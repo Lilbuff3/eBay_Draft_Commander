@@ -69,6 +69,9 @@ class SettingsManager:
             'ESTIMATED_SHIPPING_COST',
             'ENABLE_BACKGROUND_REMOVAL',
         ],
+        'Security': [
+            'API_ACCESS_TOKEN',
+        ],
     }
     
     # Required settings that must have values
@@ -84,6 +87,7 @@ class SettingsManager:
         'EBAY_REFRESH_TOKEN',
         'GOOGLE_API_KEY',
         'EBAY_CERT_ID',
+        'API_ACCESS_TOKEN',
     ]
     
     def __init__(self, env_path: Optional[Path] = None):
@@ -95,7 +99,8 @@ class SettingsManager:
         """
         self._settings = {}
         self._comments = []  # Preserve comments from original file
-        
+        self._save_lock = threading.Lock()  # Guards read-modify-write of .env
+
         # Determine .env path
         if env_path:
             self.env_path = Path(env_path)
@@ -173,9 +178,13 @@ class SettingsManager:
         Args:
             settings: Dictionary of settings to save. If None, saves current settings.
         """
+        with self._save_lock:
+            self._save_locked(settings)
+
+    def _save_locked(self, settings: Optional[dict] = None) -> None:
         if settings is not None:
             self._settings.update(settings)
-        
+
         lines = []
         
         # Write header comment
@@ -209,9 +218,14 @@ class SettingsManager:
             if key not in written_keys and value:
                 lines.append(f"{key}={value}")
         
-        # Write to file
-        with open(self.env_path, 'w', encoding='utf-8') as f:
+        # Atomic write: .env holds all credentials — a crash mid-write must
+        # never leave it truncated. Write a temp file, then swap in place.
+        tmp_path = self.env_path.parent / (self.env_path.name + '.tmp')
+        with open(tmp_path, 'w', encoding='utf-8') as f:
             f.write('\n'.join(lines))
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, self.env_path)
     
     def get(self, key: str, default: Optional[str] = None) -> Optional[str]:
         """

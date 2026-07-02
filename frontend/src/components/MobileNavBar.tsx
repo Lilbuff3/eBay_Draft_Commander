@@ -1,4 +1,4 @@
-import { LayoutTemplate, Package, BarChart3, Settings, ScanLine } from 'lucide-react'
+import { LayoutTemplate, Package, BarChart3, Settings, ScanLine, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCommanderStore } from '@/store/useCommanderStore'
 import { useHaptics } from '@/hooks/useHaptics'
@@ -30,7 +30,7 @@ export function MobileNavBar() {
         handleScan()
     }
 
-    const renderTab = (tab: {id: string, label: string, icon: any}) => {
+    const renderTab = (tab: {id: string, label: string, icon: LucideIcon}) => {
         const isActive = activeTab === tab.id
         return (
             <button

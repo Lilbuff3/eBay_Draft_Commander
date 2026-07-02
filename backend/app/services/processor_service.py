@@ -7,6 +7,7 @@ import os
 import re
 import uuid
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from pathlib import Path
 from typing import Optional
 from flask import current_app
@@ -474,9 +475,25 @@ class ProcessorService:
         if not images:
             return {"success": False, "error_type": "no_images", "error_message": "No images found"}
 
-        # 3. AI Analysis
+        # 3. AI Analysis — outer timeout so one hung Gemini request can't
+        # block the single queue worker forever. The abandoned worker thread
+        # is leaked (can't be killed), but the queue moves on.
+        ai_timeout = int(os.environ.get('AI_ANALYSIS_TIMEOUT', '300'))
         ai_start = time.time()
-        analysis = self.ai_agent.analyze_item(job_obj, [str(img) for img in images], condition, log_callback)
+        ai_pool = ThreadPoolExecutor(max_workers=1)
+        try:
+            future = ai_pool.submit(
+                self.ai_agent.analyze_item,
+                job_obj, [str(img) for img in images], condition, log_callback
+            )
+            analysis = future.result(timeout=ai_timeout)
+        except FuturesTimeoutError:
+            result["timing"]["ai_analysis"] = time.time() - ai_start
+            _log(f"AI analysis timed out after {ai_timeout}s", level='error')
+            return {"success": False, "error_type": "ai_analysis_timeout",
+                    "error_message": f"AI analysis exceeded {ai_timeout}s"}
+        finally:
+            ai_pool.shutdown(wait=False, cancel_futures=True)
         result["timing"]["ai_analysis"] = time.time() - ai_start
         if not analysis.get('success'):
              return {"success": False, "error_type": "ai_analysis_failed", "error_message": analysis.get('error')}

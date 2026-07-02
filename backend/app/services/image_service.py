@@ -1,5 +1,6 @@
 from pathlib import Path
 from backend.app.core.logger import get_logger
+from backend.app.core.validator import validate_safe_path, ValidationError
 
 logger = get_logger('image_service')
 
@@ -43,13 +44,23 @@ class ImageService:
         job = queue_manager.get_job_by_id(job_id)
         if not job:
             return None
-            
+
+        # Filenames come straight from the URL — reject separators/.. and
+        # verify the resolved path stays inside the job folder.
+        if not filename or any(s in filename for s in ('/', '\\', '..')):
+            logger.warning(f"Rejected suspicious image filename for job {job_id}: {filename!r}")
+            return None
+
         folder_path = Path(job.folder_path)
-        image_path = folder_path / filename
-        
+        try:
+            image_path = validate_safe_path(str(folder_path / filename), base_dir=str(folder_path))
+        except ValidationError:
+            logger.warning(f"Blocked path traversal attempt for job {job_id}: {filename!r}")
+            return None
+
         if not image_path.exists():
             return None
-            
+
         return str(image_path)
 
     def save_edits(self, job_id, edits, queue_manager):

@@ -113,6 +113,9 @@ backend_boot.log
 
 # Auto-generated Caddyfile (created by start-https.ps1)
 Caddyfile
+
+# Design handoff artifacts (not part of the app)
+eBay Draft Commander homepage/
 data/commander.db
 captures/
 .playwright-mcp/

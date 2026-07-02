@@ -22,11 +22,22 @@ describe('sanitizeDescription', () => {
         expect(html).not.toContain('<form')
     })
 
-    it('neutralizes javascript: protocol hrefs', () => {
+    it('strips javascript: protocol hrefs entirely — no clickable stub left', () => {
         const { html, changes } = sanitizeDescription('<a href="javascript:alert(1)">x</a>')
         expect(html).not.toContain('javascript:')
-        expect(html).toContain('href="#"')
+        expect(html).not.toContain('href')
         expect(changes.unsafeAttributesRemoved).toBe(1)
+    })
+
+    it('strips case and whitespace variants of script protocols', () => {
+        const { html } = sanitizeDescription('<a href=" JavaScript:alert(1)">x</a><img src="VBScript:evil()">')
+        expect(html.toLowerCase()).not.toContain('javascript:')
+        expect(html.toLowerCase()).not.toContain('vbscript:')
+    })
+
+    it('strips data: URIs in href/src', () => {
+        const { html } = sanitizeDescription('<a href="data:text/html;base64,PHNjcmlwdD4=">x</a>')
+        expect(html).not.toContain('data:')
     })
 
     it('strips inline event handlers', () => {

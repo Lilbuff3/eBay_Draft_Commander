@@ -189,6 +189,7 @@ Business policies: `EBAY_FULFILLMENT_POLICY`, `EBAY_PAYMENT_POLICY`, `EBAY_RETUR
 Optional: `DEFAULT_CONDITION` (USED_EXCELLENT), `DEFAULT_PRICE` (29.99), `AUTO_PUBLISH` (false), `CONFIDENCE_THRESHOLD` (85), `PORT` (5000), `ESTIMATED_SHIPPING_COST` (6.50 — baked into listing price since fulfillment policy is free shipping)
 Pricing/guardrails (optional): `ACTIVE_TO_SOLD_FACTOR` (0.87), `PRICE_REVIEW_THRESHOLD` (150.0), `PRICE_COMP_MULTIPLE` (3.0), `DUP_HASH_DISTANCE` (6), `DUP_LOOKBACK_DAYS` (30)
 Promoted Listings (optional): `PROMOTED_LISTINGS_ENABLED` (false), `PROMOTED_LISTINGS_AD_RATE` (5.0)
+Security/reliability (optional): `API_ACCESS_TOKEN` (unset = remote API access denied; see Gotchas), `AI_ANALYSIS_TIMEOUT` (300 — outer seconds cap on the AI phase so a hung Gemini call can't block the queue worker)
 OAuth scopes (`auth.py` SCOPES + `token_manager.py` EBAY_SCOPES) now include `sell.marketing`.
 
 Settings UI writes directly to .env via SettingsManager singleton.
@@ -230,6 +231,9 @@ cd ~/.claude/skills/playwright-skill && node run.js /tmp/playwright-test-*.js
 
 ## Gotchas
 
+- **API auth: loopback trusted, remote needs X-API-Key** — `api/__init__.py` `before_request` allows 127.0.0.1/::1 (desktop browser, Hermes bridge, supervisor) without a key; any other caller (LAN/Tailscale phone) must send `X-API-Key` matching `API_ACCESS_TOKEN` (read live from SettingsManager, so saving it in Settings applies without restart; unset = remote denied 401). Exempt: `/api/system/health` and GET `/api/job/<id>/image/<file>` (`<img>` tags can't send headers; path-traversal-guarded instead). Frontend `apiFetch` stores the key in localStorage (`dc-api-key`) and prompts once on 401. Socket.IO events are NOT gated (read-only job status).
+- **Masked secrets never round-trip** — GET `/api/settings` masks sensitive values as `••••` (full mask, no suffix). POST `/api/settings` drops any value starting with `••••`, so the Settings page posting back untouched masked fields can't overwrite real secrets in `.env`.
+- **`.env` writes are atomic** — `settings_manager.save()` and `auth.save_tokens()` write `<name>.tmp` then `os.replace()`. Never revert to plain `open('w')`: a crash mid-write would truncate every credential.
 - **Frontend lib/ files** — `src/lib/api.ts`, `utils.ts`, `sanitizer.ts`, `pwa.ts` are imported everywhere. If missing, nothing compiles.
 - **Worktree `.env` shadowing** — Never create `.env` in a worktree. `load_dotenv_manually()` walks up parent dirs to find the main project's `.env` automatically. A worktree `.env` will shadow it and cause missing-policy errors.
 - **eBay token refresh** — Background thread. Also auto-refreshes on 401 in ebay_request()

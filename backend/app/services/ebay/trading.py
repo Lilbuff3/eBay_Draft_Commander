@@ -360,7 +360,7 @@ class TradingService:
 
             while retry_count <= max_retries:
                 try:
-                    response = requests.post(TRADING_URL, headers=headers, data=xml_request.encode('utf-8'), timeout=60)
+                    response = requests.post(TRADING_URL, headers=headers, data=xml_request.encode('utf-8'), timeout=TRADING_API_TIMEOUT)
                     if response.status_code == 200:
                         break
                     elif response.status_code == 401:

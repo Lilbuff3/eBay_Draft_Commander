@@ -52,13 +52,14 @@ export function sanitizeDescription(html: string): SanitizeResult {
         }
     })
 
-    // 4. Remove 'javascript:' protocols in href/src
-    // Example: <a href="javascript:alert(1)">
-    const jsProtocolRegex = /\s(href|src)=["']\s*javascript:[^"']*["']/gmi
+    // 4. Remove href/src attributes carrying script-capable protocols entirely
+    // (javascript:, vbscript:, data:). Stripping the whole attribute — not
+    // swapping in href="#" — leaves no clickable stub behind.
+    const jsProtocolRegex = /\s(href|src)\s*=\s*["']\s*(?:javascript|vbscript|data)\s*:[^"']*["']/gmi
     const jsMatches = safeHtml.match(jsProtocolRegex)
     if (jsMatches) {
         changes.unsafeAttributesRemoved += jsMatches.length
-        safeHtml = safeHtml.replace(jsProtocolRegex, ' href="#"')
+        safeHtml = safeHtml.replace(jsProtocolRegex, '')
     }
 
     // 5. Remove event handlers (onclick, onmouseover, etc.)

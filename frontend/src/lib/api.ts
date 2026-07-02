@@ -45,9 +45,46 @@ export interface QueueStatus {
 // Always use relative path — Flask serves both the SPA and API on the same origin
 const API_BASE = '/api'
 
+// Remote (non-loopback) access requires an API key that matches the
+// API_ACCESS_TOKEN configured in Settings on the server machine.
+const API_KEY_STORAGE = 'dc-api-key'
+
+export function getApiKey(): string | null {
+    try {
+        return localStorage.getItem(API_KEY_STORAGE)
+    } catch {
+        return null
+    }
+}
+
+function storeApiKey(key: string) {
+    try {
+        localStorage.setItem(API_KEY_STORAGE, key)
+    } catch {
+        // Private browsing — key just won't persist across reloads
+    }
+}
+
+function withApiKey(init?: RequestInit): RequestInit {
+    const key = getApiKey()
+    if (!key) return init ?? {}
+    const headers = new Headers(init?.headers)
+    headers.set('X-API-Key', key)
+    return { ...init, headers }
+}
+
 /** Thin wrapper around fetch that checks res.ok and throws on HTTP errors */
 export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
-    const res = await fetch(url, init)
+    let res = await fetch(url, withApiKey(init))
+    if (res.status === 401) {
+        const entered = window.prompt(
+            'Access key required. Enter the API access token from Settings on the server machine:'
+        )
+        if (entered?.trim()) {
+            storeApiKey(entered.trim())
+            res = await fetch(url, withApiKey(init))
+        }
+    }
     if (!res.ok) {
         const body = await res.text().catch(() => '')
         throw new Error(`API ${init?.method ?? 'GET'} ${url} failed (${res.status}): ${body}`)
@@ -220,7 +257,7 @@ export async function addFolderToQueue(path: string): Promise<{ success: boolean
 }
 
 export async function softRestart(): Promise<{ success: boolean; message: string }> {
-    return apiFetch(`${API_BASE}/sys/restart`, { method: 'POST' })
+    return apiFetch(`${API_BASE}/system/restart`, { method: 'POST' })
 }
 
 export async function getSettings(): Promise<Record<string, string>> {
@@ -333,6 +370,8 @@ export async function uploadFiles(
         return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest()
             xhr.open('POST', `${API_BASE}/upload`)
+            const apiKey = getApiKey()
+            if (apiKey) xhr.setRequestHeader('X-API-Key', apiKey)
 
             xhr.upload.onprogress = (e) => {
                 if (e.lengthComputable && onProgress) {

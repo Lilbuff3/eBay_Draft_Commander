@@ -156,8 +156,8 @@ class ImageProcessor:
                     try:
                         url = future.result()
                         result_map[img] = url
-                    except Exception as e:
-                        logger.warning(f"Upload exception for {img.name}: {e}")
+                    except Exception:
+                        logger.warning(f"Upload exception for {img.name}", exc_info=True)
                         result_map[img] = None
 
             # Preserve original order (first image = eBay cover photo)

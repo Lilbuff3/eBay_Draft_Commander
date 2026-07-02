@@ -12,8 +12,8 @@ def get_app_settings():
     all_settings = settings_manager.get_all()
     for key in list(all_settings.keys()):
         if settings_manager.is_sensitive(key) and all_settings[key]:
-            val = all_settings[key]
-            all_settings[key] = '••••' + val[-4:] if len(val) > 4 else '••••'
+            # Full mask — even a 4-char suffix narrows a brute-force search
+            all_settings[key] = '••••'
     return jsonify(all_settings)
 
 @settings_bp.route('', methods=['POST'])
@@ -30,8 +30,14 @@ def save_app_settings():
         allowed_keys.update(keys)
     allowed_keys.update(settings_manager.DEFAULTS.keys())
 
-    filtered = {k: v for k, v in data.items() if k in allowed_keys}
-    
+    # Drop masked placeholders: the GET endpoint returns '••••' for secrets,
+    # and the Settings page posts the whole object back — an untouched masked
+    # field must never overwrite the real value in .env.
+    masked = [k for k, v in data.items()
+              if isinstance(v, str) and v.strip().startswith('••••')]
+    filtered = {k: v for k, v in data.items()
+                if k in allowed_keys and k not in masked}
+
     if 'PROMOTED_LISTINGS_AD_RATE' in filtered:
         try:
             rate = float(filtered['PROMOTED_LISTINGS_AD_RATE'])
@@ -40,7 +46,7 @@ def save_app_settings():
         except ValueError:
             filtered['PROMOTED_LISTINGS_AD_RATE'] = "5.0"
 
-    skipped = [k for k in data if k not in allowed_keys]
+    skipped = sorted(set([k for k in data if k not in allowed_keys] + masked))
     if skipped:
         logger.warning(f"Settings save: rejected unknown keys: {skipped}")
 

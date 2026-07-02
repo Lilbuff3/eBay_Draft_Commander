@@ -1,4 +1,5 @@
 import os
+import secrets
 from pathlib import Path
 
 def load_dotenv_manually(base_path):
@@ -61,7 +62,9 @@ class Config:
     FRONTEND_DIR = BASE_DIR / 'frontend' / 'dist'
     
     # feature flags and limits...
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key'
+    # Random per-process fallback: sessions won't survive a restart, but a
+    # guessable static key never ships.
+    SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
     MAX_CONTENT_LENGTH = 160 * 1024 * 1024 
     AUTO_PUBLISH = os.environ.get('AUTO_PUBLISH', 'false').lower() == 'true'
     CONFIDENCE_THRESHOLD = int(os.environ.get('CONFIDENCE_THRESHOLD', 85))

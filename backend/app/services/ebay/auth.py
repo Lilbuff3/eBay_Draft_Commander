@@ -238,9 +238,14 @@ class eBayOAuth:
         if self.refresh_token and not any(refresh_found.values()):
             new_lines.append(f"EBAY_REFRESH_TOKEN={self.refresh_token}\n")
         
-        with open(self.env_path, 'w') as f:
+        # Atomic swap — a crash mid-write must never truncate .env
+        tmp_path = self.env_path.parent / (self.env_path.name + '.tmp')
+        with open(tmp_path, 'w') as f:
             f.writelines(new_lines)
-        
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, self.env_path)
+
         logger.info("Tokens saved to .env")
     
     def has_valid_token(self):
