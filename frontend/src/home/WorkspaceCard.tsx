@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { motion } from 'framer-motion'
 import { type Job } from '@/lib/api'
 import { getStatusStyle } from '@/lib/status'
 
@@ -17,9 +18,11 @@ export function WorkspaceCard({ job, onSelect }: { job: Job; onSelect: (job: Job
     const working = style.bucket === 'working'
 
     return (
-        <button
+        <motion.button
+            whileHover={{ scale: 1.02, y: -2 }}
+            whileTap={{ scale: 0.98 }}
             onClick={() => onSelect(job)}
-            className="group text-left bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-3.5 flex gap-4 items-center transition-all hover:bg-slate-800/50 cursor-pointer shadow-lg w-full"
+            className="group text-left bg-slate-900/40 backdrop-blur-2xl border border-white/5 shadow-glass hover:shadow-glass-hover rounded-3xl p-3.5 flex gap-4 items-center transition-colors w-full"
         >
             {/* Thumbnail */}
             <div className="w-20 h-20 rounded-2xl bg-slate-800 overflow-hidden shrink-0 relative">
@@ -72,6 +75,6 @@ export function WorkspaceCard({ job, onSelect }: { job: Job; onSelect: (job: Job
                     </div>
                 )}
             </div>
-        </button>
+        </motion.button>
     )
 }

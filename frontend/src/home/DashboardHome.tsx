@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { ScanLine } from 'lucide-react'
+import { motion, type Variants } from 'framer-motion'
 import { fetchJobs } from '@/lib/api'
 import { getStatusBucket } from '@/lib/status'
 import { useCommanderStore } from '@/store/useCommanderStore'
@@ -47,12 +48,30 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
     const working = activeJobs.filter(j => getStatusBucket(j.status) === 'working').length
     const showWorkspace = activeJobs.length > 0
 
+    const containerVariants: Variants = {
+        hidden: { opacity: 0 },
+        show: {
+            opacity: 1,
+            transition: { staggerChildren: 0.1, delayChildren: 0.05 }
+        }
+    }
+
+    const itemVariants: Variants = {
+        hidden: { opacity: 0, y: 20 },
+        show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+    }
+
     return (
-        <div className="dark bg-slate-950 text-slate-100 min-h-screen">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col gap-6">
+        <div className="dark min-h-screen text-slate-100">
+            <motion.div 
+                className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col gap-6"
+                variants={containerVariants}
+                initial="hidden"
+                animate="show"
+            >
                 
                 {/* Header */}
-                <header className="flex justify-between items-center pb-2">
+                <motion.header variants={itemVariants} className="flex justify-between items-center pb-2">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-glow">
                             <span className="font-bold text-white text-sm">DC</span>
@@ -81,15 +100,17 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
                             </span>
                         </button>
                     </div>
-                </header>
+                </motion.header>
 
                 {/* Stats */}
-                <ScoreboardStats days="30" />
+                <motion.div variants={itemVariants}>
+                    <ScoreboardStats days="30" />
+                </motion.div>
 
 
 
                 {/* Two-column: workspace + activity */}
-                <div className="flex gap-5 items-start flex-wrap mt-6">
+                <motion.div variants={itemVariants} className="flex gap-5 items-start flex-wrap mt-6">
                     <div className="flex-[1.7] min-w-[420px] flex flex-col gap-4">
                         {showWorkspace ? (
                             <>
@@ -124,8 +145,8 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
                     <div className="flex-1 min-w-[296px] sticky top-0">
                         <ActivityRail />
                     </div>
-                </div>
-            </div>
+                </motion.div>
+            </motion.div>
         </div>
     )
 }
