@@ -782,6 +782,14 @@ class ProcessorService:
         analysis['item_specifics'] = job_obj.item_specifics
 
         review_reason = guardrail_result.get('review_reason')
+        if review_reason and (job_obj.job_metadata or {}).get('user_approved'):
+            # The approve endpoints set user_approved exactly so an approved
+            # job doesn't bounce back here — the guardrail re-fires on
+            # reprocess (same price, same missing comps) and without this
+            # override the job ping-pongs between approval and review forever.
+            _log(f"Guardrail flag overridden by prior user approval: {review_reason}",
+                 level='warning')
+            review_reason = None
         if review_reason:
             from backend.app.services.whatsapp_notify import (
                 get_whatsapp_origin, notify_whatsapp, build_price_message,

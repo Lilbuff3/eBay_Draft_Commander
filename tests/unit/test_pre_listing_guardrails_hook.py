@@ -163,6 +163,28 @@ class TestPreListingGuardrailHook:
         assert result.get('status') == 'pending_review'
         trading_api_mock.assert_not_called()
 
+    def test_user_approved_job_overrides_price_flag_and_lists(self, processor, monkeypatch):
+        """An approved job must NOT bounce back to pending_review: the approve
+        endpoints set job_metadata['user_approved'] and the guardrail re-fires
+        on reprocess (same price, same missing comps), so without the override
+        the job ping-pongs between approval and review forever."""
+        trading_api_mock = _wire_common_mocks(
+            processor, monkeypatch,
+            title="Ross 4800AR-003-02 Frame CPU Processor Board",
+            price=1255.99,
+            comps=[],
+            source="ai_estimate",
+            item_specifics={"Brand": "Ross"},
+        )
+        job_obj = _make_job_obj(job_metadata={'user_approved': True})
+
+        result = processor.create_listing(job_obj)
+
+        assert result.get('status') != 'pending_review'
+        assert result['success'] is True
+        assert result['listing_id'] == '111222333'
+        trading_api_mock.assert_called_once()
+
     def test_pending_review_result_carries_title_and_price(self, processor, monkeypatch):
         """Verify the pending_review result shape includes the fields
         queue_manager.py's review-routing branch reads off the result dict
