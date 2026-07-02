@@ -26,7 +26,8 @@ def app_client(tmp_path):
     qm = QueueManager(base_path=tmp_path)
     app = create_app(queue_manager=qm)
     app.config['TESTING'] = True
-    app.config['QUEUE_MANAGER'] = qm  # listings_api accesses via config
+    # No config['QUEUE_MANAGER'] injection: production only sets
+    # app.queue_manager, and the endpoint must work through that attribute.
     return app, app.test_client(), qm
 
 

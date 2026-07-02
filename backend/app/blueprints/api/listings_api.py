@@ -160,7 +160,7 @@ def quick_edit_listing(job_id):
         data = request.json
         if data is None:
             return jsonify({'error': 'Request body must be JSON'}), 400
-        queue_manager = current_app.config.get('QUEUE_MANAGER')
+        queue_manager = getattr(current_app, 'queue_manager', None)
         if not queue_manager:
             return error_response('Queue manager not initialized')
 
@@ -188,7 +188,7 @@ def batch_approve_listings():
         if not job_ids:
             return error_response('No listing IDs provided', 400)
 
-        queue_manager = current_app.config.get('QUEUE_MANAGER')
+        queue_manager = getattr(current_app, 'queue_manager', None)
         if not queue_manager:
             return error_response('Queue manager not initialized')
 
