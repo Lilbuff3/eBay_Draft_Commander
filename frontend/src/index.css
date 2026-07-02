@@ -48,6 +48,14 @@
   --color-ink-400: #6F6A60;
   --color-ink-500: #4A4239;
   --color-ink-600: #322B23;
+
+  /* Brand — Purple */
+  --color-brand-400: #a78bfa;
+  --color-brand-500: #8b5cf6;
+  --color-brand-600: #7c3aed;
+
+  --shadow-glow: 0 0 20px rgba(139, 92, 246, 0.4);
+  --shadow-glow-lg: 0 0 30px rgba(139, 92, 246, 0.6);
   --color-ink-700: #2B251E;
   --color-ink-800: #211D18;
   --color-ink-900: #1B1813;
