@@ -148,46 +148,11 @@ export async function retryFailed(): Promise<{ success: boolean; retried?: numbe
     return apiFetch(`${API_BASE}/retry`, { method: 'POST' })
 }
 
-export interface ClearResult {
-    success: boolean
-    count?: number
-    folders_deleted?: number
-    message?: string
-}
-
-export async function clearCompleted(deleteFolders = false): Promise<ClearResult> {
-    return apiFetch(`${API_BASE}/clear`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deleteFolders })
-    })
-}
-
-export async function clearFailed(deleteFolders = false): Promise<ClearResult> {
-    return apiFetch(`${API_BASE}/clear-failed`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deleteFolders })
-    })
-}
-
-export async function purgeStaleJobs(): Promise<{ success: boolean; count: number }> {
-    return apiFetch(`${API_BASE}/purge-stale`, { method: 'POST' })
-}
-
 export async function deleteJob(jobId: string, deleteFolder = false): Promise<{ success: boolean }> {
     return apiFetch(`${API_BASE}/jobs/bulk-delete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobIds: [jobId], deleteFolders: deleteFolder })
-    })
-}
-
-export async function bulkDeleteJobs(jobIds: string[], deleteFolders = false): Promise<{ success: boolean }> {
-    return apiFetch(`${API_BASE}/jobs/bulk-delete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobIds, deleteFolders })
     })
 }
 
@@ -278,21 +243,6 @@ export async function saveSettings(settings: Record<string, string>): Promise<{ 
     })
 }
 
-export async function lookupBook(isbn: string): Promise<unknown> {
-    return apiFetch(`${API_BASE}/lookup/book`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isbn })
-    })
-}
-
-export async function createJobFromMetadata(data: Record<string, unknown>): Promise<{ success: boolean; jobId?: string; error?: string }> {
-    return apiFetch(`${API_BASE}/jobs/create-from-metadata`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    })
-}
 
 export interface JobDetails {
     success: boolean

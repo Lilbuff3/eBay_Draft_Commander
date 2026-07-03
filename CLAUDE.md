@@ -112,6 +112,7 @@ frontend/                   React 18 + Vite + TypeScript
       useCommanderStore.ts  Single Zustand store (jobs, queue, settings, UI state)
     hooks/
       useJobSync.ts         Socket.IO real-time job synchronization
+      useItemDraft.ts       Selected-job listing draft: details/images fetch, touched-field merge, submit
       useHaptics.ts         Mobile haptic feedback
       usePullToRefresh.ts   Pull-to-refresh gesture (currently disabled)
     lib/
@@ -123,7 +124,7 @@ frontend/                   React 18 + Vite + TypeScript
     components/             30+ components
       ui/                   shadcn/Radix primitives
       item-detail/          Item description/specifics/schedule cards
-      listings/             Bulk actions, edit dialog, media manager
+      listings/             InventoryCard (dead-stock cockpit), ReviewQueue
 ```
 
 ## Key Patterns
