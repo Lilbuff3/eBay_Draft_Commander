@@ -302,6 +302,53 @@ class QueueManager:
         finally:
             session.close()
 
+    def finalize_past_due_scheduled(self) -> int:
+        """Flip past-due 'scheduled' jobs that hold an eBay listing_id to 'completed'.
+
+        Listings submitted with ScheduleTime are published by eBay at the
+        scheduled moment, but nothing on our side observes that, so the local
+        status stays 'scheduled' forever. Trusts ScheduleTime: past-due +
+        listing_id = published. Past-due jobs without a listing_id are left
+        alone. completed_at is not touched — it was stamped at processing time.
+        """
+        from datetime import timezone
+        now = datetime.now(timezone.utc)
+        session = self.SessionFactory()
+        try:
+            rows = session.query(
+                self.JobModel.id, self.JobModel.scheduled_time, self.JobModel.listing_id
+            ).filter(
+                self.JobModel.status == JobStatus.SCHEDULED.value,
+                self.JobModel.scheduled_time.isnot(None)
+            ).all()
+        finally:
+            session.close()
+
+        to_flip = []
+        missing_listing = 0
+        for job_id, st, listing_id in rows:
+            if st.tzinfo is None:
+                st = st.replace(tzinfo=timezone.utc)
+            if st > now:
+                continue
+            if not listing_id:
+                missing_listing += 1
+                continue
+            to_flip.append(job_id)
+
+        if missing_listing:
+            self.logger.warning(
+                f"{missing_listing} past-due scheduled job(s) have no listing_id — left untouched"
+            )
+
+        flipped = 0
+        for job_id in to_flip:
+            if self.update_job(job_id, {'status': JobStatus.COMPLETED}):
+                flipped += 1
+        if flipped:
+            self.logger.info(f"Finalized {flipped} past-due scheduled job(s) to completed")
+        return flipped
+
     def update_job(self, job_id: str, updates: Dict[str, Any]) -> bool:
         """Update a job's fields directly in the database.
 

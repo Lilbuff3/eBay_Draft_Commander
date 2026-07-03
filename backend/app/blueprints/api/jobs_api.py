@@ -83,6 +83,10 @@ def _resolve_thumb_url(j, qm) -> str | None:
 @jobs_bp.route('/jobs')
 def get_jobs():
     qm = current_app.queue_manager
+    try:
+        qm.finalize_past_due_scheduled()
+    except Exception:
+        logger.warning("Scheduled-job sweep failed", exc_info=True)
     jobs_data = []
     all_jobs = qm.get_all_jobs()
     for j in all_jobs:
