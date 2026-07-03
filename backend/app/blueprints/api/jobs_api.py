@@ -403,33 +403,118 @@ def _validate_thumbnail_url(url: str) -> bool:
         return False
 
 
+def _build_book_ai_seed(data: dict, isbn: str, price) -> dict:
+    """Pre-seed ai_data for a batch-scanned book so the pipeline skips Gemini
+    vision entirely (cached-listing path in listing_ai_agent.analyze_item).
+    Category, ISBN (drives Media Mail shipping) and item specifics come from
+    the /api/lookup/book result the frontend passes through; pricing is
+    re-run in the pipeline with the real condition unless a user price is set."""
+    pricing_data = data.get('pricing_data') or {}
+    suggested_price = price if price is not None else pricing_data.get('suggested_price')
+    title = (data.get('title') or '')[:80]
+    description = data.get('description') or title
+    return {
+        'listing': {
+            'suggested_title': title,
+            'description_html': description,
+            'suggested_price': suggested_price,
+            'confidence_score': 0.95,
+        },
+        'identification': {
+            'category_id': str(data.get('category_id') or '267'),
+            'isbn': isbn,
+            'product_type': 'Book',
+        },
+        'item_specifics': data.get('item_specifics') or {},
+        'analysis_mode': 'book_metadata',
+    }
+
+
+# Route lives at /api/jobs/create-from-metadata (what the frontend has always
+# called); the old /api/create-from-metadata path is kept as an alias.
+@jobs_bp.route('/jobs/create-from-metadata', methods=['POST'])
 @jobs_bp.route('/create-from-metadata', methods=['POST'])
 def create_job_from_metadata():
     try:
-        data = request.json
-        if not data: return error_response('No metadata provided', 400)
+        # Multipart variant carries an optional real photo alongside the JSON
+        # payload — bundling it into the create request avoids the race where
+        # an already-running queue worker grabs the job before a follow-up
+        # photo upload lands.
+        photo_file = None
+        if request.content_type and 'multipart/form-data' in request.content_type:
+            import json as _json
+            payload_raw = request.form.get('payload')
+            if not payload_raw:
+                return error_response('No metadata provided', 400)
+            data = _json.loads(payload_raw)
+            photo_file = request.files.get('photo')
+        else:
+            data = request.json
+        if not data:
+            return error_response('No metadata provided', 400)
+
+        title = (data.get('title') or '').strip()
+        if not title:
+            return error_response('Title is required', 400)
+
+        try:
+            isbn = validate_isbn(data.get('isbn')) if data.get('isbn') else None
+            condition = validate_condition(data.get('condition')) if data.get('condition') else None
+            price = validate_price(data.get('price')) if data.get('price') not in (None, '') else None
+        except ValidationError as e:
+            return error_response(e.args[0], 400)
+
+        if photo_file and photo_file.filename:
+            if not is_allowed_image_file(photo_file.filename):
+                return error_response(f'File type not allowed: {photo_file.filename}', 400)
+
         qm = current_app.queue_manager
         folder_name = f"metadata_import_{int(time.time())}_{uuid.uuid4().hex[:4]}"
         inbox_dir = _ensure_inbox_dir()
         job_folder = inbox_dir / folder_name
         job_folder.mkdir(exist_ok=True)
-        image_url = data.get('thumbnail')
-        if image_url and _validate_thumbnail_url(image_url):
-            try:
-                import requests as http_requests
-                img_resp = http_requests.get(image_url, timeout=10, allow_redirects=False)
-                if img_resp.status_code == 200 and len(img_resp.content) < 10 * 1024 * 1024:
-                    ext = 'png' if 'png' in image_url else 'jpg'
-                    with open(job_folder / f"cover.{ext}", 'wb') as f:
-                        f.write(img_resp.content)
-            except Exception as e:
-                logger.warning(f"Failed to download thumbnail: {e}")
+
+        # Cover: Open Library by ISBN (big enough for eBay), else the provided
+        # thumbnail (SSRF-validated here; cover_service upscales small images).
+        thumbnail_url = data.get('thumbnail')
+        if thumbnail_url and not _validate_thumbnail_url(thumbnail_url):
+            thumbnail_url = None
+        cover_path = None
+        if isbn or thumbnail_url:
+            from backend.app.services.cover_service import fetch_book_cover
+            cover_path = fetch_book_cover(isbn, thumbnail_url, job_folder)
+
+        # Optional real photo, saved after the cover so the cover stays eBay
+        # picture #1 (processor picks images via sorted()).
+        if photo_file and photo_file.filename:
+            ext = Path(secure_filename(photo_file.filename)).suffix or '.jpg'
+            photo_file.save(str(job_folder / f"photo_1{ext.lower()}"))
+
         metadata = {
-            'user_title': data.get('title'), 'user_isbn': data.get('isbn'), 'user_description': data.get('description'),
+            'user_title': title, 'user_isbn': isbn, 'user_description': data.get('description'),
             'source_data': data, 'created_at': time.time(), 'notes': f"Imported from {data.get('source', 'metadata')}"
         }
+        if condition:
+            metadata['user_condition'] = condition
+        if data.get('user_approved'):
+            metadata['user_approved'] = True
+
         job = qm.add_folder(str(job_folder), metadata=metadata)
-        return jsonify({'success': True, 'jobId': job.id, 'message': 'Job created from metadata'})
+
+        updates = {'user_title': title[:80]}
+        if data.get('source') == 'batch_scan' and isbn:
+            updates['ai_data'] = _build_book_ai_seed(data, isbn, price)
+        if condition:
+            updates['user_condition'] = condition
+        if price is not None:
+            updates['user_price'] = str(price)
+        if updates:
+            qm.update_job(job.id, updates)
+
+        return jsonify({
+            'success': True, 'jobId': job.id, 'cover': bool(cover_path),
+            'message': 'Job created from metadata'
+        })
     except Exception as e: return error_response(str(e))
 
 @jobs_bp.route('/upload', methods=['POST'])

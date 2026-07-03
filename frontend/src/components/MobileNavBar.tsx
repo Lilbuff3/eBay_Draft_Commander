@@ -1,13 +1,14 @@
-import { LayoutTemplate, Package, BarChart3, Settings, ScanLine, type LucideIcon } from 'lucide-react'
+import { LayoutTemplate, Package, BarChart3, Settings, ScanLine, BookOpen, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCommanderStore } from '@/store/useCommanderStore'
 import { useHaptics } from '@/hooks/useHaptics'
 
 const leftTabs = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutTemplate },
+    { id: 'dashboard', label: 'Home', icon: LayoutTemplate },
     { id: 'inventory', label: 'Inventory', icon: Package },
 ]
 const rightTabs = [
+    { id: 'batch-scan', label: 'Books', icon: BookOpen },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'settings', label: 'Settings', icon: Settings },
 ]
@@ -38,7 +39,7 @@ export function MobileNavBar() {
                 onClick={() => handleTabChange(tab.id)}
                 aria-label={tab.label}
                 aria-current={isActive ? 'page' : undefined}
-                className="flex flex-col items-center justify-center gap-1 w-[60px] h-full min-h-[44px] transition-transform hover:scale-110 focus-visible:outline-none"
+                className="flex flex-col items-center justify-center gap-1 w-[52px] h-full min-h-[44px] transition-transform hover:scale-110 focus-visible:outline-none"
             >
                 <tab.icon
                     size={22}

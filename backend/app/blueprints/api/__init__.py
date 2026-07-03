@@ -28,7 +28,20 @@ api_bp.register_blueprint(migration_bp, url_prefix='')
 # trusted; remote callers (LAN/Tailscale) must present X-API-Key matching
 # API_ACCESS_TOKEN from .env. Set the token via the Settings page on the
 # server machine. If no token is configured, remote access is denied.
+from ipaddress import ip_address
+
 _LOOPBACK_ADDRS = ('127.0.0.1', '::1')
+
+
+def _is_loopback(ip_str: str) -> bool:
+    if not ip_str:
+        return False
+    if ip_str in _LOOPBACK_ADDRS:
+        return True
+    try:
+        return ip_address(ip_str).is_loopback
+    except ValueError:
+        return False
 
 
 def _is_key_exempt() -> bool:
@@ -42,7 +55,7 @@ def _is_key_exempt() -> bool:
 
 @api_bp.before_request
 def require_api_key():
-    if request.remote_addr in _LOOPBACK_ADDRS:
+    if _is_loopback(request.remote_addr):
         return None
     if _is_key_exempt():
         return None

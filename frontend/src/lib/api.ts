@@ -156,6 +156,46 @@ export async function deleteJob(jobId: string, deleteFolder = false): Promise<{ 
     })
 }
 
+export interface CreateFromMetadataPayload {
+    title: string
+    isbn?: string
+    description?: string
+    thumbnail?: string
+    condition?: string
+    price?: string
+    category_id?: string
+    item_specifics?: Record<string, unknown>
+    pricing_data?: Record<string, unknown>
+    user_approved?: boolean
+    source: string
+}
+
+export interface CreateFromMetadataResult {
+    success: boolean
+    jobId?: string
+    cover?: boolean
+    error?: string
+}
+
+/** Create a job from metadata (book batch scan). Optional real photo rides
+ * along as multipart so the queue can never grab the job before it lands. */
+export async function createJobFromMetadata(
+    payload: CreateFromMetadataPayload,
+    photo?: File
+): Promise<CreateFromMetadataResult> {
+    if (photo) {
+        const form = new FormData()
+        form.append('payload', JSON.stringify(payload))
+        form.append('photo', photo)
+        return apiFetch(`${API_BASE}/jobs/create-from-metadata`, { method: 'POST', body: form })
+    }
+    return apiFetch(`${API_BASE}/jobs/create-from-metadata`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+}
+
 export async function fetchJobImages(jobId: string): Promise<{ images: Array<{ name: string; url: string }> }> {
     return apiFetch(`${API_BASE}/job/${jobId}/images`)
 }

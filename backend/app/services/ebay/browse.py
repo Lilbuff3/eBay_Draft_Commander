@@ -2,6 +2,7 @@
 eBay Browse API Client for Price Research
 Uses the official Browse API to get current market prices for similar items.
 """
+import os
 import base64
 import requests
 from pathlib import Path
@@ -40,8 +41,15 @@ class eBayBrowseAPI:
         self._access_token = None
     
     def load_credentials(self):
-        """Load API credentials from .env file"""
-        # Robust .env lookup
+        """Load API credentials from environment or .env file"""
+        # First check if environment variables already exist (populated by config.py)
+        self.app_id = os.environ.get('EBAY_APP_ID')
+        self.cert_id = os.environ.get('EBAY_CERT_ID')
+        
+        if self.app_id and self.cert_id:
+            return
+
+        # Robust .env lookup for standalone/script environments
         current_path = Path(__file__).resolve()
         env_path = None
         for parent in [current_path] + list(current_path.parents):
@@ -52,25 +60,25 @@ class eBayBrowseAPI:
         if not env_path:
              env_path = Path.cwd() / ".env"
         
-        if not env_path.exists():
-            raise FileNotFoundError(f"No .env file found at {env_path}")
-        
-        credentials = {}
-        with open(env_path, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#') and '=' in line:
-                    key, value = line.split('=', 1)
-                    credentials[key.strip()] = value.strip()
-        
-        self.app_id = credentials.get('EBAY_APP_ID')
-        self.cert_id = credentials.get('EBAY_CERT_ID')
-        
-        if not all([self.app_id, self.cert_id]):
-            raise ValueError("Missing EBAY_APP_ID or EBAY_CERT_ID in .env file")
+        if env_path.exists():
+            credentials = {}
+            try:
+                with open(env_path, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#') and '=' in line:
+                            key, value = line.split('=', 1)
+                            credentials[key.strip()] = value.strip()
+                self.app_id = self.app_id or credentials.get('EBAY_APP_ID')
+                self.cert_id = self.cert_id or credentials.get('EBAY_CERT_ID')
+            except Exception:
+                pass
     
     def get_access_token(self) -> Optional[str]:
         """Get OAuth access token using Client Credentials Grant"""
+        if not self.app_id or not self.cert_id:
+            raise ValueError("Missing EBAY_APP_ID or EBAY_CERT_ID credentials. Please set them in your .env or environment.")
+            
         if self._access_token:
             return self._access_token
             

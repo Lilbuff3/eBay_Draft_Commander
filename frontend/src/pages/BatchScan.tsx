@@ -1,6 +1,6 @@
 
 import { useState, useRef, useEffect, useReducer, useCallback } from 'react'
-import { Trash2, Search, Package } from 'lucide-react'
+import { Trash2, Search, Package, ImagePlus, Camera } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -20,7 +20,30 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { fetchWithKey } from '@/lib/api'
+import { fetchWithKey, createJobFromMetadata, startQueue, type CreateFromMetadataPayload } from '@/lib/api'
+import { normalizeIsbn, isLikelyIsbn, ScanDeduper, playScanBeep } from '@/lib/isbn'
+import { CameraBarcodeScanner } from '@/components/CameraBarcodeScanner'
+import { useCommanderStore } from '@/store/useCommanderStore'
+
+export const CONDITION_OPTIONS = [
+    { value: 'NEW', label: 'New' },
+    { value: 'NEW_OTHER', label: 'New - Open Box' },
+    { value: 'LIKE_NEW', label: 'Like New' },
+    { value: 'USED_EXCELLENT', label: 'Used - Excellent' },
+    { value: 'USED_VERY_GOOD', label: 'Used - Very Good' },
+    { value: 'USED_GOOD', label: 'Used - Good' },
+    { value: 'USED_ACCEPTABLE', label: 'Used - Acceptable' },
+] as const
+
+function ConditionItems() {
+    return (
+        <>
+            {CONDITION_OPTIONS.map(o => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            ))}
+        </>
+    )
+}
 
 
 // --- Types ---
@@ -39,7 +62,7 @@ interface BatchItem {
 }
 
 type BatchAction =
-    | { type: 'ADD_ITEM'; payload: { id: string; isbn: string } }
+    | { type: 'ADD_ITEM'; payload: { id: string; isbn: string; condition: string } }
     | { type: 'UPDATE_ITEM'; payload: { id: string; data: Partial<BatchItem> } }
     | { type: 'REMOVE_ITEM'; payload: string }
     | { type: 'SET_ALL_CONDITION'; payload: string }
@@ -53,7 +76,7 @@ const batchReducer = (state: BatchItem[], action: BatchAction): BatchItem[] => {
                 isbn: action.payload.isbn,
                 title: 'Looking up...',
                 author: '',
-                condition: 'USED_GOOD', // Default assumption
+                condition: action.payload.condition, // Session condition at scan time
                 price: '',
                 status: 'loading'
             }, ...state]
@@ -96,18 +119,55 @@ function StatusBadge({ status }: { status: BatchItem['status'] }) {
 }
 
 // --- Mobile Card Component ---
+function PhotoAttachButton({ hasPhoto, onAttach, compact }: {
+    hasPhoto: boolean
+    onAttach: (file: File) => void
+    compact?: boolean
+}) {
+    const inputRef = useRef<HTMLInputElement>(null)
+    return (
+        <>
+            <input
+                ref={inputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    if (f) onAttach(f)
+                    e.target.value = ''
+                }}
+            />
+            <Button
+                variant="ghost"
+                size={compact ? 'icon' : 'sm'}
+                className={compact ? 'h-8 w-8 flex-shrink-0' : 'h-8'}
+                onClick={() => inputRef.current?.click()}
+                title={hasPhoto ? 'Photo attached — tap to replace' : 'Add a real photo (optional)'}
+            >
+                <ImagePlus size={14} className={hasPhoto ? 'text-green-600' : 'text-stone-400'} />
+            </Button>
+        </>
+    )
+}
+
 function BatchItemCard({
     item,
     isHighlighted,
+    hasPhoto,
     onUpdateCondition,
     onUpdatePrice,
     onRemove,
+    onAttachPhoto,
 }: {
     item: BatchItem
     isHighlighted: boolean
+    hasPhoto: boolean
     onUpdateCondition: (val: string) => void
     onUpdatePrice: (val: string) => void
     onRemove: () => void
+    onAttachPhoto: (file: File) => void
 }) {
     return (
         <div className={`bg-white rounded-xl border p-3 transition-colors ${isHighlighted ? 'border-blue-300 bg-blue-50/50' : 'border-stone-200'}`}>
@@ -147,15 +207,10 @@ function BatchItemCard({
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="NEW">New</SelectItem>
-                                <SelectItem value="NEW_OTHER">New - Open Box</SelectItem>
-                                <SelectItem value="LIKE_NEW">Like New</SelectItem>
-                                <SelectItem value="USED_EXCELLENT">Used - Excellent</SelectItem>
-                                <SelectItem value="USED_VERY_GOOD">Used - Very Good</SelectItem>
-                                <SelectItem value="USED_GOOD">Used - Good</SelectItem>
-                                <SelectItem value="USED_ACCEPTABLE">Used - Acceptable</SelectItem>
+                                <ConditionItems />
                             </SelectContent>
                         </Select>
+                        <PhotoAttachButton compact hasPhoto={hasPhoto} onAttach={onAttachPhoto} />
                         <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" onClick={onRemove}>
                             <Trash2 size={14} className="text-stone-400" />
                         </Button>
@@ -170,6 +225,23 @@ function BatchItemCard({
 export function BatchScan() {
     const [items, dispatch] = useReducer(batchReducer, [], initBatchState)
     const [isProcessing, setIsProcessing] = useState(false)
+    const handlePhotoFlow = useCommanderStore(s => s.handleScan)
+
+    // Condition session: every new scan inherits this until you change it —
+    // scan the New pile, switch, scan the Very Good pile.
+    const [sessionCondition, setSessionCondition] = useState(() => {
+        try { return localStorage.getItem('batchScanSessionCondition') || 'USED_GOOD' } catch { return 'USED_GOOD' }
+    })
+    useEffect(() => {
+        try { localStorage.setItem('batchScanSessionCondition', sessionCondition) } catch { /* non-persistent */ }
+    }, [sessionCondition])
+    const sessionConditionRef = useRef(sessionCondition)
+    useEffect(() => { sessionConditionRef.current = sessionCondition }, [sessionCondition])
+
+    // Optional real photo per item. Files aren't JSON-serializable, so these
+    // live outside the persisted reducer — a page reload drops them.
+    const photosRef = useRef(new Map<string, File>())
+    const [photoVersion, setPhotoVersion] = useState(0) // re-render on attach
 
     // Persistence Effect
     useEffect(() => {
@@ -180,13 +252,21 @@ export function BatchScan() {
     // Scanner Refs
     const bufferRef = useRef('')
     const lastKeystrokeRef = useRef(0)
+    const deduperRef = useRef(new ScanDeduper(3000))
     const [lastScannedId, setLastScannedId] = useState<string | null>(null)
 
     // --- Logic ---
-    const handleScan = useCallback(async (isbn: string) => {
+    const handleScan = useCallback(async (rawIsbn: string) => {
+        const isbn = normalizeIsbn(rawIsbn)
+        if (!isLikelyIsbn(isbn)) {
+            playScanBeep('error')
+            return
+        }
+        if (!deduperRef.current.shouldAccept(isbn)) return // camera re-read / double-Enter
+
         const id = crypto.randomUUID()
-        dispatch({ type: 'ADD_ITEM', payload: { id, isbn } })
-        setLastScannedId(id) // Highlight effect?
+        dispatch({ type: 'ADD_ITEM', payload: { id, isbn, condition: sessionConditionRef.current } })
+        setLastScannedId(id)
 
         try {
             const res = await fetchWithKey(`/api/lookup/book?isbn=${isbn}`)
@@ -207,13 +287,13 @@ export function BatchScan() {
                         }
                     }
                 })
-                new Audio('/sounds/success.mp3').play().catch(() => { }) // Placeholder for sound
+                playScanBeep('success')
             } else {
                 dispatch({
                     type: 'UPDATE_ITEM',
                     payload: { id, data: { title: 'Book Not Found', status: 'not_found' } }
                 })
-                new Audio('/sounds/error.mp3').play().catch(() => { })
+                playScanBeep('error')
             }
         } catch {
             dispatch({
@@ -222,6 +302,12 @@ export function BatchScan() {
             })
         }
     }, [dispatch])
+
+    const attachPhoto = useCallback((itemId: string, file: File) => {
+        photosRef.current.set(itemId, file)
+        setPhotoVersion(v => v + 1)
+        toast.success('Photo attached — it will upload with the draft')
+    }, [])
 
     // --- Scanner Listener ---
     useEffect(() => {
@@ -236,7 +322,7 @@ export function BatchScan() {
 
             if (e.key === 'Enter') {
                 const isbn = bufferRef.current
-                if (isbn.length >= 10 && /^\d+$/.test(isbn)) {
+                if (isLikelyIsbn(isbn)) {
                     await handleScan(isbn)
                 }
                 bufferRef.current = ''
@@ -255,25 +341,34 @@ export function BatchScan() {
 
         let successCount = 0
         let errorCount = 0
+        const noCoverTitles: string[] = []
         for (const item of validItems) {
             dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { status: 'drafting' } } })
 
             try {
-                const res = await fetchWithKey('/api/jobs/create-from-metadata', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        title: item.title,
-                        isbn: item.isbn,
-                        description: item.fullData?.description || '',
-                        thumbnail: item.stock_photo || '',
-                        source: 'batch_scan',
-                    }),
-                })
-                const data = await res.json()
+                const payload: CreateFromMetadataPayload = {
+                    title: item.title,
+                    isbn: item.isbn,
+                    description: String(item.fullData?.description || ''),
+                    thumbnail: item.stock_photo || '',
+                    condition: item.condition,
+                    price: item.price || undefined,
+                    category_id: item.fullData?.category_id as string | undefined,
+                    item_specifics: item.fullData?.item_specifics as Record<string, unknown> | undefined,
+                    pricing_data: item.fullData?.pricing_data as Record<string, unknown> | undefined,
+                    // The user just reviewed this row — don't bounce it back
+                    // through the price-sanity review queue.
+                    user_approved: true,
+                    source: 'batch_scan',
+                }
+                const data = await createJobFromMetadata(payload, photosRef.current.get(item.id))
 
-                if (res.ok && data.success) {
-                    dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { status: 'drafted', listingId: data.job_id || data.id } } })
+                if (data.success) {
+                    dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { status: 'drafted', listingId: data.jobId } } })
+                    if (data.cover === false && !photosRef.current.has(item.id)) {
+                        noCoverTitles.push(item.title)
+                    }
+                    photosRef.current.delete(item.id)
                     successCount++
                 } else {
                     dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { status: 'error' } } })
@@ -284,9 +379,18 @@ export function BatchScan() {
                 errorCount++
             }
         }
+
+        // Start the queue only after every draft (and its photo) is in place
+        if (successCount > 0) {
+            try { await startQueue() } catch { /* queue may already be running */ }
+        }
+
         setIsProcessing(false)
+        if (noCoverTitles.length > 0) {
+            toast.warning(`No cover found for: ${noCoverTitles.join(', ')} — add a photo or they can't list.`, { duration: 10000 })
+        }
         if (errorCount === 0) {
-            toast.success(`Drafted ${successCount} items successfully!`)
+            toast.success(`Drafted ${successCount} items — queue started!`)
         } else {
             toast.warning(`Drafted ${successCount} items, ${errorCount} failed.`)
         }
@@ -322,29 +426,39 @@ export function BatchScan() {
                 </div>
             </div>
 
-            {/* Toolbar */}
-            <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-stone-100 mb-4 sm:mb-6 flex flex-wrap gap-3 items-center">
-                <span className="text-sm font-medium text-stone-600">Bulk Actions:</span>
-                <Select onValueChange={(val) => dispatch({ type: 'SET_ALL_CONDITION', payload: val })}>
-                    <SelectTrigger className="w-[160px] sm:w-[180px] h-8">
-                        <SelectValue placeholder="Set Condition" />
+            {/* Session condition — every new scan inherits this */}
+            <div className="bg-persimmon-50 border border-persimmon-100 p-3 sm:p-4 rounded-xl mb-3 flex flex-wrap gap-3 items-center">
+                <span className="text-sm font-semibold text-persimmon-700">Scanning as:</span>
+                <Select value={sessionCondition} onValueChange={setSessionCondition}>
+                    <SelectTrigger className="w-[170px] sm:w-[190px] h-8 bg-white">
+                        <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="NEW">New</SelectItem>
-                        <SelectItem value="NEW_OTHER">New - Open Box</SelectItem>
-                        <SelectItem value="LIKE_NEW">Like New</SelectItem>
-                        <SelectItem value="USED_EXCELLENT">Used - Excellent</SelectItem>
-                        <SelectItem value="USED_VERY_GOOD">Used - Very Good</SelectItem>
-                        <SelectItem value="USED_GOOD">Used - Good</SelectItem>
-                        <SelectItem value="USED_ACCEPTABLE">Used - Acceptable</SelectItem>
+                        <ConditionItems />
                     </SelectContent>
                 </Select>
-
+                <span className="text-xs text-persimmon-600/80 hidden sm:inline">
+                    Scan a pile, switch condition, scan the next pile.
+                </span>
                 <div className="flex-1" />
-
                 <div className="flex items-center gap-2 px-3 py-1 bg-green-50 text-green-700 rounded-full text-xs font-medium animate-pulse">
                     <Search size={12} /> Scanner Ready
                 </div>
+            </div>
+
+            {/* Toolbar: camera + bulk actions */}
+            <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-stone-100 mb-4 sm:mb-6 flex flex-wrap gap-3 items-center">
+                <CameraBarcodeScanner onDetect={handleScan} />
+                <div className="flex-1" />
+                <span className="text-sm font-medium text-stone-600">Set all:</span>
+                <Select onValueChange={(val) => dispatch({ type: 'SET_ALL_CONDITION', payload: val })}>
+                    <SelectTrigger className="w-[160px] sm:w-[180px] h-8">
+                        <SelectValue placeholder="Condition" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <ConditionItems />
+                    </SelectContent>
+                </Select>
             </div>
 
             {/* Mobile Card List (visible on small screens) */}
@@ -353,6 +467,12 @@ export function BatchScan() {
                     <div className="flex flex-col items-center justify-center py-16 text-stone-400">
                         <Search size={48} className="opacity-20 mb-2" />
                         <p>Scan an ISBN to start...</p>
+                        <button
+                            onClick={() => void handlePhotoFlow()}
+                            className="mt-3 text-xs text-blue-500 hover:underline inline-flex items-center gap-1"
+                        >
+                            <Camera size={12} /> No barcode? Use photo capture instead
+                        </button>
                     </div>
                 ) : (
                     <div className="space-y-2 pb-4">
@@ -361,9 +481,11 @@ export function BatchScan() {
                                 key={item.id}
                                 item={item}
                                 isHighlighted={item.id === lastScannedId}
+                                hasPhoto={photoVersion >= 0 && photosRef.current.has(item.id)}
                                 onUpdateCondition={(val) => dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { condition: val } } })}
                                 onUpdatePrice={(val) => dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { price: val } } })}
                                 onRemove={() => dispatch({ type: 'REMOVE_ITEM', payload: item.id })}
+                                onAttachPhoto={(file) => attachPhoto(item.id, file)}
                             />
                         ))}
                     </div>
@@ -409,7 +531,7 @@ export function BatchScan() {
                                     </TableCell>
                                     <TableCell>
                                         <div className="font-medium">{item.title}</div>
-                                        <div className="text-xs text-stone-500">{item.id} • {item.author}</div>
+                                        <div className="text-xs text-stone-500">{item.isbn} • {item.author}</div>
                                     </TableCell>
                                     <TableCell>
                                         <Select
@@ -420,13 +542,7 @@ export function BatchScan() {
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="NEW">New</SelectItem>
-                                                <SelectItem value="NEW_OTHER">New - Open Box</SelectItem>
-                                                <SelectItem value="LIKE_NEW">Like New</SelectItem>
-                                                <SelectItem value="USED_EXCELLENT">Used - Excellent</SelectItem>
-                                                <SelectItem value="USED_VERY_GOOD">Used - Very Good</SelectItem>
-                                                <SelectItem value="USED_GOOD">Used - Good</SelectItem>
-                                                <SelectItem value="USED_ACCEPTABLE">Used - Acceptable</SelectItem>
+                                                <ConditionItems />
                                             </SelectContent>
                                         </Select>
                                     </TableCell>
@@ -444,9 +560,16 @@ export function BatchScan() {
                                         <StatusBadge status={item.status} />
                                     </TableCell>
                                     <TableCell>
-                                        <Button variant="ghost" size="icon" onClick={() => dispatch({ type: 'REMOVE_ITEM', payload: item.id })}>
-                                            <Trash2 size={16} className="text-stone-400 hover:text-red-500" />
-                                        </Button>
+                                        <div className="flex items-center">
+                                            <PhotoAttachButton
+                                                compact
+                                                hasPhoto={photoVersion >= 0 && photosRef.current.has(item.id)}
+                                                onAttach={(file) => attachPhoto(item.id, file)}
+                                            />
+                                            <Button variant="ghost" size="icon" onClick={() => dispatch({ type: 'REMOVE_ITEM', payload: item.id })}>
+                                                <Trash2 size={16} className="text-stone-400 hover:text-red-500" />
+                                            </Button>
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             ))}
