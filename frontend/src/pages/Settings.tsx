@@ -405,6 +405,63 @@ export function Settings() {
                                 </div>
                             </CardContent>
                         </Card>
+
+                        <Card className="mt-6">
+                            <CardHeader>
+                                <CardTitle>Sourcing Verdicts</CardTitle>
+                                <CardDescription>
+                                    Buy/pass math for the Source tab. Max buy price = the lower of
+                                    (net proceeds − min profit) and (net proceeds ÷ ROI multiple).
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="sourcing-min-profit">Minimum Profit ($)</Label>
+                                    <div className="flex items-center gap-4">
+                                        <Input
+                                            id="sourcing-min-profit"
+                                            type="number"
+                                            min="0"
+                                            step="0.50"
+                                            className="w-24"
+                                            value={settings['SOURCING_MIN_PROFIT'] || '5.00'}
+                                            onChange={e => handleChange('SOURCING_MIN_PROFIT', e.target.value)}
+                                        />
+                                        <span className="text-sm text-stone-500">Smallest profit worth your time per item</span>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="sourcing-roi">ROI Multiple (×)</Label>
+                                    <div className="flex items-center gap-4">
+                                        <Input
+                                            id="sourcing-roi"
+                                            type="number"
+                                            min="0"
+                                            step="0.5"
+                                            className="w-24"
+                                            value={settings['SOURCING_ROI_MULTIPLE'] || '3.0'}
+                                            onChange={e => handleChange('SOURCING_ROI_MULTIPLE', e.target.value)}
+                                        />
+                                        <span className="text-sm text-stone-500">3 = classic "pay at most a third of net" rule. 0 disables.</span>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="sourcing-ship">Est. Shipping Cost ($)</Label>
+                                    <div className="flex items-center gap-4">
+                                        <Input
+                                            id="sourcing-ship"
+                                            type="number"
+                                            min="0"
+                                            step="0.50"
+                                            className="w-24"
+                                            value={settings['SOURCING_SHIP_COST'] || '5.00'}
+                                            onChange={e => handleChange('SOURCING_SHIP_COST', e.target.value)}
+                                        />
+                                        <span className="text-sm text-stone-500">Actual cost to ship a sourced item (Media Mail ≈ $4–5)</span>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
                     </TabsContent>
 
                     <TabsContent value="ai" className="mt-6">

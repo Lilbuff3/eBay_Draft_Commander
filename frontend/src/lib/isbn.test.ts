@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizeIsbn, isLikelyIsbn, ScanDeduper } from './isbn'
+import { normalizeIsbn, isLikelyIsbn, isLikelyGtin, ScanDeduper } from './isbn'
 
 describe('normalizeIsbn', () => {
     it('strips hyphens and spaces', () => {
@@ -27,6 +27,27 @@ describe('isLikelyIsbn', () => {
         expect(isLikelyIsbn('12345')).toBe(false)
         expect(isLikelyIsbn('notanisbn!')).toBe(false)
         expect(isLikelyIsbn('')).toBe(false)
+    })
+})
+
+describe('isLikelyGtin', () => {
+    it('accepts everything isLikelyIsbn accepts', () => {
+        expect(isLikelyGtin('9780201616224')).toBe(true)
+        expect(isLikelyGtin('020161622X')).toBe(true)
+    })
+    it('accepts UPC-A (12 digits)', () => {
+        expect(isLikelyGtin('012345678905')).toBe(true)
+    })
+    it('accepts EAN-8', () => {
+        expect(isLikelyGtin('96385074')).toBe(true)
+    })
+    it('accepts non-bookland EAN-13 (imports, media)', () => {
+        expect(isLikelyGtin('4006381333931')).toBe(true)
+    })
+    it('rejects 11-digit junk and garbage', () => {
+        expect(isLikelyGtin('12345678901')).toBe(false)
+        expect(isLikelyGtin('notabarcode')).toBe(false)
+        expect(isLikelyGtin('')).toBe(false)
     })
 })
 

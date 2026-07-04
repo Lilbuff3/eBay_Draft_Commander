@@ -8,6 +8,7 @@ import { Settings } from '@/pages/Settings'
 import { Dashboard } from '@/pages/Dashboard'
 import { Orders } from '@/pages/Orders'
 import { BatchScan } from '@/pages/BatchScan'
+import { Sourcing } from '@/pages/Sourcing'
 import { QuickListingForm } from '@/components/QuickListingForm'
 import { PhotoEditor } from '@/components/PhotoEditor'
 import { PriceResearch } from '@/components/PriceResearch'
@@ -27,7 +28,7 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import { onUpdateAvailable } from '@/lib/pwa'
 
 // Tab ordering for directional transitions
-const TAB_ORDER = ['dashboard', 'orders', 'review', 'inventory', 'analytics', 'settings']
+const TAB_ORDER = ['dashboard', 'orders', 'review', 'inventory', 'sourcing', 'analytics', 'settings']
 
 function getTabIndex(tab: string): number {
   const idx = TAB_ORDER.indexOf(tab)
@@ -141,6 +142,8 @@ export default function App() {
                   <BatchScan />
                 </div>
               )}
+
+              {activeTab === 'sourcing' && <Sourcing />}
 
               {activeTab === 'photo-editor' && (
                 <div className="h-full p-6 overflow-hidden">

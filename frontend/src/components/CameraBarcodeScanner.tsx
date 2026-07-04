@@ -5,9 +5,9 @@ import { toast } from 'sonner'
 import { normalizeIsbn, isLikelyIsbn, ScanDeduper, playScanBeep } from '@/lib/isbn'
 import { useHaptics } from '@/hooks/useHaptics'
 
-// Native BarcodeDetector (Chrome Android; behind flags elsewhere). ISBN
-// barcodes are printed as Bookland EAN-13 (978/979 prefix) — ean_13 is the
-// only format we need.
+// Native BarcodeDetector (Chrome Android; behind flags elsewhere). Defaults
+// to ean_13 (ISBNs are Bookland EAN-13); callers like the Source tab pass
+// wider formats (upc_a etc.) plus their own validate() to accept them.
 interface DetectedBarcode { rawValue: string }
 interface BarcodeDetectorLike {
     detect(source: CanvasImageSource): Promise<DetectedBarcode[]>
@@ -23,7 +23,11 @@ function getBarcodeDetector(): BarcodeDetectorCtor | null {
 }
 
 interface CameraBarcodeScannerProps {
-    onDetect: (isbn: string) => void
+    onDetect: (code: string) => void
+    /** BarcodeDetector formats to request. Default: EAN-13 only (ISBN). */
+    formats?: string[]
+    /** Accept/reject a normalized code before onDetect fires. Default: ISBN check. */
+    validate?: (code: string) => boolean
 }
 
 /**
@@ -31,12 +35,14 @@ interface CameraBarcodeScannerProps {
  * unchanged; when unsupported it shows an inline fallback message (the USB
  * scanner and typed entry keep working regardless).
  */
-export function CameraBarcodeScanner({ onDetect }: CameraBarcodeScannerProps) {
+export function CameraBarcodeScanner({ onDetect, formats = ['ean_13'], validate = isLikelyIsbn }: CameraBarcodeScannerProps) {
     const [active, setActive] = useState(false)
     const [unsupported, setUnsupported] = useState<string | null>(null)
     const videoRef = useRef<HTMLVideoElement | null>(null)
     const streamRef = useRef<MediaStream | null>(null)
     const deduperRef = useRef(new ScanDeduper(3000))
+    // Requested formats narrowed to what this browser actually supports (set in start())
+    const usableFormatsRef = useRef<string[]>(formats)
     const { success: hapticSuccess } = useHaptics()
 
     const stop = useCallback(() => {
@@ -52,11 +58,13 @@ export function CameraBarcodeScanner({ onDetect }: CameraBarcodeScannerProps) {
             return
         }
         try {
-            const formats = await Detector.getSupportedFormats()
-            if (!formats.includes('ean_13')) {
-                setUnsupported('This browser cannot read EAN-13 barcodes — use your USB scanner or type the ISBN below.')
+            const supported = await Detector.getSupportedFormats()
+            const usable = formats.filter(f => supported.includes(f))
+            if (usable.length === 0) {
+                setUnsupported('This browser cannot read these barcode formats — use your USB scanner or type the code below.')
                 return
             }
+            usableFormatsRef.current = usable
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: 'environment' }
             })
@@ -67,7 +75,7 @@ export function CameraBarcodeScanner({ onDetect }: CameraBarcodeScannerProps) {
             toast.error('Camera unavailable — check permission, or use the USB scanner.')
             setUnsupported('Camera permission denied or unavailable — use your USB scanner or type the ISBN below.')
         }
-    }, [])
+    }, [formats])
 
     // Attach stream + run the detect loop while active
     useEffect(() => {
@@ -78,19 +86,19 @@ export function CameraBarcodeScanner({ onDetect }: CameraBarcodeScannerProps) {
 
         video.srcObject = streamRef.current
         void video.play().catch(() => { /* autoplay quirks; user can tap play */ })
-        const detector = new Detector({ formats: ['ean_13'] })
+        const detector = new Detector({ formats: usableFormatsRef.current })
 
         const interval = window.setInterval(async () => {
             if (video.readyState < 2) return
             try {
                 const codes = await detector.detect(video)
                 for (const code of codes) {
-                    const isbn = normalizeIsbn(code.rawValue)
-                    if (!isLikelyIsbn(isbn)) continue
-                    if (!deduperRef.current.shouldAccept(isbn)) continue
+                    const normalized = normalizeIsbn(code.rawValue)
+                    if (!validate(normalized)) continue
+                    if (!deduperRef.current.shouldAccept(normalized)) continue
                     hapticSuccess()
                     playScanBeep('success')
-                    onDetect(isbn)
+                    onDetect(normalized)
                 }
             } catch {
                 // Transient detect failures (tab switch etc.) — keep looping
@@ -103,7 +111,7 @@ export function CameraBarcodeScanner({ onDetect }: CameraBarcodeScannerProps) {
             window.clearInterval(interval)
             document.removeEventListener('visibilitychange', onVisibility)
         }
-    }, [active, onDetect, stop, hapticSuccess])
+    }, [active, onDetect, stop, hapticSuccess, validate])
 
     // Release the camera on unmount
     useEffect(() => stop, [stop])

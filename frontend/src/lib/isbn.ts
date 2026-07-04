@@ -14,6 +14,19 @@ export function isLikelyIsbn(value: string): boolean {
 }
 
 /**
+ * True for any barcode the comps engine can price: ISBN-10/13, EAN-8,
+ * UPC-A (12 digits), or any EAN-13 (imports/media aren't always 978/979).
+ */
+export function isLikelyGtin(value: string): boolean {
+    const s = normalizeIsbn(value)
+    if (isLikelyIsbn(s)) return true
+    if (/^\d{8}$/.test(s)) return true   // EAN-8
+    if (/^\d{12}$/.test(s)) return true  // UPC-A
+    if (/^\d{13}$/.test(s)) return true  // EAN-13 (non-Bookland)
+    return false
+}
+
+/**
  * Rejects repeat reads of the same code within a time window. The camera
  * detector fires several times per second on a held barcode, and USB wedge
  * scanners occasionally double-trigger.

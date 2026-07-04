@@ -28,6 +28,9 @@ class SettingsManager:
         'ENABLE_BACKGROUND_REMOVAL': 'false',  # rembg background removal (off for MVP)
         'PROMOTED_LISTINGS_ENABLED': 'false',
         'PROMOTED_LISTINGS_AD_RATE': '5.0',
+        'SOURCING_MIN_PROFIT': '5.00',   # Min $ profit for a BUY verdict on the Source tab
+        'SOURCING_ROI_MULTIPLE': '3.0',  # Pay at most net_proceeds / this (3x rule)
+        'SOURCING_SHIP_COST': '5.00',    # Est. actual ship cost when sourcing (Media Mail-ish)
     }
     
     # All known setting keys organized by category
@@ -68,6 +71,11 @@ class SettingsManager:
             'AUTO_MOVE_POSTED',
             'ESTIMATED_SHIPPING_COST',
             'ENABLE_BACKGROUND_REMOVAL',
+        ],
+        'Sourcing': [
+            'SOURCING_MIN_PROFIT',
+            'SOURCING_ROI_MULTIPLE',
+            'SOURCING_SHIP_COST',
         ],
         'Security': [
             'API_ACCESS_TOKEN',

@@ -48,6 +48,59 @@ def lookup_book():
         return jsonify(response)
     except Exception as e: return error_response(str(e))
 
+@lookup_bp.route('/lookup/comps', methods=['GET'])
+def lookup_comps():
+    """Fast sourcing verdict: barcode (ISBN/UPC/EAN) -> comps + buy/pass. No AI, no metadata lookup."""
+    import re
+    raw = request.args.get('gtin', '')
+    gtin = re.sub(r'[\s-]', '', raw).strip().upper()
+    if not re.fullmatch(r'\d{8}|\d{9}[\dX]|\d{12,13}', gtin):
+        return error_response('gtin must be an ISBN-10/13, UPC-A, or EAN-8/13', 400)
+    condition = request.args.get('condition') or 'USED_GOOD'
+    try:
+        from backend.app.services.pricing_engine import PricingEngine
+        from backend.app.services.sourcing import compute_verdict, get_sourcing_settings
+
+        knobs = get_sourcing_settings()
+        engine = PricingEngine()
+        comps = engine.search_sold_listings(gtin, limit=15, condition=condition)
+        ebay_search_url = f"https://www.ebay.com/sch/i.html?_nkw={gtin}"
+
+        if not comps:
+            return jsonify({
+                'success': True, 'gtin': gtin, 'verdict': 'NO_DATA', 'comp_count': 0,
+                'max_buy': None, 'est_sold_value': None, 'net_proceeds': None,
+                'would_list_at': None, 'median_price': None, 'price_range': None,
+                'comps': [], 'reasoning': 'No comparable listings found',
+                'ebay_search_url': ebay_search_url,
+            })
+
+        price_data = engine.calculate_suggested_price(
+            comps, our_condition=condition,
+            shipping_cost=knobs['ship_cost'], availability=None)
+        verdict = compute_verdict(
+            price_data.get('median_price'), price_data.get('comp_count', 0),
+            [c.get('price') for c in comps],
+            min_profit=knobs['min_profit'], roi_multiple=knobs['roi_multiple'],
+            ship_cost=knobs['ship_cost'])
+
+        return jsonify({
+            'success': True, 'gtin': gtin,
+            'verdict': verdict['verdict'], 'max_buy': verdict['max_buy'],
+            'est_sold_value': verdict['est_sold_value'], 'net_proceeds': verdict['net_proceeds'],
+            'would_list_at': price_data.get('suggested_price'),
+            'median_price': price_data.get('median_price'),
+            'comp_count': price_data.get('comp_count', 0),
+            'price_range': verdict['price_range'],
+            'comps': comps[:5],
+            'reasoning': price_data.get('reasoning'),
+            'ebay_search_url': ebay_search_url,
+        })
+    except Exception as e:
+        logger.error(f"Sourcing comps lookup failed for {gtin}: {e}")
+        return error_response(str(e))
+
+
 @lookup_bp.route('/lookup/category', methods=['GET'])
 def lookup_category():
     """Search eBay category suggestions for a query string."""
