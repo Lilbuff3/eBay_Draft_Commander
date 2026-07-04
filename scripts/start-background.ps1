@@ -8,7 +8,6 @@ $projectDir = (Resolve-Path (Join-Path $scriptDir "..")).ProviderPath
 # relaunches it on exit-42, which is what makes POST /api/system/restart work.
 # Launching wsgi_service.py directly leaves the backend un-restartable.
 $runService = Join-Path $projectDir "backend\run_service.py"
-$caddyBat = Join-Path $scriptDir "run-caddy.bat"
 
 # Resolve Python path — prefer pythonw.exe (windowless) for background use
 $pythonExe = (Get-Command python -ErrorAction SilentlyContinue).Source
@@ -22,7 +21,6 @@ if (Test-Path $runService) {
     Start-Process -FilePath $pythonwExe -ArgumentList "`"$runService`"" -WindowStyle Hidden -WorkingDirectory $projectDir
 }
 
-# Start caddy hidden (only if bat exists and has content beyond the template)
-if ((Test-Path $caddyBat) -and (Get-Item $caddyBat).Length -gt 50) {
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"$caddyBat`"" -WindowStyle Hidden -WorkingDirectory $projectDir
-}
+# HTTPS is handled by `tailscale serve` (persists in tailscaled across reboots),
+# not Caddy — Windows Firewall block-rules on caddy.exe made inbound 443 unreachable
+# from other tailnet devices. Nothing to start here for HTTPS.
