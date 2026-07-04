@@ -11,6 +11,13 @@ export interface BeforeInstallPromptEvent extends Event {
 
 let updateAvailableCallback: (() => void) | null = null;
 
+// Browsers only recheck sw.js on navigation (and at most ~daily), so an
+// installed PWA resumed from memory can run a stale build for days. Nudge
+// registration.update() whenever the app regains focus and on a slow interval
+// — combined with skipWaiting + the auto-reload in App.tsx, every resume
+// picks up the newest build within seconds.
+const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000;
+
 export function onUpdateAvailable(callback: () => void) {
     updateAvailableCallback = callback;
     // Listen for VitePWA's update mechanism
@@ -29,6 +36,14 @@ export function onUpdateAvailable(callback: () => void) {
                     });
                 }
             });
+
+            const checkForUpdate = () => {
+                registration.update().catch(() => { /* offline — retry next trigger */ });
+            };
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') checkForUpdate();
+            });
+            setInterval(checkForUpdate, UPDATE_CHECK_INTERVAL_MS);
         });
     }
 }

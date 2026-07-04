@@ -18,16 +18,21 @@ def app_root():
 def serve_vite_app(path=''):
     """Serve the Vite-built React app"""
     app_dir = Path(current_app.static_folder) / 'app'
-    
+
     # If path exists as a file, serve it (with special MIME handling)
     if path and (app_dir / path).exists():
         # Serve manifest with correct MIME type
         if path.endswith('manifest.json') or path.endswith('.webmanifest'):
             return send_from_directory(app_dir, path, mimetype='application/manifest+json')
         return send_from_directory(app_dir, path)
-    
-    # Otherwise serve index.html (for SPA routing)
-    return send_from_directory(app_dir, 'index.html')
+
+    # Otherwise serve index.html (for SPA routing).
+    # no-cache: browsers must revalidate the app shell every load, so a new
+    # deploy is picked up immediately instead of after a heuristic cache expiry.
+    # (Hashed /assets/* bundles are immutable and stay cacheable.)
+    response = make_response(send_from_directory(app_dir, 'index.html'))
+    response.headers['Cache-Control'] = 'no-cache'
+    return response
 
 # --- Service Worker ---
 # VitePWA registers SW from /app/sw.js with scope /app/
@@ -41,6 +46,9 @@ def serve_app_service_worker():
     )
     # Allow SW to control the entire site if needed
     response.headers['Service-Worker-Allowed'] = '/'
+    # no-cache: update checks must always hit the server, or clients keep
+    # running an old service worker (and therefore an old app) for up to a day.
+    response.headers['Cache-Control'] = 'no-cache'
     return response
 
 @ui_bp.route('/sw.js')
@@ -51,6 +59,7 @@ def serve_service_worker():
         send_from_directory(app_dir, 'sw.js', mimetype='application/javascript')
     )
     response.headers['Service-Worker-Allowed'] = '/'
+    response.headers['Cache-Control'] = 'no-cache'
     return response
 
 # --- Manifest ---
