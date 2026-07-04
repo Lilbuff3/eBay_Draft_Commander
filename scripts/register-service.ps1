@@ -14,7 +14,9 @@ $CERT_DIR = Join-Path $PROJECT_DIR ".certs"
 $pythonExe = (Get-Command python).Source
 $pythonwExe = $pythonExe -replace 'python\.exe$', 'pythonw.exe'
 if (-not (Test-Path $pythonwExe)) { $pythonwExe = $pythonExe }
-$WSGI_SERVICE = Join-Path $PROJECT_DIR "backend\wsgi_service.py"
+# run_service.py supervises wsgi_service.py (exit-42 restart contract) —
+# always launch the supervisor, never wsgi_service.py directly.
+$RUN_SERVICE = Join-Path $PROJECT_DIR "backend\run_service.py"
 
 Write-Host "=== eBay Draft Commander - Register Background Service ===" -ForegroundColor Cyan
 Write-Host "Project directory: $PROJECT_DIR" -ForegroundColor DarkGray
@@ -133,7 +135,7 @@ if exist "venv\Scripts\activate.bat" (
 )
 if not exist "data" mkdir "data"
 
-"$pythonExe" backend\wsgi.py >> data\backend_service.log 2>&1
+"$pythonExe" backend\run_service.py >> data\supervisor_console.log 2>&1
 "@
 Set-Content -Path $BACKEND_BAT -Value $backendBatContent -Force
 Write-Host "[OK] Configured run-backend.bat" -ForegroundColor Green
@@ -221,8 +223,8 @@ if ($useScheduledTasks) {
         Start-ScheduledTask -TaskName "eBayDraftCommanderCaddy"
     }
 } else {
-    # Use pythonw.exe with wsgi_service.py — handles its own log redirection
-    Start-Process -FilePath $pythonwExe -ArgumentList "`"$WSGI_SERVICE`"" -WindowStyle Hidden -WorkingDirectory $PROJECT_DIR
+    # Launch the supervisor with pythonw.exe — its child handles log redirection
+    Start-Process -FilePath $pythonwExe -ArgumentList "`"$RUN_SERVICE`"" -WindowStyle Hidden -WorkingDirectory $PROJECT_DIR
     if ($Https) {
         Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"$CADDY_BAT`"" -WindowStyle Hidden -WorkingDirectory $PROJECT_DIR
     }

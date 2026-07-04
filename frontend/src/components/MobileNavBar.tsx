@@ -1,4 +1,4 @@
-import { LayoutTemplate, Package, BarChart3, Settings, ScanLine, BookOpen, type LucideIcon } from 'lucide-react'
+import { LayoutTemplate, Package, Settings, ScanLine, BookOpen, ShoppingBag, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCommanderStore } from '@/store/useCommanderStore'
 import { useHaptics } from '@/hooks/useHaptics'
@@ -9,7 +9,7 @@ const leftTabs = [
 ]
 const rightTabs = [
     { id: 'batch-scan', label: 'Books', icon: BookOpen },
-    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'orders', label: 'Orders', icon: ShoppingBag },
     { id: 'settings', label: 'Settings', icon: Settings },
 ]
 

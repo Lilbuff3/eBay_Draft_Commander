@@ -190,6 +190,47 @@ def ebay_active_listings(limit: int = 20) -> str:
 
 
 @mcp.tool()
+def ebay_orders(days: int = 30, limit: int = 20) -> str:
+    """Fetch the seller's recent eBay orders (sold items).
+
+    Uses the Fulfillment API. Returns order details including buyer,
+    item title, total, fulfillment status (NOT_STARTED = needs shipping),
+    and shipByDate — orders past shipByDate with status NOT_STARTED are
+    overdue for shipment.
+
+    Args:
+        days: Lookback window in days (default 30, max 90)
+        limit: Max orders to return (default 20, max 50)
+    """
+    try:
+        from backend.app.services.ebay.analytics import AnalyticsService
+
+        days = min(max(1, days), 90)
+        limit = min(max(1, limit), 50)
+        analytics = AnalyticsService()
+        result, status_code = analytics.get_recent_orders(days=days, limit=limit)
+
+        if status_code != 200:
+            return json.dumps({"error": result.get("error", "Failed to fetch orders")})
+
+        orders = result.get("orders", [])[:limit]
+        return json.dumps(
+            {
+                "total": result.get("total", len(orders)),
+                "showing": len(orders),
+                "date_range": f"last {days} days",
+                "source": result.get("source", "fulfillment_api"),
+                "orders": orders,
+            },
+            indent=2,
+            default=str,
+        )
+
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
+@mcp.tool()
 def ebay_token_status() -> str:
     """Check eBay API token health and expiry status.
 

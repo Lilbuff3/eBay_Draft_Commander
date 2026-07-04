@@ -4,7 +4,10 @@
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectDir = (Resolve-Path (Join-Path $scriptDir "..")).ProviderPath
-$wsgiService = Join-Path $projectDir "backend\wsgi_service.py"
+# run_service.py is the supervisor: spawns wsgi_service.py as a child and
+# relaunches it on exit-42, which is what makes POST /api/system/restart work.
+# Launching wsgi_service.py directly leaves the backend un-restartable.
+$runService = Join-Path $projectDir "backend\run_service.py"
 $caddyBat = Join-Path $scriptDir "run-caddy.bat"
 
 # Resolve Python path — prefer pythonw.exe (windowless) for background use
@@ -14,9 +17,9 @@ if (-not (Test-Path $pythonwExe)) {
     $pythonwExe = $pythonExe  # Fallback to regular python
 }
 
-# Start backend hidden — wsgi_service.py handles its own log redirection
-if (Test-Path $wsgiService) {
-    Start-Process -FilePath $pythonwExe -ArgumentList "`"$wsgiService`"" -WindowStyle Hidden -WorkingDirectory $projectDir
+# Start supervisor hidden — its wsgi_service.py child handles log redirection
+if (Test-Path $runService) {
+    Start-Process -FilePath $pythonwExe -ArgumentList "`"$runService`"" -WindowStyle Hidden -WorkingDirectory $projectDir
 }
 
 # Start caddy hidden (only if bat exists and has content beyond the template)

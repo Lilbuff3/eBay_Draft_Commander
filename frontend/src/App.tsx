@@ -6,6 +6,7 @@ import { Sidebar } from '@/components/Sidebar'
 import { useCommanderStore } from '@/store/useCommanderStore'
 import { Settings } from '@/pages/Settings'
 import { Dashboard } from '@/pages/Dashboard'
+import { Orders } from '@/pages/Orders'
 import { BatchScan } from '@/pages/BatchScan'
 import { QuickListingForm } from '@/components/QuickListingForm'
 import { PhotoEditor } from '@/components/PhotoEditor'
@@ -26,7 +27,7 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import { onUpdateAvailable } from '@/lib/pwa'
 
 // Tab ordering for directional transitions
-const TAB_ORDER = ['dashboard', 'review', 'inventory', 'analytics', 'settings']
+const TAB_ORDER = ['dashboard', 'orders', 'review', 'inventory', 'analytics', 'settings']
 
 function getTabIndex(tab: string): number {
   const idx = TAB_ORDER.indexOf(tab)
@@ -173,6 +174,7 @@ export default function App() {
               )}
 
               {/* Business Tools */}
+              {activeTab === 'orders' && <Orders />}
               {activeTab === 'inventory' && <ActiveListings />}
               {activeTab === 'review' && <ReviewQueue />}
               {activeTab === 'analytics' && <AnalyticsDashboard />}

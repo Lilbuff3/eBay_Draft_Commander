@@ -7,4 +7,4 @@ if exist "venv\Scripts\activate.bat" (
 )
 if not exist "data" mkdir "data"
 
-"C:\Program Files\Python312\python.exe" backend\wsgi.py >> data\backend_service.log 2>&1
+"C:\Program Files\Python312\python.exe" backend\run_service.py >> data\supervisor_console.log 2>&1

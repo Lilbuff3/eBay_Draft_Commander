@@ -436,6 +436,12 @@ export interface Order {
     total: number
     status: string
     itemCount: number
+    itemTitle?: string | null
+    legacyItemId?: string | null
+    quantity?: number | null
+    shipByDate?: string | null
+    paidDate?: string | null
+    thumbnailUrl?: string | null
 }
 
 export async function fetchAnalyticsSummary(days: string): Promise<SalesStats> {
@@ -444,4 +450,8 @@ export async function fetchAnalyticsSummary(days: string): Promise<SalesStats> {
 
 export async function fetchRecentOrders(days: string, limit = 50): Promise<{ orders: Order[] }> {
     return apiFetch(`${API_BASE}/analytics/orders?days=${days}&limit=${limit}`)
+}
+
+export async function fetchOrders(days = '90', limit = 100): Promise<{ orders: Order[] }> {
+    return apiFetch(`${API_BASE}/orders?days=${days}&limit=${limit}`)
 }

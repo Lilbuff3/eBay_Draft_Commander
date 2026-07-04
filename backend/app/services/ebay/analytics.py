@@ -53,14 +53,23 @@ class AnalyticsService:
             for order in data.get('orders', []):
                 # Use safer extraction
                 order_total = self._get_price_value(order.get('pricingSummary'))
-                
+                line_items = order.get('lineItems', [])
+                first = line_items[0] if line_items else {}
+                instructions = first.get('lineItemFulfillmentInstructions') or {}
+                payments = (order.get('paymentSummary') or {}).get('payments') or []
+
                 orders.append({
                     'orderId': order.get('orderId'),
                     'creationDate': order.get('creationDate'),
                     'buyer': order.get('buyer', {}).get('username', 'Guest'),
                     'total': order_total,
                     'status': order.get('orderFulfillmentStatus'),
-                    'itemCount': len(order.get('lineItems', []))
+                    'itemCount': len(line_items),
+                    'itemTitle': first.get('title'),
+                    'legacyItemId': first.get('legacyItemId'),
+                    'quantity': first.get('quantity'),
+                    'shipByDate': instructions.get('shipByDate'),
+                    'paidDate': payments[0].get('paymentDate') if payments else None,
                 })
             
             return {

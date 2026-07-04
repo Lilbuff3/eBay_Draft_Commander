@@ -6,6 +6,7 @@ import { getStatusBucket } from '@/lib/status'
 import { useCommanderStore } from '@/store/useCommanderStore'
 import { UploadZone } from '@/components/UploadZone'
 import { ScoreboardStats } from './ScoreboardStats'
+import { OrderStats } from './OrderStats'
 import { WorkspaceCard } from './WorkspaceCard'
 import { ActivityRail } from './ActivityRail'
 
@@ -105,6 +106,11 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
                 {/* Stats */}
                 <motion.div variants={itemVariants}>
                     <ScoreboardStats days="30" />
+                </motion.div>
+
+                {/* Orders needing shipment — loud when due, hidden when clear */}
+                <motion.div variants={itemVariants}>
+                    <OrderStats />
                 </motion.div>
 
 
