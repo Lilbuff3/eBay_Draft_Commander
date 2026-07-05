@@ -14,7 +14,7 @@ import {
 import { fetchWithKey } from '@/lib/api'
 import { normalizeIsbn, isLikelyIsbn, isLikelyGtin, ScanDeduper, playScanBeep } from '@/lib/isbn'
 import { CameraBarcodeScanner } from '@/components/CameraBarcodeScanner'
-import { CONDITION_OPTIONS } from '@/pages/BatchScan'
+import { CONDITION_OPTIONS } from '@/lib/conditions'
 import { useHaptics } from '@/hooks/useHaptics'
 
 // --- Types ---

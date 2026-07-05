@@ -130,6 +130,7 @@ frontend/                   React 18 + Vite + TypeScript
 ## Key Patterns
 
 - **Tab-based navigation** — `activeTab` state in `useCommanderStore`, persisted to localStorage. No react-router.
+- **Code-split tab bodies** — `App.tsx` `React.lazy()`s every tab body except the landing `Dashboard` (eager), wrapped in one `<Suspense fallback={<PageLoader/>}>`. Keeps heavy deps (recharts → Analytics, dnd-kit → PhotoEditor, zxing → scanner) off cold load: eager JS ~659KB vs ~1175KB unsplit. **Don't statically import a tab body into eager code** (App shell, Dashboard, home widgets) — it defeats the lazy split. Shared bits like `CONDITION_OPTIONS` live in `lib/conditions.ts` so lazy pages don't import each other. `vite.config.ts` `manualChunks` splits only *provably-eager* framework vendors (react, framer-motion, socket.io) for cross-deploy caching — **never manualChunk an async-only dep** (recharts/zxing): naming it promotes it into the initial graph and un-lazies it.
 - **Zustand for state** — Single store (`useCommanderStore.ts`) manages jobs, queue status, settings, selected job, UI state. Accessed via selectors.
 - **Typed HTTP client** — `apiFetch<T>()` in `src/lib/api.ts` wraps fetch with generics and error handling.
 - **Socket.IO events**: `job_added`, `job_update`, `job_log` — emitted by QueueService, consumed via `useJobSync` hook.

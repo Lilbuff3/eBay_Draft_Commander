@@ -22,18 +22,9 @@ import {
 } from "@/components/ui/select"
 import { fetchWithKey, createJobFromMetadata, startQueue, type CreateFromMetadataPayload } from '@/lib/api'
 import { normalizeIsbn, isLikelyIsbn, ScanDeduper, playScanBeep } from '@/lib/isbn'
+import { CONDITION_OPTIONS } from '@/lib/conditions'
 import { CameraBarcodeScanner } from '@/components/CameraBarcodeScanner'
 import { useCommanderStore } from '@/store/useCommanderStore'
-
-export const CONDITION_OPTIONS = [
-    { value: 'NEW', label: 'New' },
-    { value: 'NEW_OTHER', label: 'New - Open Box' },
-    { value: 'LIKE_NEW', label: 'Like New' },
-    { value: 'USED_EXCELLENT', label: 'Used - Excellent' },
-    { value: 'USED_VERY_GOOD', label: 'Used - Very Good' },
-    { value: 'USED_GOOD', label: 'Used - Good' },
-    { value: 'USED_ACCEPTABLE', label: 'Used - Acceptable' },
-] as const
 
 function ConditionItems() {
     return (

@@ -38,6 +38,22 @@ export default defineConfig(({ mode }) => ({
   build: {
     outDir: '../static/app',
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Split the always-eager framework vendors into stable chunks so
+        // returning users cache them across deploys instead of re-downloading
+        // the whole bundle. Only vendors that are PROVABLY eager belong here —
+        // manually chunking an async-only dep (recharts, zxing) would promote
+        // it into the initial graph and defeat its lazy load. recharts rides
+        // its lazy Analytics chunk; zxing self-splits via dynamic import().
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+          if (id.includes('framer-motion')) return 'vendor-motion'      // App.tsx top-level
+          if (id.includes('socket.io') || id.includes('engine.io')) return 'vendor-socket'  // useJobSync
+          if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/scheduler/')) return 'vendor-react'
+        },
+      },
+    },
   },
   server: {
     host: true,

@@ -1,19 +1,11 @@
-import { useEffect, useCallback, useMemo } from 'react'
+import { lazy, Suspense, useEffect, useCallback, useMemo } from 'react'
 import { AnimatePresence, motion, MotionConfig } from 'framer-motion'
-import { AnalyticsDashboard } from '@/components/AnalyticsDashboard'
-import { ActiveListings } from '@/components/ActiveListings'
+import { Loader2 } from 'lucide-react'
+// Eager: app chrome + the landing tab (Dashboard). Everything else is a tab
+// body loaded on demand so recharts/dnd-kit/etc. stay off the cold-load path.
 import { Sidebar } from '@/components/Sidebar'
 import { useCommanderStore } from '@/store/useCommanderStore'
-import { Settings } from '@/pages/Settings'
 import { Dashboard } from '@/pages/Dashboard'
-import { Orders } from '@/pages/Orders'
-import { BatchScan } from '@/pages/BatchScan'
-import { Sourcing } from '@/pages/Sourcing'
-import { QuickListingForm } from '@/components/QuickListingForm'
-import { PhotoEditor } from '@/components/PhotoEditor'
-import { PriceResearch } from '@/components/PriceResearch'
-import { TemplateManager } from '@/components/TemplateManager'
-import { PreviewPanel } from '@/components/PreviewPanel'
 import { MobileNavBar } from '@/components/MobileNavBar'
 import { MobileUploadFAB } from '@/components/MobileUploadFAB'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -21,11 +13,32 @@ import { Toaster, toast } from 'sonner'
 import { PullToRefreshIndicator } from '@/components/PullToRefreshIndicator'
 import { InstallPrompt } from '@/components/InstallPrompt'
 import { OfflineIndicator } from '@/components/OfflineIndicator'
-import { ReviewQueue } from '@/components/listings/ReviewQueue'
 import { useJobSync } from '@/hooks/useJobSync'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { onUpdateAvailable } from '@/lib/pwa'
+
+// Lazy tab bodies (named exports → default-wrap for React.lazy).
+const AnalyticsDashboard = lazy(() => import('@/components/AnalyticsDashboard').then(m => ({ default: m.AnalyticsDashboard })))
+const ActiveListings = lazy(() => import('@/components/ActiveListings').then(m => ({ default: m.ActiveListings })))
+const Settings = lazy(() => import('@/pages/Settings').then(m => ({ default: m.Settings })))
+const Orders = lazy(() => import('@/pages/Orders').then(m => ({ default: m.Orders })))
+const BatchScan = lazy(() => import('@/pages/BatchScan').then(m => ({ default: m.BatchScan })))
+const Sourcing = lazy(() => import('@/pages/Sourcing').then(m => ({ default: m.Sourcing })))
+const QuickListingForm = lazy(() => import('@/components/QuickListingForm').then(m => ({ default: m.QuickListingForm })))
+const PhotoEditor = lazy(() => import('@/components/PhotoEditor').then(m => ({ default: m.PhotoEditor })))
+const PriceResearch = lazy(() => import('@/components/PriceResearch').then(m => ({ default: m.PriceResearch })))
+const TemplateManager = lazy(() => import('@/components/TemplateManager').then(m => ({ default: m.TemplateManager })))
+const PreviewPanel = lazy(() => import('@/components/PreviewPanel').then(m => ({ default: m.PreviewPanel })))
+const ReviewQueue = lazy(() => import('@/components/listings/ReviewQueue').then(m => ({ default: m.ReviewQueue })))
+
+function PageLoader() {
+  return (
+    <div className="flex h-full items-center justify-center">
+      <Loader2 className="h-6 w-6 animate-spin text-stone-400" />
+    </div>
+  )
+}
 
 // Tab ordering for directional transitions
 const TAB_ORDER = ['dashboard', 'orders', 'review', 'inventory', 'sourcing', 'analytics', 'settings']
@@ -133,6 +146,7 @@ export default function App() {
               transition={PAGE_TRANSITION}
               className="h-full"
             >
+              <Suspense fallback={<PageLoader />}>
               {activeTab === 'dashboard' && <Dashboard />}
 
               {activeTab === 'create' && <QuickListingForm />}
@@ -182,6 +196,7 @@ export default function App() {
               {activeTab === 'review' && <ReviewQueue />}
               {activeTab === 'analytics' && <AnalyticsDashboard />}
               {activeTab === 'settings' && <Settings />}
+              </Suspense>
             </motion.div>
           </AnimatePresence>
         </ErrorBoundary>
