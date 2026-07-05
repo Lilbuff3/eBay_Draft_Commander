@@ -157,13 +157,16 @@ def _isbn_from_title(title):
 
 
 def predict(engine, row):
-    """Re-run the live verdict code path; return prediction dict or None."""
+    """Re-run the live verdict code path (identifier-first + filter_comps)."""
     query = row['isbn'] or row['title']
     if not query:
         return None
     comps = engine.search_sold_listings(query, limit=15, condition=row['condition'])
     if not comps:
         return None
+    # Mirror the live engine: drop off-title / price-outlier comps before pricing.
+    if row['title']:
+        comps = engine.filter_comps(comps, reference_title=row['title'])
     pd = engine.calculate_suggested_price(
         comps, our_condition=row['condition'], shipping_cost=SHIP_COST, availability=None)
     raw_median = pd.get('median_price')
@@ -174,6 +177,8 @@ def predict(engine, row):
         'est_sold': round(raw_median * ACTIVE_TO_SOLD_FACTOR, 2),
         'would_list': pd.get('suggested_price'),
         'comp_count': pd.get('comp_count', 0),
+        # exact-ID (ISBN/UPC) = the real product; keyword = the weak fallback.
+        'match_type': 'exact-ID' if row['isbn'] else 'keyword',
     }
 
 
@@ -212,60 +217,60 @@ def main():
         return
 
     print(f'Ground truth: {len(rows)} sold item(s) | ACTIVE_TO_SOLD_FACTOR={ACTIVE_TO_SOLD_FACTOR} | ship=${SHIP_COST}')
-    print(f'{"actual":>8} {"est_sold":>9} {"raw_med":>8} {"list":>7} {"n":>3}  item')
-    print('-' * 78)
+    print(f'{"actual":>8} {"est_sold":>9} {"raw_med":>8} {"list":>7} {"n":>3} {"match":>8}  item')
+    print('-' * 82)
 
     engine = PricingEngine()
-    est_pairs, raw_pairs, list_pairs = [], [], []
+    scored = []   # (match_type, est_sold, raw_median, would_list|None, actual)
     no_comps = 0
     for r in rows:
         pred = predict(engine, r)
         if not pred:
             no_comps += 1
-            print(f'{r["actual"]:>8.2f} {"-- no comps --":>27}      {(r["isbn"] or r["title"])[:34]}')
+            print(f'{r["actual"]:>8.2f} {"-- no comps --":>27}          {(r["isbn"] or r["title"])[:30]}')
             continue
         a = r['actual']
-        est_pairs.append((pred['est_sold'], a))
-        raw_pairs.append((pred['raw_median'], a))
-        if pred['would_list']:
-            list_pairs.append((pred['would_list'], a))
-        label = (r['isbn'] or r['title'])[:34]
+        scored.append((pred['match_type'], pred['est_sold'], pred['raw_median'], pred['would_list'], a))
         print(f'{a:>8.2f} {pred["est_sold"]:>9.2f} {pred["raw_median"]:>8.2f} '
-              f'{(pred["would_list"] or 0):>7.2f} {pred["comp_count"]:>3}  {label}')
+              f'{(pred["would_list"] or 0):>7.2f} {pred["comp_count"]:>3} {pred["match_type"]:>8}  '
+              f'{(r["isbn"] or r["title"])[:30]}')
 
-    print('-' * 78)
-    est_s, raw_s, list_s = _stats(est_pairs), _stats(raw_pairs), _stats(list_pairs)
-    if not est_s:
+    print('-' * 82)
+    if not scored:
         print(f'No priceable items ({no_comps} had no comps). Nothing to score.')
         return
 
-    def line(name, s):
-        if not s:
+    def report(rowset, header):
+        est_s = _stats([(e, a) for _, e, _, _, a in rowset])
+        raw_s = _stats([(rm, a) for _, _, rm, _, a in rowset])
+        list_s = _stats([(lp, a) for _, _, _, lp, a in rowset if lp])
+        if not est_s:
             return
-        print(f'  {name:<22} n={s["n"]:<3} MAE=${s["mae"]:<7} '
-              f'medErr={s["median_pct"]}%  within25%={s["within_25pct"]:.0f}%  bias=${s["bias"]:+.2f}')
+        print(f'\n{header} (n={est_s["n"]}) — lower MAE/medErr = better:')
+        for name, s in (('est_sold (DISCOUNTED)', est_s), ('raw_median (baseline)', raw_s),
+                        ('would_list (list px)', list_s)):
+            if s:
+                print(f'  {name:<22} MAE=${s["mae"]:<7} medErr={s["median_pct"]}%  '
+                      f'within25%={s["within_25pct"]:.0f}%  bias=${s["bias"]:+.2f}')
+        if est_s and raw_s:
+            delta = round(raw_s['mae'] - est_s['mae'], 2)
+            verdict = f'BEATS raw median by ${delta}' if est_s['mae'] < raw_s['mae'] else f'does NOT beat raw median (worse by ${-delta})'
+            print(f'  -> discount {verdict} MAE')
 
-    print('ACCURACY vs actual sold price (lower MAE / medErr = better):')
-    line('est_sold (DISCOUNTED)', est_s)
-    line('raw_median (baseline)', raw_s)
-    line('would_list (list px)', list_s)
+    report(scored, 'ALL MATCHES')
+    exact = [x for x in scored if x[0] == 'exact-ID']
+    keyword = [x for x in scored if x[0] == 'keyword']
+    if exact and keyword:
+        report(exact, 'EXACT-ID (ISBN/UPC) — judge the thesis HERE')
+        report(keyword, 'KEYWORD-ONLY — the weak fallback')
     if no_comps:
-        print(f'  ({no_comps} item(s) skipped: no comps found)')
+        print(f'\n  ({no_comps} item(s) had no comps at all)')
 
     print('\nMOAT READ:')
-    if est_s and raw_s:
-        better = est_s['mae'] < raw_s['mae']
-        delta = round(raw_s['mae'] - est_s['mae'], 2)
-        if better:
-            print(f'  ✓ Discounting BEATS raw median by ${delta} MAE — ACTIVE_TO_SOLD_FACTOR earns its keep.')
-        else:
-            print(f'  ✗ Discounting does NOT beat raw median (MAE worse by ${-delta}). Re-tune the factor.')
-        if est_s['bias'] > 0:
-            print(f'  Note: est_sold runs ${est_s["bias"]:+.2f} HIGH on average — factor may be too generous.')
-        elif est_s['bias'] < 0:
-            print(f'  Note: est_sold runs ${est_s["bias"]:+.2f} LOW on average — leaving margin on the table.')
-    if est_s['n'] < 25:
-        print(f'  ⚠ Only {est_s["n"]} scored — too few for a real verdict. Aim for 25-30+ (Stage 0a / --csv export).')
+    print(f'  Exact-ID matches (the books-first product): {len(exact)} of {len(scored)} scored.')
+    if len(exact) < 25:
+        print(f'  ! Only {len(exact)} exact-ID items — too few to judge. Export book sales (--csv) for 25-30+.')
+    print('  Judge the thesis on the EXACT-ID rows only; keyword rows are the low-confidence fallback the product should flag, not trust.')
     print('\nCaveat: comps fetched now vs past sales; free-shipping total ~= list price.')
 
 
