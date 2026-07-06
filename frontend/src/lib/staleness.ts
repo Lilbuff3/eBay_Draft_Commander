@@ -35,10 +35,10 @@ export function staleTag(watchCount: number, age: number | null): StaleTag {
 }
 
 export const TAG_META: Record<StaleTag, { label: string; chip: string; rank: number }> = {
-    dead: { label: 'Dead', chip: 'bg-red-100 text-red-700', rank: 0 },
-    stale: { label: 'Stale', chip: 'bg-amber-100 text-amber-700', rank: 1 },
-    ok: { label: 'OK', chip: 'bg-stone-100 text-stone-500', rank: 2 },
-    warm: { label: 'Warm', chip: 'bg-sage-100 text-sage-700', rank: 3 },
+    dead: { label: 'Dead', chip: 'bg-rose-500/10 text-rose-300 border border-rose-500/20', rank: 0 },
+    stale: { label: 'Stale', chip: 'bg-amber-500/10 text-amber-300 border border-amber-500/20', rank: 1 },
+    ok: { label: 'OK', chip: 'bg-slate-850 border border-white/5 text-slate-400', rank: 2 },
+    warm: { label: 'Warm', chip: 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20', rank: 3 },
 }
 
 /** "47d" / "3d" / "—" when age unknown. */

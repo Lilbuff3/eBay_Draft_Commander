@@ -125,7 +125,7 @@ export default function App() {
 
   return (
     <MotionConfig reducedMotion="user">
-    <div className="flex h-screen bg-transparent">
+    <div className="dark flex h-screen bg-[#05050A] text-slate-100 relative">
       <OfflineIndicator />
       <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
 

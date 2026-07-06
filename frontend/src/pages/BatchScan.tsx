@@ -25,6 +25,7 @@ import { normalizeIsbn, isLikelyIsbn, ScanDeduper, playScanBeep } from '@/lib/is
 import { CONDITION_OPTIONS } from '@/lib/conditions'
 import { CameraBarcodeScanner } from '@/components/CameraBarcodeScanner'
 import { useCommanderStore } from '@/store/useCommanderStore'
+import { cn } from '@/lib/utils'
 
 function ConditionItems() {
     return (
@@ -99,12 +100,12 @@ const initBatchState = (): BatchItem[] => {
 // --- Status Badge Component ---
 function StatusBadge({ status }: { status: BatchItem['status'] }) {
     switch (status) {
-        case 'loading': return <Badge variant="outline" className="animate-pulse">Loading</Badge>
-        case 'found': return <Badge className="bg-green-100 text-green-700 border-green-200">Ready</Badge>
-        case 'not_found': return <Badge variant="destructive">Not Found</Badge>
-        case 'drafting': return <Badge className="bg-blue-100 text-blue-700">Drafting...</Badge>
-        case 'drafted': return <Badge className="bg-stone-800 text-white">Drafted</Badge>
-        case 'error': return <Badge variant="destructive">Error</Badge>
+        case 'loading': return <Badge variant="outline" className="animate-pulse border-white/10 text-slate-400">Loading</Badge>
+        case 'found': return <Badge className="bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">Ready</Badge>
+        case 'not_found': return <Badge className="bg-rose-500/10 text-rose-300 border border-rose-500/20">Not Found</Badge>
+        case 'drafting': return <Badge className="bg-blue-500/10 text-blue-300 border border-blue-500/20">Drafting...</Badge>
+        case 'drafted': return <Badge className="bg-slate-800 text-slate-400 border border-white/5">Drafted</Badge>
+        case 'error': return <Badge className="bg-rose-500/10 text-rose-300 border border-rose-500/20">Error</Badge>
         default: return null
     }
 }
@@ -133,11 +134,11 @@ function PhotoAttachButton({ hasPhoto, onAttach, compact }: {
             <Button
                 variant="ghost"
                 size={compact ? 'icon' : 'sm'}
-                className={compact ? 'h-8 w-8 flex-shrink-0' : 'h-8'}
+                className={compact ? 'h-8 w-8 flex-shrink-0 hover:bg-white/5' : 'h-8 hover:bg-white/5'}
                 onClick={() => inputRef.current?.click()}
                 title={hasPhoto ? 'Photo attached — tap to replace' : 'Add a real photo (optional)'}
             >
-                <ImagePlus size={14} className={hasPhoto ? 'text-green-600' : 'text-stone-400'} />
+                <ImagePlus size={14} className={hasPhoto ? 'text-emerald-400' : 'text-slate-500'} />
             </Button>
         </>
     )
@@ -161,14 +162,14 @@ function BatchItemCard({
     onAttachPhoto: (file: File) => void
 }) {
     return (
-        <div className={`bg-white rounded-xl border p-3 transition-colors ${isHighlighted ? 'border-blue-300 bg-blue-50/50' : 'border-stone-200'}`}>
+        <div className={`bg-slate-900/40 backdrop-blur-2xl border p-3.5 shadow-glass rounded-3xl transition-colors ${isHighlighted ? 'border-brand-500/30 bg-slate-900/70 shadow-glow' : 'border-white/5'}`}>
             <div className="flex gap-3">
                 {/* Cover Image */}
                 <div className="flex-shrink-0">
                     {item.stock_photo ? (
                         <img src={item.stock_photo} alt={item.title || "Book cover"} className="h-16 w-12 object-cover rounded-lg" />
                     ) : (
-                        <div className="h-16 w-12 bg-stone-100 rounded-lg" />
+                        <div className="h-16 w-12 bg-slate-950/40 border border-white/10 rounded-lg" />
                     )}
                 </div>
 
@@ -176,8 +177,8 @@ function BatchItemCard({
                 <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                            <h4 className="font-medium text-sm text-stone-800 line-clamp-2 leading-snug">{item.title}</h4>
-                            <p className="text-xs text-stone-400 mt-0.5 truncate">{item.isbn} {item.author && `• ${item.author}`}</p>
+                            <h4 className="font-bold text-sm text-white line-clamp-2 leading-snug">{item.title}</h4>
+                            <p className="text-xs text-slate-450 mt-0.5 truncate">{item.isbn} {item.author && `• ${item.author}`}</p>
                         </div>
                         <StatusBadge status={item.status} />
                     </div>
@@ -185,16 +186,16 @@ function BatchItemCard({
                     {/* Price + Condition row */}
                     <div className="flex items-center gap-2 mt-2">
                         <div className="relative flex-1">
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-stone-400">$</span>
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-500">$</span>
                             <Input
-                                className="h-8 pl-5 text-sm"
+                                className="h-8 pl-5 text-sm bg-slate-950/40 border-white/10 text-white focus:ring-brand-500"
                                 value={item.price}
                                 onChange={(e) => onUpdatePrice(e.target.value)}
                                 placeholder="0.00"
                             />
                         </div>
                         <Select value={item.condition} onValueChange={onUpdateCondition}>
-                            <SelectTrigger className="h-8 flex-1 text-xs">
+                            <SelectTrigger className="h-8 flex-1 text-xs bg-slate-900/60 border-white/10 text-white hover:bg-slate-800/80">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -202,8 +203,8 @@ function BatchItemCard({
                             </SelectContent>
                         </Select>
                         <PhotoAttachButton compact hasPhoto={hasPhoto} onAttach={onAttachPhoto} />
-                        <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" onClick={onRemove}>
-                            <Trash2 size={14} className="text-stone-400" />
+                        <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 hover:bg-rose-500/10 text-slate-500 hover:text-rose-450" onClick={onRemove}>
+                            <Trash2 size={14} />
                         </Button>
                     </div>
                 </div>
@@ -391,26 +392,26 @@ export function BatchScan() {
 
     // --- Render ---
     return (
-        <div className="flex flex-col h-full bg-stone-50 p-4 sm:p-6">
+        <div className="flex flex-col h-full bg-transparent p-4 sm:p-6">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 sm:mb-6">
                 <div>
-                    <h1 className="text-xl sm:text-2xl font-bold text-stone-800 flex items-center gap-2">
-                        <Package className="text-blue-600" />
+                    <h1 className="text-xl sm:text-2xl font-display font-bold text-white flex items-center gap-2">
+                        <Package className="text-brand-400" />
                         Batch Scanner
                     </h1>
-                    <p className="text-sm text-stone-500">Scan books rapidly to build your queue.</p>
+                    <p className="text-sm text-slate-400">Scan books rapidly to build your queue.</p>
                 </div>
 
                 <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => dispatch({ type: 'CLEAR_ALL' })}>
+                    <Button variant="outline" size="sm" onClick={() => dispatch({ type: 'CLEAR_ALL' })} className="text-slate-450 hover:text-rose-400 border-white/10 hover:bg-white/5">
                         <Trash2 size={14} className="mr-1.5" /> Clear
                     </Button>
                     <Button
                         size="sm"
                         onClick={handleDraftAll}
                         disabled={isProcessing || foundCount === 0}
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        className="bg-brand-500 hover:bg-brand-600 text-white shadow-glow disabled:opacity-50"
                     >
                         {isProcessing ? 'Processing...' : `Draft All (${foundCount})`}
                     </Button>
@@ -418,32 +419,32 @@ export function BatchScan() {
             </div>
 
             {/* Session condition — every new scan inherits this */}
-            <div className="bg-persimmon-50 border border-persimmon-100 p-3 sm:p-4 rounded-xl mb-3 flex flex-wrap gap-3 items-center">
-                <span className="text-sm font-semibold text-persimmon-700">Scanning as:</span>
+            <div className="bg-brand-500/10 border border-brand-500/20 p-3 sm:p-4 rounded-3xl mb-3 flex flex-wrap gap-3 items-center">
+                <span className="text-sm font-semibold text-brand-300">Scanning as:</span>
                 <Select value={sessionCondition} onValueChange={setSessionCondition}>
-                    <SelectTrigger className="w-[170px] sm:w-[190px] h-8 bg-white">
+                    <SelectTrigger className="w-[170px] sm:w-[190px] h-8 bg-slate-900/60 border-white/10 text-white hover:bg-slate-800/80">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                         <ConditionItems />
                     </SelectContent>
                 </Select>
-                <span className="text-xs text-persimmon-600/80 hidden sm:inline">
+                <span className="text-xs text-brand-400/80 hidden sm:inline">
                     Scan a pile, switch condition, scan the next pile.
                 </span>
                 <div className="flex-1" />
-                <div className="flex items-center gap-2 px-3 py-1 bg-green-50 text-green-700 rounded-full text-xs font-medium animate-pulse">
+                <div className="flex items-center gap-2 px-3 py-1 bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 rounded-full text-xs font-semibold animate-pulse">
                     <Search size={12} /> Scanner Ready
                 </div>
             </div>
 
             {/* Toolbar: camera + bulk actions */}
-            <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-stone-100 mb-4 sm:mb-6 flex flex-wrap gap-3 items-center">
+            <div className="bg-slate-900/40 backdrop-blur-2xl p-3 sm:p-4 rounded-3xl shadow-glass border border-white/5 mb-4 sm:mb-6 flex flex-wrap gap-3 items-center">
                 <CameraBarcodeScanner onDetect={handleScan} />
                 <div className="flex-1" />
-                <span className="text-sm font-medium text-stone-600">Set all:</span>
+                <span className="text-sm font-medium text-slate-400">Set all:</span>
                 <Select onValueChange={(val) => dispatch({ type: 'SET_ALL_CONDITION', payload: val })}>
-                    <SelectTrigger className="w-[160px] sm:w-[180px] h-8">
+                    <SelectTrigger className="w-[160px] sm:w-[180px] h-8 bg-slate-900/60 border-white/10 text-white hover:bg-slate-800/80">
                         <SelectValue placeholder="Condition" />
                     </SelectTrigger>
                     <SelectContent>
@@ -455,12 +456,12 @@ export function BatchScan() {
             {/* Mobile Card List (visible on small screens) */}
             <div className="flex-1 overflow-auto md:hidden">
                 {items.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-16 text-stone-400">
+                    <div className="flex flex-col items-center justify-center py-16 text-slate-500">
                         <Search size={48} className="opacity-20 mb-2" />
                         <p>Scan an ISBN to start...</p>
                         <button
                             onClick={() => void handlePhotoFlow()}
-                            className="mt-3 text-xs text-blue-500 hover:underline inline-flex items-center gap-1"
+                            className="mt-3 text-xs text-brand-400 hover:text-brand-300 hover:underline inline-flex items-center gap-1"
                         >
                             <Camera size={12} /> No barcode? Use photo capture instead
                         </button>
@@ -481,29 +482,29 @@ export function BatchScan() {
                         ))}
                     </div>
                 )}
-                <div className="py-2 text-xs text-center text-stone-400">
+                <div className="py-2 text-xs text-center text-slate-500">
                     {items.length} items in batch
                 </div>
             </div>
 
             {/* Desktop Table (visible on md+) */}
-            <div className="hidden md:flex flex-1 bg-white rounded-xl shadow-sm border border-stone-100 overflow-hidden flex-col">
+            <div className="hidden md:flex flex-1 bg-slate-900/40 border border-white/5 shadow-glass rounded-3xl overflow-hidden flex-col">
                 <div className="overflow-auto flex-1">
                     <Table>
                         <TableHeader>
-                            <TableRow>
-                                <TableHead className="w-[80px]">Cover</TableHead>
-                                <TableHead>Book Details</TableHead>
-                                <TableHead className="w-[200px]">Condition</TableHead>
-                                <TableHead className="w-[150px]">Market Price</TableHead>
-                                <TableHead className="w-[100px]">Status</TableHead>
-                                <TableHead className="w-[50px]"></TableHead>
+                            <TableRow className="border-b border-white/5 hover:bg-transparent">
+                                <TableHead className="w-[80px] text-slate-500 font-bold">Cover</TableHead>
+                                <TableHead className="text-slate-500 font-bold">Book Details</TableHead>
+                                <TableHead className="w-[200px] text-slate-500 font-bold">Condition</TableHead>
+                                <TableHead className="w-[150px] text-slate-500 font-bold">Market Price</TableHead>
+                                <TableHead className="w-[100px] text-slate-500 font-bold">Status</TableHead>
+                                <TableHead className="w-[50px] text-slate-500 font-bold"></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {items.length === 0 && (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="h-64 text-center text-stone-400">
+                                <TableRow className="border-b border-white/5 hover:bg-transparent">
+                                    <TableCell colSpan={6} className="h-64 text-center text-slate-500">
                                         <div className="flex flex-col items-center gap-2">
                                             <Search size={48} className="opacity-20" />
                                             <p>Scan an ISBN to start...</p>
@@ -512,24 +513,24 @@ export function BatchScan() {
                                 </TableRow>
                             )}
                             {items.map((item) => (
-                                <TableRow key={item.id} className={item.id === lastScannedId ? "bg-blue-50/50" : ""}>
+                                <TableRow key={item.id} className={cn("border-b border-white/5 transition-colors hover:bg-white/5", item.id === lastScannedId ? "bg-brand-500/10" : "")}>
                                     <TableCell>
                                         {item.stock_photo ? (
                                             <img src={item.stock_photo} alt={item.title || "Book cover"} className="h-12 w-auto object-contain rounded" />
                                         ) : (
-                                            <div className="h-12 w-8 bg-stone-100 rounded" />
+                                            <div className="h-12 w-8 bg-slate-950/40 border border-white/10 rounded" />
                                         )}
                                     </TableCell>
                                     <TableCell>
-                                        <div className="font-medium">{item.title}</div>
-                                        <div className="text-xs text-stone-500">{item.isbn} • {item.author}</div>
+                                        <div className="font-bold text-white">{item.title}</div>
+                                        <div className="text-xs text-slate-400">{item.isbn} • {item.author}</div>
                                     </TableCell>
                                     <TableCell>
                                         <Select
                                             value={item.condition}
                                             onValueChange={(val) => dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { condition: val } } })}
                                         >
-                                            <SelectTrigger className="h-8">
+                                            <SelectTrigger className="h-8 bg-slate-900/60 border-white/10 text-white hover:bg-slate-800/80">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -539,9 +540,9 @@ export function BatchScan() {
                                     </TableCell>
                                     <TableCell>
                                         <div className="relative">
-                                            <span className="absolute left-2 top-1.5 text-xs text-stone-400">$</span>
+                                            <span className="absolute left-2 top-1.5 text-xs text-slate-500">$</span>
                                             <Input
-                                                className="h-8 pl-5"
+                                                className="h-8 pl-5 bg-slate-950/40 border-white/10 text-white focus:ring-brand-500"
                                                 value={item.price}
                                                 onChange={(e) => dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { price: e.target.value } } })}
                                             />
@@ -557,8 +558,8 @@ export function BatchScan() {
                                                 hasPhoto={photoVersion >= 0 && photosRef.current.has(item.id)}
                                                 onAttach={(file) => attachPhoto(item.id, file)}
                                             />
-                                            <Button variant="ghost" size="icon" onClick={() => dispatch({ type: 'REMOVE_ITEM', payload: item.id })}>
-                                                <Trash2 size={16} className="text-stone-400 hover:text-red-500" />
+                                            <Button variant="ghost" size="icon" className="hover:bg-rose-500/10 text-slate-500 hover:text-rose-450" onClick={() => dispatch({ type: 'REMOVE_ITEM', payload: item.id })}>
+                                                <Trash2 size={16} />
                                             </Button>
                                         </div>
                                     </TableCell>
@@ -567,7 +568,7 @@ export function BatchScan() {
                         </TableBody>
                     </Table>
                 </div>
-                <div className="p-2 bg-stone-50 border-t border-stone-100 text-xs text-center text-stone-400">
+                <div className="p-2 bg-slate-950/20 border-t border-white/5 text-xs text-center text-slate-500">
                     {items.length} items in batch
                 </div>
             </div>

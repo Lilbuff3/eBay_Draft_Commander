@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import { ScanLine } from 'lucide-react'
+import { ScanLine, Settings as SettingsIcon } from 'lucide-react'
 import { motion, type Variants } from 'framer-motion'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { fetchJobs } from '@/lib/api'
 import { getStatusBucket } from '@/lib/status'
 import { useCommanderStore } from '@/store/useCommanderStore'
@@ -30,8 +31,10 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
     const { data: jobs = [] } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs, refetchInterval: 4000 })
 
     const setSelectedJob = useCommanderStore(s => s.setSelectedJob)
+    const setActiveTab = useCommanderStore(s => s.setActiveTab)
     const handleScan = useCommanderStore(s => s.handleScan)
     const isScanning = useCommanderStore(s => s.isScanning)
+    const isMobile = useIsMobile()
 
     const hr = new Date().getHours()
     const part = hr < 12 ? 'morning' : hr < 18 ? 'afternoon' : 'evening'
@@ -100,6 +103,15 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
                                 {isScanning ? 'Scanning...' : 'Scan Inbox'}
                             </span>
                         </button>
+                        
+                        {/* Mobile Settings Gear */}
+                        <button
+                            onClick={() => setActiveTab('settings')}
+                            className="flex sm:hidden items-center justify-center w-9 h-9 bg-slate-900/60 border border-white/10 rounded-xl hover:bg-slate-800 transition-colors cursor-pointer text-slate-300 hover:text-white"
+                            aria-label="Settings"
+                        >
+                            <SettingsIcon className="w-4 h-4" />
+                        </button>
                     </div>
                 </motion.header>
 
@@ -117,10 +129,10 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
 
                 {/* Two-column: workspace + activity */}
                 <motion.div variants={itemVariants} className="flex gap-5 items-start flex-wrap mt-6">
-                    <div className="flex-[1.7] min-w-[420px] flex flex-col gap-4">
+                    <div className="flex-[1.7] min-w-0 md:min-w-[420px] flex flex-col gap-4">
                         {showWorkspace ? (
                             <>
-                                <UploadZone compact />
+                                {!isMobile && <UploadZone compact />}
 
                                 <div className="flex items-center gap-2.5 flex-wrap">
                                     <div className="font-sans font-bold text-[15px] tracking-tight text-white">Workspace</div>
