@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { ExternalLink, Search, Trash2, BookOpen, Loader2 } from 'lucide-react'
+import { ExternalLink, Search, Trash2, BookOpen, Loader2, ShieldCheck, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -32,6 +32,9 @@ interface CompsResponse {
     median_price: number | null
     comp_count: number
     price_range: { low: number; high: number } | null
+    id_type?: 'isbn' | 'upc'
+    confidence: 'high' | 'medium' | 'low' | null
+    confidence_reason: string | null
     comps: Array<{ title: string; price: number; condition?: string; url?: string }>
     reasoning: string | null
     ebay_search_url: string
@@ -79,6 +82,28 @@ const VERDICT_STYLE: Record<Verdict, { banner: string; chip: string; label: stri
 
 // --- Verdict card ---
 
+const CONFIDENCE_STYLE = {
+    high: { cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', Icon: ShieldCheck, label: 'Confident' },
+    medium: { cls: 'bg-amber-50 text-amber-800 border-amber-200', Icon: AlertTriangle, label: 'Rough estimate' },
+    low: { cls: 'bg-red-50 text-red-700 border-red-200', Icon: AlertTriangle, label: 'Rough estimate' },
+} as const
+
+function ConfidenceBadge({ result }: { result: CompsResponse }) {
+    if (!result.confidence) return null
+    const s = CONFIDENCE_STYLE[result.confidence]
+    const { Icon } = s
+    return (
+        <div className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${s.cls}`}>
+            <Icon size={14} className="shrink-0 mt-0.5" />
+            <div>
+                <span className="font-semibold">{s.label}</span>
+                {result.confidence !== 'high' && <span> — treat this as a ballpark, not a firm price</span>}
+                {result.confidence_reason && <span className="opacity-80"> · {result.confidence_reason}</span>}
+            </div>
+        </div>
+    )
+}
+
 function VerdictCard({ result, title }: { result: CompsResponse; title?: string }) {
     const style = VERDICT_STYLE[result.verdict]
     return (
@@ -111,6 +136,7 @@ function VerdictCard({ result, title }: { result: CompsResponse; title?: string 
                     </p>
                 ) : (
                     <>
+                        <ConfidenceBadge result={result} />
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
                             <div className="bg-stone-50 rounded-lg p-2">
                                 <div className="text-[10px] uppercase text-stone-400">Est. sold value</div>

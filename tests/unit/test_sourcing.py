@@ -77,6 +77,24 @@ class TestComputeVerdict:
         net = expected_net(20.0, 0.0)
         assert result['max_buy'] == pytest.approx(net, abs=0.01)
 
+    def test_confidence_high_on_many_tight_isbn_comps(self):
+        r = compute_verdict(28.50, 12, [26.0, 28.5, 32.0], id_type='isbn', **KNOBS)
+        assert r['confidence'] == 'high'
+        assert r['confidence_reason']
+
+    def test_confidence_medium_on_few_comps(self):
+        r = compute_verdict(28.50, 2, [27.0, 30.0], **KNOBS)
+        assert r['confidence'] in ('medium', 'low')
+
+    def test_confidence_low_on_wide_spread(self):
+        r = compute_verdict(30.0, 8, [5.0, 60.0, 30.0], **KNOBS)
+        assert r['confidence'] == 'low'
+        assert 'spread' in r['confidence_reason']
+
+    def test_no_data_confidence_none(self):
+        r = compute_verdict(None, 0, [], **KNOBS)
+        assert r['confidence'] is None
+
 
 @pytest.fixture
 def app(tmp_path):
@@ -129,6 +147,9 @@ class TestLookupCompsEndpoint:
         assert data['would_list_at'] is not None
         assert data['price_range'] == {'low': 24.0, 'high': 40.0}
         assert len(data['comps']) == 5  # top 5 only
+        assert data['id_type'] == 'isbn'
+        assert data['confidence'] == 'high'
+        assert data['confidence_reason']
         assert 'ebay.com/sch' in data['ebay_search_url']
         # condition default passed through to the comps search
         assert mock_search.call_args.kwargs.get('condition') == 'USED_GOOD'

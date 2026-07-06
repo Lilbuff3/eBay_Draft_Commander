@@ -56,6 +56,8 @@ def lookup_comps():
     gtin = re.sub(r'[\s-]', '', raw).strip().upper()
     if not re.fullmatch(r'\d{8}|\d{9}[\dX]|\d{12,13}', gtin):
         return error_response('gtin must be an ISBN-10/13, UPC-A, or EAN-8/13', 400)
+    # ISBN (books) = high-trust identifier; UPC/EAN (general merch) = looser.
+    id_type = 'isbn' if re.fullmatch(r'\d{9}[\dX]|97[89]\d{10}', gtin) else 'upc'
     condition = request.args.get('condition') or 'USED_GOOD'
     try:
         from backend.app.services.pricing_engine import PricingEngine
@@ -68,9 +70,10 @@ def lookup_comps():
 
         if not comps:
             return jsonify({
-                'success': True, 'gtin': gtin, 'verdict': 'NO_DATA', 'comp_count': 0,
+                'success': True, 'gtin': gtin, 'id_type': id_type, 'verdict': 'NO_DATA', 'comp_count': 0,
                 'max_buy': None, 'est_sold_value': None, 'net_proceeds': None,
                 'would_list_at': None, 'median_price': None, 'price_range': None,
+                'confidence': None, 'confidence_reason': 'No comparable listings found',
                 'comps': [], 'reasoning': 'No comparable listings found',
                 'ebay_search_url': ebay_search_url,
             })
@@ -82,16 +85,17 @@ def lookup_comps():
             price_data.get('median_price'), price_data.get('comp_count', 0),
             [c.get('price') for c in comps],
             min_profit=knobs['min_profit'], roi_multiple=knobs['roi_multiple'],
-            ship_cost=knobs['ship_cost'])
+            ship_cost=knobs['ship_cost'], id_type=id_type)
 
         return jsonify({
-            'success': True, 'gtin': gtin,
+            'success': True, 'gtin': gtin, 'id_type': id_type,
             'verdict': verdict['verdict'], 'max_buy': verdict['max_buy'],
             'est_sold_value': verdict['est_sold_value'], 'net_proceeds': verdict['net_proceeds'],
             'would_list_at': price_data.get('suggested_price'),
             'median_price': price_data.get('median_price'),
             'comp_count': price_data.get('comp_count', 0),
             'price_range': verdict['price_range'],
+            'confidence': verdict['confidence'], 'confidence_reason': verdict['confidence_reason'],
             'comps': comps[:5],
             'reasoning': price_data.get('reasoning'),
             'ebay_search_url': ebay_search_url,

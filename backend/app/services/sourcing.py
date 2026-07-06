@@ -46,6 +46,7 @@ def compute_verdict(
     min_profit: Optional[float] = None,
     roi_multiple: Optional[float] = None,
     ship_cost: Optional[float] = None,
+    id_type: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Derive a BUY / THIN / PASS / NO_DATA verdict from comp stats.
 
@@ -70,6 +71,8 @@ def compute_verdict(
             'est_sold_value': None,
             'net_proceeds': None,
             'price_range': None,
+            'confidence': None,
+            'confidence_reason': 'No comparable listings found',
         }
 
     est_sold_value = median_price * ACTIVE_TO_SOLD_FACTOR
@@ -96,10 +99,47 @@ def compute_verdict(
     else:
         verdict = 'BUY'
 
+    confidence, confidence_reason = _assess_confidence(comp_count, valid_prices, id_type)
+
     return {
         'verdict': verdict,
         'max_buy': round(max_buy, 2),
         'est_sold_value': round(est_sold_value, 2),
         'net_proceeds': round(net_proceeds, 2),
         'price_range': price_range,
+        'confidence': confidence,
+        'confidence_reason': confidence_reason,
     }
+
+
+# how many times the priciest comp can exceed the cheapest before comps are "noisy"
+SPREAD_TIGHT = 3.0
+SPREAD_LOOSE = 6.0
+
+
+def _assess_confidence(comp_count, valid_prices, id_type):
+    """Grade how much to trust the number: exact-ID + many + tight comps = high.
+
+    The Source tab always queries by a scanned barcode, so 'match quality' is
+    really: is it a book (ISBN, which eBay listings reliably contain -> clean
+    comps) vs a UPC (often absent from listings -> loose), how many comps came
+    back, and how wide the price spread is. Returns (level, one-line reason).
+    """
+    is_book = id_type == 'isbn'
+    lo = min(valid_prices) if valid_prices else 0
+    hi = max(valid_prices) if valid_prices else 0
+    spread = (hi / lo) if lo > 0 else None
+    tight = spread is not None and spread <= SPREAD_TIGHT
+    loose = spread is not None and spread > SPREAD_LOOSE
+    many = comp_count >= SOLID_COMP_COUNT
+
+    if many and not loose:
+        if tight or is_book:
+            note = 'exact ISBN match' if is_book else 'tight comps'
+            return 'high', f'{comp_count} comps, {note}'
+        return 'medium', f'{comp_count} comps but prices vary'
+    if comp_count >= 2 and not loose:
+        return 'medium', f'only {comp_count} comps'
+    if loose:
+        return 'low', f'wide price spread (${lo:.0f}-${hi:.0f}) - comps may not match'
+    return 'low', f'only {comp_count} comp{"s" if comp_count != 1 else ""} — too thin to trust'
