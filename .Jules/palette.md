@@ -1,0 +1,3 @@
+## 2024-05-18 - Adding ARIA Labels to Icon-Only Buttons
+**Learning:** Found multiple instances where icon-only buttons (`<Button size="icon">` with Lucide icons) were lacking accessible names across the application, particularly in modal headers, control panels, and image editors. While visually obvious due to the icons (e.g., an 'X' for close, magnifying glasses for zoom), these are completely opaque to screen readers.
+**Action:** Applied a strict rule to ensure all icon-only buttons include descriptive `aria-label` and `title` attributes. Moving forward, the `size="icon"` property on a `<Button>` component should serve as a signal that an `aria-label` is mandatory.
