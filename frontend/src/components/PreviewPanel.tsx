@@ -132,7 +132,7 @@ export function PreviewPanel({ jobId, onClose }: PreviewPanelProps) {
                         <RefreshCw size={14} className={cn("mr-1", isLoading && "animate-spin")} />
                         Refresh
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={onClose}>
+                    <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close preview" title="Close preview">
                         <X size={18} />
                     </Button>
                 </div>
@@ -163,6 +163,8 @@ export function PreviewPanel({ jobId, onClose }: PreviewPanelProps) {
                                 size="icon"
                                 className="h-7 w-7"
                                 onClick={() => setZoom(prev => Math.max(50, prev - 10))}
+                                aria-label="Zoom out"
+                                title="Zoom out"
                             >
                                 <ZoomOut size={14} />
                             </Button>
@@ -172,6 +174,8 @@ export function PreviewPanel({ jobId, onClose }: PreviewPanelProps) {
                                 size="icon"
                                 className="h-7 w-7"
                                 onClick={() => setZoom(prev => Math.min(150, prev + 10))}
+                                aria-label="Zoom in"
+                                title="Zoom in"
                             >
                                 <ZoomIn size={14} />
                             </Button>
