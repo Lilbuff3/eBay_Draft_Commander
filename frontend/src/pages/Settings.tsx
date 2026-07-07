@@ -138,7 +138,7 @@ export function Settings() {
                     </TabsList>
 
                     <TabsContent value="ebay-policies" className="mt-6">
-                        <Card className="bg-slate-900/40 border-white/5 shadow-glass backdrop-blur-2xl rounded-3xl">
+                        <Card>
                             <CardHeader>
                                 <CardTitle className="text-white font-bold font-display">Listing Policies</CardTitle>
                                 <CardDescription className="text-slate-400">Default policies applied to new listings (IDs found in eBay Business Policies)</CardDescription>
@@ -148,7 +148,6 @@ export function Settings() {
                                     <Label htmlFor="fulfill" className="text-slate-200">Fulfillment Policy ID (Shipping)</Label>
                                     <Input
                                         id="fulfill"
-                                        className="bg-slate-950/40 border-white/10 text-white placeholder-slate-600 focus-visible:ring-brand-500/50"
                                         value={settings['EBAY_FULFILLMENT_POLICY'] || ''}
                                         onChange={e => handleChange('EBAY_FULFILLMENT_POLICY', e.target.value)}
                                         placeholder="e.g. 1234567890"
@@ -158,7 +157,6 @@ export function Settings() {
                                     <Label htmlFor="payment" className="text-slate-200">Payment Policy ID</Label>
                                     <Input
                                         id="payment"
-                                        className="bg-slate-950/40 border-white/10 text-white placeholder-slate-600 focus-visible:ring-brand-500/50"
                                         value={settings['EBAY_PAYMENT_POLICY'] || ''}
                                         onChange={e => handleChange('EBAY_PAYMENT_POLICY', e.target.value)}
                                         placeholder="e.g. 1234567890"
@@ -168,7 +166,6 @@ export function Settings() {
                                     <Label htmlFor="return" className="text-slate-200">Return Policy ID</Label>
                                     <Input
                                         id="return"
-                                        className="bg-slate-950/40 border-white/10 text-white placeholder-slate-600 focus-visible:ring-brand-500/50"
                                         value={settings['EBAY_RETURN_POLICY'] || ''}
                                         onChange={e => handleChange('EBAY_RETURN_POLICY', e.target.value)}
                                         placeholder="e.g. 1234567890"
@@ -178,7 +175,6 @@ export function Settings() {
                                     <Label htmlFor="location" className="text-slate-200">Merchant Location Key</Label>
                                     <Input
                                         id="location"
-                                        className="bg-slate-950/40 border-white/10 text-white placeholder-slate-600 focus-visible:ring-brand-500/50"
                                         value={settings['EBAY_MERCHANT_LOCATION'] || ''}
                                         onChange={e => handleChange('EBAY_MERCHANT_LOCATION', e.target.value)}
                                         placeholder="e.g. US_CA_SAN_JOSE"
@@ -189,7 +185,7 @@ export function Settings() {
                     </TabsContent>
 
                     <TabsContent value="ebay-auth" className="mt-6">
-                        <Card className="bg-slate-900/40 border-white/5 shadow-glass backdrop-blur-2xl rounded-3xl">
+                        <Card>
                             <CardHeader>
                                 <CardTitle className="text-white font-bold font-display">eBay API Credentials</CardTitle>
                                 <CardDescription className="text-slate-400">Application keys from eBay Developer Portal</CardDescription>
@@ -199,7 +195,6 @@ export function Settings() {
                                     <Label htmlFor="appid" className="text-slate-200">App ID (Client ID)</Label>
                                     <Input
                                         id="appid"
-                                        className="bg-slate-950/40 border-white/10 text-white focus-visible:ring-brand-500/50"
                                         value={settings['EBAY_APP_ID'] || ''}
                                         onChange={e => handleChange('EBAY_APP_ID', e.target.value)}
                                     />
@@ -209,7 +204,6 @@ export function Settings() {
                                     <Input
                                         id="certid"
                                         type="password"
-                                        className="bg-slate-950/40 border-white/10 text-white focus-visible:ring-brand-500/50"
                                         value={settings['EBAY_CERT_ID'] || ''}
                                         onChange={e => handleChange('EBAY_CERT_ID', e.target.value)}
                                     />
@@ -218,7 +212,6 @@ export function Settings() {
                                     <Label htmlFor="runame" className="text-slate-200">RuName (Redirect URL Name)</Label>
                                     <Input
                                         id="runame"
-                                        className="bg-slate-950/40 border-white/10 text-white focus-visible:ring-brand-500/50"
                                         value={settings['EBAY_RUNAME'] || ''}
                                         onChange={e => handleChange('EBAY_RUNAME', e.target.value)}
                                     />
@@ -228,7 +221,7 @@ export function Settings() {
                                     <Input
                                         id="token"
                                         type="password"
-                                        className="font-mono text-xs bg-slate-950/40 border-white/10 text-white focus-visible:ring-brand-500/50"
+                                        className="font-mono text-xs"
                                         value={settings['EBAY_USER_TOKEN'] || ''}
                                         onChange={e => handleChange('EBAY_USER_TOKEN', e.target.value)}
                                         placeholder="v^1.1..."
@@ -264,7 +257,7 @@ export function Settings() {
                     </TabsContent>
 
                     <TabsContent value="automation" className="mt-6">
-                        <Card className="bg-slate-900/40 border-white/5 shadow-glass backdrop-blur-2xl rounded-3xl">
+                        <Card>
                             <CardHeader>
                                 <CardTitle className="text-white font-bold font-display">Auto-Publish</CardTitle>
                                 <CardDescription className="text-slate-400">
@@ -308,7 +301,7 @@ export function Settings() {
                                             type="number"
                                             min="0"
                                             max="100"
-                                            className="w-24 bg-slate-950/40 border-white/10 text-white focus-visible:ring-brand-500/50"
+                                            className="w-24"
                                             value={settings['CONFIDENCE_THRESHOLD'] || '85'}
                                             onChange={e => handleChange('CONFIDENCE_THRESHOLD', e.target.value)}
                                         />
@@ -326,7 +319,7 @@ export function Settings() {
                                             type="number"
                                             min="0"
                                             step="0.01"
-                                            className="w-24 bg-slate-950/40 border-white/10 text-white focus-visible:ring-brand-500/50"
+                                            className="w-24"
                                             value={settings['AUTO_PUBLISH_MIN_PRICE'] || '15.00'}
                                             onChange={e => handleChange('AUTO_PUBLISH_MIN_PRICE', e.target.value)}
                                         />
@@ -380,7 +373,7 @@ export function Settings() {
                                                         min="0"
                                                         max="100"
                                                         step="0.1"
-                                                        className="w-24 rounded-r-none border-r-0 bg-slate-950/40 border-white/10 text-white focus-visible:ring-brand-500/50"
+                                                        className="w-24 rounded-r-none border-r-0"
                                                         value={settings['PROMOTED_LISTINGS_AD_RATE'] || '5.0'}
                                                         onChange={e => handleChange('PROMOTED_LISTINGS_AD_RATE', e.target.value)}
                                                     />
@@ -414,7 +407,7 @@ export function Settings() {
                             </CardContent>
                         </Card>
 
-                        <Card className="bg-slate-900/40 border-white/5 shadow-glass backdrop-blur-2xl rounded-3xl mt-6">
+                        <Card className="mt-6">
                             <CardHeader>
                                 <CardTitle className="text-white font-bold font-display">Sourcing Verdicts</CardTitle>
                                 <CardDescription className="text-slate-400">
@@ -431,7 +424,7 @@ export function Settings() {
                                             type="number"
                                             min="0"
                                             step="0.50"
-                                            className="w-24 bg-slate-950/40 border-white/10 text-white focus-visible:ring-brand-500/50"
+                                            className="w-24"
                                             value={settings['SOURCING_MIN_PROFIT'] || '5.00'}
                                             onChange={e => handleChange('SOURCING_MIN_PROFIT', e.target.value)}
                                         />
@@ -446,7 +439,7 @@ export function Settings() {
                                             type="number"
                                             min="0"
                                             step="0.5"
-                                            className="w-24 bg-slate-950/40 border-white/10 text-white focus-visible:ring-brand-500/50"
+                                            className="w-24"
                                             value={settings['SOURCING_ROI_MULTIPLE'] || '3.0'}
                                             onChange={e => handleChange('SOURCING_ROI_MULTIPLE', e.target.value)}
                                         />
@@ -461,7 +454,7 @@ export function Settings() {
                                             type="number"
                                             min="0"
                                             step="0.50"
-                                            className="w-24 bg-slate-950/40 border-white/10 text-white focus-visible:ring-brand-500/50"
+                                            className="w-24"
                                             value={settings['SOURCING_SHIP_COST'] || '5.00'}
                                             onChange={e => handleChange('SOURCING_SHIP_COST', e.target.value)}
                                         />
@@ -473,7 +466,7 @@ export function Settings() {
                     </TabsContent>
 
                     <TabsContent value="ai" className="mt-6">
-                        <Card className="bg-slate-900/40 border-white/5 shadow-glass backdrop-blur-2xl rounded-3xl">
+                        <Card>
                             <CardHeader>
                                 <CardTitle className="text-white font-bold font-display">AI Configuration</CardTitle>
                                 <CardDescription className="text-slate-400">API Keys for AI Analysis</CardDescription>
@@ -484,7 +477,6 @@ export function Settings() {
                                     <Input
                                         id="google_key"
                                         type="password"
-                                        className="bg-slate-950/40 border-white/10 text-white focus-visible:ring-brand-500/50"
                                         value={settings['GOOGLE_API_KEY'] || ''}
                                         onChange={e => handleChange('GOOGLE_API_KEY', e.target.value)}
                                         placeholder="AIza..."

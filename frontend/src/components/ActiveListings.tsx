@@ -229,7 +229,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
             {filterStatus === 'sold' ? (
                 <>
                     <div className="px-4 sm:px-6 py-3 border-b border-white/5 shrink-0 bg-slate-950/20">
-                        <Input placeholder="Search orders…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-slate-950/40 border-white/10 text-white focus-visible:ring-brand-500/50" />
+                        <Input placeholder="Search orders…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                     </div>
                     <div className="flex-1 overflow-hidden relative">
                         <ScrollArea className="h-full">
@@ -298,7 +298,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
 
                     {/* Search */}
                     <div className="px-4 sm:px-6 pb-3 shrink-0">
-                        <Input placeholder="Search by title or SKU…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-slate-950/40 border-white/10 text-white focus-visible:ring-brand-500/50" />
+                        <Input placeholder="Search by title or SKU…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                     </div>
 
                     {/* Cards */}

@@ -349,7 +349,7 @@ export function Sourcing() {
                         <p className="text-slate-400 text-sm">Scan any barcode → buy/pass verdict from live eBay comps</p>
                     </div>
                     <Select value={condition} onValueChange={setCondition}>
-                        <SelectTrigger className="w-[150px] h-9 text-xs shrink-0 bg-slate-900/60 border-white/10 text-white hover:bg-slate-800/80">
+                        <SelectTrigger className="w-[150px] h-9 text-xs shrink-0">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -369,7 +369,7 @@ export function Sourcing() {
                         onKeyDown={e => { if (e.key === 'Enter') checkManual() }}
                         placeholder="Type or wedge-scan a barcode…"
                         inputMode="numeric"
-                        className="bg-slate-950/40 border-white/10 text-white placeholder-slate-500 focus-visible:ring-brand-500/50"
+                        className="placeholder-slate-500"
                     />
                     <Button onClick={checkManual} disabled={!manualCode.trim()} className="bg-brand-500 hover:bg-brand-600 text-white shadow-glow">
                         <Search size={15} className="mr-1.5" /> Check
@@ -377,7 +377,7 @@ export function Sourcing() {
                 </div>
 
                 {loading && (
-                    <div className="flex items-center justify-center gap-2 text-slate-300 bg-slate-900/40 backdrop-blur-2xl border border-white/5 shadow-glass rounded-3xl py-6">
+                    <div className="flex items-center justify-center gap-2 text-slate-300 glass-card py-6">
                         <Loader2 className="h-5 w-5 animate-spin text-brand-400" /> Pulling comps…
                     </div>
                 )}
@@ -386,7 +386,7 @@ export function Sourcing() {
 
                 {/* Session history */}
                 {history.length > 0 && (
-                    <div className="bg-slate-900/40 backdrop-blur-2xl border border-white/5 shadow-glass rounded-3xl overflow-hidden">
+                    <div className="glass-card overflow-hidden">
                         <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
                             <div className="text-sm font-medium text-slate-300">
                                 {history.length} scanned · {bought.length} bought
@@ -418,7 +418,7 @@ export function Sourcing() {
                                             <div className="relative w-16">
                                                 <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-500">$</span>
                                                 <Input
-                                                    className="h-7 pl-4 text-xs bg-slate-950/40 border-white/10 text-white"
+                                                    className="h-7 pl-4 text-xs"
                                                     value={row.paid || ''}
                                                     onChange={e => updateRow(row.id, { paid: e.target.value })}
                                                     placeholder="paid"

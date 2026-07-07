@@ -422,7 +422,7 @@ export function BatchScan() {
             <div className="bg-brand-500/10 border border-brand-500/20 p-3 sm:p-4 rounded-3xl mb-3 flex flex-wrap gap-3 items-center">
                 <span className="text-sm font-semibold text-brand-300">Scanning as:</span>
                 <Select value={sessionCondition} onValueChange={setSessionCondition}>
-                    <SelectTrigger className="w-[170px] sm:w-[190px] h-8 bg-slate-900/60 border-white/10 text-white hover:bg-slate-800/80">
+                    <SelectTrigger className="w-[170px] sm:w-[190px] h-8">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -439,12 +439,12 @@ export function BatchScan() {
             </div>
 
             {/* Toolbar: camera + bulk actions */}
-            <div className="bg-slate-900/40 backdrop-blur-2xl p-3 sm:p-4 rounded-3xl shadow-glass border border-white/5 mb-4 sm:mb-6 flex flex-wrap gap-3 items-center">
+            <div className="glass-card p-3 sm:p-4 mb-4 sm:mb-6 flex flex-wrap gap-3 items-center">
                 <CameraBarcodeScanner onDetect={handleScan} />
                 <div className="flex-1" />
                 <span className="text-sm font-medium text-slate-400">Set all:</span>
                 <Select onValueChange={(val) => dispatch({ type: 'SET_ALL_CONDITION', payload: val })}>
-                    <SelectTrigger className="w-[160px] sm:w-[180px] h-8 bg-slate-900/60 border-white/10 text-white hover:bg-slate-800/80">
+                    <SelectTrigger className="w-[160px] sm:w-[180px] h-8">
                         <SelectValue placeholder="Condition" />
                     </SelectTrigger>
                     <SelectContent>
@@ -488,7 +488,7 @@ export function BatchScan() {
             </div>
 
             {/* Desktop Table (visible on md+) */}
-            <div className="hidden md:flex flex-1 bg-slate-900/40 border border-white/5 shadow-glass rounded-3xl overflow-hidden flex-col">
+            <div className="hidden md:flex flex-1 glass-card overflow-hidden flex-col">
                 <div className="overflow-auto flex-1">
                     <Table>
                         <TableHeader>
@@ -530,7 +530,7 @@ export function BatchScan() {
                                             value={item.condition}
                                             onValueChange={(val) => dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { condition: val } } })}
                                         >
-                                            <SelectTrigger className="h-8 bg-slate-900/60 border-white/10 text-white hover:bg-slate-800/80">
+                                            <SelectTrigger className="h-8">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -542,7 +542,7 @@ export function BatchScan() {
                                         <div className="relative">
                                             <span className="absolute left-2 top-1.5 text-xs text-slate-500">$</span>
                                             <Input
-                                                className="h-8 pl-5 bg-slate-950/40 border-white/10 text-white focus:ring-brand-500"
+                                                className="h-8 pl-5"
                                                 value={item.price}
                                                 onChange={(e) => dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { price: e.target.value } } })}
                                             />

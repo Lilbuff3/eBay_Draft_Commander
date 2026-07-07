@@ -293,3 +293,30 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Glassmorphism theme utilities */
+@utility glass-card {
+  background-color: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(40px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: var(--shadow-glass);
+  border-radius: 1.5rem; /* 24px */
+}
+
+@utility glass-input {
+  background-color: rgba(2, 6, 23, 0.4);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  &:focus-visible {
+    --tw-ring-color: rgba(139, 92, 246, 0.5);
+  }
+}
+
+@utility glass-select-trigger {
+  background-color: rgba(15, 23, 42, 0.6);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  &:hover {
+    background-color: rgba(30, 41, 59, 0.8);
+  }
+}

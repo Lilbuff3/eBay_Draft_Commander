@@ -4,6 +4,7 @@ import { useCommanderStore } from '@/store/useCommanderStore'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 
 export function ReviewQueue() {
@@ -171,7 +172,7 @@ export function ReviewQueue() {
                     <div className="space-y-3">
                         {pendingListings.map(listing => (
                             <Card key={listing.id} className={cn(
-                                "bg-slate-900/40 border border-white/5 backdrop-blur-2xl shadow-glass rounded-3xl overflow-hidden transition-all duration-300 hover:border-brand-500/30 hover:bg-slate-900/60",
+                                "overflow-hidden transition-all duration-300 hover:border-brand-500/30 hover:bg-slate-900/60",
                                 selectedIds.includes(listing.id) && "ring-2 ring-brand-500 border-transparent shadow-glow bg-slate-900/70"
                             )}>
                                 <CardContent className="p-0">
@@ -204,9 +205,7 @@ export function ReviewQueue() {
                                             {/* Title — inline edit or display */}
                                             <div className="col-span-5">
                                                 {editingId === listing.id ? (
-                                                    <input
-                                                        type="text"
-                                                        className="w-full px-3 py-1.5 text-sm font-bold text-white bg-slate-950/60 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500"
+                                                    <Input
                                                         value={editValues.title}
                                                         onChange={e => setEditValues(prev => ({ ...prev, title: e.target.value }))}
                                                         autoFocus
@@ -225,9 +224,8 @@ export function ReviewQueue() {
                                             {/* Price — inline edit or display */}
                                             <div className="col-span-2">
                                                 {editingId === listing.id ? (
-                                                    <input
-                                                        type="text"
-                                                        className="w-24 px-3 py-1.5 text-sm font-bold text-white bg-slate-950/60 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500"
+                                                    <Input
+                                                        className="w-24"
                                                         value={editValues.price}
                                                         onChange={e => setEditValues(prev => ({ ...prev, price: e.target.value }))}
                                                         placeholder="0.00"

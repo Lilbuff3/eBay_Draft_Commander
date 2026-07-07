@@ -110,7 +110,7 @@ export function Orders() {
 
             {/* Search */}
             <div className="px-4 sm:px-6 pb-3 shrink-0">
-                <Input placeholder="Search by item, buyer, or order ID…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="bg-slate-950/40 border-white/10 text-white focus-visible:ring-brand-500/50" />
+                <Input placeholder="Search by item, buyer, or order ID…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
             </div>
 
             {/* Cards */}
