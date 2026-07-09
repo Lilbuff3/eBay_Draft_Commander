@@ -99,7 +99,7 @@ def compute_verdict(
     else:
         verdict = 'BUY'
 
-    confidence, confidence_reason = _assess_confidence(comp_count, valid_prices, id_type)
+    confidence, confidence_reason = assess_confidence(comp_count, valid_prices, id_type)
 
     return {
         'verdict': verdict,
@@ -117,15 +117,24 @@ SPREAD_TIGHT = 3.0
 SPREAD_LOOSE = 6.0
 
 
-def _assess_confidence(comp_count, valid_prices, id_type):
+def assess_confidence(comp_count, valid_prices, id_type, match_quality=None):
     """Grade how much to trust the number: exact-ID + many + tight comps = high.
 
-    The Source tab always queries by a scanned barcode, so 'match quality' is
-    really: is it a book (ISBN, which eBay listings reliably contain -> clean
-    comps) vs a UPC (often absent from listings -> loose), how many comps came
-    back, and how wide the price spread is. Returns (level, one-line reason).
+    'Match quality' is: is the identity guaranteed (a book's ISBN, which eBay
+    listings reliably contain -> clean comps; or a model-number-gated keyword
+    match from the pricing pipeline) vs a loose match (UPC often absent from
+    listings; plain keyword overlap), how many comps came back, and how wide
+    the price spread is. Returns (level, one-line reason).
+
+    match_quality (optional, from PricingEngine.filter_comps meta):
+      'model_gated'/'exact_id' -> identity-trusted like an ISBN;
+      'floor_fallback' -> comps survived only via the safety floor, cap at low;
+      'similar'/'small_set'/None -> neutral (original Source-tab behavior).
     """
-    is_book = id_type == 'isbn'
+    if match_quality == 'floor_fallback':
+        return 'low', 'comps matched only weakly (kept by safety floor) — treat as a ballpark'
+
+    is_identity = id_type == 'isbn' or match_quality in ('model_gated', 'exact_id')
     lo = min(valid_prices) if valid_prices else 0
     hi = max(valid_prices) if valid_prices else 0
     spread = (hi / lo) if lo > 0 else None
@@ -134,8 +143,13 @@ def _assess_confidence(comp_count, valid_prices, id_type):
     many = comp_count >= SOLID_COMP_COUNT
 
     if many and not loose:
-        if tight or is_book:
-            note = 'exact ISBN match' if is_book else 'tight comps'
+        if tight or is_identity:
+            if id_type == 'isbn':
+                note = 'exact ISBN match'
+            elif match_quality in ('model_gated', 'exact_id'):
+                note = 'model-number match'
+            else:
+                note = 'tight comps'
             return 'high', f'{comp_count} comps, {note}'
         return 'medium', f'{comp_count} comps but prices vary'
     if comp_count >= 2 and not loose:
@@ -143,3 +157,7 @@ def _assess_confidence(comp_count, valid_prices, id_type):
     if loose:
         return 'low', f'wide price spread (${lo:.0f}-${hi:.0f}) - comps may not match'
     return 'low', f'only {comp_count} comp{"s" if comp_count != 1 else ""} — too thin to trust'
+
+
+# Back-compat alias (pre-pipeline name)
+_assess_confidence = assess_confidence

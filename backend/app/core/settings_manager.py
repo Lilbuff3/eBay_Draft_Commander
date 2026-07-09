@@ -31,6 +31,8 @@ class SettingsManager:
         'SOURCING_MIN_PROFIT': '5.00',   # Min $ profit for a BUY verdict on the Source tab
         'SOURCING_ROI_MULTIPLE': '3.0',  # Pay at most net_proceeds / this (3x rule)
         'SOURCING_SHIP_COST': '5.00',    # Est. actual ship cost when sourcing (Media Mail-ish)
+        'PRICE_AGREEMENT_RATIO': '1.6',  # Comps vs AI cross-check: further apart = conflict -> review
+        'WHATSAPP_NOTIFY_CHAT_ID': '',   # Owner chat for review/summary texts (empty = off)
     }
     
     # All known setting keys organized by category
@@ -64,6 +66,8 @@ class SettingsManager:
             'FAST_MODE',
             'PROMOTED_LISTINGS_ENABLED',
             'PROMOTED_LISTINGS_AD_RATE',
+            'PRICE_AGREEMENT_RATIO',
+            'WHATSAPP_NOTIFY_CHAT_ID',
         ],
         'Application': [
             'DEFAULT_CONDITION',

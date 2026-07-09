@@ -126,7 +126,8 @@ class ListingAIAgent:
         if user_price:
             _log(f"Using User Override Price: {user_price}")
             return {"price": str(user_price), "timing": 0,
-                    "comps": [], "reasoning": "User override", "source": "user_override"}
+                    "comps": [], "reasoning": "User override", "source": "user_override",
+                    "confidence": "user", "confidence_reason": "User-set price"}
 
         import time
         pricing_start = time.time()
@@ -156,6 +157,11 @@ class ListingAIAgent:
                 "comps": price_result.get('comps', []),
                 "reasoning": price_result.get('reasoning', ''),
                 "source": price_result.get('source', ''),
+                # Pricing-confidence fields (drive the under-price review gate)
+                "confidence": price_result.get('confidence'),
+                "confidence_reason": price_result.get('confidence_reason'),
+                "comp_price": price_result.get('comp_price'),
+                "ai_price": price_result.get('ai_price'),
             }
         except Exception as e:
             _log(f"Pricing Logic Failed: {e}", level='error')
@@ -166,4 +172,6 @@ class ListingAIAgent:
                 "comps": [],
                 "reasoning": "",
                 "source": "",
+                "confidence": "low",
+                "confidence_reason": "Pricing failed — manual price needed",
             }

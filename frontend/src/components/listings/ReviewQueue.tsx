@@ -217,6 +217,11 @@ export function ReviewQueue() {
                                                             <Badge variant="outline" className="text-[10px] uppercase tracking-wider font-bold bg-amber-500/10 text-amber-300 border-amber-500/20">Pending Review</Badge>
                                                             <span className="text-[10px] text-slate-500 font-medium truncate opacity-60">{listing.folder_path}</span>
                                                         </div>
+                                                        {listing.error_message && (
+                                                            <p className="text-[11px] text-amber-300/80 mt-1 leading-snug">
+                                                                {listing.error_message}
+                                                            </p>
+                                                        )}
                                                     </>
                                                 )}
                                             </div>

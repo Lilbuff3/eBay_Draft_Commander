@@ -319,3 +319,51 @@ class TestApplyPreListingGuardrails:
         # Should not raise.
         result = apply_pre_listing_guardrails(job)
         assert result["review_reason"] is None
+
+
+class TestConfidenceGate:
+    """Low pricing confidence routes to review (under-price guard)."""
+
+    def _job(self):
+        return FakeJob(
+            title="Rowenta Garment Steamer Handheld",
+            item_specifics={"Brand": "Rowenta"},
+            ai_data={"pricing_comps": [], "pricing_source": "market_data_keyword"},
+        )
+
+    def test_low_confidence_routes_to_review(self):
+        result = apply_pre_listing_guardrails(
+            self._job(), price=20.0, source="market_ai_conflict", comps=[],
+            confidence="low",
+            confidence_reason="comps say $12.18 but AI research says $99.99",
+        )
+        assert result["review_reason"] == "comps say $12.18 but AI research says $99.99"
+
+    def test_low_confidence_without_reason_gets_default(self):
+        result = apply_pre_listing_guardrails(
+            self._job(), price=20.0, source="market_data_keyword", comps=[],
+            confidence="low", confidence_reason=None,
+        )
+        assert result["review_reason"]
+
+    def test_high_confidence_sane_price_no_review(self):
+        result = apply_pre_listing_guardrails(
+            self._job(), price=20.0, source="market_data_keyword",
+            comps=[{"price": 18.0}, {"price": 20.0}, {"price": 22.0}],
+            confidence="high", confidence_reason="5 comps, tight",
+        )
+        assert result["review_reason"] is None
+
+    def test_user_confidence_never_reviews(self):
+        result = apply_pre_listing_guardrails(
+            self._job(), price=20.0, source="user_override", comps=[],
+            confidence="user", confidence_reason=None,
+        )
+        assert result["review_reason"] is None
+
+    def test_no_confidence_arg_backward_compatible(self):
+        result = apply_pre_listing_guardrails(
+            self._job(), price=20.0, source="market_data_keyword",
+            comps=[{"price": 18.0}, {"price": 20.0}, {"price": 22.0}],
+        )
+        assert result["review_reason"] is None

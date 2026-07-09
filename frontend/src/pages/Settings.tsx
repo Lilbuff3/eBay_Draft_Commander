@@ -404,6 +404,37 @@ export function Settings() {
                                         />
                                     </button>
                                 </div>
+
+                                <div className="space-y-2 p-4 bg-slate-950/40 border border-white/5 rounded-2xl">
+                                    <Label htmlFor="price-agreement-ratio" className="text-slate-200">Price Conflict Threshold (×)</Label>
+                                    <div className="flex items-center gap-4">
+                                        <Input
+                                            id="price-agreement-ratio"
+                                            type="number"
+                                            min="1"
+                                            step="0.1"
+                                            className="w-24"
+                                            value={settings['PRICE_AGREEMENT_RATIO'] || '1.6'}
+                                            onChange={e => handleChange('PRICE_AGREEMENT_RATIO', e.target.value)}
+                                        />
+                                        <span className="text-sm text-slate-500">Comps vs AI research further apart than this → held for review with both prices</span>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2 p-4 bg-slate-950/40 border border-white/5 rounded-2xl">
+                                    <Label htmlFor="whatsapp-notify-chat" className="text-slate-200">WhatsApp Notify Chat ID</Label>
+                                    <div className="flex items-center gap-4">
+                                        <Input
+                                            id="whatsapp-notify-chat"
+                                            type="text"
+                                            className="w-64"
+                                            placeholder="15551234567@c.us"
+                                            value={settings['WHATSAPP_NOTIFY_CHAT_ID'] || ''}
+                                            onChange={e => handleChange('WHATSAPP_NOTIFY_CHAT_ID', e.target.value)}
+                                        />
+                                        <span className="text-sm text-slate-500">Texts you when a listing needs price review + a queue summary (empty = off)</span>
+                                    </div>
+                                </div>
                             </CardContent>
                         </Card>
 

@@ -87,6 +87,7 @@ class QueueManager:
             'active': True,
             'succeeded': 0,
             'failed': 0,
+            'review': 0,
             'total_value': 0.0,
             'item_times': [],
             'start_time': time.time()
@@ -581,7 +582,26 @@ class QueueManager:
                             self.logger.info(f"Batch Processing Complete: {summary}")
                             self.emit_event('batch_complete', summary)
                             self._batch_stats['active'] = False
-                            
+
+                            # End-of-queue digest text ("update about my listings").
+                            # Best-effort: owner chat only, never blocks the queue.
+                            try:
+                                review_count = self._batch_stats.get('review', 0)
+                                if summary['succeeded'] or review_count:
+                                    from backend.app.services.whatsapp_notify import (
+                                        get_notify_destination, notify_whatsapp,
+                                        build_queue_summary_message,
+                                    )
+                                    dest = get_notify_destination(None)
+                                    if dest:
+                                        notify_whatsapp(dest, build_queue_summary_message(
+                                            summary['succeeded'],
+                                            summary['total_value'],
+                                            review_count,
+                                        ))
+                            except Exception as notify_err:
+                                self.logger.warning(f"Queue summary notify failed (non-fatal): {notify_err}")
+
                         break  # Queue is done
                     time.sleep(1)
                     continue
@@ -972,12 +992,13 @@ class QueueManager:
                     job.confidence_score = result.get('confidence_score')
                     job.timing = result.get('timing', {'total': elapsed})
                 elif result.get('status') == 'pending_review':
-                    # Routed to review queue (AUTO_PUBLISH=false, low confidence, or missing category)
+                    # Routed to review queue (price conflict / low pricing confidence / dup)
                     job.status = JobStatus.PENDING_REVIEW
                     job.price = result.get('price')
                     job.title = result.get('title')
                     job.condition = result.get('condition')
                     job.confidence_score = result.get('confidence_score')
+                    job.error_message = result.get('error_message')  # review reason -> shown in Review Queue
                     job.timing = result.get('timing', {'total': elapsed})
                 elif result.get('success', False) or result.get('listing_id') or result.get('offer_id'):
                     # Use SCHEDULED status if listing was scheduled for future
@@ -1056,6 +1077,8 @@ class QueueManager:
                     pass
             elif job.status == JobStatus.FAILED:
                 self._batch_stats['failed'] += 1
+            elif job.status == JobStatus.PENDING_REVIEW:
+                self._batch_stats['review'] = self._batch_stats.get('review', 0) + 1
 
         if job.status == JobStatus.COMPLETED:
             if self.on_job_complete:

@@ -87,6 +87,7 @@ MIN_LISTING_PRICE = 4.99                  # Floor price for any listing
 MAX_LISTING_PRICE = 9999.99               # Ceiling price sanity check
 RARITY_PERCENTILE_THRESHOLD = 75          # Use 75th percentile for rare items
 ACTIVE_TO_SOLD_FACTOR = float(os.getenv('ACTIVE_TO_SOLD_FACTOR', '0.87'))  # comps are ACTIVE asking prices; discount toward estimated sold value
+PRICE_AGREEMENT_RATIO = float(os.getenv('PRICE_AGREEMENT_RATIO', '1.6'))  # comps vs AI cross-check: further apart than this = conflict -> review
 
 # --- Trading API Constants ---
 TRADING_API_TIMEOUT = 30                  # seconds

@@ -73,3 +73,53 @@ def build_price_message(title: Optional[str], price: Any, review_reason: Optiona
     detail = f" ({review_reason})" if review_reason else ""
     return (f"Listing \"{name}\" at {price_str} despite a price flag{detail}. "
             f"Fix the price in the eBay app if it's off.")
+
+
+def get_notify_destination(job_metadata: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Where to text about this job: the originating WhatsApp chat if the job
+    came from the Hermes bridge, else the owner chat configured in
+    WHATSAPP_NOTIFY_CHAT_ID (empty setting = notifications off for web jobs)."""
+    origin = get_whatsapp_origin(job_metadata)
+    if origin:
+        return origin
+    try:
+        from backend.app.core.settings_manager import get_settings_manager
+        chat_id = (get_settings_manager().get('WHATSAPP_NOTIFY_CHAT_ID', '') or '').strip()
+    except Exception as e:
+        logger.warning(f"Could not read WHATSAPP_NOTIFY_CHAT_ID (non-fatal): {e}")
+        chat_id = ''
+    if not chat_id:
+        return None
+    return {'channel': 'whatsapp', 'chat_id': chat_id, 'bridge_port': DEFAULT_BRIDGE_PORT}
+
+
+def _fmt_money(value: Any) -> Optional[str]:
+    try:
+        return f"${float(value):.2f}"
+    except (TypeError, ValueError):
+        return None
+
+
+def build_price_review_message(title: Optional[str], price: Any,
+                               comp_price: Any, ai_price: Any,
+                               reason: Optional[str] = None) -> str:
+    """Text for a job held in price review. Conflict form shows both numbers;
+    plain form shows the held price + why."""
+    name = title or 'your item'
+    comp_s, ai_s = _fmt_money(comp_price), _fmt_money(ai_price)
+    if comp_s and ai_s:
+        return (f'Price check: "{name}" — comps say {comp_s} but AI research says {ai_s}. '
+                f'Held for review with {ai_s} pre-filled; approve or adjust in the app.')
+    price_s = _fmt_money(price) or f"${price}"
+    detail = f" ({reason})" if reason else ""
+    return (f'Price check: "{name}" at {price_s}{detail}. '
+            f'Held for review; approve or adjust in the app.')
+
+
+def build_queue_summary_message(listed_count: int, total_value: float,
+                                review_count: int) -> str:
+    """One-line end-of-queue digest."""
+    parts = [f"{listed_count} listed (${total_value:,.2f} total)"]
+    if review_count:
+        parts.append(f"{review_count} held for price review")
+    return "Queue done: " + ", ".join(parts) + "."

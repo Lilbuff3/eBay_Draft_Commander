@@ -639,6 +639,14 @@ class ProcessorService:
         ai_data['pricing_comps'] = pricing_result.get('comps', [])
         ai_data['pricing_reasoning'] = pricing_result.get('reasoning', '')
         ai_data['pricing_source'] = pricing_result.get('source', '')
+        ai_data['pricing_confidence'] = pricing_result.get('confidence')
+        ai_data['pricing_confidence_reason'] = pricing_result.get('confidence_reason')
+        if pricing_result.get('comp_price') is not None and pricing_result.get('ai_price') is not None:
+            # Comps-vs-AI conflict: both numbers surface in the Review Queue.
+            ai_data['pricing_conflict'] = {
+                'comp_price': pricing_result.get('comp_price'),
+                'ai_price': pricing_result.get('ai_price'),
+            }
         job_obj.ai_data = ai_data
 
         # 6. Image Upload (skip if cached URLs exist and no force flag)
@@ -777,6 +785,8 @@ class ProcessorService:
             price=pricing_result.get('price'),
             source=pricing_result.get('source'),
             comps=pricing_result.get('comps'),
+            confidence=pricing_result.get('confidence'),
+            confidence_reason=pricing_result.get('confidence_reason'),
         )
         analysis['title'] = job_obj.title
         analysis['item_specifics'] = job_obj.item_specifics
@@ -791,40 +801,35 @@ class ProcessorService:
                  level='warning')
             review_reason = None
         if review_reason:
+            # Pause + tell me: the job holds in the Review Queue AND the user
+            # gets a WhatsApp text (originating chat for bridge jobs, else the
+            # owner chat from WHATSAPP_NOTIFY_CHAT_ID). This replaced the old
+            # "list anyway" auto-decide — a text makes the review visible, so
+            # pausing no longer strands WhatsApp items invisibly.
             from backend.app.services.whatsapp_notify import (
-                get_whatsapp_origin, notify_whatsapp, build_price_message,
+                get_notify_destination, notify_whatsapp, build_price_review_message,
             )
-            wa_origin = get_whatsapp_origin(job_obj.job_metadata)
-            if wa_origin:
-                # Auto-decide + tell me: WhatsApp jobs list anyway at the computed
-                # price and report it in chat, instead of stalling in a review
-                # queue the user never opens. They can fix it in the eBay app.
-                decision_note = build_price_message(
-                    analysis['title'], pricing_result.get('price'), review_reason
-                )
-                _log(f"Price flag auto-resolved (list anyway, whatsapp): {review_reason}",
-                     level='warning')
-                try:
-                    md = job_obj.job_metadata or {}
-                    md['decision_note'] = decision_note
-                    job_obj.job_metadata = md
-                except Exception:
-                    pass
-                notify_whatsapp(wa_origin, decision_note)
-                # fall through to normal submission — do NOT route to review.
-            else:
-                _log(f"Listing-quality guardrail flagged for review: {review_reason}", level='warning')
-                result.update({
-                    "success": True,
-                    "status": "pending_review",
-                    "title": analysis['title'],
-                    "price": pricing_result.get('price'),
-                    "condition": condition,
-                    "confidence_score": confidence_score,
-                    "error_message": review_reason,
-                    "timing": {**result["timing"], "total": time.time() - start_time},
-                })
-                return result
+            _log(f"Price flagged for review: {review_reason}", level='warning')
+            dest = get_notify_destination(job_obj.job_metadata)
+            if dest:
+                notify_whatsapp(dest, build_price_review_message(
+                    analysis['title'],
+                    pricing_result.get('price'),
+                    pricing_result.get('comp_price'),
+                    pricing_result.get('ai_price'),
+                    review_reason,
+                ))
+            result.update({
+                "success": True,
+                "status": "pending_review",
+                "title": analysis['title'],
+                "price": pricing_result.get('price'),
+                "condition": condition,
+                "confidence_score": confidence_score,
+                "error_message": review_reason,
+                "timing": {**result["timing"], "total": time.time() - start_time},
+            })
+            return result
 
         bundle = self._create_trading_api_listing(
             title=analysis['title'], final_price=pricing_result["price"], condition=condition,

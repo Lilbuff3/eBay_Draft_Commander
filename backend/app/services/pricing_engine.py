@@ -17,9 +17,11 @@ from backend.app.core.constants import (
     MAX_LISTING_PRICE,
     RARITY_PERCENTILE_THRESHOLD,
     ACTIVE_TO_SOLD_FACTOR,
+    PRICE_AGREEMENT_RATIO,
 )
 from backend.app.core.logger import get_logger
 from backend.app.core.prompts import build_seller_note_block
+from backend.app.services.sourcing import assess_confidence
 
 logger = get_logger('pricing_engine')
 
@@ -230,7 +232,7 @@ class PricingEngine:
         return kept if len(kept) >= cls.MIN_COMPS_AFTER_FILTER else comps
 
     def filter_comps(self, comps: List[Dict], reference_title: str,
-                     exact_id: bool = False) -> List[Dict]:
+                     exact_id: bool = False, with_meta: bool = False) -> Any:
         """Reduce comps to true same-product matches before pricing.
 
         Keyword pipeline (each stage keeps MIN_COMPS_AFTER_FILTER as a floor):
@@ -243,12 +245,23 @@ class PricingEngine:
 
         exact_id=True (ISBN/UPC) skips stages 1-2 (product identity is already
         guaranteed by the identifier match) and only runs stage 3.
+
+        with_meta=True returns (comps, meta) where meta describes HOW the comps
+        matched so callers can grade trust:
+          match_quality: 'model_gated' | 'similar' | 'floor_fallback'
+                         | 'exact_id' | 'small_set'
+          junk_removed:  count of accessory/parts comps dropped in Phase 1
         """
+        def _out(lst, quality, junk_removed=0):
+            if with_meta:
+                return lst, {"match_quality": quality, "junk_removed": junk_removed}
+            return lst
+
         if len(comps) <= self.MIN_COMPS_AFTER_FILTER:
-            return comps
+            return _out(comps, "small_set")
 
         if exact_id:
-            return self._reject_price_outliers(list(comps))
+            return _out(self._reject_price_outliers(list(comps)), "exact_id")
 
         ref_low = (reference_title or "").lower()
         ref_tokens = set(self._tokenize(reference_title))
@@ -262,8 +275,10 @@ class PricingEngine:
         # --- Phase 1: junk / accessory removal ---
         kept = [c for c in comps
                 if not self._is_junk_comp(c.get("title", ""), active_tokens, active_phrases)]
+        junk_removed = len(comps) - len(kept)
         if len(kept) < self.MIN_COMPS_AFTER_FILTER:
             kept = list(comps)  # everything looked like junk — don't strand ourselves
+            junk_removed = 0
 
         # --- Phase 2: positive similarity + model-number gate ---
         scored = []  # (overlap, has_model, comp)
@@ -277,20 +292,63 @@ class PricingEngine:
         gated = [t for t in scored if t[1]] if model_key else []
         if len(gated) >= self.MIN_COMPS_AFTER_FILTER:
             candidates = gated                       # the model # IS the match
+            quality = "model_gated"
         else:
             similar = [t for t in scored if t[0] >= self.MIN_TITLE_SIMILARITY]
             if len(similar) >= self.MIN_COMPS_AFTER_FILTER:
                 candidates = similar
+                quality = "similar"
             else:
                 scored.sort(key=lambda t: (t[1], t[0]), reverse=True)
                 candidates = scored[:self.MIN_COMPS_AFTER_FILTER]
+                quality = "floor_fallback"
 
         # Best matches first (model hits, then overlap) for downstream comps[:N] use.
         candidates.sort(key=lambda t: (t[1], t[0]), reverse=True)
         title_filtered = [c for _, _, c in candidates]
 
         # --- Phase 3: price-outlier rejection (post-junk) ---
-        return self._reject_price_outliers(title_filtered)
+        return _out(self._reject_price_outliers(title_filtered), quality, junk_removed)
+
+    def _comps_confidence(self, sold_items: List[Dict], price_data: Dict,
+                          id_type: str, match_quality: Optional[str] = None) -> tuple:
+        """(confidence, reason) for a comp-backed price."""
+        prices = [c["price"] for c in sold_items if c.get("price", 0) > 0]
+        return assess_confidence(price_data.get('comp_count', 0), prices, id_type,
+                                 match_quality=match_quality)
+
+    def _ai_cross_check(self, title: str, condition: str, identification: Optional[Dict],
+                        research_market_price: Optional[Dict], shipping_cost: float,
+                        seller_note: str = "") -> tuple:
+        """Second opinion for weak keyword comps: Phase-2 research mid if already
+        fetched (free), else one Gemini grounding call (skipped on FAST_MODE).
+        Returns (final_list_price | None, origin_label | None) — final price has
+        the shipping buffer + smart rounding applied so it compares like-for-like
+        with a comp-based suggested_price."""
+        raw = None
+        origin = None
+        if research_market_price and research_market_price.get('mid'):
+            try:
+                raw = float(research_market_price['mid'])
+                origin = 'web research'
+            except (TypeError, ValueError):
+                raw = None
+        if raw is None:
+            fast_mode = os.environ.get('FAST_MODE', 'false').lower() == 'true'
+            if not fast_mode:
+                grounded = self.get_ai_price_estimate(
+                    title, condition, identification=identification, seller_note=seller_note)
+                if grounded and grounded.get('price'):
+                    try:
+                        raw = float(grounded['price'])
+                        origin = 'AI research'
+                    except (TypeError, ValueError):
+                        raw = None
+        if not raw or raw <= 0:
+            return None, None
+        final = round(raw + shipping_cost, 2) if shipping_cost > 0 else raw
+        final = self._sanitize_price(self._smart_round_99(final))
+        return final, origin
 
     # Ordered: multi-word grades first so 'very good' never matches 'good',
     # 'like new' never matches 'new'.
@@ -651,6 +709,8 @@ class PricingEngine:
             if sold_items:
                 sold_items = self.filter_comps(sold_items, reference_title=title, exact_id=True)
                 price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost, availability=availability)
+                confidence, confidence_reason = self._comps_confidence(
+                    sold_items, price_data, 'isbn', match_quality='exact_id')
                 logger.info(f"   [PRICE] ISBN price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
                 return {
                     "suggested_price": price_data["suggested_price"],
@@ -658,6 +718,8 @@ class PricingEngine:
                     "reasoning": f"ISBN Match: {price_data['reasoning']}",
                     "projected_profit": price_data.get("projected_profit"),
                     "source": "market_data_isbn",
+                    "confidence": confidence,
+                    "confidence_reason": confidence_reason,
                     "research_link": self.generate_ebay_search_link(isbn)
                 }
             logger.info("   [WARN] No listings found for ISBN, falling back to title...")
@@ -679,6 +741,8 @@ class PricingEngine:
                 if sold_items:
                     sold_items = self.filter_comps(sold_items, reference_title=title)
                     price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost, availability=availability)
+                    confidence, confidence_reason = self._comps_confidence(
+                        sold_items, price_data, 'mpn')
                     logger.info(f"   [PRICE] ID price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
                     return {
                         "suggested_price": price_data["suggested_price"],
@@ -686,6 +750,8 @@ class PricingEngine:
                         "reasoning": f"ID Match ({id_query}): {price_data['reasoning']}",
                         "projected_profit": price_data.get("projected_profit"),
                         "source": "market_data_id",
+                        "confidence": confidence,
+                        "confidence_reason": confidence_reason,
                         "research_link": self.generate_ebay_search_link(id_query)
                     }
                 logger.info("   [WARN] No listings found for identifiers, trying alt part numbers...")
@@ -706,6 +772,8 @@ class PricingEngine:
                             sold_items, condition, acquisition_cost, shipping_cost,
                             availability=availability
                         )
+                        confidence, confidence_reason = self._comps_confidence(
+                            sold_items, price_data, 'mpn')
                         logger.info(f"   [PRICE] Alt PN price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
                         return {
                             "suggested_price": price_data["suggested_price"],
@@ -713,6 +781,8 @@ class PricingEngine:
                             "reasoning": f"Alt PN Match ({alt_pn}): {price_data['reasoning']}",
                             "projected_profit": price_data.get("projected_profit"),
                             "source": "market_data_alt_pn",
+                            "confidence": confidence,
+                            "confidence_reason": confidence_reason,
                             "research_link": research_link
                         }
 
@@ -728,8 +798,50 @@ class PricingEngine:
         logger.info(f"[SEARCH] Keyword search: {search_query[:50]}...")
         sold_items = self.search_sold_listings(search_query, category_id, limit=15, condition=condition)
         if sold_items:
-            sold_items = self.filter_comps(sold_items, reference_title=title)
+            sold_items, comp_meta = self.filter_comps(
+                sold_items, reference_title=title, with_meta=True)
             price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost, availability=availability)
+            confidence, confidence_reason = self._comps_confidence(
+                sold_items, price_data, 'keyword',
+                match_quality=comp_meta.get('match_quality'))
+            comp_final = price_data.get("suggested_price")
+
+            # Keyword comps are the weakest identity match — junk (accessories,
+            # parts, wrong variants) drags the median down and silently
+            # under-prices. When the engine doesn't fully trust its own number,
+            # get a second opinion and arbitrate instead of short-circuiting.
+            if confidence != 'high' and comp_final:
+                ai_final, ai_origin = self._ai_cross_check(
+                    title, condition, identification, research_market_price,
+                    shipping_cost, seller_note)
+                if ai_final:
+                    ratio = max(ai_final, comp_final) / max(min(ai_final, comp_final), 0.01)
+                    if ratio <= PRICE_AGREEMENT_RATIO:
+                        # Independent signal lands near the comps -> corroborated.
+                        confidence = 'high' if confidence == 'medium' else 'medium'
+                        confidence_reason += f"; corroborated by {ai_origin} (${ai_final:.2f})"
+                        logger.info(f"   [OK] Comps corroborated by {ai_origin}: "
+                                    f"${comp_final:.2f} vs ${ai_final:.2f}")
+                    else:
+                        # Wild disagreement -> comps are probably junk. Pre-fill
+                        # the AI price and flag low confidence so the pipeline
+                        # routes to review instead of listing at a junk price.
+                        conflict_reason = (
+                            f"comps say ${comp_final:.2f} ({price_data.get('comp_count', 0)} comps) "
+                            f"but AI research says ${ai_final:.2f} — {ratio:.1f}x apart")
+                        logger.warning(f"   [CONFLICT] {conflict_reason} -> review, AI price pre-filled")
+                        return {
+                            "suggested_price": ai_final,
+                            "comp_price": comp_final,
+                            "ai_price": ai_final,
+                            "comps": sold_items[:5],
+                            "reasoning": f"Comp/AI conflict: {conflict_reason}",
+                            "source": "market_ai_conflict",
+                            "confidence": "low",
+                            "confidence_reason": conflict_reason,
+                            "research_link": research_link
+                        }
+
             logger.info(f"   [PRICE] Keyword price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
             return {
                 "suggested_price": price_data["suggested_price"],
@@ -737,6 +849,8 @@ class PricingEngine:
                 "reasoning": price_data["reasoning"],
                 "projected_profit": price_data.get("projected_profit"),
                 "source": "market_data_keyword",
+                "confidence": confidence,
+                "confidence_reason": confidence_reason,
                 "research_link": research_link
             }
 
@@ -757,6 +871,8 @@ class PricingEngine:
                     "comps": [],
                     "reasoning": f"Phase 2 web research: ${low}-${high} range ({condition})",
                     "source": "research_market_price",
+                    "confidence": "medium",
+                    "confidence_reason": "AI web research range (no market comps)",
                     "research_link": research_link
                 }
             except (ValueError, TypeError) as e:
@@ -784,6 +900,8 @@ class PricingEngine:
                 "comps": [],
                 "reasoning": ai_reasoning,
                 "source": "ai_grounded_research",
+                "confidence": "medium",
+                "confidence_reason": "AI research estimate (no market comps)",
                 "research_link": research_link
             }
 
@@ -802,6 +920,8 @@ class PricingEngine:
                 "comps": [],
                 "reasoning": fallback_reasoning,
                 "source": "ai_estimate",
+                "confidence": "low",
+                "confidence_reason": "AI vision estimate (no market data)",
                 "research_link": research_link
             }
 
@@ -812,6 +932,8 @@ class PricingEngine:
             "comps": [],
             "reasoning": "Could not determine price. Manual input required.",
             "source": "failed_requires_manual",
+            "confidence": "low",
+            "confidence_reason": "No price signal from any source",
             "research_link": research_link,
             "error": "Price discovery failed"
         }

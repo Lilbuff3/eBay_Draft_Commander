@@ -524,6 +524,197 @@ class TestCompFilteringV2:
 
 
 # ---------------------------------------------------------------------------
+# TestFilterCompsMeta — with_meta=True exposes HOW comps matched, so the
+# caller can grade trust (model-gated > similarity > safety-floor).
+# ---------------------------------------------------------------------------
+
+
+class TestFilterCompsMeta:
+    def test_default_call_returns_plain_list(self, engine):
+        comps = [_comp(f"Widget Thing {i}", 10 + i) for i in range(5)]
+        out = engine.filter_comps(comps, reference_title="Widget Thing")
+        assert isinstance(out, list)
+
+    def test_model_gated_meta(self, engine):
+        comps = [_comp(f"Nikon L35AF Camera v{i}", 50 + i) for i in range(4)]
+        out, meta = engine.filter_comps(comps, reference_title="Nikon L35AF Film Camera", with_meta=True)
+        assert meta["match_quality"] == "model_gated"
+        assert len(out) == 4
+
+    def test_similar_meta_when_no_model(self, engine):
+        comps = [_comp(f"Rowenta Garment Steamer {c}", 40 + i) for i, c in enumerate(["Blue", "Pro", "Mini", "Max"])]
+        out, meta = engine.filter_comps(comps, reference_title="Rowenta Garment Steamer", with_meta=True)
+        assert meta["match_quality"] == "similar"
+
+    def test_floor_fallback_meta(self, engine):
+        # nothing shares distinctive tokens with the reference -> top-3 floor
+        comps = [
+            _comp("Alpha One Thing", 10), _comp("Beta Two Object", 12),
+            _comp("Gamma Three Item", 11), _comp("Delta Four Gizmo", 13),
+        ]
+        out, meta = engine.filter_comps(comps, reference_title="Zeta Nine Contraption", with_meta=True)
+        assert meta["match_quality"] == "floor_fallback"
+        assert len(out) >= 3
+
+    def test_exact_id_meta(self, engine):
+        comps = [_comp(f"Book Copy {i}", 20 + i) for i in range(5)]
+        out, meta = engine.filter_comps(comps, reference_title="Some Book", exact_id=True, with_meta=True)
+        assert meta["match_quality"] == "exact_id"
+
+    def test_small_set_meta(self, engine):
+        comps = [_comp("A", 5), _comp("B", 6)]
+        out, meta = engine.filter_comps(comps, reference_title="A", with_meta=True)
+        assert meta["match_quality"] == "small_set"
+        assert out == comps
+
+    def test_junk_removed_counted(self, engine):
+        comps = [
+            _comp("Owlet Smart Sock 2 Baby Monitor", 120),
+            _comp("Owlet Smart Sock 2 Baby Monitor Kit", 132),
+            _comp("Owlet Smart Sock 2 Monitor Bundle", 140),
+            _comp("Owlet Smart Sock 2 Baby Monitor Box", 125),
+            _comp("Owlet Base Station Charger", 20),
+            _comp("Owlet Sock Accessory Strap", 15),
+        ]
+        out, meta = engine.filter_comps(comps, reference_title="Owlet Smart Sock 2 Baby Monitor", with_meta=True)
+        assert meta["junk_removed"] == 2
+
+
+# ---------------------------------------------------------------------------
+# TestKeywordArbitration — weak keyword comps get a second opinion (Phase-2
+# research mid, else one Gemini grounding call); wild disagreement pauses with
+# the AI price pre-filled instead of silently under-pricing off junk comps.
+# ---------------------------------------------------------------------------
+
+
+def _arb_engine(comps, grounded_price=None):
+    """PricingEngine via __new__ with mocked I/O (test_fast_mode convention)."""
+    from unittest.mock import MagicMock
+    from backend.app.services.pricing_engine import PricingEngine
+    engine = PricingEngine.__new__(PricingEngine)
+    engine.app_id = "test"
+    engine.google_api_key = None
+    engine.ai_client = None
+    engine.search_sold_listings = MagicMock(return_value=comps)
+    engine.get_ai_price_estimate = MagicMock(
+        return_value={"price": grounded_price, "reasoning": "grounded"} if grounded_price else None
+    )
+    return engine
+
+
+# 4 similar comps, wide spread (7x) -> confidence 'low' before arbitration
+_WEAK_COMPS = [
+    {"title": "Rowenta Garment Steamer Blue", "price": 5.0, "condition": "Used", "end_date": "", "url": ""},
+    {"title": "Rowenta Garment Steamer Pro", "price": 8.0, "condition": "Used", "end_date": "", "url": ""},
+    {"title": "Rowenta Garment Steamer Mini", "price": 20.0, "condition": "Used", "end_date": "", "url": ""},
+    {"title": "Rowenta Garment Steamer Max", "price": 35.0, "condition": "Used", "end_date": "", "url": ""},
+]
+# 5 model-gated comps, tight prices -> confidence 'high', no arbitration
+_STRONG_COMPS = [
+    {"title": f"Nikon L35AF Camera v{i}", "price": p, "condition": "Used", "end_date": "", "url": ""}
+    for i, p in enumerate([50.0, 52.0, 54.0, 55.0, 58.0])
+]
+
+
+class TestKeywordArbitration:
+    def test_high_confidence_skips_cross_check(self, monkeypatch):
+        monkeypatch.setenv('FAST_MODE', 'false')
+        engine = _arb_engine(_STRONG_COMPS, grounded_price=200.0)
+        result = engine.get_price_with_comps("Nikon L35AF Film Camera", condition="Used - Good", shipping_cost=0)
+        assert result["source"] == "market_data_keyword"
+        assert result["confidence"] == "high"
+        engine.get_ai_price_estimate.assert_not_called()
+
+    def test_low_confidence_corroborated_by_research_mid(self, monkeypatch):
+        monkeypatch.setenv('FAST_MODE', 'false')
+        engine = _arb_engine(_WEAK_COMPS, grounded_price=200.0)
+        result = engine.get_price_with_comps(
+            "Rowenta Garment Steamer", condition="Used - Good", shipping_cost=0,
+            research_market_price={"low": 8, "mid": 10, "high": 12},
+        )
+        # comps median 14 * 0.87 = 12.18; research mid 10 -> ratio 1.22 <= 1.6 -> agree
+        assert result["source"] == "market_data_keyword"
+        assert result["confidence"] == "medium"
+        assert "corroborated" in result["confidence_reason"]
+        engine.get_ai_price_estimate.assert_not_called()  # research mid was enough
+
+    def test_low_confidence_conflict_prefills_ai_price(self, monkeypatch):
+        monkeypatch.setenv('FAST_MODE', 'false')
+        engine = _arb_engine(_WEAK_COMPS, grounded_price=100.0)
+        result = engine.get_price_with_comps(
+            "Rowenta Garment Steamer", condition="Used - Good", shipping_cost=0,
+        )
+        # comps 12.18 vs AI 99.99 -> 8x apart -> conflict, AI pre-filled
+        assert result["source"] == "market_ai_conflict"
+        assert result["confidence"] == "low"
+        assert result["suggested_price"] == 99.99
+        assert result["ai_price"] == 99.99
+        assert result["comp_price"] == pytest.approx(12.18, abs=0.01)
+        assert "comps say" in result["confidence_reason"]
+        engine.get_ai_price_estimate.assert_called_once()
+
+    def test_fast_mode_keeps_comps_low_confidence(self, monkeypatch):
+        monkeypatch.setenv('FAST_MODE', 'true')
+        engine = _arb_engine(_WEAK_COMPS, grounded_price=100.0)
+        result = engine.get_price_with_comps(
+            "Rowenta Garment Steamer", condition="Used - Good", shipping_cost=0,
+        )
+        assert result["source"] == "market_data_keyword"
+        assert result["confidence"] == "low"
+        engine.get_ai_price_estimate.assert_not_called()
+
+    def test_isbn_path_has_confidence_no_arbitration(self, monkeypatch):
+        monkeypatch.setenv('FAST_MODE', 'false')
+        tight_books = [
+            {"title": f"Book Copy {i}", "price": p, "condition": "Used", "end_date": "", "url": ""}
+            for i, p in enumerate([28.0, 29.0, 30.0, 31.0, 32.0])
+        ]
+        engine = _arb_engine(tight_books, grounded_price=200.0)
+        result = engine.get_price_with_comps("Some Book Title", condition="Used - Good",
+                                             shipping_cost=0, isbn="9780316769488")
+        assert result["source"] == "market_data_isbn"
+        assert result["confidence"] == "high"
+        engine.get_ai_price_estimate.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# TestGetFinalPricingSeam — confidence fields must survive the projection in
+# listing_ai_agent.get_final_pricing (new engine fields are dropped otherwise).
+# ---------------------------------------------------------------------------
+
+
+class TestGetFinalPricingSeam:
+    def _agent(self, engine_result):
+        from unittest.mock import MagicMock
+        from backend.app.services.listing_ai_agent import ListingAIAgent
+        agent = ListingAIAgent.__new__(ListingAIAgent)
+        agent.pricing_engine = MagicMock()
+        agent.pricing_engine.get_price_with_comps = MagicMock(return_value=engine_result)
+        agent._default_shipping_cost = 0
+        return agent
+
+    def test_confidence_fields_threaded_through(self):
+        agent = self._agent({
+            "suggested_price": 99.99, "comps": [], "reasoning": "conflict",
+            "source": "market_ai_conflict", "confidence": "low",
+            "confidence_reason": "comps say $12.18 but AI research says $99.99",
+            "comp_price": 12.18, "ai_price": 99.99,
+        })
+        out = agent.get_final_pricing("Widget", "USED_GOOD", None, None)
+        assert out["confidence"] == "low"
+        assert "comps say" in out["confidence_reason"]
+        assert out["comp_price"] == 12.18
+        assert out["ai_price"] == 99.99
+
+    def test_user_price_confidence_user(self):
+        agent = self._agent({})
+        out = agent.get_final_pricing("Widget", "USED_GOOD", None, "49.99")
+        assert out["source"] == "user_override"
+        assert out["confidence"] == "user"
+        agent.pricing_engine.get_price_with_comps.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # TestPriceSourceLabeling
 # ---------------------------------------------------------------------------
 

@@ -179,3 +179,42 @@ class TestLookupCompsEndpoint:
         assert resp.status_code == 200
         assert resp.get_json()['gtin'] == '9780131103627'
         assert mock_search.call_args.kwargs.get('condition') == 'LIKE_NEW'
+
+
+# ---------------------------------------------------------------------------
+# assess_confidence with match_quality (pipeline reuse)
+# ---------------------------------------------------------------------------
+
+class TestAssessConfidenceMatchQuality:
+    def _prices_tight(self):
+        return [50.0, 52.0, 54.0, 55.0, 58.0]
+
+    def _prices_moderate(self):
+        # spread 4x: not tight (<=3x), not loose (>6x)
+        return [10.0, 18.0, 25.0, 32.0, 40.0]
+
+    def test_default_none_preserves_existing_behavior(self):
+        from backend.app.services.sourcing import assess_confidence
+        level, reason = assess_confidence(5, self._prices_tight(), 'isbn')
+        assert level == 'high'
+        assert 'ISBN' in reason
+
+    def test_model_gated_treated_as_identity_match(self):
+        from backend.app.services.sourcing import assess_confidence
+        # moderate spread + keyword would normally be 'medium'; model gate lifts it
+        level, _ = assess_confidence(5, self._prices_moderate(), 'keyword',
+                                     match_quality='model_gated')
+        assert level == 'high'
+
+    def test_keyword_moderate_spread_without_model_is_medium(self):
+        from backend.app.services.sourcing import assess_confidence
+        level, _ = assess_confidence(5, self._prices_moderate(), 'keyword')
+        assert level == 'medium'
+
+    def test_floor_fallback_capped_at_low(self):
+        from backend.app.services.sourcing import assess_confidence
+        # even many tight comps can't be trusted if they only survived the floor
+        level, reason = assess_confidence(6, self._prices_tight(), 'keyword',
+                                          match_quality='floor_fallback')
+        assert level == 'low'
+        assert reason

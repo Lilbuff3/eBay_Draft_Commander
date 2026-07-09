@@ -296,12 +296,19 @@ def apply_pre_listing_guardrails(
     price: Optional[float] = None,
     source: Optional[str] = None,
     comps: Optional[List[Dict[str, Any]]] = None,
+    confidence: Optional[str] = None,
+    confidence_reason: Optional[str] = None,
 ) -> Dict[str, Optional[str]]:
     """Run the LATE guards (title, brand/aspects, price) against `job`.
 
     Title and item_specifics are auto-fixed IN PLACE on `job`. Price sanity is
     judgment-call only — it never mutates, it just returns a review_reason if
     the price looks wrong.
+
+    `confidence`/`confidence_reason` come from the pricing engine. 'low' means
+    the engine doesn't trust its own number (junk keyword comps, or a
+    comps-vs-AI conflict) — that's the under-price guard and it wins over the
+    generic price-sanity checks. 'user'/'high'/'medium'/None never gate here.
 
     If price/source/comps are not passed explicitly, they're read from
     job.ai_data (pricing_comps / pricing_source) when present; price defaults
@@ -324,6 +331,11 @@ def apply_pre_listing_guardrails(
         job.item_specifics = normalize_aspects(specifics)
     except Exception as e:
         logger.error(f"Aspect guardrail failed (job proceeds unmodified): {e}")
+
+    # Under-price guard: engine flagged its own number as untrustworthy.
+    if confidence == 'low':
+        return {'review_reason': confidence_reason
+                or 'Low pricing confidence — check price before listing'}
 
     try:
         ai_data = getattr(job, 'ai_data', None) or {}
