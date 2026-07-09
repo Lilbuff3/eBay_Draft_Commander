@@ -391,6 +391,138 @@ class TestCompFiltering:
         assert filtered == []
 
 
+def _comp(title, price):
+    """Helper: a single comp dict with the fields filter_comps reads."""
+    return {"title": title, "price": float(price), "condition": "Used", "end_date": "", "url": ""}
+
+
+# ---------------------------------------------------------------------------
+# TestCompFilteringV2 — high-precision keyword filtering (accessory/parts
+# exclusion, model-number gating, IQR outliers). Guards against the observed
+# 40-80% under-pricing where junk comps dragged the median down.
+# ---------------------------------------------------------------------------
+
+
+class TestCompFilteringV2:
+    def test_accessory_comps_excluded_owlet(self, engine):
+        """Real monitors kept; replacement-sock/charger/strap accessories dropped."""
+        comps = [
+            _comp("Owlet Smart Sock 2 Baby Monitor Green", 120),
+            _comp("Owlet Smart Sock 2 Baby Oxygen Monitor", 132),
+            _comp("Owlet Smart Sock 2 Baby Monitor Complete", 140),
+            _comp("Owlet Smart Sock 2 Replacement Sock Set", 25),
+            _comp("Owlet Base Station Charger", 20),
+            _comp("Owlet Sock Accessory Strap", 15),
+        ]
+        filtered = engine.filter_comps(comps, reference_title="Owlet Smart Sock 2 Baby Monitor")
+        assert len(filtered) == 3
+        assert min(c["price"] for c in filtered) >= 120
+
+    def test_model_number_gate_keeps_only_matching(self, engine):
+        """When the reference has a model number, gate comps to ones containing it."""
+        comps = [
+            _comp("Nikon L35AF 35mm Point Shoot Film Camera", 185),
+            _comp("Nikon L35AF AF Film Camera Working", 200),
+            _comp("Nikon L35AF 35mm Camera Tested", 215),
+            _comp("Nikon Camera Battery EN-EL", 15),
+            _comp("Nikon 35mm Film Roll 3 Pack", 20),
+            _comp("Nikon Lens Cap Genuine", 8),
+        ]
+        filtered = engine.filter_comps(comps, reference_title="Nikon L35AF 35mm Film Camera")
+        assert len(filtered) == 3
+        assert all("l35af" in c["title"].lower() for c in filtered)
+
+    def test_negative_token_not_dropped_when_in_reference(self, engine):
+        """Selling a 'Replacement Band' must keep band comps (reference guard)."""
+        comps = [
+            _comp("Apple Watch Replacement Band Black", 10),
+            _comp("Apple Watch Replacement Band Sport", 11),
+            _comp("Apple Watch Replacement Band Silicone", 12),
+            _comp("Apple Watch Replacement Band Blue", 13),
+            _comp("Apple Watch Replacement Band Woven", 14),
+            _comp("Apple Watch Series 5 GPS", 200),
+        ]
+        filtered = engine.filter_comps(comps, reference_title="Apple Watch Replacement Band 44mm")
+        prices = [c["price"] for c in filtered]
+        assert all("band" in c["title"].lower() for c in filtered)
+        assert 200 not in prices
+        assert len(filtered) == 5
+
+    def test_safety_floor_when_all_look_like_junk(self, engine):
+        """If every comp reads as junk, restore originals — never strand below floor."""
+        comps = [
+            _comp("Sony Widget Replacement Part", 8),
+            _comp("Sony Widget Repair Manual", 5),
+            _comp("Sony Widget Broken Parts", 6),
+            _comp("Sony Widget Charger", 10),
+            _comp("Sony Widget Cable", 7),
+        ]
+        filtered = engine.filter_comps(comps, reference_title="Sony Widget")
+        assert len(filtered) >= 3
+
+    def test_model_gate_respects_floor(self, engine):
+        """Too few model hits -> fall back to similarity, keep same-brand comps."""
+        comps = [
+            _comp("Aiwa CSD-ES227 CD Boombox", 50),
+            _comp("Aiwa CSD-ES227 Stereo", 55),
+            _comp("Aiwa Boombox Silver", 45),
+            _comp("Aiwa Portable Boombox", 48),
+            _comp("Aiwa Stereo Boombox", 42),
+        ]
+        filtered = engine.filter_comps(comps, reference_title="Aiwa CSD-ES227 Boombox")
+        assert len(filtered) >= 3
+        assert any("csd-es227" not in c["title"].lower() for c in filtered)
+
+    def test_multi_item_lot_excluded(self, engine):
+        """A 'Lot of N' listing must not inflate a single-item estimate."""
+        comps = [
+            _comp("Nikon L35AF 35mm Film Camera", 185),
+            _comp("Nikon L35AF AF Camera", 200),
+            _comp("Nikon L35AF Point Shoot", 210),
+            _comp("Lot of 3 Nikon L35AF Cameras", 560),
+        ]
+        filtered = engine.filter_comps(comps, reference_title="Nikon L35AF 35mm Film Camera")
+        prices = [c["price"] for c in filtered]
+        assert 560 not in prices
+        assert len(filtered) == 3
+
+    def test_no_model_uses_stopword_similarity(self, engine):
+        """No model number -> distinctive-token overlap keeps true matches only."""
+        comps = [
+            _comp("Rowenta Garment Steamer Handheld", 40),
+            _comp("Rowenta Clothes Garment Steamer", 45),
+            _comp("Rowenta Portable Garment Steamer", 50),
+            _comp("Rowenta Steam Iron DW", 30),
+            _comp("Hamilton Beach Blender", 20),
+        ]
+        filtered = engine.filter_comps(comps, reference_title="Rowenta Garment Steamer")
+        assert len(filtered) == 3
+        assert all("steamer" in c["title"].lower() for c in filtered)
+
+    def test_exact_id_skips_junk_filter(self, engine):
+        """exact_id=True: identity guaranteed by ISBN, so don't drop a 'manual' comp
+        that the keyword path would. Locks in the ISBN non-regression contract."""
+        comps = [
+            _comp("Introduction to Algorithms Third Edition", 28),
+            _comp("Introduction to Algorithms CLRS", 29),
+            _comp("Introduction to Algorithms Hardcover", 30),
+            _comp("Introduction to Algorithms MIT Press", 31),
+            _comp("Introduction to Algorithms Textbook", 32),
+            _comp("Introduction to Algorithms Instructor Manual", 40),
+        ]
+        ref = "Introduction to Algorithms Study Guide"
+        exact = engine.filter_comps(comps, reference_title=ref, exact_id=True)
+        keyword = engine.filter_comps(comps, reference_title=ref, exact_id=False)
+        assert any("manual" in c["title"].lower() for c in exact)
+        assert len(exact) >= 3
+        assert not any("manual" in c["title"].lower() for c in keyword)
+
+    def test_detect_model_number(self, engine):
+        assert engine._detect_model_number("Aiwa CSD-ES227 Boombox") == "csd-es227"
+        assert engine._detect_model_number("Nikon L35AF 35mm Film Camera") == "l35af"
+        assert engine._detect_model_number("Owlet Smart Sock 2 Baby Monitor") is None
+
+
 # ---------------------------------------------------------------------------
 # TestPriceSourceLabeling
 # ---------------------------------------------------------------------------

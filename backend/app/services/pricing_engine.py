@@ -147,53 +147,150 @@ class PricingEngine:
             logger.error(f"[FAIL] Pricing engine error (using Researcher): {e}")
             return []
     
-    MIN_TITLE_SIMILARITY = 0.30  # Minimum word overlap ratio
+    MIN_TITLE_SIMILARITY = 0.40  # Min distinctive-token overlap ratio (raised from 0.30)
     MIN_COMPS_AFTER_FILTER = 3   # Don't filter below this count
 
-    def filter_comps(self, comps: List[Dict], reference_title: str) -> List[Dict]:
-        """Filter comps by title similarity and price outlier rejection.
+    # Generic descriptors with no product identity. Stripped from the REFERENCE
+    # tokens before overlap so distinctive tokens (brand/model/type) dominate.
+    _STOPWORDS = frozenset({
+        'new', 'used', 'preowned', 'pre-owned', 'vintage', 'antique', 'rare',
+        'genuine', 'authentic', 'original', 'oem', 'official', 'brand', 'lot',
+        'with', 'without', 'for', 'the', 'and', 'a', 'an', 'of', 'in', 'to',
+        'set', 'x', 'w', 'excellent', 'good', 'great', 'condition', 'working',
+        'tested', 'works', 'free', 'shipping', 'fast', 'nice', 'clean',
+    })
 
-        1. Title similarity: keep comps sharing >= 30% of words with reference title
-        2. Outlier rejection: drop prices > 2 std devs from median
-        3. Safety: never filter below MIN_COMPS_AFTER_FILTER if we started with enough
+    # Accessory / parts / non-item signals. HIGH PRECISION: a token here is only
+    # applied when the REFERENCE does NOT contain it (so a "Replacement Band"
+    # listing still keeps 'band'/'replacement' comps).
+    _NEGATIVE_TOKENS = frozenset({
+        'accessory', 'accessories', 'replacement', 'repair', 'parts', 'part',
+        'broken', 'cracked', 'damaged', 'defective', 'salvage', 'faulty',
+        'manual', 'manuals', 'instruction', 'instructions', 'guide',
+        'strap', 'band', 'bracket', 'mount', 'adapter', 'charger', 'cable',
+        'battery', 'batteries', 'remote', 'faceplate', 'sticker', 'stickers',
+        'decal', 'decals', 'poster', 'bulk', 'wholesale',
+    })
+    # Multi-word junk signals matched as substrings of the raw lowercased title.
+    _NEGATIVE_PHRASES = (
+        'for parts', 'not working', 'as-is', 'as is', 'does not work',
+        "doesn't work", 'read description', 'box only', 'case only',
+        'cover only', 'bag only', 'strap only', 'band only', 'manual only',
+        'empty box', 'lot of',
+    )
+
+    # A model number: alphanumeric mix, length >= 4 (e.g. L35AF, SX230, CSD-ES227).
+    _MODEL_RE = re.compile(r"^(?=[a-z0-9-]*[a-z])(?=[a-z0-9-]*\d)[a-z0-9-]{4,}$")
+    # Measurements that would otherwise look like model numbers (35mm, 256gb).
+    _MEASUREMENT_RE = re.compile(
+        r"^\d+(?:mm|cm|in|ft|oz|lbs?|ml|gb|tb|mah|hz|khz|mhz|ghz|v|w|k|p)$"
+    )
+
+    @staticmethod
+    def _tokenize(text: str) -> List[str]:
+        """Lowercase word tokens; keeps hyphenated model numbers intact (csd-es227)."""
+        return re.findall(r"[a-z0-9]+(?:-[a-z0-9]+)*", (text or "").lower())
+
+    @staticmethod
+    def _norm(text: str) -> str:
+        """Collapse to bare alphanumerics for robust model-number containment."""
+        return re.sub(r"[^a-z0-9]", "", (text or "").lower())
+
+    @classmethod
+    def _detect_model_number(cls, title: str) -> Optional[str]:
+        """Return the most model-number-like token in the reference, or None.
+        Longest qualifying token wins (favours 'l35af' over the '35mm' measurement)."""
+        cands = [
+            t for t in cls._tokenize(title)
+            if cls._MODEL_RE.match(t) and not cls._MEASUREMENT_RE.match(t)
+        ]
+        return max(cands, key=len) if cands else None
+
+    @classmethod
+    def _is_junk_comp(cls, title: str, neg_tokens: frozenset, neg_phrases: tuple) -> bool:
+        low = (title or "").lower()
+        if any(p in low for p in neg_phrases):
+            return True
+        return bool(set(cls._tokenize(title)) & neg_tokens)
+
+    @classmethod
+    def _reject_price_outliers(cls, comps: List[Dict]) -> List[Dict]:
+        """Tukey/IQR fences on price. Runs only on >=5 priced comps and never
+        drops below the floor. Applied AFTER junk removal so the quartiles reflect
+        the real product, not accessory contamination."""
+        prices = sorted(c["price"] for c in comps if c.get("price", 0) > 0)
+        if len(prices) < 5:
+            return comps
+        q1, _, q3 = statistics.quantiles(prices, n=4, method="exclusive")
+        iqr = q3 - q1
+        if iqr <= 0:
+            return comps
+        lower, upper = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+        kept = [c for c in comps if lower <= c.get("price", 0) <= upper]
+        return kept if len(kept) >= cls.MIN_COMPS_AFTER_FILTER else comps
+
+    def filter_comps(self, comps: List[Dict], reference_title: str,
+                     exact_id: bool = False) -> List[Dict]:
+        """Reduce comps to true same-product matches before pricing.
+
+        Keyword pipeline (each stage keeps MIN_COMPS_AFTER_FILTER as a floor):
+          1. Junk removal   - drop accessory/parts/for-parts/manual/lot comps,
+                              but never on a token the reference itself uses.
+          2. Positive match - stopword-stripped title overlap; if the reference
+                              carries a model number (e.g. L35AF) gate to comps
+                              that contain it.
+          3. Outlier reject - IQR/Tukey fences on price, AFTER junk removal.
+
+        exact_id=True (ISBN/UPC) skips stages 1-2 (product identity is already
+        guaranteed by the identifier match) and only runs stage 3.
         """
         if len(comps) <= self.MIN_COMPS_AFTER_FILTER:
             return comps
 
-        # --- Phase 1: Title similarity ---
-        ref_words = set(reference_title.lower().split())
-        scored = []
-        for comp in comps:
-            comp_words = set(comp.get("title", "").lower().split())
-            if not ref_words or not comp_words:
-                scored.append((0.0, comp))
-                continue
-            overlap = len(ref_words & comp_words) / max(len(ref_words), 1)
-            scored.append((overlap, comp))
+        if exact_id:
+            return self._reject_price_outliers(list(comps))
 
-        scored.sort(key=lambda x: x[0], reverse=True)
-        title_filtered = [c for sim, c in scored if sim >= self.MIN_TITLE_SIMILARITY]
+        ref_low = (reference_title or "").lower()
+        ref_tokens = set(self._tokenize(reference_title))
+        ref_content = ref_tokens - self._STOPWORDS
+        model_key = self._norm(self._detect_model_number(reference_title) or "")
 
-        if len(title_filtered) < self.MIN_COMPS_AFTER_FILTER:
-            title_filtered = [c for _, c in scored[:self.MIN_COMPS_AFTER_FILTER]]
+        # Reference-guard: never filter on junk terms the reference itself uses.
+        active_tokens = self._NEGATIVE_TOKENS - ref_tokens
+        active_phrases = tuple(p for p in self._NEGATIVE_PHRASES if p not in ref_low)
 
-        # --- Phase 2: Outlier rejection ---
-        if len(title_filtered) >= 5:
-            prices = [c["price"] for c in title_filtered if c.get("price", 0) > 0]
-            if prices:
-                median = statistics.median(prices)
-                try:
-                    stdev = statistics.stdev(prices)
-                except statistics.StatisticsError:
-                    stdev = 0
-                if stdev > 0:
-                    lower = median - 2 * stdev
-                    upper = median + 2 * stdev
-                    outlier_filtered = [c for c in title_filtered if lower <= c.get("price", 0) <= upper]
-                    if len(outlier_filtered) >= self.MIN_COMPS_AFTER_FILTER:
-                        title_filtered = outlier_filtered
+        # --- Phase 1: junk / accessory removal ---
+        kept = [c for c in comps
+                if not self._is_junk_comp(c.get("title", ""), active_tokens, active_phrases)]
+        if len(kept) < self.MIN_COMPS_AFTER_FILTER:
+            kept = list(comps)  # everything looked like junk — don't strand ourselves
 
-        return title_filtered
+        # --- Phase 2: positive similarity + model-number gate ---
+        scored = []  # (overlap, has_model, comp)
+        for c in kept:
+            title = c.get("title", "")
+            comp_tokens = set(self._tokenize(title))
+            overlap = (len(ref_content & comp_tokens) / len(ref_content)) if ref_content else 0.0
+            has_model = bool(model_key) and model_key in self._norm(title)
+            scored.append((overlap, has_model, c))
+
+        gated = [t for t in scored if t[1]] if model_key else []
+        if len(gated) >= self.MIN_COMPS_AFTER_FILTER:
+            candidates = gated                       # the model # IS the match
+        else:
+            similar = [t for t in scored if t[0] >= self.MIN_TITLE_SIMILARITY]
+            if len(similar) >= self.MIN_COMPS_AFTER_FILTER:
+                candidates = similar
+            else:
+                scored.sort(key=lambda t: (t[1], t[0]), reverse=True)
+                candidates = scored[:self.MIN_COMPS_AFTER_FILTER]
+
+        # Best matches first (model hits, then overlap) for downstream comps[:N] use.
+        candidates.sort(key=lambda t: (t[1], t[0]), reverse=True)
+        title_filtered = [c for _, _, c in candidates]
+
+        # --- Phase 3: price-outlier rejection (post-junk) ---
+        return self._reject_price_outliers(title_filtered)
 
     # Ordered: multi-word grades first so 'very good' never matches 'good',
     # 'like new' never matches 'new'.
@@ -552,7 +649,7 @@ class PricingEngine:
             logger.info(f"[SEARCH] ISBN search: {isbn}...")
             sold_items = self.search_sold_listings(isbn, category_id, limit=15, condition=condition)
             if sold_items:
-                sold_items = self.filter_comps(sold_items, reference_title=title)
+                sold_items = self.filter_comps(sold_items, reference_title=title, exact_id=True)
                 price_data = self.calculate_suggested_price(sold_items, condition, acquisition_cost, shipping_cost, availability=availability)
                 logger.info(f"   [PRICE] ISBN price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
                 return {
