@@ -21,6 +21,7 @@ export interface Job {
     condition?: string | null
     scheduled_time?: string | null
     confidence_score?: number | null
+    ai_data?: any | null
 }
 
 export interface QueueStats {

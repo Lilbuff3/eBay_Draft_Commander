@@ -712,7 +712,7 @@ class QueueManager:
         session = self.SessionFactory()
         try:
             jobs = session.query(self.JobModel).filter(
-                self.JobModel.status.in_([JobStatus.COMPLETED.value, JobStatus.SKIPPED.value])
+                self.JobModel.status.in_([JobStatus.COMPLETED.value, JobStatus.SKIPPED.value, JobStatus.SCHEDULED.value])
             ).all()
             count = len(jobs)
             folders_deleted = 0
@@ -821,12 +821,15 @@ class QueueManager:
             
             stats = {
                 'total': 0, 'pending': 0, 'processing': 0, 
-                'completed': 0, 'failed': 0, 'skipped': 0
+                'completed': 0, 'failed': 0, 'skipped': 0,
+                'scheduled': 0
             }
             
             for status, count in results:
                 if status in stats:
                     stats[status] = count
+                elif status == 'scheduled':
+                    stats['completed'] = stats.get('completed', 0) + count
                 stats['total'] += count
                 
             return stats
@@ -1068,7 +1071,7 @@ class QueueManager:
         # Update batch stats
         if self._batch_stats['active']:
             self._batch_stats['item_times'].append(elapsed)
-            if job.status == JobStatus.COMPLETED:
+            if job.status in (JobStatus.COMPLETED, JobStatus.SCHEDULED):
                 self._batch_stats['succeeded'] += 1
                 try:
                     price_str = str(job.price or "0").replace('$', '').replace(',', '')
@@ -1080,7 +1083,7 @@ class QueueManager:
             elif job.status == JobStatus.PENDING_REVIEW:
                 self._batch_stats['review'] = self._batch_stats.get('review', 0) + 1
 
-        if job.status == JobStatus.COMPLETED:
+        if job.status in (JobStatus.COMPLETED, JobStatus.SCHEDULED):
             if self.on_job_complete:
                 self.on_job_complete(job)
         else:
@@ -1134,7 +1137,7 @@ class QueueManager:
             jobs = [self._db_to_queue_job(db_job) for db_job in db_jobs]
             
             total = len(jobs)
-            succeeded = [j for j in jobs if j.status == JobStatus.COMPLETED]
+            succeeded = [j for j in jobs if j.status in (JobStatus.COMPLETED, JobStatus.SCHEDULED)]
             failed = [j for j in jobs if j.status == JobStatus.FAILED]
             
             total_value = 0.0

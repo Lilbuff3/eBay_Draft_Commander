@@ -164,7 +164,7 @@ export function ReviewQueue() {
                             <span className="col-span-1">Item</span>
                             <span className="col-span-5">Title & Status</span>
                             <span className="col-span-2">Price</span>
-                            <span className="col-span-2 text-center">AI Confidence</span>
+                            <span className="col-span-2 text-center">ID Confidence</span>
                             <span className="col-span-2 text-right">Actions</span>
                         </div>
                     </div>
@@ -236,7 +236,20 @@ export function ReviewQueue() {
                                                         placeholder="0.00"
                                                     />
                                                 ) : (
-                                                    <span className="font-display font-bold text-lg text-brand-400">${listing.price || '0.00'}</span>
+                                                    <div className="flex flex-col">
+                                                        <span className="font-display font-bold text-lg text-brand-400">${listing.price || '0.00'}</span>
+                                                        {listing.ai_data?.pricing_confidence && (
+                                                            <span className={cn(
+                                                                "text-[10px] font-semibold mt-1 px-1.5 py-0.5 rounded border w-fit capitalize",
+                                                                listing.ai_data.pricing_confidence === 'high' && "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+                                                                listing.ai_data.pricing_confidence === 'medium' && "text-blue-400 bg-blue-500/10 border-blue-500/20",
+                                                                listing.ai_data.pricing_confidence === 'low' && "text-amber-400 bg-amber-500/10 border-amber-500/20",
+                                                                listing.ai_data.pricing_confidence === 'user' && "text-slate-400 bg-slate-500/10 border-slate-500/20"
+                                                            )}>
+                                                                {listing.ai_data.pricing_confidence === 'user' ? 'Manual' : `${listing.ai_data.pricing_confidence} Price`}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 )}
                                             </div>
 
