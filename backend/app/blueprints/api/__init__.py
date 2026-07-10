@@ -10,6 +10,7 @@ from .lookup_api import lookup_bp
 from .analytics_api import analytics_bp
 from .settings_api import settings_bp
 from .migration_api import migration_bp
+from .ledger_api import ledger_bp
 
 api_bp = Blueprint('api', __name__)
 
@@ -23,6 +24,7 @@ api_bp.register_blueprint(lookup_bp, url_prefix='')
 api_bp.register_blueprint(analytics_bp, url_prefix='')
 api_bp.register_blueprint(settings_bp, url_prefix='/settings')
 api_bp.register_blueprint(migration_bp, url_prefix='')
+api_bp.register_blueprint(ledger_bp, url_prefix='/ledger')
 
 # Loopback callers (desktop browser, Hermes bridge, supervisor health poll) are
 # trusted; remote callers (LAN/Tailscale) must present X-API-Key matching
