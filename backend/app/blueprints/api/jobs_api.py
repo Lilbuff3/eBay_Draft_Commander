@@ -245,6 +245,20 @@ def update_job_metadata(job_id):
             metadata['ordered_images'] = data['ordered_images']
             metadata['force_image_reupload'] = True  # Reorder invalidates cached EPS URLs
             updates['job_metadata'] = metadata
+        if 'cogs' in data:
+            metadata = updates.get('job_metadata', job.job_metadata or {})
+            raw = data['cogs']
+            if raw in (None, ''):
+                metadata.pop('cogs', None)
+            else:
+                try:
+                    val = float(raw)
+                except (TypeError, ValueError):
+                    raise ValidationError('cogs must be a number')
+                if val < 0 or val > 99999:
+                    raise ValidationError('cogs out of range')
+                metadata['cogs'] = round(val, 2)
+            updates['job_metadata'] = metadata
         if 'scheduled_time' in data:
             s_time_str = data['scheduled_time']
             if s_time_str:
@@ -502,6 +516,12 @@ def create_job_from_metadata():
             metadata['user_condition'] = condition
         if data.get('user_approved'):
             metadata['user_approved'] = True
+        cogs_raw = data.get('cogs')
+        if cogs_raw not in (None, ''):
+            try:
+                metadata['cogs'] = round(float(cogs_raw), 2)
+            except (TypeError, ValueError):
+                pass  # bad cogs never blocks a draft
 
         job = qm.add_folder(str(job_folder), metadata=metadata)
 
