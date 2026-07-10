@@ -1,4 +1,4 @@
-import { LayoutTemplate, Package, BarChart3, Settings, Layers, BookOpen, ShoppingBag, ScanBarcode } from 'lucide-react'
+import { LayoutTemplate, Package, BarChart3, Settings, Layers, BookOpen, ShoppingBag, ScanBarcode, Wallet } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCommanderStore } from '@/store/useCommanderStore'
 
@@ -12,6 +12,7 @@ const navGroups = [
         items: [
             { id: 'dashboard', icon: LayoutTemplate, label: 'Dashboard' },
             { id: 'orders', icon: ShoppingBag, label: 'Orders' },
+            { id: 'profit', icon: Wallet, label: 'Profit' },
             { id: 'inventory', icon: Package, label: 'Inventory' },
             { id: 'batch-scan', icon: BookOpen, label: 'Books' },
             { id: 'sourcing', icon: ScanBarcode, label: 'Source' },

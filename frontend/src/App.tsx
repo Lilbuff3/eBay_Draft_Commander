@@ -31,6 +31,7 @@ const PriceResearch = lazy(() => import('@/components/PriceResearch').then(m => 
 const TemplateManager = lazy(() => import('@/components/TemplateManager').then(m => ({ default: m.TemplateManager })))
 const PreviewPanel = lazy(() => import('@/components/PreviewPanel').then(m => ({ default: m.PreviewPanel })))
 const ReviewQueue = lazy(() => import('@/components/listings/ReviewQueue').then(m => ({ default: m.ReviewQueue })))
+const Profit = lazy(() => import('@/pages/Profit').then(m => ({ default: m.Profit })))
 
 function PageLoader() {
   return (
@@ -192,6 +193,7 @@ export default function App() {
 
               {/* Business Tools */}
               {activeTab === 'orders' && <Orders />}
+              {activeTab === 'profit' && <Profit />}
               {activeTab === 'inventory' && <ActiveListings />}
               {activeTab === 'review' && <ReviewQueue />}
               {activeTab === 'analytics' && <AnalyticsDashboard />}
