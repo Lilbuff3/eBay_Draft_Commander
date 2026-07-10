@@ -69,3 +69,91 @@ class TestEstimateNet:
         # explicit ship_cost=None falls back to SOURCING_SHIP_COST (default 5.0)
         result = estimate_net(20.00, cogs=1.00)
         assert result['ship_est'] == 5.00
+
+
+from backend.app.services.ledger import LedgerService
+
+
+class FakeJob:
+    def __init__(self, job_id, listing_id, cogs=None, created_at="2026-06-20T10:00:00+00:00"):
+        self.id = job_id
+        self.listing_id = listing_id
+        self.job_metadata = {'cogs': cogs} if cogs is not None else {}
+        self.created_at = created_at
+
+
+class FakeQM:
+    def __init__(self, jobs):
+        self._jobs = jobs
+
+    def get_all_jobs(self):
+        return self._jobs
+
+
+ORDER = {
+    'orderId': '12-34567-89012',
+    'creationDate': '2026-07-08T12:00:00.000Z',
+    'total': 54.99,
+    'status': 'NOT_STARTED',
+    'itemTitle': 'Aiwa CSD-ES227 Boombox',
+    'legacyItemId': '256789012345',
+    'quantity': 1,
+    'paidDate': '2026-07-08T12:05:00.000Z',
+}
+
+
+class TestRecordSales:
+    def _svc(self, tmp_path):
+        return LedgerService(tmp_path / "ledger.db")
+
+    def test_records_order_with_job_cogs(self, tmp_path):
+        svc = self._svc(tmp_path)
+        qm = FakeQM([FakeJob('a1b2c3d4', '256789012345', cogs=8.00)])
+        count = svc.record_sales([ORDER], qm)
+        assert count == 1
+        session = svc.SessionFactory()
+        try:
+            row = session.query(SaleModel).one()
+            assert row.order_id == '12-34567-89012'
+            assert row.job_id == 'a1b2c3d4'
+            assert row.cogs == 8.00
+            assert row.sale_total == 54.99
+            assert row.fees_est is not None
+            assert row.sold_at.year == 2026
+        finally:
+            session.close()
+
+    def test_upsert_is_idempotent(self, tmp_path):
+        svc = self._svc(tmp_path)
+        qm = FakeQM([])
+        svc.record_sales([ORDER], qm)
+        svc.record_sales([ORDER], qm)
+        session = svc.SessionFactory()
+        try:
+            assert session.query(SaleModel).count() == 1
+        finally:
+            session.close()
+
+    def test_resweep_backfills_cogs_but_never_overwrites(self, tmp_path):
+        svc = self._svc(tmp_path)
+        # first sweep: no job match -> cogs NULL
+        svc.record_sales([ORDER], FakeQM([]))
+        # user later fills COGS on the job; resweep backfills
+        svc.record_sales([ORDER], FakeQM([FakeJob('a1b2c3d4', '256789012345', cogs=3.50)]))
+        session = svc.SessionFactory()
+        try:
+            assert session.query(SaleModel).one().cogs == 3.50
+        finally:
+            session.close()
+        # a different job cogs on a THIRD sweep must NOT overwrite the stored 3.50
+        svc.record_sales([ORDER], FakeQM([FakeJob('a1b2c3d4', '256789012345', cogs=99.0)]))
+        session = svc.SessionFactory()
+        try:
+            assert session.query(SaleModel).one().cogs == 3.50
+        finally:
+            session.close()
+
+    def test_skips_orders_without_id_or_total(self, tmp_path):
+        svc = self._svc(tmp_path)
+        bad = [{'orderId': None, 'total': 5.0}, {'orderId': 'x-2', 'total': None}]
+        assert svc.record_sales(bad, FakeQM([])) == 0

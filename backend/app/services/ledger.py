@@ -43,3 +43,95 @@ def estimate_net(sale_total: float, cogs: Optional[float] = None,
         'ship_est': round(ship_cost, 2),
         'net': round(net, 2) if net is not None else None,
     }
+
+
+def _parse_dt(value: Optional[str]) -> Optional[datetime]:
+    """eBay ISO timestamps ('2026-07-08T12:00:00.000Z') -> aware datetime, else None."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace('Z', '+00:00'))
+    except (TypeError, ValueError):
+        return None
+
+
+class LedgerService:
+    """Owns the sales table. One instance per process (see get_ledger)."""
+
+    def __init__(self, db_path):
+        from backend.app.core.database import init_db
+        self.db_path = db_path
+        self.SessionFactory = init_db(db_path)
+
+    def record_sales(self, orders: List[Dict[str, Any]], queue_manager) -> int:
+        """Upsert order snapshots. Freezes fees/ship at first sight; backfills
+        cogs from the matched job only while the row's cogs is still NULL
+        (a value set via the Profit tab must never be clobbered by a resweep).
+        Returns number of rows inserted or updated."""
+        from backend.app.core.database import SaleModel
+        if not orders:
+            return 0
+
+        by_listing = {}
+        try:
+            by_listing = {
+                str(j.listing_id): j
+                for j in queue_manager.get_all_jobs()
+                if getattr(j, 'listing_id', None)
+            }
+        except Exception:
+            logger.warning("Ledger: job lookup failed, sweeping without COGS join", exc_info=True)
+
+        touched = 0
+        session = self.SessionFactory()
+        try:
+            for order in orders:
+                order_id = order.get('orderId')
+                total = order.get('total')
+                if not order_id or total in (None, 0):
+                    continue
+                job = by_listing.get(str(order.get('legacyItemId') or ''))
+                job_cogs = (job.job_metadata or {}).get('cogs') if job else None
+
+                row = session.get(SaleModel, order_id)
+                if row is None:
+                    est = estimate_net(float(total), cogs=job_cogs)
+                    row = SaleModel(
+                        order_id=order_id,
+                        listing_id=str(order.get('legacyItemId') or '') or None,
+                        job_id=job.id if job else None,
+                        title=order.get('itemTitle'),
+                        quantity=order.get('quantity') or 1,
+                        sale_total=float(total),
+                        sold_at=_parse_dt(order.get('creationDate')),
+                        paid_at=_parse_dt(order.get('paidDate')),
+                        fees_est=est['fees_est'],
+                        ship_est=est['ship_est'],
+                        cogs=job_cogs,
+                    )
+                    session.add(row)
+                    touched += 1
+                elif row.cogs is None and job_cogs is not None:
+                    row.cogs = job_cogs
+                    if job and not row.job_id:
+                        row.job_id = job.id
+                    touched += 1
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+        return touched
+
+
+_ledger: Optional[LedgerService] = None
+
+
+def get_ledger(db_path) -> LedgerService:
+    """Process-wide singleton keyed off first-call db_path (matches how other
+    services treat the single commander.db)."""
+    global _ledger
+    if _ledger is None:
+        _ledger = LedgerService(db_path)
+    return _ledger
