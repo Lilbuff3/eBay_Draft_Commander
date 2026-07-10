@@ -158,6 +158,21 @@ class TestRecordSales:
         bad = [{'orderId': None, 'total': 5.0}, {'orderId': 'x-2', 'total': None}]
         assert svc.record_sales(bad, FakeQM([])) == 0
 
+    def test_malformed_total_skipped_not_crash(self, tmp_path):
+        svc = self._svc(tmp_path)
+        bad = [
+            {**ORDER, 'orderId': 'bad-1', 'total': {'value': '5.00'}},  # dict junk
+            {**ORDER, 'orderId': 'bad-2', 'total': 0},                   # zero
+            {**ORDER, 'orderId': 'good-1'},                              # valid 54.99
+        ]
+        assert svc.record_sales(bad, FakeQM([])) == 1
+
+    def test_sold_at_serialized_as_utc(self, tmp_path):
+        svc = self._svc(tmp_path)
+        svc.record_sales([ORDER], FakeQM([]))
+        items = svc.get_items(limit=1)
+        assert items[0]['sold_at'].endswith('+00:00')
+
 
 def _seed(svc, order_id, total, cogs, sold_at):
     session = svc.SessionFactory()

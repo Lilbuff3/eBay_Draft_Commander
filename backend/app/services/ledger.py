@@ -87,22 +87,25 @@ class LedgerService:
         try:
             for order in orders:
                 order_id = order.get('orderId')
-                total = order.get('total')
-                if not order_id or total in (None, 0):
+                try:
+                    total = float(order.get('total'))
+                except (TypeError, ValueError):
+                    total = None
+                if not order_id or not total:
                     continue
                 job = by_listing.get(str(order.get('legacyItemId') or ''))
                 job_cogs = (job.job_metadata or {}).get('cogs') if job else None
 
                 row = session.get(SaleModel, order_id)
                 if row is None:
-                    est = estimate_net(float(total), cogs=job_cogs)
+                    est = estimate_net(total, cogs=job_cogs)
                     row = SaleModel(
                         order_id=order_id,
                         listing_id=str(order.get('legacyItemId') or '') or None,
                         job_id=job.id if job else None,
                         title=order.get('itemTitle'),
-                        quantity=order.get('quantity') or 1,
-                        sale_total=float(total),
+                        quantity=int(order.get('quantity') or 1),
+                        sale_total=total,
                         sold_at=_parse_dt(order.get('creationDate')),
                         paid_at=_parse_dt(order.get('paidDate')),
                         fees_est=est['fees_est'],
@@ -198,7 +201,9 @@ class LedgerService:
                     'title': r.title,
                     'quantity': r.quantity,
                     'sale_total': r.sale_total,
-                    'sold_at': r.sold_at.isoformat() if r.sold_at else None,
+                    'sold_at': (r.sold_at.replace(tzinfo=timezone.utc).isoformat()
+                                if r.sold_at and r.sold_at.tzinfo is None
+                                else (r.sold_at.isoformat() if r.sold_at else None)),
                     'fees_est': r.fees_est,
                     'ship_est': r.ship_est,
                     'cogs': r.cogs,
