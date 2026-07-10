@@ -51,4 +51,12 @@ def get_analytics_orders():
     result, status = ebay_service.get_recent_orders(days=days, limit=limit)
     if status == 200:
         _attach_thumbnails(result.get('orders', []))
+        # Profit ledger: snapshot sold orders locally (survives eBay's 90-day
+        # order window). Best-effort — a ledger failure never breaks Orders.
+        try:
+            from backend.app.services.ledger import get_ledger
+            get_ledger(current_app.queue_manager.db_path).record_sales(
+                result.get('orders', []), current_app.queue_manager)
+        except Exception:
+            logger.warning("Ledger sales sweep failed", exc_info=True)
     return jsonify(result), status
