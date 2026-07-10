@@ -1,5 +1,5 @@
 """Profit ledger tests: SaleModel, fee math, sweep, summary, COGS parsing."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -157,3 +157,56 @@ class TestRecordSales:
         svc = self._svc(tmp_path)
         bad = [{'orderId': None, 'total': 5.0}, {'orderId': 'x-2', 'total': None}]
         assert svc.record_sales(bad, FakeQM([])) == 0
+
+
+def _seed(svc, order_id, total, cogs, sold_at):
+    session = svc.SessionFactory()
+    try:
+        from backend.app.services.ledger import estimate_net
+        est = estimate_net(total, cogs=cogs, ship_cost=5.0)
+        session.add(SaleModel(
+            order_id=order_id, sale_total=total, cogs=cogs,
+            sold_at=sold_at, fees_est=est['fees_est'], ship_est=5.0,
+            title=f"Item {order_id}", listing_id=f"L{order_id}",
+        ))
+        session.commit()
+    finally:
+        session.close()
+
+
+class TestSummaryAndItems:
+    def test_summary_buckets_by_week(self, tmp_path):
+        svc = LedgerService(tmp_path / "ledger.db")
+        now = datetime.now(timezone.utc)
+        _seed(svc, 'w0-a', 50.0, 10.0, now)
+        _seed(svc, 'w0-b', 20.0, None, now)          # missing cogs
+        _seed(svc, 'w1-a', 30.0, 5.0, now - timedelta(days=8))
+        result = svc.get_summary(weeks=4)
+        assert len(result['weeks']) <= 4
+        this_week = result['weeks'][0]
+        assert this_week['sold_count'] == 2
+        assert this_week['revenue'] == 70.0
+        assert this_week['missing_cogs'] == 1
+        # net only sums rows with known cogs
+        assert this_week['net'] is not None
+        assert result['totals']['sold_count'] == 3
+
+    def test_items_ordered_newest_first(self, tmp_path):
+        svc = LedgerService(tmp_path / "ledger.db")
+        now = datetime.now(timezone.utc)
+        _seed(svc, 'old', 10.0, 1.0, now - timedelta(days=5))
+        _seed(svc, 'new', 20.0, None, now)
+        items = svc.get_items(limit=10)
+        assert items[0]['order_id'] == 'new'
+        assert items[0]['net'] is None                # unknown cogs -> null net
+        assert items[1]['net'] is not None
+        assert items[1]['roi'] is not None
+
+    def test_set_cogs_updates_row(self, tmp_path):
+        svc = LedgerService(tmp_path / "ledger.db")
+        _seed(svc, 'x-1', 25.0, None, datetime.now(timezone.utc))
+        assert svc.set_cogs('x-1', 4.0) is True
+        items = svc.get_items(limit=1)
+        assert items[0]['cogs'] == 4.0
+        assert items[0]['net'] is not None
+        assert svc.set_cogs('nope', 4.0) is False

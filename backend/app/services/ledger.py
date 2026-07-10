@@ -124,6 +124,108 @@ class LedgerService:
             session.close()
         return touched
 
+    def get_summary(self, weeks: int = 8) -> Dict[str, Any]:
+        """Weekly P&L buckets, newest week first. Weeks start Monday (ISO).
+        net sums only rows with known COGS; missing_cogs counts the rest."""
+        from backend.app.core.database import SaleModel
+        now = datetime.now(timezone.utc)
+        monday = (now - timedelta(days=now.weekday())).replace(
+            hour=0, minute=0, second=0, microsecond=0)
+        cutoff = monday - timedelta(weeks=weeks - 1)
+
+        session = self.SessionFactory()
+        try:
+            rows = (session.query(SaleModel)
+                    .filter(SaleModel.sold_at >= cutoff.replace(tzinfo=None))
+                    .all())
+            buckets: Dict[str, Dict[str, Any]] = {}
+            for r in rows:
+                sold = r.sold_at
+                if sold is None:
+                    continue
+                if sold.tzinfo is None:
+                    sold = sold.replace(tzinfo=timezone.utc)
+                week_start = (sold - timedelta(days=sold.weekday())).date().isoformat()
+                b = buckets.setdefault(week_start, {
+                    'week_start': week_start, 'revenue': 0.0, 'fees': 0.0,
+                    'ship': 0.0, 'cogs': 0.0, 'net': 0.0,
+                    'sold_count': 0, 'missing_cogs': 0,
+                })
+                b['revenue'] += r.sale_total or 0.0
+                b['fees'] += r.fees_est or 0.0
+                b['ship'] += r.ship_est or 0.0
+                b['sold_count'] += 1
+                if r.cogs is None:
+                    b['missing_cogs'] += 1
+                else:
+                    b['cogs'] += r.cogs
+                    b['net'] += (r.sale_total or 0.0) - (r.fees_est or 0.0) \
+                        - (r.ship_est or 0.0) - r.cogs
+            ordered = sorted(buckets.values(), key=lambda b: b['week_start'], reverse=True)
+            for b in ordered:
+                for k in ('revenue', 'fees', 'ship', 'cogs', 'net'):
+                    b[k] = round(b[k], 2)
+            totals = {
+                'revenue': round(sum(b['revenue'] for b in ordered), 2),
+                'net': round(sum(b['net'] for b in ordered), 2),
+                'sold_count': sum(b['sold_count'] for b in ordered),
+                'missing_cogs': sum(b['missing_cogs'] for b in ordered),
+            }
+            return {'weeks': ordered, 'totals': totals}
+        finally:
+            session.close()
+
+    def get_items(self, limit: int = 200) -> List[Dict[str, Any]]:
+        """Sale rows newest first, with per-item net/ROI (None when COGS unknown)."""
+        from backend.app.core.database import SaleModel
+        session = self.SessionFactory()
+        try:
+            rows = (session.query(SaleModel)
+                    .order_by(SaleModel.sold_at.desc())
+                    .limit(limit).all())
+            items = []
+            for r in rows:
+                net = None
+                roi = None
+                if r.cogs is not None:
+                    net = round((r.sale_total or 0.0) - (r.fees_est or 0.0)
+                                - (r.ship_est or 0.0) - r.cogs, 2)
+                    roi = round(net / r.cogs, 2) if r.cogs > 0 else None
+                items.append({
+                    'order_id': r.order_id,
+                    'listing_id': r.listing_id,
+                    'job_id': r.job_id,
+                    'title': r.title,
+                    'quantity': r.quantity,
+                    'sale_total': r.sale_total,
+                    'sold_at': r.sold_at.isoformat() if r.sold_at else None,
+                    'fees_est': r.fees_est,
+                    'ship_est': r.ship_est,
+                    'cogs': r.cogs,
+                    'net': net,
+                    'roi': roi,
+                })
+            return items
+        finally:
+            session.close()
+
+    def set_cogs(self, order_id: str, cogs: float) -> bool:
+        """Fill/correct COGS on a sale row from the Profit tab. Returns False if unknown order."""
+        from backend.app.core.database import SaleModel
+        session = self.SessionFactory()
+        try:
+            row = session.get(SaleModel, order_id)
+            if row is None:
+                return False
+            row.cogs = round(float(cogs), 2)
+            session.commit()
+            return True
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
 
 _ledger: Optional[LedgerService] = None
 
