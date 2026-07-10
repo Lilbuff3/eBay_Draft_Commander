@@ -137,6 +137,36 @@ class AppToken(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
+class SaleModel(Base):
+    """Local snapshot of a sold eBay order line — accumulates past eBay's 90-day order window.
+
+    One row per order (v1 records the first line item only, matching the shape
+    /api/orders already returns; multi-line orders are rare for this seller).
+    cogs is frozen here at sweep time from job_metadata['cogs'] and can be
+    filled in later from the Profit tab.
+    """
+    __tablename__ = 'sales'
+    __table_args__ = (
+        Index('idx_sales_sold_at', 'sold_at'),
+        Index('idx_sales_listing_id', 'listing_id'),
+    )
+
+    order_id = Column(String(50), primary_key=True)
+    listing_id = Column(String(50))          # eBay legacyItemId — join key to jobs
+    job_id = Column(String(10))              # local job id if matched, else NULL
+    title = Column(String(255))
+    quantity = Column(Integer, default=1)
+    sale_total = Column(Float, nullable=False)  # order total (item + any buyer-paid extras)
+    sold_at = Column(DateTime)               # order creationDate
+    paid_at = Column(DateTime)
+    fees_est = Column(Float)                 # FVF% * total + payment fee, frozen at sweep
+    ship_est = Column(Float)                 # flat ship estimate, frozen at sweep
+    cogs = Column(Float)                     # NULL = unknown, first-class state
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+
 # Database Setup
 def get_db_engine(db_path: Path):
     from sqlalchemy import event
