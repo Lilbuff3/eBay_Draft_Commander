@@ -46,6 +46,7 @@ interface BatchItem {
     author: string
     condition: string
     price: string
+    cogs?: string
     status: 'loading' | 'found' | 'not_found' | 'error' | 'drafting' | 'drafted'
     stock_photo?: string
     imgUrl?: string
@@ -345,6 +346,7 @@ export function BatchScan() {
                     thumbnail: item.stock_photo || '',
                     condition: item.condition,
                     price: item.price || undefined,
+                    cogs: item.cogs && parseFloat(item.cogs) > 0 ? parseFloat(item.cogs) : undefined,
                     category_id: item.fullData?.category_id as string | undefined,
                     item_specifics: item.fullData?.item_specifics as Record<string, unknown> | undefined,
                     pricing_data: item.fullData?.pricing_data as Record<string, unknown> | undefined,

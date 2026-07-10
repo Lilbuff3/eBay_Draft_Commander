@@ -168,6 +168,7 @@ export interface CreateFromMetadataPayload {
     item_specifics?: Record<string, unknown>
     pricing_data?: Record<string, unknown>
     user_approved?: boolean
+    cogs?: number
     source: string
 }
 

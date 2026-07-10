@@ -324,6 +324,7 @@ export function Sourcing() {
                 author: book.item_specifics?.Author || '',
                 condition: row.condition,
                 price: book.price?.toString() || '',
+                cogs: row.paid || '',
                 status: 'found',
                 stock_photo: book.stock_photo,
                 fullData: row.bookData,
