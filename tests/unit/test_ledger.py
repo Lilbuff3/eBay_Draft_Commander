@@ -46,3 +46,26 @@ class TestSaleModel:
             assert session.query(SaleModel).one().cogs is None
         finally:
             session.close()
+
+
+from backend.app.services.ledger import estimate_net
+
+
+class TestEstimateNet:
+    def test_full_math(self):
+        # 54.99 sale, $8 cogs, $5 ship: fees = 54.99*0.1325 + 0.30 = 7.5862
+        result = estimate_net(54.99, cogs=8.00, ship_cost=5.00)
+        assert result['fees_est'] == 7.59
+        assert result['ship_est'] == 5.00
+        # net = 54.99 - 7.5862 - 5 - 8 = 34.40 (rounded)
+        assert result['net'] == 34.40
+
+    def test_unknown_cogs_gives_null_net(self):
+        result = estimate_net(20.00, cogs=None, ship_cost=5.00)
+        assert result['net'] is None
+        assert result['fees_est'] == 2.95  # 20*0.1325 + 0.30
+
+    def test_ship_cost_defaults_from_settings(self):
+        # explicit ship_cost=None falls back to SOURCING_SHIP_COST (default 5.0)
+        result = estimate_net(20.00, cogs=1.00)
+        assert result['ship_est'] == 5.00
