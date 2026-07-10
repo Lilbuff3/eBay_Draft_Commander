@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request, current_app
 from datetime import datetime, timedelta
+import re
 import threading
 from backend.app.blueprints.api.helpers import error_response
 from backend.app.core.validator import validate_safe_path, ValidationError
@@ -15,6 +16,28 @@ def _clean_capture_note(raw) -> str:
     if not isinstance(raw, str):
         return ""
     return raw.strip()[:500]
+
+
+# "paid 3", "paid $12.50", "cost 8" — capture COGS from a WhatsApp caption.
+# Token is stripped from the note so the cost never reaches the AI prompts
+# (a visible "paid 3" would bias Gemini's price estimate low).
+_COGS_RE = re.compile(r'\b(?:paid|cost)\s*\$?(\d{1,5}(?:\.\d{1,2})?)\b', re.IGNORECASE)
+
+
+def _extract_cogs(note: str):
+    """Pull a 'paid X' / 'cost X' token out of a capture note.
+
+    Returns (cogs_or_None, note_with_token_removed). No token -> (None, note).
+    """
+    if not note:
+        return None, note or ""
+    m = _COGS_RE.search(note)
+    if not m:
+        return None, note
+    cogs = round(float(m.group(1)), 2)
+    cleaned = (note[:m.start()] + ' ' + note[m.end():])
+    cleaned = ' '.join(cleaned.split()).strip(' ,;-')
+    return cogs, cleaned
 
 @queue_bp.route('/status')
 def get_status():
@@ -198,6 +221,7 @@ def capture_item():
     if not raw_path:
         return error_response('path required', 400)
     note = _clean_capture_note(data.get('note'))
+    cogs, note = _extract_cogs(note)
 
     # Origin: when the Hermes WhatsApp bridge passes a chat_id, remember it so the
     # backend can message the user back later ("auto-decide + tell me").
@@ -265,6 +289,8 @@ def capture_item():
         metadata = {'capture_source': 'hermes'}
         if note:
             metadata['note'] = note
+        if cogs is not None:
+            metadata['cogs'] = cogs
         if photo_hashes:
             metadata['photo_hashes'] = photo_hashes
         if origin:

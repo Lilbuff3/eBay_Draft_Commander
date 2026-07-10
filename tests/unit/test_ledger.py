@@ -225,3 +225,37 @@ class TestSummaryAndItems:
         assert items[0]['cogs'] == 4.0
         assert items[0]['net'] is not None
         assert svc.set_cogs('nope', 4.0) is False
+
+
+from backend.app.blueprints.api.queue_api import _extract_cogs
+
+
+class TestExtractCogs:
+    def test_paid_token(self):
+        cogs, note = _extract_cogs("vintage boombox paid 3 works great")
+        assert cogs == 3.0
+        assert note == "vintage boombox works great"
+
+    def test_dollar_sign_and_decimals(self):
+        cogs, note = _extract_cogs("paid $12.50")
+        assert cogs == 12.50
+        assert note == ""
+
+    def test_cost_synonym(self):
+        cogs, note = _extract_cogs("cost 8, tested working")
+        assert cogs == 8.0
+        assert note == "tested working"
+
+    def test_no_token_passthrough(self):
+        cogs, note = _extract_cogs("mint condition sealed")
+        assert cogs is None
+        assert note == "mint condition sealed"
+
+    def test_paid_without_number_not_matched(self):
+        # "paid full price" must not eat the word or invent a cogs
+        cogs, note = _extract_cogs("buyer paid full price last time")
+        assert cogs is None
+        assert note == "buyer paid full price last time"
+
+    def test_empty(self):
+        assert _extract_cogs("") == (None, "")
