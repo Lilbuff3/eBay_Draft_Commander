@@ -48,7 +48,8 @@ def get_status():
     
     stats = qm.get_stats()
     total = stats.get('total', 0)
-    done = stats.get('completed', 0) + stats.get('failed', 0)
+    # scheduled = live on eBay with a future start; done from the queue's view
+    done = stats.get('completed', 0) + stats.get('failed', 0) + stats.get('skipped', 0) + stats.get('scheduled', 0)
     percent = int((done / total * 100)) if total > 0 else 0
     
     current_job_data = None

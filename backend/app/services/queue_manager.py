@@ -616,9 +616,10 @@ class QueueManager:
                     self._process_job(job)
                 self._current_job = None
 
-                # Update progress
+                # Update progress — scheduled listings are done from the queue's
+                # perspective (they're live on eBay, just with a future start)
                 stats = self.get_stats()
-                done = stats['completed'] + stats['failed'] + stats['skipped']
+                done = stats['completed'] + stats['failed'] + stats['skipped'] + stats.get('scheduled', 0)
                 if self.on_progress:
                     self.on_progress(done, stats['total'])
             except Exception as e:
@@ -828,8 +829,6 @@ class QueueManager:
             for status, count in results:
                 if status in stats:
                     stats[status] = count
-                elif status == 'scheduled':
-                    stats['completed'] = stats.get('completed', 0) + count
                 stats['total'] += count
                 
             return stats
@@ -970,8 +969,8 @@ class QueueManager:
         if self.on_job_start:
             self.on_job_start(job)
 
+        start_time = time.time()
         try:
-            start_time = time.time()
             self.log_status(job.id, "[SEARCH] Analyzing images with AI...")
 
             # Instantiate ProcessorService (Phase 3 Architecture)
@@ -1032,6 +1031,7 @@ class QueueManager:
                 job.error_message = 'Processor returned None'
 
         except Exception as e:
+            elapsed = time.time() - start_time
             # Check if this is a NeedsReview exception from the processor service
             if isinstance(e, NeedsReviewException):
                 self.log_status(job.id, f"[WARN] Needs Review: {str(e)}", "warning")
@@ -1113,7 +1113,7 @@ class QueueManager:
             if db_job:
                 return self._db_to_queue_job(db_job)
         except Exception as e:
-            logger.debug("Folder lookup failed for '%s': %s", folder_path or folder_name, e)
+            self.logger.debug("Folder lookup failed for '%s': %s", folder_path or folder_name, e)
         finally:
             session.close()
 
