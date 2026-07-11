@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useCallback, useMemo } from 'react'
+import { lazy, Suspense, useEffect, useMemo } from 'react'
 import { AnimatePresence, motion, MotionConfig } from 'framer-motion'
 import { Loader2 } from 'lucide-react'
 // Eager: app chrome + the landing tab (Dashboard). Everything else is a tab
@@ -11,11 +11,9 @@ import { MobileUploadFAB } from '@/components/MobileUploadFAB'
 import { ApiKeyDialog } from '@/components/ApiKeyDialog'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Toaster, toast } from 'sonner'
-import { PullToRefreshIndicator } from '@/components/PullToRefreshIndicator'
 import { InstallPrompt } from '@/components/InstallPrompt'
 import { OfflineIndicator } from '@/components/OfflineIndicator'
 import { useJobSync } from '@/hooks/useJobSync'
-import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { onUpdateAvailable } from '@/lib/pwa'
 
@@ -65,15 +63,7 @@ export default function App() {
   const isMobile = useIsMobile()
 
   // Real-time job sync initialization
-  const { refreshData } = useJobSync()
-
-  // Pull-to-refresh on mobile
-  const { pullDistance, isRefreshing } = usePullToRefresh({
-    onRefresh: useCallback(async () => {
-      await refreshData()
-    }, [refreshData]),
-    isEnabled: activeTab === 'dashboard',
-  })
+  useJobSync()
 
   // Android back button handling
   useEffect(() => {
@@ -129,7 +119,6 @@ export default function App() {
     <MotionConfig reducedMotion="user">
     <div className="dark flex h-screen bg-[#05050A] text-slate-100 relative">
       <OfflineIndicator />
-      <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
 
       {/* Desktop Sidebar */}
       <Sidebar className="hidden md:block" />
