@@ -1,4 +1,4 @@
-import { LayoutTemplate, Package, BookOpen, ShoppingBag, ScanBarcode, type LucideIcon } from 'lucide-react'
+import { LayoutTemplate, Package, BookOpen, ShoppingBag, ScanBarcode, Wallet, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCommanderStore } from '@/store/useCommanderStore'
 import { useHaptics } from '@/hooks/useHaptics'
@@ -9,6 +9,7 @@ const tabs = [
     { id: 'sourcing', label: 'Source', icon: ScanBarcode },
     { id: 'batch-scan', label: 'Books', icon: BookOpen },
     { id: 'orders', label: 'Orders', icon: ShoppingBag },
+    { id: 'profit', label: 'Profit', icon: Wallet },
 ]
 
 export function MobileNavBar() {

@@ -80,13 +80,31 @@ export function fetchWithKey(input: RequestInfo | URL, init?: RequestInit): Prom
     return fetch(input, withApiKey(init))
 }
 
+// --- 401 recovery: one in-app dialog shared by every concurrent request ---
+// The ApiKeyDialog component (mounted in App) registers a handler; the first
+// 401 opens it and every other 401 awaits the same promise, so a cold load
+// firing five requests shows one dialog, not five stacked prompts.
+type KeyRequestHandler = () => Promise<string | null>
+let keyRequestHandler: KeyRequestHandler | null = null
+let pendingKeyRequest: Promise<string | null> | null = null
+
+export function setApiKeyRequestHandler(handler: KeyRequestHandler | null) {
+    keyRequestHandler = handler
+}
+
+function requestApiKey(): Promise<string | null> {
+    if (!keyRequestHandler) return Promise.resolve(null)
+    if (!pendingKeyRequest) {
+        pendingKeyRequest = keyRequestHandler().finally(() => { pendingKeyRequest = null })
+    }
+    return pendingKeyRequest
+}
+
 /** Thin wrapper around fetch that checks res.ok and throws on HTTP errors */
 export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
     let res = await fetch(url, withApiKey(init))
     if (res.status === 401) {
-        const entered = window.prompt(
-            'Access key required. Enter the API access token from Settings on the server machine:'
-        )
+        const entered = await requestApiKey()
         if (entered?.trim()) {
             storeApiKey(entered.trim())
             res = await fetch(url, withApiKey(init))

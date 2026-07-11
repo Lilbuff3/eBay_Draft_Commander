@@ -64,8 +64,12 @@ export function ReviewQueue() {
     const handleSaveEdit = async () => {
         if (!editingId) return
         const updates: { title?: string; price?: string } = {}
-        if (editValues.title) updates.title = editValues.title
-        if (editValues.price) updates.price = editValues.price
+        const title = editValues.title.trim()
+        const price = editValues.price.trim()
+        if (title) updates.title = title
+        const priceNum = parseFloat(price)
+        if (price && !isNaN(priceNum) && priceNum > 0) updates.price = priceNum.toFixed(2)
+        if (Object.keys(updates).length === 0) { setEditingId(null); return }
         await updatePending(editingId, updates)
         setEditingId(null)
     }
@@ -173,13 +177,14 @@ export function ReviewQueue() {
                         <button onClick={toggleSelectAll} aria-label={selectedIds.length === pendingListings.length ? 'Deselect all' : 'Select all'} className="hover:text-brand-400 transition-colors">
                             {selectedIds.length === pendingListings.length ? <CheckSquare size={18} className="text-brand-400" /> : <Square size={18} />}
                         </button>
-                        <div className="flex-1 grid grid-cols-12 gap-4">
+                        <div className="flex-1 hidden sm:grid grid-cols-12 gap-4">
                             <span className="col-span-1">Item</span>
                             <span className="col-span-5">Title & Status</span>
                             <span className="col-span-2">Price</span>
                             <span className="col-span-2 text-center">ID Confidence</span>
                             <span className="col-span-2 text-right">Actions</span>
                         </div>
+                        <span className="flex-1 sm:hidden">Select all</span>
                     </div>
 
                     <div className="space-y-3">
@@ -203,9 +208,11 @@ export function ReviewQueue() {
                                             }
                                         </div>
 
-                                        <div className="flex-1 grid grid-cols-12 gap-4 py-4 pr-6 items-center">
+                                        <div className="flex-1 py-4 pr-4 sm:pr-6 flex flex-col gap-3 sm:grid sm:grid-cols-12 sm:gap-4 sm:items-center">
+                                            {/* Thumbnail + title share a row on mobile; grid cells on sm+ */}
+                                            <div className="flex items-center gap-3 min-w-0 sm:contents">
                                             {/* Thumbnail */}
-                                            <div className="col-span-1">
+                                            <div className="shrink-0 sm:col-span-1">
                                                 <div className="w-12 h-12 rounded-lg bg-slate-950/40 border border-white/10 overflow-hidden flex items-center justify-center">
                                                     {listing.thumbnail_url ? (
                                                         <img src={listing.thumbnail_url} className="w-full h-full object-cover" alt="" />
@@ -216,7 +223,7 @@ export function ReviewQueue() {
                                             </div>
 
                                             {/* Title — inline edit or display */}
-                                            <div className="col-span-5">
+                                            <div className="min-w-0 flex-1 sm:col-span-5">
                                                 {editingId === listing.id ? (
                                                     <Input
                                                         value={editValues.title}
@@ -238,9 +245,10 @@ export function ReviewQueue() {
                                                     </>
                                                 )}
                                             </div>
+                                            </div>
 
                                             {/* Price — inline edit or display */}
-                                            <div className="col-span-2">
+                                            <div className="sm:col-span-2">
                                                 {editingId === listing.id ? (
                                                     <Input
                                                         className="w-24"
@@ -267,7 +275,7 @@ export function ReviewQueue() {
                                             </div>
 
                                             {/* AI Confidence */}
-                                            <div className="col-span-2 flex flex-col items-center">
+                                            <div className="sm:col-span-2 flex sm:flex-col items-start sm:items-center">
                                                 <div className={cn(
                                                     "px-3 py-1 rounded-full border text-xs font-bold flex items-center gap-1.5 shadow-sm",
                                                     getConfidenceColor(listing.confidence_score || 0)
@@ -278,7 +286,7 @@ export function ReviewQueue() {
                                             </div>
 
                                             {/* Actions */}
-                                            <div className="col-span-2 flex items-center justify-end gap-2">
+                                            <div className="sm:col-span-2 flex items-center justify-end gap-2">
                                                 {editingId === listing.id ? (
                                                     <>
                                                         <Button variant="ghost" size="icon" className="h-9 w-9 text-brand-400 hover:text-brand-300 hover:bg-white/5" onClick={handleSaveEdit} aria-label="Save changes">

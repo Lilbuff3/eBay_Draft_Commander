@@ -8,6 +8,7 @@ import { useCommanderStore } from '@/store/useCommanderStore'
 import { Dashboard } from '@/pages/Dashboard'
 import { MobileNavBar } from '@/components/MobileNavBar'
 import { MobileUploadFAB } from '@/components/MobileUploadFAB'
+import { ApiKeyDialog } from '@/components/ApiKeyDialog'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Toaster, toast } from 'sonner'
 import { PullToRefreshIndicator } from '@/components/PullToRefreshIndicator'
@@ -42,7 +43,7 @@ function PageLoader() {
 }
 
 // Tab ordering for directional transitions
-const TAB_ORDER = ['dashboard', 'orders', 'review', 'inventory', 'sourcing', 'analytics', 'settings']
+const TAB_ORDER = ['dashboard', 'orders', 'review', 'profit', 'inventory', 'batch-scan', 'sourcing', 'analytics', 'settings']
 
 function getTabIndex(tab: string): number {
   const idx = TAB_ORDER.indexOf(tab)
@@ -217,6 +218,7 @@ export default function App() {
       <MobileNavBar />
 
       <Toaster position={isMobile ? "top-center" : "bottom-right"} richColors />
+      <ApiKeyDialog />
       <InstallPrompt />
     </div>
     </MotionConfig>
