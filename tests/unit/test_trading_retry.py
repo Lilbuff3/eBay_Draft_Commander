@@ -6,35 +6,42 @@ from unittest.mock import patch, MagicMock
 
 
 class TestTradingRetryUsesTokenManager:
-    """Bug #6: Trading API 401 retry should use TokenManager, not load_env()."""
+    """Bug #6: Trading API 401 retry should use TokenManager, not load_env().
 
-    def test_401_retry_calls_force_refresh(self):
-        """On 401, add_fixed_price_item should call TokenManager.force_refresh(), not load_env()."""
-        from backend.app.services.ebay.trading import TradingService
+    The retry loop now lives in the shared _post_trading_request helper; its
+    token refresh goes through _refresh_trading_token."""
 
-        source = inspect.getsource(TradingService.add_fixed_price_item)
+    def test_401_refresh_uses_token_manager(self):
+        """_refresh_trading_token should call TokenManager.force_refresh()."""
+        from backend.app.services.ebay import trading
 
-        # The 401 handling block should use force_refresh, not load_env
+        source = inspect.getsource(trading._refresh_trading_token)
         assert 'force_refresh' in source, \
             "401 retry path should use TokenManager.force_refresh()"
         assert 'get_access_token' in source, \
             "401 retry path should use TokenManager.get_access_token() to get new token"
 
-    def test_401_retry_does_not_use_load_env_for_refresh(self):
-        """The 401 retry code path should not call load_env() to get a refreshed token."""
+    def test_refresh_prefers_token_manager_over_env(self):
+        """load_env() is only the last-resort fallback, after TokenManager refresh."""
+        from backend.app.services.ebay import trading
+
+        source = inspect.getsource(trading._refresh_trading_token)
+        assert source.index('force_refresh') < source.index('load_env'), \
+            "TokenManager refresh must be attempted before the .env fallback"
+
+    def test_all_trading_calls_use_shared_retry_helper(self):
+        """add/get/end/revise must all post through _post_trading_request."""
         from backend.app.services.ebay.trading import TradingService
 
-        source = inspect.getsource(TradingService.add_fixed_price_item)
-
-        # Find text between '401' and the next elif/else to isolate the 401 block
-        idx_401 = source.find('401')
-        idx_next = source.find('elif', idx_401 + 1)
-        if idx_next == -1:
-            idx_next = len(source)
-        block_401 = source[idx_401:idx_next]
-
-        assert 'load_env' not in block_401, \
-            "401 retry block should not use load_env() — use TokenManager instead"
+        for method in (TradingService.add_fixed_price_item,
+                       TradingService.get_active_listings_light,
+                       TradingService.end_fixed_price_item,
+                       TradingService.revise_fixed_price_item):
+            source = inspect.getsource(method)
+            assert '_post_trading_request' in source, \
+                f"{method.__name__} should use the shared retry helper"
+            assert 'requests.post' not in source, \
+                f"{method.__name__} should not post directly (no retry coverage)"
 
 
 class TestTokenMaintainerUsesTokenManager:
