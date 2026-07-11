@@ -64,17 +64,6 @@ def build_duplicate_message(title: Optional[str], dup_label: Optional[str]) -> s
             f"so it was not listed again. Re-send if that was intentional.")
 
 
-def build_price_message(title: Optional[str], price: Any, review_reason: Optional[str]) -> str:
-    name = title or 'your item'
-    try:
-        price_str = f"${float(price):.2f}"
-    except (TypeError, ValueError):
-        price_str = f"${price}"
-    detail = f" ({review_reason})" if review_reason else ""
-    return (f"Listing \"{name}\" at {price_str} despite a price flag{detail}. "
-            f"Fix the price in the eBay app if it's off.")
-
-
 def get_notify_destination(job_metadata: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """Where to text about this job: the originating WhatsApp chat if the job
     came from the Hermes bridge, else the owner chat configured in

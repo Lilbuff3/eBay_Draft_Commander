@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useCallback, useMemo } from 'react'
+import { lazy, Suspense, useEffect, useMemo } from 'react'
 import { AnimatePresence, motion, MotionConfig } from 'framer-motion'
 import { Loader2 } from 'lucide-react'
 // Eager: app chrome + the landing tab (Dashboard). Everything else is a tab
@@ -8,28 +8,21 @@ import { useCommanderStore } from '@/store/useCommanderStore'
 import { Dashboard } from '@/pages/Dashboard'
 import { MobileNavBar } from '@/components/MobileNavBar'
 import { MobileUploadFAB } from '@/components/MobileUploadFAB'
+import { ApiKeyDialog } from '@/components/ApiKeyDialog'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Toaster, toast } from 'sonner'
-import { PullToRefreshIndicator } from '@/components/PullToRefreshIndicator'
 import { InstallPrompt } from '@/components/InstallPrompt'
 import { OfflineIndicator } from '@/components/OfflineIndicator'
 import { useJobSync } from '@/hooks/useJobSync'
-import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { onUpdateAvailable } from '@/lib/pwa'
 
 // Lazy tab bodies (named exports → default-wrap for React.lazy).
-const AnalyticsDashboard = lazy(() => import('@/components/AnalyticsDashboard').then(m => ({ default: m.AnalyticsDashboard })))
 const ActiveListings = lazy(() => import('@/components/ActiveListings').then(m => ({ default: m.ActiveListings })))
 const Settings = lazy(() => import('@/pages/Settings').then(m => ({ default: m.Settings })))
 const Orders = lazy(() => import('@/pages/Orders').then(m => ({ default: m.Orders })))
 const BatchScan = lazy(() => import('@/pages/BatchScan').then(m => ({ default: m.BatchScan })))
 const Sourcing = lazy(() => import('@/pages/Sourcing').then(m => ({ default: m.Sourcing })))
-const QuickListingForm = lazy(() => import('@/components/QuickListingForm').then(m => ({ default: m.QuickListingForm })))
-const PhotoEditor = lazy(() => import('@/components/PhotoEditor').then(m => ({ default: m.PhotoEditor })))
-const PriceResearch = lazy(() => import('@/components/PriceResearch').then(m => ({ default: m.PriceResearch })))
-const TemplateManager = lazy(() => import('@/components/TemplateManager').then(m => ({ default: m.TemplateManager })))
-const PreviewPanel = lazy(() => import('@/components/PreviewPanel').then(m => ({ default: m.PreviewPanel })))
 const ReviewQueue = lazy(() => import('@/components/listings/ReviewQueue').then(m => ({ default: m.ReviewQueue })))
 const Profit = lazy(() => import('@/pages/Profit').then(m => ({ default: m.Profit })))
 
@@ -42,7 +35,7 @@ function PageLoader() {
 }
 
 // Tab ordering for directional transitions
-const TAB_ORDER = ['dashboard', 'orders', 'review', 'inventory', 'sourcing', 'analytics', 'settings']
+const TAB_ORDER = ['dashboard', 'orders', 'review', 'profit', 'inventory', 'batch-scan', 'sourcing', 'settings']
 
 function getTabIndex(tab: string): number {
   const idx = TAB_ORDER.indexOf(tab)
@@ -60,19 +53,10 @@ export default function App() {
   const activeTab = useCommanderStore(state => state.activeTab)
   const previousTab = useCommanderStore(state => state.previousTab)
   const setActiveTab = useCommanderStore(state => state.setActiveTab)
-  const selectedJob = useCommanderStore(state => state.selectedJob)
   const isMobile = useIsMobile()
 
   // Real-time job sync initialization
-  const { refreshData } = useJobSync()
-
-  // Pull-to-refresh on mobile
-  const { pullDistance, isRefreshing } = usePullToRefresh({
-    onRefresh: useCallback(async () => {
-      await refreshData()
-    }, [refreshData]),
-    isEnabled: activeTab === 'dashboard',
-  })
+  useJobSync()
 
   // Android back button handling
   useEffect(() => {
@@ -128,7 +112,6 @@ export default function App() {
     <MotionConfig reducedMotion="user">
     <div className="dark flex h-screen bg-[#05050A] text-slate-100 relative">
       <OfflineIndicator />
-      <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
 
       {/* Desktop Sidebar */}
       <Sidebar className="hidden md:block" />
@@ -150,8 +133,6 @@ export default function App() {
               <Suspense fallback={<PageLoader />}>
               {activeTab === 'dashboard' && <Dashboard />}
 
-              {activeTab === 'create' && <QuickListingForm />}
-
               {activeTab === 'batch-scan' && (
                 <div className="h-full p-6 overflow-hidden">
                   <BatchScan />
@@ -160,43 +141,11 @@ export default function App() {
 
               {activeTab === 'sourcing' && <Sourcing />}
 
-              {activeTab === 'photo-editor' && (
-                <div className="h-full p-6 overflow-hidden">
-                  <PhotoEditor
-                    jobId={selectedJob?.id}
-                    onClose={() => setActiveTab('dashboard')}
-                  />
-                </div>
-              )}
-              {activeTab === 'price-research' && (
-                <div className="h-full p-6 overflow-hidden">
-                  <PriceResearch
-                    jobId={selectedJob?.id}
-                    initialQuery={selectedJob?.name}
-                    onClose={() => setActiveTab('dashboard')}
-                  />
-                </div>
-              )}
-              {activeTab === 'templates' && (
-                <div className="h-full p-6 overflow-hidden">
-                  <TemplateManager onClose={() => setActiveTab('dashboard')} />
-                </div>
-              )}
-              {activeTab === 'preview' && (
-                <div className="h-full p-6 overflow-hidden">
-                  <PreviewPanel
-                    jobId={selectedJob?.id}
-                    onClose={() => setActiveTab('dashboard')}
-                  />
-                </div>
-              )}
-
               {/* Business Tools */}
               {activeTab === 'orders' && <Orders />}
               {activeTab === 'profit' && <Profit />}
               {activeTab === 'inventory' && <ActiveListings />}
               {activeTab === 'review' && <ReviewQueue />}
-              {activeTab === 'analytics' && <AnalyticsDashboard />}
               {activeTab === 'settings' && <Settings />}
               </Suspense>
             </motion.div>
@@ -217,6 +166,7 @@ export default function App() {
       <MobileNavBar />
 
       <Toaster position={isMobile ? "top-center" : "bottom-right"} richColors />
+      <ApiKeyDialog />
       <InstallPrompt />
     </div>
     </MotionConfig>

@@ -7,9 +7,30 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, Save, RefreshCw, Zap } from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+interface EbayStatusDetail {
+    status: 'connected' | 'expired' | 'disconnected' | 'error' | 'checking'
+    message: string
+}
 
 export function Settings() {
     const [settings, setSettings] = useState<Record<string, string>>({})
+    const [ebayStatus, setEbayStatusDetail] = useState<EbayStatusDetail>({ status: 'checking', message: 'Checking eBay connection…' })
+
+    useEffect(() => {
+        let cancelled = false
+        void (async () => {
+            try {
+                const res = await fetchWithKey('/api/ebay/status')
+                const data = await res.json()
+                if (!cancelled) setEbayStatusDetail({ status: data.status ?? 'error', message: data.message ?? '' })
+            } catch {
+                if (!cancelled) setEbayStatusDetail({ status: 'error', message: 'Could not reach the backend' })
+            }
+        })()
+        return () => { cancelled = true }
+    }, [])
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [restarting, setRestarting] = useState(false)
@@ -191,6 +212,21 @@ export function Settings() {
                                 <CardDescription className="text-slate-400">Application keys from eBay Developer Portal</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
+                                {/* Live token status — the only place this is visible on mobile */}
+                                <div className={cn(
+                                    'flex items-center gap-2 rounded-xl border px-3 py-2 text-sm',
+                                    ebayStatus.status === 'connected' && 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300',
+                                    ebayStatus.status === 'checking' && 'bg-white/5 border-white/10 text-slate-400',
+                                    !['connected', 'checking'].includes(ebayStatus.status) && 'bg-red-500/10 border-red-500/30 text-red-300',
+                                )}>
+                                    <span className={cn(
+                                        'w-2 h-2 rounded-full shrink-0',
+                                        ebayStatus.status === 'connected' ? 'bg-emerald-400' :
+                                            ebayStatus.status === 'checking' ? 'bg-slate-500 animate-pulse' : 'bg-red-400',
+                                    )} />
+                                    <span className="font-semibold capitalize">{ebayStatus.status}</span>
+                                    <span className="text-xs opacity-80 truncate">{ebayStatus.message}</span>
+                                </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="appid" className="text-slate-200">App ID (Client ID)</Label>
                                     <Input

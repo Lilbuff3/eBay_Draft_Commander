@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Package, RefreshCw, AlertCircle, Download, ShoppingBag } from 'lucide-react'
+import { Package, RefreshCw, AlertCircle, Download, ShoppingBag, CheckSquare, Square, ListChecks, TrendingDown, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { apiFetch, fetchRecentOrders, type Order } from '@/lib/api'
+import { cn } from '@/lib/utils'
 import { MigrationModal } from './MigrationModal'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -156,6 +157,60 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
         }
     }
 
+    // --- Bulk actions (select mode) ---
+    const [selectMode, setSelectMode] = useState(false)
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+    const [bulkRunning, setBulkRunning] = useState(false)
+
+    const toggleSelected = (id: string) => setSelectedIds(prev => {
+        const next = new Set(prev)
+        if (next.has(id)) next.delete(id); else next.add(id)
+        return next
+    })
+    const exitSelectMode = () => { setSelectMode(false); setSelectedIds(new Set()) }
+
+    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+    const runBulk = async (kind: 'drop10' | 'end', targets: Listing[]) => {
+        if (targets.length === 0 || bulkRunning) return
+        const prompt = kind === 'drop10'
+            ? `Drop price 10% on ${targets.length} listing${targets.length !== 1 ? 's' : ''}?`
+            : `End ${targets.length} listing${targets.length !== 1 ? 's' : ''}?\nThis removes them from eBay. Can't be undone.`
+        if (!confirm(prompt)) return
+        setBulkRunning(true)
+        const toastId = toast.loading(`Working… 0/${targets.length}`)
+        let ok = 0, failedCount = 0
+        for (let i = 0; i < targets.length; i++) {
+            const l = targets[i]
+            try {
+                if (kind === 'drop10') {
+                    const next = parseFloat((l.price * 0.9).toFixed(2))
+                    await apiFetch(`/api/listings/${l.listingId}/price`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ price: next }),
+                    })
+                    setData(d => d ? { ...d, listings: d.listings.map(x => x.listingId === l.listingId ? { ...x, price: next } : x) } : d)
+                } else {
+                    await apiFetch(`/api/listings/${l.listingId}/end`, { method: 'POST' })
+                    setData(d => d ? { ...d, listings: d.listings.filter(x => x.listingId !== l.listingId) } : d)
+                }
+                ok++
+            } catch {
+                failedCount++
+            }
+            toast.loading(`Working… ${i + 1}/${targets.length}`, { id: toastId })
+            // eBay limiter: 5 burst, 2/sec refill — pace sequentially
+            if (i < targets.length - 1) await sleep(400)
+        }
+        toast.dismiss(toastId)
+        const verb = kind === 'drop10' ? 'Dropped price on' : 'Ended'
+        if (failedCount) toast.warning(`${verb} ${ok} — ${failedCount} failed`)
+        else toast.success(`${verb} ${ok} listing${ok !== 1 ? 's' : ''}`)
+        setBulkRunning(false)
+        exitSelectMode()
+    }
+
     // --- Derive the cockpit view ---
     const activeListings = (data?.listings || []).filter(l => l.status === 'Active' || l.status === 'PUBLISHED')
     const enriched = activeListings.map(l => {
@@ -213,6 +268,17 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
+                    {filterStatus === 'active' && (
+                        <Button
+                            variant="outline" size="sm"
+                            onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
+                            className={cn('gap-2 border-white/10 hover:bg-slate-800 hover:text-white',
+                                selectMode ? 'text-brand-300 bg-brand-500/15' : 'text-slate-300 bg-slate-900/60')}
+                        >
+                            <ListChecks size={16} />
+                            <span className="hidden sm:inline">{selectMode ? 'Done' : 'Select'}</span>
+                        </Button>
+                    )}
                     <Button variant="outline" size="sm" onClick={() => setShowMigration(true)} className="gap-2 text-brand-400 bg-slate-900/60 border-white/10 hover:bg-slate-800 hover:text-white">
                         <Download size={16} />
                         <span className="hidden sm:inline">Import</span>
@@ -301,6 +367,42 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                         <Input placeholder="Search by title or SKU…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                     </div>
 
+                    {/* Bulk action bar */}
+                    {selectMode && (() => {
+                        const selectable = shown.filter(e => e.l.listingId)
+                        const selected = selectable.filter(e => selectedIds.has(e.l.listingId!))
+                        const allShownSelected = selectable.length > 0 && selected.length === selectable.length
+                        const selectedValue = selected.reduce((s, e) => s + (e.l.price || 0), 0)
+                        return (
+                            <div className="mx-4 sm:mx-6 mb-2 rounded-2xl bg-slate-900/70 border border-brand-500/30 px-3 py-2 flex items-center gap-2 flex-wrap shrink-0">
+                                <button
+                                    onClick={() => setSelectedIds(allShownSelected ? new Set() : new Set(selectable.map(e => e.l.listingId!)))}
+                                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-300 hover:text-white"
+                                >
+                                    {allShownSelected ? <CheckSquare size={15} className="text-brand-400" /> : <Square size={15} />}
+                                    All shown ({selectable.length})
+                                </button>
+                                <span className="text-xs text-slate-500 ml-auto">
+                                    {selected.length} selected · ${Math.round(selectedValue).toLocaleString()}
+                                </span>
+                                <button
+                                    disabled={selected.length === 0 || bulkRunning}
+                                    onClick={() => runBulk('drop10', selected.map(e => e.l))}
+                                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold bg-brand-500/10 text-brand-300 border border-brand-500/20 hover:bg-brand-500/20 disabled:opacity-50 transition"
+                                >
+                                    <TrendingDown size={13} /> Drop 10%
+                                </button>
+                                <button
+                                    disabled={selected.length === 0 || bulkRunning}
+                                    onClick={() => runBulk('end', selected.map(e => e.l))}
+                                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold bg-rose-500/10 text-rose-300 border border-rose-500/20 hover:bg-rose-500/20 disabled:opacity-50 transition"
+                                >
+                                    <XCircle size={13} /> End
+                                </button>
+                            </div>
+                        )
+                    })()}
+
                     {/* Cards */}
                     <div className="flex-1 overflow-hidden relative">
                         <ScrollArea className="h-full">
@@ -318,16 +420,41 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                                 </div>
                             ) : (
                                 <div className="px-4 sm:px-6 pb-6 flex flex-col gap-2.5">
-                                    {shown.map(e => (
-                                        <InventoryCard
-                                            key={e.l.listingId || e.l.sku}
-                                            listing={e.l}
-                                            busy={busyById[e.l.listingId || '']}
-                                            onDropPrice={dropPrice}
-                                            onPromote={promote}
-                                            onEnd={endListing}
-                                        />
-                                    ))}
+                                    {shown.map(e => {
+                                        const key = e.l.listingId || e.l.sku
+                                        const card = (
+                                            <InventoryCard
+                                                key={selectMode ? undefined : key}
+                                                listing={e.l}
+                                                busy={busyById[e.l.listingId || '']}
+                                                onDropPrice={dropPrice}
+                                                onPromote={promote}
+                                                onEnd={endListing}
+                                            />
+                                        )
+                                        if (!selectMode) return card
+                                        const isSelected = !!e.l.listingId && selectedIds.has(e.l.listingId)
+                                        return (
+                                            <div
+                                                key={key}
+                                                role="checkbox"
+                                                aria-checked={isSelected}
+                                                tabIndex={0}
+                                                onClick={() => e.l.listingId && toggleSelected(e.l.listingId)}
+                                                onKeyDown={ev => { if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); e.l.listingId && toggleSelected(e.l.listingId) } }}
+                                                className={cn('relative rounded-2xl cursor-pointer transition',
+                                                    isSelected && 'ring-2 ring-brand-500')}
+                                            >
+                                                {/* Card is display-only while selecting */}
+                                                <div className="pointer-events-none">{card}</div>
+                                                <div className="absolute top-2.5 right-2.5">
+                                                    {isSelected
+                                                        ? <CheckSquare size={20} className="text-brand-400" />
+                                                        : <Square size={20} className="text-slate-500" />}
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
                                 </div>
                             )}
                         </ScrollArea>

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { ScanLine, Settings as SettingsIcon } from 'lucide-react'
+import { PlugZap, ScanLine, Settings as SettingsIcon, ShieldAlert } from 'lucide-react'
 import { motion, type Variants } from 'framer-motion'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { fetchJobs } from '@/lib/api'
@@ -28,13 +28,18 @@ import { ActivityRail } from './ActivityRail'
  *   - activity     ← ActivityRail (derived from jobs)
  */
 export function DashboardHome({ userName = 'there' }: { userName?: string }) {
-    const { data: jobs = [] } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs, refetchInterval: 4000 })
+    // Socket.IO pushes job updates when connected — only poll as a fallback
+    const isSocketConnected = useCommanderStore(s => s.isSocketConnected)
+    const { data: jobs = [] } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs, refetchInterval: isSocketConnected ? false : 5000 })
 
     const setSelectedJob = useCommanderStore(s => s.setSelectedJob)
     const setActiveTab = useCommanderStore(s => s.setActiveTab)
     const handleScan = useCommanderStore(s => s.handleScan)
     const isScanning = useCommanderStore(s => s.isScanning)
+    const ebayStatus = useCommanderStore(s => s.ebayStatus)
     const isMobile = useIsMobile()
+
+    const needsReviewCount = jobs.filter(j => j.status === 'pending_review').length
 
     const hr = new Date().getHours()
     const part = hr < 12 ? 'morning' : hr < 18 ? 'afternoon' : 'evening'
@@ -114,6 +119,40 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
                         </button>
                     </div>
                 </motion.header>
+
+                {/* eBay token dead = every listing fails. Loud, phone-visible. */}
+                {ebayStatus === 'disconnected' && (
+                    <motion.div variants={itemVariants}>
+                        <button
+                            onClick={() => setActiveTab('settings')}
+                            className="w-full flex items-center gap-3 rounded-2xl bg-red-500/10 border border-red-500/40 px-4 py-3 text-left hover:bg-red-500/15 transition-colors"
+                        >
+                            <PlugZap className="w-5 h-5 text-red-400 shrink-0" />
+                            <div className="flex-1 min-w-0">
+                                <div className="text-sm font-bold text-red-300">eBay disconnected</div>
+                                <div className="text-xs text-red-300/70">New listings will fail — tap to check the token in Settings</div>
+                            </div>
+                        </button>
+                    </motion.div>
+                )}
+
+                {/* Price-flagged jobs waiting for a human — tap through to review */}
+                {needsReviewCount > 0 && (
+                    <motion.div variants={itemVariants}>
+                        <button
+                            onClick={() => setActiveTab('review')}
+                            className="w-full flex items-center gap-3 rounded-2xl bg-amber-500/10 border border-amber-500/40 px-4 py-3 text-left hover:bg-amber-500/15 transition-colors"
+                        >
+                            <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0" />
+                            <div className="flex-1 min-w-0">
+                                <div className="text-sm font-bold text-amber-300">
+                                    {needsReviewCount} listing{needsReviewCount !== 1 ? 's' : ''} waiting for price review
+                                </div>
+                                <div className="text-xs text-amber-300/70">Approve or fix them before they go live</div>
+                            </div>
+                        </button>
+                    </motion.div>
+                )}
 
                 {/* Stats */}
                 <motion.div variants={itemVariants}>

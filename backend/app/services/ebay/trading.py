@@ -37,6 +37,103 @@ from backend.app.core.token_manager import get_token_manager
 
 logger = get_logger('ebay_trading_service')
 
+TRADING_URL = 'https://api.ebay.com/ws/api.dll'
+
+
+def _trading_headers(call_name: str) -> dict:
+    return {
+        'X-EBAY-API-SITEID': '0',
+        'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
+        'X-EBAY-API-CALL-NAME': call_name,
+        'Content-Type': 'text/xml'
+    }
+
+
+def _refresh_trading_token():
+    """Refresh the eBay access token, falling back to the .env user token."""
+    tm = get_token_manager()
+    if tm.force_refresh():
+        token = tm.get_access_token()
+        if token:
+            return token
+    creds = load_env()
+    return creds.get('EBAY_USER_TOKEN')
+
+
+def _post_trading_request(call_name: str, xml_request: str, ambiguous_guard=None):
+    """POST a Trading API XML request with 401-refresh / 429-backoff / 500-retry.
+
+    ambiguous_guard: optional callable() -> dict|None. Invoked when a request
+    may have reached eBay but the outcome is unknown (request exception after
+    send, or a 5xx) — eBay may have already committed a mutating call like
+    AddFixedPriceItem. A truthy return short-circuits the retry loop so the
+    call is never replayed against an already-committed item.
+
+    Returns (response, guard_result): guard_result is non-None only when the
+    guard short-circuited; response is the last HTTP response (or None).
+    """
+    retry_count = 0
+    max_retries = TRADING_API_MAX_RETRIES
+    response = None
+
+    while retry_count <= max_retries:
+        try:
+            response = requests.post(
+                TRADING_URL, headers=_trading_headers(call_name),
+                data=xml_request.encode('utf-8'), timeout=TRADING_API_TIMEOUT
+            )
+        except Exception as e:
+            logger.warning(f"{call_name}: Request exception: {e} (attempt {retry_count + 1}/{max_retries + 1})")
+            if ambiguous_guard:
+                guard_result = ambiguous_guard()
+                if guard_result:
+                    return response, guard_result
+            retry_count += 1
+            time.sleep(1)
+            continue
+
+        if response.status_code == 200:
+            break
+        elif response.status_code == 401:
+            logger.warning(f"{call_name}: Token expired (401), refreshing... (attempt {retry_count + 1}/{max_retries + 1})")
+            token = _refresh_trading_token()
+            if not token:
+                logger.error(f"{call_name}: No token available after refresh")
+                break
+            xml_request = _replace_auth_token(xml_request, token)
+            retry_count += 1
+            time.sleep(1)
+        elif response.status_code == 429:
+            backoff = 2 ** retry_count
+            logger.warning(f"{call_name}: Rate limited by eBay (429), backing off {backoff}s... (attempt {retry_count + 1}/{max_retries + 1})")
+            retry_count += 1
+            time.sleep(backoff)
+        elif response.status_code >= 500:
+            logger.warning(f"{call_name}: Server error ({response.status_code}), retrying... (attempt {retry_count + 1}/{max_retries + 1})")
+            if ambiguous_guard:
+                guard_result = ambiguous_guard()
+                if guard_result:
+                    return response, guard_result
+            retry_count += 1
+            time.sleep(1)
+        else:
+            logger.warning(f"{call_name}: Unexpected HTTP {response.status_code}, not retrying")
+            break
+
+    return response, None
+
+
+def _extract_trading_errors(root, ns) -> str:
+    """Join all <Errors> blocks defensively (nodes may be missing)."""
+    errors = []
+    for err in root.findall('.//e:Errors', ns):
+        code = err.find('e:ErrorCode', ns)
+        msg = err.find('e:LongMessage', ns)
+        if msg is None:
+            msg = err.find('e:ShortMessage', ns)
+        errors.append(f"{code.text if code is not None else '?'}: {msg.text if msg is not None else '?'}")
+    return '; '.join(errors)
+
 
 def _replace_auth_token(xml_str: str, new_token: str) -> str:
     """Replace eBayAuthToken in XML using proper ElementTree parsing.
@@ -72,8 +169,6 @@ class TradingService:
                 token = creds.get('EBAY_USER_TOKEN')
             if not token: return {'error': 'No token'}, 500
 
-            TRADING_URL = 'https://api.ebay.com/ws/api.dll'
-            
             # 120 days future window covers active GTC listings
             now = datetime.now(timezone.utc)
             future = now + timedelta(days=120)
@@ -111,55 +206,7 @@ class TradingService:
                   <OutputSelector>ItemArray.Item.PictureDetails.PictureURL</OutputSelector>
                 </GetSellerListRequest>"""
                 
-                headers = {
-                    'X-EBAY-API-SITEID': '0',
-                    'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
-                    'X-EBAY-API-CALL-NAME': 'GetSellerList',
-                    'Content-Type': 'text/xml'
-                }
-
-                # Retry logic
-                retry_count = 0
-                max_retries = TRADING_API_MAX_RETRIES
-                response = None
-
-                while retry_count <= max_retries:
-                    try:
-                        response = requests.post(TRADING_URL, headers=headers, data=xml_request, timeout=TRADING_API_TIMEOUT)
-                        if response.status_code == 200:
-                            break
-                        elif response.status_code == 401:
-                            logger.warning(f"GetSellerList: Token expired (401), refreshing... (attempt {retry_count + 1}/{max_retries + 1})")
-                            from backend.app.core.token_manager import get_token_manager
-                            tm = get_token_manager()
-                            if tm.force_refresh():
-                                token = tm.get_access_token()
-                            else:
-                                creds = load_env()
-                                token = creds.get('EBAY_USER_TOKEN')
-                            if not token:
-                                logger.error("GetSellerList: No token available after refresh")
-                                break
-                            # Rebuild XML with refreshed token
-                            xml_request = _replace_auth_token(xml_request, token)
-                            retry_count += 1
-                            time.sleep(1)
-                        elif response.status_code == 429:
-                            backoff = 2 ** retry_count
-                            logger.warning(f"GetSellerList: Rate limited by eBay (429), backing off {backoff}s... (attempt {retry_count + 1}/{max_retries + 1})")
-                            retry_count += 1
-                            time.sleep(backoff)
-                        elif response.status_code == 500:
-                            logger.warning(f"GetSellerList: Server error (500), retrying... (attempt {retry_count + 1}/{max_retries + 1})")
-                            retry_count += 1
-                            time.sleep(1)
-                        else:
-                            logger.warning(f"GetSellerList: Unexpected HTTP {response.status_code}, not retrying")
-                            break
-                    except Exception as e:
-                        logger.warning(f"GetSellerList: Request exception: {e} (attempt {retry_count + 1}/{max_retries + 1})")
-                        retry_count += 1
-                        time.sleep(1)
+                response, _ = _post_trading_request('GetSellerList', xml_request)
 
                 if not response or response.status_code != 200:
                     logger.error(f"GetSellerList page {page} failed: {response.status_code if response else 'No Response'}")
@@ -243,8 +290,6 @@ class TradingService:
                 token = creds.get('EBAY_USER_TOKEN')
             if not token: return {'success': False, 'error': 'No eBay User Token found'}
 
-            TRADING_URL = 'https://api.ebay.com/ws/api.dll'
-
             # Define Namespaces
             xmlns = "urn:ebay:apis:eBLBaseComponents"
 
@@ -288,7 +333,7 @@ class TradingService:
             if item_data.get('image_urls'):
                 picture_details = "<PictureDetails><GalleryType>Gallery</GalleryType>"
                 for url in item_data['image_urls']:
-                    picture_details += f"<PictureURL>{url}</PictureURL>"
+                    picture_details += f"<PictureURL>{xml_escape(str(url))}</PictureURL>"
                 picture_details += "</PictureDetails>"
 
             # Prepare Schedule Time (must be UTC: YYYY-MM-DDTHH:MM:SS.000Z)
@@ -322,10 +367,10 @@ class TradingService:
                     {tag('Title', item_data.get('title'))}
                     {tag('Description', item_data.get('description'), cdata=True)}
                     <PrimaryCategory>
-                        <CategoryID>{item_data.get('category_id', '1')}</CategoryID>
+                        <CategoryID>{xml_escape(str(item_data.get('category_id', '1')))}</CategoryID>
                     </PrimaryCategory>
-                    <StartPrice currencyID="USD">{item_data.get('price')}</StartPrice>
-                    <ConditionID>{item_data.get('condition_id', '3000')}</ConditionID>
+                    <StartPrice currencyID="USD">{xml_escape(str(item_data.get('price')))}</StartPrice>
+                    <ConditionID>{xml_escape(str(item_data.get('condition_id', '3000')))}</ConditionID>
                     {tag('SKU', item_data.get('sku'))}
                     <Country>US</Country>
                     <Currency>USD</Currency>
@@ -344,67 +389,64 @@ class TradingService:
             </{call_name}Request>
             """
 
-            headers = {
-                'X-EBAY-API-SITEID': '0',
-                'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
-                'X-EBAY-API-CALL-NAME': call_name,
-                'Content-Type': 'text/xml'
-            }
+            logger.info(f"Sending {call_name} for SKU {item_data.get('sku')}...")
 
-            logger.info(f"Sending AddFixedPriceItem for SKU {item_data.get('sku')}...")
+            # Dedupe guard: a timeout/5xx after eBay committed the item must not
+            # trigger a blind retry (that creates a second live listing). Before
+            # any ambiguous retry, check whether the SKU already went live.
+            ambiguous_guard = None
+            if not verify_only:
+                def ambiguous_guard():
+                    existing = self._find_listing_by_sku(item_data.get('sku'))
+                    if existing:
+                        logger.warning(
+                            f"AddFixedPriceItem: SKU {item_data.get('sku')} already live as item "
+                            f"{existing.get('listingId')} after ambiguous failure — recovering, not retrying"
+                        )
+                        return {
+                            'success': True,
+                            'item_id': existing.get('listingId'),
+                            'start_time': existing.get('startTime'),
+                            'status': 'Active',
+                            'recovered_duplicate': True,
+                        }
+                    return None
 
-            # Retry logic
-            retry_count = 0
-            max_retries = TRADING_API_MAX_RETRIES
-            response = None
-
-            while retry_count <= max_retries:
-                try:
-                    response = requests.post(TRADING_URL, headers=headers, data=xml_request.encode('utf-8'), timeout=TRADING_API_TIMEOUT)
-                    if response.status_code == 200:
-                        break
-                    elif response.status_code == 401:
-                        logger.warning(f"AddFixedPriceItem: Token expired (401), refreshing... (attempt {retry_count + 1}/{max_retries + 1})")
-                        tm = get_token_manager()
-                        if not tm.force_refresh():
-                            logger.error("AddFixedPriceItem: Token refresh failed")
-                            break
-                        token = tm.get_access_token()
-                        if not token:
-                            logger.error("AddFixedPriceItem: No token available after refresh")
-                            break
-                        # Rebuild XML with refreshed token
-                        xml_request = _replace_auth_token(xml_request, token)
-                        retry_count += 1
-                        time.sleep(1)
-                    elif response.status_code == 429:
-                        backoff = 2 ** retry_count
-                        logger.warning(f"AddFixedPriceItem: Rate limited by eBay (429), backing off {backoff}s... (attempt {retry_count + 1}/{max_retries + 1})")
-                        retry_count += 1
-                        time.sleep(backoff)
-                    elif response.status_code == 500:
-                        logger.warning(f"AddFixedPriceItem: Server error (500), retrying... (attempt {retry_count + 1}/{max_retries + 1})")
-                        retry_count += 1
-                        time.sleep(1)
-                    else:
-                        logger.warning(f"AddFixedPriceItem: Unexpected HTTP {response.status_code}, not retrying")
-                        break
-                except Exception as e:
-                    logger.warning(f"AddFixedPriceItem: Request exception: {e} (attempt {retry_count + 1}/{max_retries + 1})")
-                    retry_count += 1
-                    time.sleep(1)
+            response, guard_result = _post_trading_request(call_name, xml_request, ambiguous_guard=ambiguous_guard)
+            if guard_result:
+                return guard_result
 
             if not response or response.status_code != 200:
+                # Final ambiguity check: retries exhausted, but the item may
+                # still have been created by an attempt whose response we lost.
+                if ambiguous_guard:
+                    guard_result = ambiguous_guard()
+                    if guard_result:
+                        return guard_result
                 error_detail = response.text[:200] if response else 'No Response'
                 logger.error(f"Trading API HTTP Error: {response.status_code if response else 'N/A'} - {error_detail}")
                 return {'success': False, 'error': f"HTTP {response.status_code if response else 'No Response'}"}
 
-            # Parse Response
-            root = ET.fromstring(response.content)
+            # Parse Response. A 200 with an unparseable body or no Ack is
+            # ambiguous too — eBay may have committed the item.
+            try:
+                root = ET.fromstring(response.content)
+            except ET.ParseError:
+                if ambiguous_guard:
+                    guard_result = ambiguous_guard()
+                    if guard_result:
+                        return guard_result
+                logger.error(f"Trading API returned unparseable body: {response.text[:200]}")
+                return {'success': False, 'error': 'Unparseable Trading API response'}
             ns = {'e': xmlns}
-            
-            ack = root.find('.//e:Ack', ns).text
-            
+
+            ack_node = root.find('.//e:Ack', ns)
+            if ack_node is None and ambiguous_guard:
+                guard_result = ambiguous_guard()
+                if guard_result:
+                    return guard_result
+            ack = ack_node.text if ack_node is not None else 'Failure'
+
             if ack in ['Success', 'Warning']:
                 # Verify responses (and malformed ones) omit ItemID/StartTime —
                 # read defensively so parsing never throws on a valid Ack.
@@ -420,19 +462,31 @@ class TradingService:
                     'status': status
                 }
             else:
-                # Extract Errors
-                errors = []
-                for err in root.findall('.//e:Errors', ns):
-                    code = err.find('e:ErrorCode', ns).text
-                    msg = err.find('e:LongMessage', ns).text
-                    errors.append(f"{code}: {msg}")
-                
-                logger.error(f"Trading API Failure: {errors}")
-                return {'success': False, 'error': "; ".join(errors)}
+                error_text = _extract_trading_errors(root, ns)
+                logger.error(f"Trading API Failure: {error_text}")
+                return {'success': False, 'error': error_text or 'Unknown Trading API failure'}
 
         except Exception as e:
             logger.exception("AddFixedPriceItem Exception")
             return {'success': False, 'error': str(e)}
+
+    def _find_listing_by_sku(self, sku):
+        """Duplicate-listing guard: return the live listing dict for this SKU,
+        or None. Used after an ambiguous AddFixedPriceItem failure — a paginated
+        GetSellerList sweep is slow, but this only runs on the failure path and
+        SKUs (DC-{hex}) are unique per job."""
+        if not sku:
+            return None
+        try:
+            result, status = self.get_active_listings_light()
+            if status != 200:
+                return None
+            for listing in result.get('listings', []):
+                if listing.get('sku') == sku:
+                    return listing
+        except Exception as e:
+            logger.warning(f"SKU duplicate-check failed for {sku}: {e}")
+        return None
 
     def _build_item_specifics_xml(self, specifics):
         """Helper to build ItemSpecifics XML"""
@@ -548,28 +602,19 @@ class TradingService:
                     <eBayAuthToken>{token}</eBayAuthToken>
                 </RequesterCredentials>
                 <ErrorLanguage>en_US</ErrorLanguage>
-                <ItemID>{item_id}</ItemID>
-                <EndingReason>{reason}</EndingReason>
+                <ItemID>{xml_escape(str(item_id))}</ItemID>
+                <EndingReason>{xml_escape(str(reason))}</EndingReason>
             </EndFixedPriceItemRequest>"""
 
-            headers = {
-                'X-EBAY-API-SITEID': '0',
-                'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
-                'X-EBAY-API-CALL-NAME': 'EndFixedPriceItem',
-                'Content-Type': 'text/xml'
-            }
+            response, _ = _post_trading_request('EndFixedPriceItem', xml_request)
 
-            response = requests.post(
-                'https://api.ebay.com/ws/api.dll',
-                headers=headers, data=xml_request.encode('utf-8'), timeout=TRADING_API_TIMEOUT
-            )
-
-            if response.status_code != 200:
-                return {'success': False, 'error': f'HTTP {response.status_code}'}
+            if not response or response.status_code != 200:
+                return {'success': False, 'error': f"HTTP {response.status_code if response else 'No Response'}"}
 
             root = ET.fromstring(response.content)
             ns = {'e': xmlns}
-            ack = root.find('.//e:Ack', ns).text
+            ack_node = root.find('.//e:Ack', ns)
+            ack = ack_node.text if ack_node is not None else 'Failure'
 
             if ack in ['Success', 'Warning']:
                 end_time_node = root.find('.//e:EndTime', ns)
@@ -577,13 +622,9 @@ class TradingService:
                 logger.info(f"Successfully ended listing {item_id}")
                 return {'success': True, 'end_time': end_time}
             else:
-                errors = []
-                for err in root.findall('.//e:Errors', ns):
-                    code = err.find('e:ErrorCode', ns).text
-                    msg = err.find('e:LongMessage', ns).text
-                    errors.append(f"{code}: {msg}")
-                logger.error(f"EndFixedPriceItem failed: {errors}")
-                return {'success': False, 'error': '; '.join(errors)}
+                error_text = _extract_trading_errors(root, ns)
+                logger.error(f"EndFixedPriceItem failed: {error_text}")
+                return {'success': False, 'error': error_text or 'End failed'}
 
         except Exception as e:
             logger.exception("EndFixedPriceItem Exception")
@@ -616,7 +657,7 @@ class TradingService:
             if price is None and qty is None:
                 return {'success': False, 'error': 'Nothing to revise (price or qty required)'}
 
-            fields = f"<ItemID>{item_id}</ItemID>"
+            fields = f"<ItemID>{xml_escape(str(item_id))}</ItemID>"
             if price is not None:
                 fields += f"<StartPrice>{float(price):.2f}</StartPrice>"
             if qty is not None:
@@ -632,20 +673,10 @@ class TradingService:
                 <Item>{fields}</Item>
             </ReviseFixedPriceItemRequest>"""
 
-            headers = {
-                'X-EBAY-API-SITEID': '0',
-                'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
-                'X-EBAY-API-CALL-NAME': 'ReviseFixedPriceItem',
-                'Content-Type': 'text/xml'
-            }
+            response, _ = _post_trading_request('ReviseFixedPriceItem', xml_request)
 
-            response = requests.post(
-                'https://api.ebay.com/ws/api.dll',
-                headers=headers, data=xml_request.encode('utf-8'), timeout=TRADING_API_TIMEOUT
-            )
-
-            if response.status_code != 200:
-                return {'success': False, 'error': f'HTTP {response.status_code}'}
+            if not response or response.status_code != 200:
+                return {'success': False, 'error': f"HTTP {response.status_code if response else 'No Response'}"}
 
             root = ET.fromstring(response.content)
             ns = {'e': xmlns}

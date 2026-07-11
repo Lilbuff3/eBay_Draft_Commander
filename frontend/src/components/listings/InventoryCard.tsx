@@ -71,7 +71,7 @@ export function InventoryCard({ listing, busy, onDropPrice, onPromote, onEnd }: 
                 <button
                     onClick={() => setShowDrops(v => !v)}
                     disabled={anyBusy || listing.price <= 0}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-lg text-[12px] font-semibold
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 rounded-lg text-[12px] font-semibold
                                bg-brand-500/10 text-brand-300 border border-brand-500/20 hover:bg-brand-500/20
                                disabled:opacity-50 transition"
                 >
@@ -81,7 +81,7 @@ export function InventoryCard({ listing, busy, onDropPrice, onPromote, onEnd }: 
                 <button
                     onClick={() => onPromote(listing)}
                     disabled={anyBusy}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-lg text-[12px] font-semibold
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 rounded-lg text-[12px] font-semibold
                                bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/20 disabled:opacity-50 transition"
                 >
                     {busy?.promote ? <Loader2 size={13} className="animate-spin" /> : <Megaphone size={13} />}
@@ -90,7 +90,7 @@ export function InventoryCard({ listing, busy, onDropPrice, onPromote, onEnd }: 
                 <button
                     onClick={() => onEnd(listing)}
                     disabled={anyBusy}
-                    className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg text-[12px] font-semibold
+                    className="inline-flex items-center justify-center gap-1.5 h-11 px-4 rounded-lg text-[12px] font-semibold
                                bg-rose-500/10 text-rose-300 border border-rose-500/20 hover:bg-rose-500/20 disabled:opacity-50 transition"
                 >
                     {busy?.end ? <Loader2 size={13} className="animate-spin" /> : <XCircle size={13} />}
@@ -108,7 +108,7 @@ export function InventoryCard({ listing, busy, onDropPrice, onPromote, onEnd }: 
                                 key={pct}
                                 onClick={() => { setShowDrops(false); onDropPrice(listing, next) }}
                                 disabled={anyBusy}
-                                className="flex-1 h-8 rounded-lg text-[11.5px] font-semibold bg-slate-950/50 border border-white/10
+                                className="flex-1 h-11 rounded-lg text-[11.5px] font-semibold bg-slate-950/50 border border-white/10
                                            text-brand-300 hover:bg-slate-900 disabled:opacity-50 transition"
                             >
                                 −{pct}% → ${next.toFixed(2)}

@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
+import { toast } from 'sonner'
 import { ItemDetailDrawer } from '@/components/ItemDetailDrawer'
-import { ScannerListener } from '@/components/ScannerListener'
+import { ScannerListener, type ScannedBook } from '@/components/ScannerListener'
 import { useCommanderStore } from '@/store/useCommanderStore'
 import { useQueryClient } from '@tanstack/react-query'
 import { BatchSummaryDialog } from '@/components/BatchSummaryDialog'
@@ -11,6 +12,7 @@ export function Dashboard() {
     const queryClient = useQueryClient()
 
     // Store State
+    const setActiveTab = useCommanderStore(state => state.setActiveTab)
     const jobs = useCommanderStore(state => state.jobs)
     const selectedJob = useCommanderStore(state => state.selectedJob)
     const setSelectedJob = useCommanderStore(state => state.setSelectedJob)
@@ -54,10 +56,40 @@ export function Dashboard() {
         }
     }, [lastUploadedJobId, setLastUploadedJobId, setSelectedJob, queryClient])
 
+    // A wedge scan on the home screen queues the book into the Books tab
+    // (same localStorage handoff Sourcing's "Send to Books" uses — BatchScan
+    // reads 'batchScanItems' on mount).
+    const handleWedgeScan = useCallback((book: ScannedBook) => {
+        try {
+            const saved = localStorage.getItem('batchScanItems')
+            const items: unknown[] = saved ? JSON.parse(saved) : []
+            let condition = 'USED_GOOD'
+            try { condition = localStorage.getItem('batchScanSessionCondition') || 'USED_GOOD' } catch { /* default */ }
+            items.unshift({
+                id: crypto.randomUUID(),
+                isbn: book.isbn,
+                title: book.title,
+                author: book.item_specifics?.Author || '',
+                condition,
+                price: book.price?.toString() || '',
+                status: 'found',
+                stock_photo: book.stock_photo,
+                fullData: book,
+            })
+            localStorage.setItem('batchScanItems', JSON.stringify(items))
+            toast.success('Queued in Books tab', {
+                description: book.title,
+                action: { label: 'Open Books', onClick: () => setActiveTab('batch-scan') },
+            })
+        } catch {
+            toast.error('Could not queue scan — Books list storage full?')
+        }
+    }, [setActiveTab])
+
     return (
         <div className="flex-1 flex flex-col h-full overflow-hidden relative">
             {/* Hardware barcode scanner: listens globally for rapid keystrokes */}
-            <ScannerListener onScan={() => { }} />
+            <ScannerListener onScan={handleWedgeScan} />
 
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto">
