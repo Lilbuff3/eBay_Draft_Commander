@@ -3,7 +3,6 @@ from unittest.mock import MagicMock, patch
 
 from backend.app.services.whatsapp_notify import (
     build_duplicate_message,
-    build_price_message,
     get_whatsapp_origin,
     notify_whatsapp,
 )
@@ -68,11 +67,6 @@ def test_notify_false_on_non_2xx():
 def test_duplicate_message_mentions_skip_and_label():
     msg = build_duplicate_message('Vintage Shears', '12345')
     assert 'Skipped' in msg and 'Vintage Shears' in msg and '12345' in msg
-
-
-def test_price_message_formats_price_and_reason():
-    msg = build_price_message('Rare Camera', 1091.99, 'Price $1091.99 exceeds review threshold')
-    assert 'Rare Camera' in msg and '$1091.99' in msg and 'eBay app' in msg
 
 
 # --- get_notify_destination (owner-chat fallback for web jobs) --------------

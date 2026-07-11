@@ -159,14 +159,6 @@ export async function pauseQueue(): Promise<{ success: boolean; message?: string
     return apiFetch(`${API_BASE}/pause`, { method: 'POST' })
 }
 
-export async function resumeQueue(): Promise<{ success: boolean; message?: string }> {
-    return apiFetch(`${API_BASE}/resume`, { method: 'POST' })
-}
-
-export async function retryFailed(): Promise<{ success: boolean; retried?: number }> {
-    return apiFetch(`${API_BASE}/retry`, { method: 'POST' })
-}
-
 export async function deleteJob(jobId: string, deleteFolder = false): Promise<{ success: boolean }> {
     return apiFetch(`${API_BASE}/jobs/bulk-delete`, {
         method: 'POST',
@@ -277,14 +269,6 @@ export async function createListing(params: CreateListingParams): Promise<Create
 
 export async function scanInbox(): Promise<{ success: boolean; added: number; total: number; message: string }> {
     return apiFetch(`${API_BASE}/scan`, { method: 'POST' })
-}
-
-export async function addFolderToQueue(path: string): Promise<{ success: boolean; count: number; message: string }> {
-    return apiFetch(`${API_BASE}/queue/add-folder`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path })
-    })
 }
 
 export async function softRestart(): Promise<{ success: boolean; message: string }> {
