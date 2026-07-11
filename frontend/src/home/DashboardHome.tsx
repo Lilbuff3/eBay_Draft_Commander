@@ -28,7 +28,9 @@ import { ActivityRail } from './ActivityRail'
  *   - activity     ← ActivityRail (derived from jobs)
  */
 export function DashboardHome({ userName = 'there' }: { userName?: string }) {
-    const { data: jobs = [] } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs, refetchInterval: 4000 })
+    // Socket.IO pushes job updates when connected — only poll as a fallback
+    const isSocketConnected = useCommanderStore(s => s.isSocketConnected)
+    const { data: jobs = [] } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs, refetchInterval: isSocketConnected ? false : 5000 })
 
     const setSelectedJob = useCommanderStore(s => s.setSelectedJob)
     const setActiveTab = useCommanderStore(s => s.setActiveTab)

@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { fetchWithKey } from '@/lib/api'
+import { isLikelyIsbn, normalizeIsbn } from '@/lib/isbn'
 
-interface BookData {
+export interface ScannedBook {
+    isbn: string;
     title: string;
     item_specifics: Record<string, string>;
     description: string;
@@ -10,6 +12,7 @@ interface BookData {
     price: number;
     stock_photo: string;
 }
+type BookData = ScannedBook;
 
 interface ScannerListenerProps {
     onScan: (data: BookData) => void;
@@ -39,9 +42,8 @@ export function ScannerListener({ onScan }: Omit<ScannerListenerProps, 'isScanni
 
             if (e.key === 'Enter') {
                 const currentBuffer = bufferRef.current;
-                // ISBNs are 10 or 13 digits
-                if (currentBuffer.length >= 10 && /^\d+$/.test(currentBuffer)) {
-                    await lookupISBN(currentBuffer);
+                if (isLikelyIsbn(currentBuffer)) {
+                    await lookupISBN(normalizeIsbn(currentBuffer));
                 }
                 bufferRef.current = '';
             } else if (e.key.length === 1) {
@@ -59,8 +61,7 @@ export function ScannerListener({ onScan }: Omit<ScannerListenerProps, 'isScanni
                 toast.dismiss(toastId);
 
                 if (data.success) {
-                    toast.success("Book Found!", { description: data.title });
-                    onScan(data);
+                    onScan({ ...data, isbn });
                 } else {
                     toast.error("Book not found in catalog", { description: `ISBN: ${isbn}` });
                 }

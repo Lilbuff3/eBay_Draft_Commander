@@ -17,16 +17,18 @@ export function ReviewQueue() {
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [isRefreshing, setIsRefreshing] = useState(false)
     const [isLoading, setIsLoading] = useState(true)
+    const [loadFailed, setLoadFailed] = useState(false)
     const [editingId, setEditingId] = useState<string | null>(null)
     const [editValues, setEditValues] = useState<{ title: string; price: string }>({ title: '', price: '' })
 
     useEffect(() => {
-        fetchPending().finally(() => setIsLoading(false))
+        fetchPending().then(ok => setLoadFailed(!ok)).finally(() => setIsLoading(false))
     }, [fetchPending])
 
     const handleRefresh = async () => {
         setIsRefreshing(true)
-        await fetchPending()
+        const ok = await fetchPending()
+        setLoadFailed(!ok)
         setSelectedIds([]) // Clear stale selections
         setIsRefreshing(false)
     }
@@ -146,7 +148,18 @@ export function ReviewQueue() {
                 </div>
             </div>
 
-            {pendingListings.length === 0 ? (
+            {loadFailed && pendingListings.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-24 bg-slate-900/20 border-2 border-dashed border-rose-500/20 rounded-3xl">
+                    <div className="w-16 h-16 bg-slate-950/40 rounded-2xl flex items-center justify-center shadow-glass mb-4 border border-white/5">
+                        <AlertCircle className="text-rose-400" size={32} />
+                    </div>
+                    <h3 className="text-white font-bold text-lg">Couldn't load the review queue</h3>
+                    <p className="text-slate-400 max-w-sm text-center mb-4">The backend didn't respond — there may still be listings waiting for review.</p>
+                    <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-2 text-slate-300 border-white/10 hover:bg-slate-800 hover:text-white">
+                        <RefreshCcw size={16} /> Retry
+                    </Button>
+                </div>
+            ) : pendingListings.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-24 bg-slate-900/20 border-2 border-dashed border-white/5 rounded-3xl">
                     <div className="w-16 h-16 bg-slate-950/40 rounded-2xl flex items-center justify-center shadow-glass mb-4 border border-white/5">
                         <ShieldCheck className="text-slate-500" size={32} />

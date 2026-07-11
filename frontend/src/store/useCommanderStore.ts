@@ -22,6 +22,8 @@ interface CommanderState {
     setQueueStats: (stats: QueueStats) => void
     isProcessing: boolean
     setIsProcessing: (isProcessing: boolean) => void
+    isSocketConnected: boolean
+    setIsSocketConnected: (isSocketConnected: boolean) => void
     ebayStatus: 'connected' | 'disconnected' | 'checking'
     setEbayStatus: (status: 'connected' | 'disconnected' | 'checking') => void
 
@@ -40,7 +42,7 @@ interface CommanderState {
     handleStart: () => Promise<void>
     handlePause: () => Promise<void>
     handleScan: () => Promise<void>
-    fetchPending: () => Promise<void>
+    fetchPending: () => Promise<boolean>
     updatePending: (id: string, updates: { title?: string; price?: string; condition?: string }) => Promise<void>
     approvePending: (ids: string[]) => Promise<void>
     deletePending: (id: string, deleteFolder?: boolean) => Promise<void>
@@ -100,6 +102,8 @@ export const useCommanderStore = create<CommanderState>((set, get) => ({
     setQueueStats: (queueStats) => set({ queueStats }),
     isProcessing: false,
     setIsProcessing: (isProcessing) => set({ isProcessing }),
+    isSocketConnected: false,
+    setIsSocketConnected: (isSocketConnected) => set({ isSocketConnected }),
     ebayStatus: 'checking',
     setEbayStatus: (ebayStatus) => set({ ebayStatus }),
 
@@ -173,9 +177,11 @@ export const useCommanderStore = create<CommanderState>((set, get) => ({
         try {
             const listings = await fetchPendingListings()
             set({ pendingListings: listings })
+            return true
         } catch (err) {
             console.error(err)
             toast.error('Failed to fetch pending listings')
+            return false
         }
     },
 

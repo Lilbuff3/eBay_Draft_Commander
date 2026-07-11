@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { RefreshCw, Wallet } from 'lucide-react'
+import { AlertCircle, RefreshCw, Wallet } from 'lucide-react'
+import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -69,6 +70,8 @@ function CogsCell({ item, onSaved }: { item: LedgerItem; onSaved: () => void }) 
                 body: JSON.stringify({ cogs: v }),
             })
             onSaved()
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : 'Failed to save cost')
         } finally {
             setEditing(false)
         }
@@ -104,9 +107,11 @@ export function Profit() {
     const [summary, setSummary] = useState<LedgerSummary | null>(null)
     const [items, setItems] = useState<LedgerItem[]>([])
     const [loading, setLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
 
     const load = useCallback(async () => {
         setLoading(true)
+        setError(null)
         try {
             // Fetch orders first so the sweep runs and the ledger is fresh
             await apiFetch('/api/orders?days=30').catch(() => null)
@@ -116,6 +121,9 @@ export function Profit() {
             ])
             setSummary(s)
             setItems(i.items)
+        } catch (e) {
+            // A failed load must never render as "$0.00, no sales"
+            setError(e instanceof Error ? e.message : 'Failed to load ledger')
         } finally {
             setLoading(false)
         }
@@ -143,6 +151,14 @@ export function Profit() {
                         <RefreshCw size={16} className={cn(loading && 'animate-spin')} />
                     </button>
                 </div>
+
+                {error && (
+                    <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-3 py-2 text-sm text-red-300 flex items-center gap-2">
+                        <AlertCircle size={16} className="shrink-0" />
+                        <span className="flex-1">{error}</span>
+                        <button onClick={() => void load()} className="underline shrink-0">Retry</button>
+                    </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-3">
                     <WeekCard week={summary?.weeks[0]} label="This week" />
@@ -181,7 +197,7 @@ export function Profit() {
                             </div>
                         </div>
                     ))}
-                    {!loading && items.length === 0 && (
+                    {!loading && !error && items.length === 0 && (
                         <div className="text-center text-slate-500 text-sm py-10">
                             No sales recorded yet — sales appear after your next order sync
                         </div>

@@ -17,8 +17,11 @@ export function useJobSync() {
     const queryClient = useQueryClient()
     const socketRef = useRef<Socket | null>(null)
     const [isSocketConnected, setIsSocketConnected] = useState(false)
+    const disconnectToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const warnedDisconnect = useRef(false)
 
     // Store Actions
+    const storeSetSocketConnected = useCommanderStore(state => state.setIsSocketConnected)
     const storeSetJobs = useCommanderStore(state => state.setJobs)
     const setQueueStats = useCommanderStore(state => state.setQueueStats)
     const setIsProcessing = useCommanderStore(state => state.setIsProcessing)
@@ -110,14 +113,30 @@ export function useJobSync() {
 
         socket.on('connect', () => {
             console.debug('Connected to Event Bus')
+            if (disconnectToastTimer.current) {
+                clearTimeout(disconnectToastTimer.current)
+                disconnectToastTimer.current = null
+            }
             setIsSocketConnected(true)
+            storeSetSocketConnected(true)
             refreshData()
         })
 
         socket.on('disconnect', (reason: string) => {
             console.warn('Socket.IO disconnected:', reason)
             setIsSocketConnected(false)
-            toast.warning('Live updates disconnected — switching to polling mode')
+            storeSetSocketConnected(false)
+            // Phone lock / brief network blips reconnect within seconds — only
+            // warn if the disconnect sticks, and at most once per session.
+            if (!warnedDisconnect.current && !disconnectToastTimer.current) {
+                disconnectToastTimer.current = setTimeout(() => {
+                    disconnectToastTimer.current = null
+                    if (!socket.connected) {
+                        warnedDisconnect.current = true
+                        toast.warning('Live updates disconnected — switching to polling mode')
+                    }
+                }, 10000)
+            }
         })
 
         socket.on('reconnect_failed', () => {
@@ -207,6 +226,10 @@ export function useJobSync() {
         })
 
         return () => {
+            if (disconnectToastTimer.current) {
+                clearTimeout(disconnectToastTimer.current)
+                disconnectToastTimer.current = null
+            }
             socket.off('connect')
             socket.off('disconnect')
             socket.off('reconnect_failed')
@@ -216,7 +239,7 @@ export function useJobSync() {
             socket.off('batch_complete')
             socket.disconnect()
         }
-    }, [queryClient, refreshData, addLog, hapticSuccess, hapticError])
+    }, [queryClient, refreshData, addLog, hapticSuccess, hapticError, storeSetSocketConnected])
 
     return {
         refreshData,

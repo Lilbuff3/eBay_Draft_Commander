@@ -238,7 +238,9 @@ export function BatchScan() {
 
     // Persistence Effect
     useEffect(() => {
-        localStorage.setItem('batchScanItems', JSON.stringify(items))
+        try {
+            localStorage.setItem('batchScanItems', JSON.stringify(items))
+        } catch { /* storage full / private mode — keep scanning, just unpersisted */ }
     }, [items])
 
 
