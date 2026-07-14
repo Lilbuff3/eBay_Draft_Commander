@@ -6,6 +6,7 @@ optional multipart photo, and validation errors.
 
 import io
 import json
+import re
 import pytest
 from pathlib import Path
 from unittest.mock import patch
@@ -127,6 +128,19 @@ class TestBookMetadataCreate:
                 content_type='multipart/form-data',
             )
         assert resp.status_code == 400
+
+    def test_creates_get_distinct_collision_proof_folders(self, client_qm):
+        """Two creates must never share a folder — the batch-path photo-merge guard.
+
+        Folder name uses a full uuid so same-second requests can't collide on the
+        suffix and silently merge two items' photos into one listing."""
+        client, qm = client_qm
+        j1 = qm.get_job_by_id(_post_book(client).get_json()['jobId'])
+        j2 = qm.get_job_by_id(_post_book(client).get_json()['jobId'])
+        assert j1.folder_path != j2.folder_path
+        for job in (j1, j2):
+            name = Path(job.folder_path).name
+            assert re.fullmatch(r'metadata_import_\d+_[0-9a-f]{32}', name), name
 
     def test_plain_metadata_import_still_works(self, client_qm):
         """Non-book path (no isbn, no condition) unchanged."""

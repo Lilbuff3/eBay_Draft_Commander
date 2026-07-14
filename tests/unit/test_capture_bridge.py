@@ -1,7 +1,9 @@
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 from PIL import Image
-from integrations.hermes.capture_to_dc import build_item_folder, capture, send_whatsapp, cancel_last
+from integrations.hermes.capture_to_dc import (
+    build_item_folder, capture, send_whatsapp, cancel_last, collect_and_capture,
+)
 
 def _png(path):
     Image.new('RGB', (10, 10), (200, 100, 50)).save(path)
@@ -85,3 +87,62 @@ def test_send_whatsapp_posts_to_bridge():
     assert mock_post.called
     assert mock_post.call_args.kwargs['json'] == {'chatId': 'chat@lid', 'message': 'hello there'}
     assert '127.0.0.1:3000/send' in str(mock_post.call_args.args[0])
+
+
+def _stage(pending, name, body):
+    pending.mkdir(parents=True, exist_ok=True)
+    (pending / name).write_text(body)
+
+
+def test_collect_isolates_second_item_during_capture(tmp_path):
+    """Regression: two items' photos must never merge into one listing.
+
+    Models the real merge bug — a second 'sell' fires while the first item is still in
+    its capture/poll window. The fix atomically claims item A's frames out of the shared
+    buffer BEFORE the long capture, so B's frames (arriving mid-analysis) stay isolated
+    and are captured on their own, not swept in or destroyed."""
+    captures = tmp_path / "captures"; captures.mkdir()
+    chat = "chat@lid"
+    safe = "chat_lid"  # re.sub of non-alnum -> _
+    pending = captures / ".pending" / safe
+    # Item A: three frames staged and ready.
+    for i in range(3):
+        _stage(pending, f"a{i}.jpg", f"A{i}")
+
+    recorded_a = {}
+
+    def fake_capture_a(image_paths, **kwargs):
+        recorded_a['paths'] = list(image_paths)
+        # Item B arrives DURING A's analysis: plugin recreates the shared buffer.
+        _stage(captures / ".pending" / safe, "b0.jpg", "B0")
+        _stage(captures / ".pending" / safe, "b1.jpg", "B1")
+        return "captured-A"
+
+    with patch('integrations.hermes.capture_to_dc.capture', side_effect=fake_capture_a):
+        msg_a = collect_and_capture(chat, api_base='http://x', captures_dir=str(captures), debounce=0)
+    assert msg_a == "captured-A"
+    # A captured exactly its own 3 frames — none of B's.
+    names_a = [Path(p).name for p in recorded_a['paths']]
+    assert sorted(names_a) == ['a0.jpg', 'a1.jpg', 'a2.jpg']
+
+    recorded_b = {}
+
+    def fake_capture_b(image_paths, **kwargs):
+        recorded_b['paths'] = list(image_paths)
+        return "captured-B"
+
+    with patch('integrations.hermes.capture_to_dc.capture', side_effect=fake_capture_b):
+        msg_b = collect_and_capture(chat, api_base='http://x', captures_dir=str(captures), debounce=0)
+    assert msg_b == "captured-B"
+    # B survived A's capture and is listed on its own — exactly its 2 frames.
+    names_b = [Path(p).name for p in recorded_b['paths']]
+    assert sorted(names_b) == ['b0.jpg', 'b1.jpg']
+
+    # No private claim dirs leaked behind.
+    assert list((captures / ".pending").glob(".claimed_*")) == []
+
+
+def test_collect_no_photos_returns_message(tmp_path):
+    captures = tmp_path / "captures"; captures.mkdir()
+    msg = collect_and_capture("chat@lid", api_base='http://x', captures_dir=str(captures), debounce=0)
+    assert msg == "No photos found to list."

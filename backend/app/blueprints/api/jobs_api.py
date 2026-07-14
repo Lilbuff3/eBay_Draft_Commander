@@ -487,10 +487,13 @@ def create_job_from_metadata():
                 return error_response(f'File type not allowed: {photo_file.filename}', 400)
 
         qm = current_app.queue_manager
-        folder_name = f"metadata_import_{int(time.time())}_{uuid.uuid4().hex[:4]}"
+        # Full uuid (not a 4-hex slice) so two same-second creates can't collide on the
+        # suffix; exist_ok=False turns any residual collision into a loud error instead of
+        # a silent two-item folder merge (cover.jpg / photo_1 overwriting each other).
+        folder_name = f"metadata_import_{int(time.time())}_{uuid.uuid4().hex}"
         inbox_dir = _ensure_inbox_dir()
         job_folder = inbox_dir / folder_name
-        job_folder.mkdir(exist_ok=True)
+        job_folder.mkdir(exist_ok=False)
 
         # Cover: Open Library by ISBN (big enough for eBay), else the provided
         # thumbnail (SSRF-validated here; cover_service upscales small images).
@@ -547,10 +550,11 @@ def upload_files():
     files = request.files.getlist('files[]')
     if not files: return error_response('No files selected', 400)
     qm = current_app.queue_manager
-    folder_name = f"mobile_upload_{int(time.time())}_{uuid.uuid4().hex[:4]}"
+    # Full uuid + exist_ok=False: unique per request, no silent same-second folder merge.
+    folder_name = f"mobile_upload_{int(time.time())}_{uuid.uuid4().hex}"
     inbox_dir = _ensure_inbox_dir()
     job_folder = inbox_dir / folder_name
-    job_folder.mkdir(exist_ok=True)
+    job_folder.mkdir(exist_ok=False)
     saved_count = 0
     rejected = []
     try:

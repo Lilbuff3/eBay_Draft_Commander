@@ -177,20 +177,30 @@ def collect_and_capture(chat_id, api_base=None, captures_dir=None, debounce=3.0,
     captures_dir = captures_dir or DEFAULT_CAPTURES_DIR
     if not captures_dir:
         return "DC_CAPTURES_DIR not configured - cannot capture."
+    import shutil as _sh
     safe = _re.sub(r"[^A-Za-z0-9_.-]", "_", str(chat_id))
     staging = Path(captures_dir) / ".pending" / safe
     time.sleep(debounce)  # let trailing album frames arrive before we gather
     if not staging.is_dir():
         return "No photos found to list."
-    paths = sorted(str(p) for p in staging.iterdir() if p.is_file())
+    # Atomically claim this item's frames BEFORE the long capture/poll, so a second
+    # item's "sell" during our analysis window can't be swept in or destroyed (the
+    # photo-merge bug). Dir rename is atomic: concurrent collects race here, only one
+    # wins; the next item's photos recreate a fresh empty .pending/<chat>/.
+    claimed = Path(captures_dir) / ".pending" / f".claimed_{safe}_{uuid.uuid4().hex[:8]}"
+    try:
+        os.rename(staging, claimed)
+    except OSError:
+        return "No photos found to list."  # already claimed by a concurrent flush
+    paths = sorted(str(p) for p in claimed.iterdir() if p.is_file())
     if not paths:
+        _sh.rmtree(claimed, ignore_errors=True)
         return "No photos found to list."
     try:
         return capture(paths, api_base=api_base, captures_dir=captures_dir, note=note,
                        chat_id=chat_id, bridge_port=bridge_port)
     finally:
-        import shutil as _sh
-        _sh.rmtree(staging, ignore_errors=True)  # clear the buffer regardless of outcome
+        _sh.rmtree(claimed, ignore_errors=True)  # clear our private snapshot
 
 
 if __name__ == '__main__':
