@@ -39,17 +39,17 @@ const money = (n: number | null | undefined) =>
 
 function WeekCard({ week, label }: { week: LedgerWeek | undefined; label: string }) {
     return (
-        <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
-            <div className="text-xs uppercase tracking-wide text-slate-400 mb-1">{label}</div>
+        <div className="rounded-2xl bg-stone-100 border border-stone-200 p-4">
+            <div className="text-xs uppercase tracking-wide text-stone-500 mb-1">{label}</div>
             <div className={cn('text-2xl font-bold',
-                (week?.net ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                (week?.net ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600')}>
                 {money(week?.net ?? 0)}
             </div>
-            <div className="text-xs text-slate-400 mt-1">
+            <div className="text-xs text-stone-500 mt-1">
                 {week ? `${week.sold_count} sold · ${money(week.revenue)} gross` : 'no sales'}
             </div>
             {week && week.missing_cogs > 0 && (
-                <div className="text-xs text-amber-400 mt-1">
+                <div className="text-xs text-amber-600 mt-1">
                     {week.missing_cogs} missing cost — net understated
                 </div>
             )}
@@ -78,14 +78,20 @@ function CogsCell({ item, onSaved }: { item: LedgerItem; onSaved: () => void }) 
     }
     if (item.cogs !== null && !editing) {
         return (
-            <button className="text-slate-300 hover:text-white" onClick={() => { setValue(String(item.cogs)); setEditing(true) }}>
+            <button
+                className="min-h-[44px] px-2 -mx-2 rounded-lg text-stone-600 hover:bg-stone-100 hover:text-ink-800"
+                onClick={() => { setValue(String(item.cogs)); setEditing(true) }}
+            >
                 {money(item.cogs)}
             </button>
         )
     }
     if (!editing) {
         return (
-            <button className="text-amber-400 underline decoration-dotted" onClick={() => setEditing(true)}>
+            <button
+                className="min-h-[44px] px-2 -mx-2 rounded-lg text-amber-700 underline decoration-dotted hover:bg-amber-50"
+                onClick={() => setEditing(true)}
+            >
                 add cost
             </button>
         )
@@ -94,7 +100,7 @@ function CogsCell({ item, onSaved }: { item: LedgerItem; onSaved: () => void }) 
         <input
             autoFocus
             inputMode="decimal"
-            className="w-16 rounded bg-white/10 border border-white/20 px-1 py-0.5 text-right text-white"
+            className="w-16 rounded bg-stone-50 border border-stone-300 px-1 py-0.5 text-right text-ink-800"
             value={value}
             onChange={e => setValue(e.target.value)}
             onBlur={save}
@@ -138,14 +144,14 @@ export function Profit() {
             <div className="mx-auto max-w-3xl space-y-4 pb-24">
                 <div className="flex items-center justify-between gap-3">
                     <div>
-                        <h1 className="text-2xl font-display font-bold text-white tracking-tight flex items-center gap-2">
+                        <h1 className="text-2xl font-display font-bold text-ink-800 tracking-tight flex items-center gap-2">
                             <Wallet size={22} /> Profit
                         </h1>
-                        <p className="text-slate-400 text-sm">Real net after fees, shipping and cost of goods</p>
+                        <p className="text-stone-500 text-sm">Real net after fees, shipping and cost of goods</p>
                     </div>
                     <button
                         onClick={() => void load()}
-                        className="rounded-xl bg-white/10 border border-white/10 p-2 text-slate-300 hover:text-white"
+                        className="grid size-11 shrink-0 place-items-center rounded-xl bg-stone-100 border border-stone-200 text-stone-600 hover:bg-stone-200 hover:text-ink-800"
                         aria-label="Refresh"
                     >
                         <RefreshCw size={16} className={cn(loading && 'animate-spin')} />
@@ -153,7 +159,7 @@ export function Profit() {
                 </div>
 
                 {error && (
-                    <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-3 py-2 text-sm text-red-300 flex items-center gap-2">
+                    <div className="rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700 flex items-center gap-2">
                         <AlertCircle size={16} className="shrink-0" />
                         <span className="flex-1">{error}</span>
                         <button onClick={() => void load()} className="underline shrink-0">Retry</button>
@@ -166,20 +172,20 @@ export function Profit() {
                 </div>
 
                 {missing > 0 && (
-                    <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-sm text-amber-300">
+                    <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-700">
                         {missing} sold item{missing !== 1 ? 's' : ''} missing cost — tap “add cost” below to fix your numbers
                     </div>
                 )}
 
                 <div className="space-y-2">
                     {items.map(item => (
-                        <div key={item.order_id} className="rounded-2xl bg-white/5 border border-white/10 p-3 flex items-center gap-3">
+                        <div key={item.order_id} className="rounded-2xl bg-stone-100 border border-stone-200 p-3 flex items-center gap-3">
                             {item.thumbnailUrl
                                 ? <img src={item.thumbnailUrl} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
-                                : <div className="w-12 h-12 rounded-lg bg-white/10 shrink-0" />}
+                                : <div className="w-12 h-12 rounded-lg bg-stone-100 shrink-0" />}
                             <div className="min-w-0 flex-1">
-                                <div className="text-sm text-white truncate">{item.title || item.order_id}</div>
-                                <div className="text-xs text-slate-400">
+                                <div className="text-sm text-ink-800 truncate">{item.title || item.order_id}</div>
+                                <div className="text-xs text-stone-500">
                                     {money(item.sale_total)} sale
                                     {item.days_to_sell !== null && ` · ${item.days_to_sell}d to sell`}
                                     {item.roi !== null && ` · ${Math.round(item.roi * 100)}% ROI`}
@@ -187,8 +193,8 @@ export function Profit() {
                             </div>
                             <div className="text-right shrink-0">
                                 <div className={cn('text-sm font-semibold',
-                                    item.net === null ? 'text-slate-500'
-                                        : item.net >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                                    item.net === null ? 'text-stone-500'
+                                        : item.net >= 0 ? 'text-emerald-600' : 'text-red-600')}>
                                     {item.net === null ? 'net ?' : money(item.net)}
                                 </div>
                                 <div className="text-xs">
@@ -198,7 +204,7 @@ export function Profit() {
                         </div>
                     ))}
                     {!loading && !error && items.length === 0 && (
-                        <div className="text-center text-slate-500 text-sm py-10">
+                        <div className="text-center text-stone-500 text-sm py-10">
                             No sales recorded yet — sales appear after your next order sync
                         </div>
                     )}

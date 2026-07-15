@@ -32,21 +32,21 @@ export function OrderStats() {
     return (
         <button
             onClick={() => setActiveTab('orders')}
-            className={`w-full text-left rounded-3xl border backdrop-blur-xl px-4 py-4 flex items-center gap-3 transition shadow-lg ${
+            className={`w-full text-left rounded-3xl border px-4 py-4 flex items-center gap-3 transition shadow-sm hover:shadow-md ${
                 hot
-                    ? 'border-red-500/40 bg-red-500/15 hover:bg-red-500/25'
-                    : 'border-slate-700/50 bg-slate-900/40 hover:bg-slate-900/60'
+                    ? 'border-red-300 bg-red-50 hover:bg-red-100'
+                    : 'border-stone-200 bg-paper-card hover:bg-stone-50'
             }`}
         >
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${hot ? 'bg-red-500/30 text-red-300' : 'bg-slate-800 text-slate-400'}`}>
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${hot ? 'bg-red-100 text-red-600' : 'bg-stone-100 text-stone-500'}`}>
                 {hot ? <AlertTriangle size={20} /> : <ShoppingBag size={20} />}
             </div>
             <div className="min-w-0">
-                <div className={`font-display font-bold text-[16px] tracking-tight ${hot ? 'text-red-200' : 'text-white'}`}>
+                <div className={`font-display font-bold text-[16px] tracking-tight ${hot ? 'text-red-800' : 'text-ink-800'}`}>
                     {needsShipping} {needsShipping === 1 ? 'order needs' : 'orders need'} shipping
                     {overdue.length > 0 ? ` — ${overdue.length} overdue` : ''}
                 </div>
-                <div className={`text-[12px] mt-0.5 truncate ${hot ? 'text-red-300/90' : 'text-slate-400'}`}>
+                <div className={`text-sm mt-0.5 truncate ${hot ? 'text-red-700' : 'text-stone-500'}`}>
                     {worst ? `${worst.o.itemTitle ?? worst.o.orderId} · ${shipLabel(worst.o)}` : ''} · tap to view
                 </div>
             </div>

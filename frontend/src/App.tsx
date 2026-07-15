@@ -1,6 +1,5 @@
-import { lazy, Suspense, useEffect, useMemo } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef } from 'react'
 import { AnimatePresence, motion, MotionConfig } from 'framer-motion'
-import { Loader2 } from 'lucide-react'
 // Eager: app chrome + the landing tab (Dashboard). Everything else is a tab
 // body loaded on demand so recharts/dnd-kit/etc. stay off the cold-load path.
 import { Sidebar } from '@/components/Sidebar'
@@ -26,16 +25,33 @@ const Sourcing = lazy(() => import('@/pages/Sourcing').then(m => ({ default: m.S
 const ReviewQueue = lazy(() => import('@/components/listings/ReviewQueue').then(m => ({ default: m.ReviewQueue })))
 const Profit = lazy(() => import('@/pages/Profit').then(m => ({ default: m.Profit })))
 
+// Content-shaped rather than a bare spinner: a lazy tab arriving over a phone
+// connection otherwise flashes an empty screen on every switch.
 function PageLoader() {
   return (
-    <div className="flex h-full items-center justify-center">
-      <Loader2 className="h-6 w-6 animate-spin text-stone-400" />
+    <div className="p-4 sm:p-6 flex flex-col gap-4 animate-pulse" aria-busy="true" aria-label="Loading">
+      <div className="h-8 w-48 rounded-lg bg-stone-200" />
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="h-24 rounded-3xl bg-stone-200" />
+        <div className="h-24 rounded-3xl bg-stone-200" />
+        <div className="h-24 rounded-3xl bg-stone-200 hidden md:block" />
+      </div>
+      <div className="flex flex-col gap-3">
+        <div className="h-20 rounded-3xl bg-stone-200" />
+        <div className="h-20 rounded-3xl bg-stone-200" />
+        <div className="h-20 rounded-3xl bg-stone-200" />
+      </div>
     </div>
   )
 }
 
-// Tab ordering for directional transitions
-const TAB_ORDER = ['dashboard', 'orders', 'review', 'profit', 'inventory', 'batch-scan', 'sourcing', 'settings']
+// Tabs that already own the capture affordance, plus Settings.
+const FAB_HIDDEN_TABS = new Set(['batch-scan', 'sourcing', 'settings'])
+
+// Tab ordering for directional transitions. Mirrors the mobile bar's left-to-right
+// order (Home · Review · Inventory · Orders · More) so a swipe animates the way the
+// nav implies; the More-sheet tabs trail behind it.
+const TAB_ORDER = ['dashboard', 'review', 'inventory', 'orders', 'sourcing', 'batch-scan', 'profit', 'settings']
 
 function getTabIndex(tab: string): number {
   const idx = TAB_ORDER.indexOf(tab)
@@ -58,22 +74,35 @@ export default function App() {
   // Real-time job sync initialization
   useJobSync()
 
-  // Android back button handling
+  // Android back: go to the tab the popped entry names, not always the dashboard.
+  // `skipPush` stops the resulting setActiveTab from pushing a fresh entry —
+  // without it, back would re-push the tab it just left and never unwind.
+  const skipPush = useRef(false)
   useEffect(() => {
-    const handlePopState = () => {
-      if (activeTab !== 'dashboard') {
-        setActiveTab('dashboard')
-      }
+    const handlePopState = (e: PopStateEvent) => {
+      const tab = (e.state as { tab?: string } | null)?.tab
+      skipPush.current = true
+      setActiveTab(tab ?? 'dashboard')
     }
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
-  }, [activeTab, setActiveTab])
+  }, [setActiveTab])
 
-  // Push history state on tab changes
+  // One history entry per real tab change, tagged with the tab it represents.
+  // The first run only stamps the current entry (activeTab is restored from
+  // localStorage, so it isn't necessarily the dashboard).
+  const mounted = useRef(false)
   useEffect(() => {
-    if (activeTab !== 'dashboard') {
-      window.history.pushState({ tab: activeTab }, '', '')
+    if (!mounted.current) {
+      mounted.current = true
+      window.history.replaceState({ tab: activeTab }, '')
+      return
     }
+    if (skipPush.current) {
+      skipPush.current = false
+      return
+    }
+    window.history.pushState({ tab: activeTab }, '')
   }, [activeTab])
 
   // PWA: auto-reload onto the newest build (no manual "Reload" tap).
@@ -110,7 +139,7 @@ export default function App() {
 
   return (
     <MotionConfig reducedMotion="user">
-    <div className="dark flex h-screen bg-[#05050A] text-slate-100 relative">
+    <div className="flex h-screen bg-background text-foreground relative">
       <OfflineIndicator />
 
       {/* Desktop Sidebar */}
@@ -153,8 +182,10 @@ export default function App() {
         </ErrorBoundary>
       </main>
 
-      {/* Mobile Upload FAB — only on dashboard tab */}
-      {activeTab === 'dashboard' && (
+      {/* Mobile Upload FAB. Available everywhere except the tabs that are
+          themselves capture surfaces (Books/Source scan barcodes) and Settings,
+          where a floating "new listing" button is just in the way. */}
+      {!FAB_HIDDEN_TABS.has(activeTab) && (
         <MobileUploadFAB
           onUploadComplete={(jobId) => {
             useCommanderStore.getState().setLastUploadedJobId(jobId)

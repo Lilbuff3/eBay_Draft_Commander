@@ -10,7 +10,10 @@
   --color-stone-200: #E7E5E4;
   --color-stone-300: #D6D3D1;
   --color-stone-400: #A8A29E;
-  --color-stone-500: #78716C;
+  /* Darkened from Tailwind's #78716C: as secondary text on the #F6F3EC paper
+     canvas that stock value lands at 4.33:1, just under the 4.5 AA floor.
+     #736C67 gives 4.70:1 on paper and 4.74:1 on stone-100. */
+  --color-stone-500: #736C67;
   --color-stone-600: #57534E;
   --color-stone-700: #44403C;
   --color-stone-800: #292524;
@@ -92,38 +95,17 @@
   h3 {
     font-family: var(--font-display);
   }
-
-  /* Animated Mesh Background (Dark Mode Only) */
-  body.dark {
-    background-color: #05050A; /* Deep space slate */
-    background-image: 
-      radial-gradient(at 0% 0%, hsla(250, 40%, 15%, 0.6) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, hsla(270, 50%, 12%, 0.5) 0px, transparent 50%),
-      radial-gradient(at 100% 100%, hsla(230, 40%, 12%, 0.6) 0px, transparent 50%),
-      radial-gradient(at 0% 100%, hsla(280, 50%, 10%, 0.5) 0px, transparent 50%);
-    background-size: 200% 200%;
-    animation: ambientShift 20s ease-in-out infinite alternate;
-  }
 }
 
-@keyframes ambientShift {
-  0% { background-position: 0% 0%; }
-  50% { background-position: 100% 100%; }
-  100% { background-position: 0% 100%; }
-}
-
-/* Glass panel effect */
+/* Card surface. Warm paper-white over the paper canvas; rounding matches the
+   24px the old dark variant carried, since BatchScan/Sourcing lay out against it. */
 @layer utilities {
-  .glass-panel {
-    @apply bg-white/60 border border-white/40 shadow-sm backdrop-blur-xl;
-  }
-  
   .glass-card {
-    @apply bg-white/70 border border-white/50 shadow-sm backdrop-blur-md transition-all duration-300;
+    @apply bg-paper-card/80 border border-stone-200/70 shadow-sm backdrop-blur-md rounded-3xl transition-colors duration-300;
   }
-  
+
   .glass-card:hover {
-     @apply bg-white/90 shadow-md scale-[1.01] border-white/80;
+     @apply bg-paper-card shadow-md border-stone-300/70;
   }
 }
 
@@ -193,12 +175,12 @@
   --radius: 0.625rem;
   --background: #F6F3EC;
   --foreground: #211D18;
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
+  --card: var(--color-paper-card);
+  --card-foreground: var(--color-ink-800);
+  --popover: var(--color-paper-card);
+  --popover-foreground: var(--color-ink-800);
+  --primary: var(--color-persimmon-500);
+  --primary-foreground: #ffffff;
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -294,29 +276,23 @@
   }
 }
 
-/* Glassmorphism theme utilities */
-@utility glass-card {
-  background-color: rgba(15, 23, 42, 0.4);
-  backdrop-filter: blur(40px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: var(--shadow-glass);
-  border-radius: 1.5rem; /* 24px */
+/* Indeterminate progress. There is no per-job progress value on the backend
+   (only queue-level), so a working job gets a bar that reads "busy, unknown
+   duration" rather than a fixed width that reads as a real percentage. */
+@keyframes indeterminate-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
 }
 
-@utility glass-input {
-  background-color: rgba(2, 6, 23, 0.4);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-  &:focus-visible {
-    --tw-ring-color: rgba(139, 92, 246, 0.5);
-  }
+@utility progress-indeterminate {
+  animation: indeterminate-slide 1.3s ease-in-out infinite;
 }
 
-@utility glass-select-trigger {
-  background-color: rgba(15, 23, 42, 0.6);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-  &:hover {
-    background-color: rgba(30, 41, 59, 0.8);
-  }
+/* Safe-area insets. Only resolve to non-zero with viewport-fit=cover in index.html. */
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
 }

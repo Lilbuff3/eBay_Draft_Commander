@@ -12,22 +12,22 @@ export function OrderCard({ order }: { order: Order }) {
     const soldDate = order.creationDate ? new Date(order.creationDate).toLocaleDateString() : '—'
 
     return (
-        <div className="flex items-center gap-3 rounded-2xl border border-white/5 bg-slate-900/40 hover:bg-slate-900/60 transition-all duration-300 px-3.5 py-3 shadow-glass">
+        <div className="flex items-center gap-3 rounded-2xl border border-stone-200 bg-paper-card hover:bg-paper-card transition-all duration-300 px-3.5 py-3 shadow-sm">
             {/* Photo */}
-            <div className="w-14 h-14 rounded-xl bg-slate-950/40 border border-white/10 shrink-0 overflow-hidden flex items-center justify-center">
+            <div className="w-14 h-14 rounded-xl bg-stone-50 border border-stone-200 shrink-0 overflow-hidden flex items-center justify-center">
                 {order.thumbnailUrl ? (
                     <img src={order.thumbnailUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
                 ) : (
-                    <ShoppingBag size={20} className="text-slate-600" />
+                    <ShoppingBag size={20} className="text-stone-400" />
                 )}
             </div>
 
             {/* Title + buyer */}
             <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-white truncate">
+                <p className="text-sm font-bold text-ink-800 truncate">
                     {order.itemTitle || order.orderId}
                 </p>
-                <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+                <p className="text-[11px] text-stone-500 mt-0.5 truncate">
                     {order.buyer} · sold {soldDate}
                     {(order.itemCount ?? 1) > 1 ? ` · ${order.itemCount} items` : ''}
                 </p>
@@ -38,8 +38,8 @@ export function OrderCard({ order }: { order: Order }) {
 
             {/* Money */}
             <div className="text-right shrink-0">
-                <div className="font-bold text-brand-400">${order.total.toFixed(2)}</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">{order.orderId}</div>
+                <div className="font-bold text-persimmon-600">${order.total.toFixed(2)}</div>
+                <div className="text-[11px] text-stone-500 mt-0.5">{order.orderId}</div>
             </div>
         </div>
     )

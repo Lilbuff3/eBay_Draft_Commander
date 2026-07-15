@@ -68,7 +68,7 @@ export function ShippingSelector({ value, onChange, className = '' }: ShippingSe
     if (error) {
         return (
             <div className={`flex items-center gap-2 p-3 bg-red-50 rounded-lg border border-red-200 ${className}`}>
-                <Truck size={16} className="text-red-400" />
+                <Truck size={16} className="text-red-600" />
                 <span className="text-sm text-red-500">{error}</span>
             </div>
         )

@@ -212,8 +212,8 @@ export function CameraBarcodeScanner({ onDetect, formats = ['ean_13'], validate 
     return (
         <div className="flex flex-col gap-2">
             {!active ? (
-                <Button variant="outline" size="sm" onClick={start} className="self-start">
-                    <Camera size={15} className="mr-1.5" /> Scan with camera
+                <Button variant="outline" onClick={start} className="self-start">
+                    <Camera size={16} className="mr-1.5" /> Scan with camera
                 </Button>
             ) : (
                 <div className="relative rounded-xl overflow-hidden bg-black max-w-md">

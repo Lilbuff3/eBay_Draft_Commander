@@ -9,7 +9,9 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-persimmon-500 text-white shadow-sm hover:bg-persimmon-600",
+        // persimmon-600, not -500: white on -500 is only 3.51:1, under the 4.5 AA
+        // floor for button text. -600 reads at 5.26:1 and stays the same hue.
+        default: "bg-persimmon-600 text-white shadow-sm hover:bg-persimmon-700",
         destructive:
           "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
         outline:
@@ -20,13 +22,16 @@ const buttonVariants = cva(
           "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
       },
+      // Touch first: `default` and `icon` meet the 44px iOS/Android minimum.
+      // `sm`/`icon-sm` are 36px and are for dense secondary rows only — they are
+      // deliberately below the minimum, so don't reach for them on a primary action.
       size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
-        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
-        icon: "size-9",
-        "icon-sm": "size-8",
-        "icon-lg": "size-10",
+        default: "h-11 px-4 py-2 has-[>svg]:px-3",
+        sm: "h-9 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
+        lg: "h-14 rounded-md px-6 has-[>svg]:px-4",
+        icon: "size-11",
+        "icon-sm": "size-9",
+        "icon-lg": "size-14",
       },
     },
     defaultVariants: {

@@ -123,7 +123,7 @@ export function UploadZone({ onUploadComplete, compact = false }: UploadZoneProp
 
                     {isUploading ? (
                         <>
-                            <Loader2 size={18} className="text-persimmon-500 animate-spin" />
+                            <Loader2 size={18} className="text-persimmon-600 animate-spin" />
                             <span className="text-sm text-stone-600 font-medium">Uploading…</span>
                         </>
                     ) : (
@@ -205,7 +205,7 @@ export function UploadZone({ onUploadComplete, compact = false }: UploadZoneProp
 
                 {isUploading ? (
                     <div className="flex flex-col items-center gap-3">
-                        <Loader2 className="w-10 h-10 text-persimmon-500 animate-spin" />
+                        <Loader2 className="w-10 h-10 text-persimmon-600 animate-spin" />
                         <p className="text-stone-600 font-medium">Uploading…</p>
                     </div>
                 ) : (

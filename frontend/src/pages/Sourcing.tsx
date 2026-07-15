@@ -74,18 +74,18 @@ const usd = (n: number | null | undefined) =>
     n == null ? '—' : `$${n.toFixed(2)}`
 
 const VERDICT_STYLE: Record<Verdict, { banner: string; chip: string; label: string }> = {
-    BUY: { banner: 'bg-emerald-500/10 text-emerald-300 border-b border-white/5', chip: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20', label: 'BUY' },
-    THIN: { banner: 'bg-amber-500/10 text-amber-300 border-b border-white/5', chip: 'bg-amber-500/10 text-amber-300 border-amber-500/20', label: 'THIN DATA' },
-    PASS: { banner: 'bg-rose-500/10 text-rose-300 border-b border-white/5', chip: 'bg-rose-500/10 text-rose-300 border-rose-500/20', label: 'PASS' },
-    NO_DATA: { banner: 'bg-slate-900/40 text-slate-300 border-b border-white/5', chip: 'bg-slate-800 text-slate-300 border-slate-700/50', label: 'NO DATA' },
+    BUY: { banner: 'bg-emerald-50 text-emerald-700 border-b border-stone-200', chip: 'bg-emerald-50 text-emerald-700 border-emerald-200', label: 'BUY' },
+    THIN: { banner: 'bg-amber-50 text-amber-700 border-b border-stone-200', chip: 'bg-amber-50 text-amber-700 border-amber-200', label: 'THIN DATA' },
+    PASS: { banner: 'bg-rose-50 text-rose-700 border-b border-stone-200', chip: 'bg-rose-50 text-rose-700 border-rose-200', label: 'PASS' },
+    NO_DATA: { banner: 'bg-paper-card text-stone-600 border-b border-stone-200', chip: 'bg-stone-100 text-stone-600 border-stone-200', label: 'NO DATA' },
 }
 
 // --- Verdict card ---
 
 const CONFIDENCE_STYLE = {
-    high: { cls: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20', Icon: ShieldCheck, label: 'Confident' },
-    medium: { cls: 'bg-amber-500/10 text-amber-300 border-amber-500/20', Icon: AlertTriangle, label: 'Rough estimate' },
-    low: { cls: 'bg-rose-500/10 text-rose-300 border-rose-500/20', Icon: AlertTriangle, label: 'Rough estimate' },
+    high: { cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', Icon: ShieldCheck, label: 'Confident' },
+    medium: { cls: 'bg-amber-50 text-amber-700 border-amber-200', Icon: AlertTriangle, label: 'Rough estimate' },
+    low: { cls: 'bg-rose-50 text-rose-700 border-rose-200', Icon: AlertTriangle, label: 'Rough estimate' },
 } as const
 
 function ConfidenceBadge({ result }: { result: CompsResponse }) {
@@ -107,7 +107,7 @@ function ConfidenceBadge({ result }: { result: CompsResponse }) {
 function VerdictCard({ result, title }: { result: CompsResponse; title?: string }) {
     const style = VERDICT_STYLE[result.verdict]
     return (
-        <div className="bg-slate-900/40 backdrop-blur-2xl border border-white/5 shadow-glass rounded-3xl overflow-hidden">
+        <div className="bg-paper-card backdrop-blur-2xl border border-stone-200 shadow-sm rounded-3xl overflow-hidden">
             <div className={`px-4 py-3 ${style.banner}`}>
                 <div className="flex items-baseline justify-between gap-3">
                     <span className="text-lg font-bold tracking-wide">{style.label}</span>
@@ -127,10 +127,10 @@ function VerdictCard({ result, title }: { result: CompsResponse; title?: string 
 
             <div className="p-4 space-y-4">
                 {result.verdict === 'NO_DATA' ? (
-                    <p className="text-sm text-slate-400">
+                    <p className="text-sm text-stone-500">
                         No comps found for this barcode. Could be junk — or rare enough that nobody lists it.{' '}
                         <a href={result.ebay_search_url} target="_blank" rel="noreferrer"
-                            className="text-brand-400 hover:text-brand-300 underline inline-flex items-center gap-1">
+                            className="text-persimmon-600 hover:text-persimmon-700 underline inline-flex items-center gap-1">
                             Search eBay <ExternalLink size={12} />
                         </a>
                     </p>
@@ -138,34 +138,34 @@ function VerdictCard({ result, title }: { result: CompsResponse; title?: string 
                     <>
                         <ConfidenceBadge result={result} />
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                            <div className="bg-slate-950/40 border border-white/5 rounded-2xl p-2.5">
-                                <div className="text-[10px] font-bold tracking-wide uppercase text-slate-500">Est. sold value</div>
-                                <div className="text-sm font-bold text-white mt-0.5">{usd(result.est_sold_value)}</div>
+                            <div className="bg-stone-50 border border-stone-200 rounded-2xl p-2.5">
+                                <div className="text-[10px] font-bold tracking-wide uppercase text-stone-500">Est. sold value</div>
+                                <div className="text-sm font-bold text-ink-800 mt-0.5">{usd(result.est_sold_value)}</div>
                             </div>
-                            <div className="bg-slate-950/40 border border-white/5 rounded-2xl p-2.5">
-                                <div className="text-[10px] font-bold tracking-wide uppercase text-slate-500">Comps</div>
-                                <div className="text-sm font-bold text-white mt-0.5">
+                            <div className="bg-stone-50 border border-stone-200 rounded-2xl p-2.5">
+                                <div className="text-[10px] font-bold tracking-wide uppercase text-stone-500">Comps</div>
+                                <div className="text-sm font-bold text-ink-800 mt-0.5">
                                     {result.comp_count}
                                     {result.price_range && (
-                                        <span className="font-normal text-slate-400"> ({usd(result.price_range.low)}–{usd(result.price_range.high)})</span>
+                                        <span className="font-normal text-stone-500"> ({usd(result.price_range.low)}–{usd(result.price_range.high)})</span>
                                     )}
                                 </div>
                             </div>
-                            <div className="bg-slate-950/40 border border-white/5 rounded-2xl p-2.5">
-                                <div className="text-[10px] font-bold tracking-wide uppercase text-slate-500">Net after fees</div>
-                                <div className="text-sm font-bold text-white mt-0.5">{usd(result.net_proceeds)}</div>
+                            <div className="bg-stone-50 border border-stone-200 rounded-2xl p-2.5">
+                                <div className="text-[10px] font-bold tracking-wide uppercase text-stone-500">Net after fees</div>
+                                <div className="text-sm font-bold text-ink-800 mt-0.5">{usd(result.net_proceeds)}</div>
                             </div>
-                            <div className="bg-slate-950/40 border border-white/5 rounded-2xl p-2.5">
-                                <div className="text-[10px] font-bold tracking-wide uppercase text-slate-500">Would list at</div>
-                                <div className="text-sm font-bold text-white mt-0.5">{usd(result.would_list_at)}</div>
+                            <div className="bg-stone-50 border border-stone-200 rounded-2xl p-2.5">
+                                <div className="text-[10px] font-bold tracking-wide uppercase text-stone-500">Would list at</div>
+                                <div className="text-sm font-bold text-ink-800 mt-0.5">{usd(result.would_list_at)}</div>
                             </div>
                         </div>
 
                         {result.comps.length > 0 && (
-                            <div className="space-y-1 bg-slate-950/20 border border-white/5 rounded-2xl p-2">
+                            <div className="space-y-1 bg-stone-50/20 border border-stone-200 rounded-2xl p-2">
                                 {result.comps.slice(0, 5).map((c, i) => (
                                     <a key={i} href={c.url} target="_blank" rel="noreferrer"
-                                        className="flex items-center justify-between gap-2 text-xs text-slate-300 hover:text-brand-400 py-1 transition-colors px-1 rounded-md hover:bg-white/5">
+                                        className="flex items-center justify-between gap-2 text-xs text-stone-600 hover:text-persimmon-600 py-1 transition-colors px-1 rounded-md hover:bg-stone-100">
                                         <span className="truncate">{c.title}</span>
                                         <span className="font-medium whitespace-nowrap">{usd(c.price)}</span>
                                     </a>
@@ -173,7 +173,7 @@ function VerdictCard({ result, title }: { result: CompsResponse; title?: string 
                             </div>
                         )}
                         {result.reasoning && (
-                            <p className="text-[11px] text-slate-400">{result.reasoning}</p>
+                            <p className="text-[11px] text-stone-500">{result.reasoning}</p>
                         )}
                     </>
                 )}
@@ -346,8 +346,8 @@ export function Sourcing() {
             <div className="mx-auto max-w-2xl space-y-4 pb-24">
                 <div className="flex items-center justify-between gap-3">
                     <div>
-                        <h1 className="text-2xl font-display font-bold text-white tracking-tight">Source</h1>
-                        <p className="text-slate-400 text-sm">Scan any barcode → buy/pass verdict from live eBay comps</p>
+                        <h1 className="text-2xl font-display font-bold text-ink-800 tracking-tight">Source</h1>
+                        <p className="text-stone-500 text-sm">Scan any barcode → buy/pass verdict from live eBay comps</p>
                     </div>
                     <Select value={condition} onValueChange={setCondition}>
                         <SelectTrigger className="w-[150px] h-9 text-xs shrink-0">
@@ -370,16 +370,16 @@ export function Sourcing() {
                         onKeyDown={e => { if (e.key === 'Enter') checkManual() }}
                         placeholder="Type or wedge-scan a barcode…"
                         inputMode="numeric"
-                        className="placeholder-slate-500"
+                        className="placeholder-stone-400"
                     />
-                    <Button onClick={checkManual} disabled={!manualCode.trim()} className="bg-brand-500 hover:bg-brand-600 text-white shadow-glow">
+                    <Button onClick={checkManual} disabled={!manualCode.trim()} className="bg-persimmon-600 hover:bg-persimmon-700 text-white shadow-sm">
                         <Search size={15} className="mr-1.5" /> Check
                     </Button>
                 </div>
 
                 {loading && (
-                    <div className="flex items-center justify-center gap-2 text-slate-300 glass-card py-6">
-                        <Loader2 className="h-5 w-5 animate-spin text-brand-400" /> Pulling comps…
+                    <div className="flex items-center justify-center gap-2 text-stone-600 glass-card py-6">
+                        <Loader2 className="h-5 w-5 animate-spin text-persimmon-600" /> Pulling comps…
                     </div>
                 )}
 
@@ -388,36 +388,36 @@ export function Sourcing() {
                 {/* Session history */}
                 {history.length > 0 && (
                     <div className="glass-card overflow-hidden">
-                        <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-                            <div className="text-sm font-medium text-slate-300">
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-stone-200">
+                            <div className="text-sm font-medium text-stone-600">
                                 {history.length} scanned · {bought.length} bought
                                 {bought.length > 0 && (
-                                    <span className="text-slate-500 font-normal">
+                                    <span className="text-stone-500 font-normal">
                                         {' '}· spent {usd(totalPaid)} · est. resale {usd(totalEstSold)}
                                     </span>
                                 )}
                             </div>
-                            <Button variant="ghost" size="sm" className="h-7 text-xs text-slate-400 hover:text-rose-400"
+                            <Button variant="ghost" size="sm" className="h-7 text-xs text-stone-500 hover:text-rose-600"
                                 onClick={() => { setHistory([]); setCurrent(null) }}>
                                 <Trash2 size={13} className="mr-1" /> Clear
                             </Button>
                         </div>
-                        <div className="divide-y divide-white/5">
+                        <div className="divide-y divide-stone-200">
                             {history.map(row => (
                                 <div key={row.id} className="px-4 py-3 flex items-center gap-3">
                                     <Badge variant="outline" className={`shrink-0 text-[10px] ${VERDICT_STYLE[row.verdict].chip}`}>
                                         {VERDICT_STYLE[row.verdict].label}
                                     </Badge>
                                     <div className="flex-1 min-w-0">
-                                        <div className="text-xs text-slate-200 truncate">{row.title || row.gtin}</div>
-                                        <div className="text-[10px] text-slate-500">
+                                        <div className="text-xs text-stone-700 truncate">{row.title || row.gtin}</div>
+                                        <div className="text-[10px] text-stone-500">
                                             {row.maxBuy != null ? `pay ≤ ${usd(row.maxBuy)}` : row.gtin}
                                         </div>
                                     </div>
                                     {row.bought ? (
                                         <div className="flex items-center gap-1.5 shrink-0">
                                             <div className="relative w-16">
-                                                <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-500">$</span>
+                                                <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-stone-500">$</span>
                                                 <Input
                                                     className="h-7 pl-4 text-xs"
                                                     value={row.paid || ''}
@@ -426,17 +426,17 @@ export function Sourcing() {
                                                 />
                                             </div>
                                             {row.bookData && !row.sentToBooks && (
-                                                <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-white/5"
+                                                <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-stone-100"
                                                     title="Queue in Books tab"
                                                     onClick={() => sendToBooks(row)}>
-                                                    <BookOpen size={14} className="text-brand-400" />
+                                                    <BookOpen size={14} className="text-persimmon-600" />
                                                 </Button>
                                             )}
-                                            {row.sentToBooks && <BookOpen size={14} className="text-slate-600" />}
+                                            {row.sentToBooks && <BookOpen size={14} className="text-stone-400" />}
                                         </div>
                                     ) : (
                                         row.verdict !== 'PASS' && row.verdict !== 'NO_DATA' && (
-                                            <Button variant="outline" size="sm" className="h-7 text-xs shrink-0 border-white/10 hover:bg-white/5"
+                                            <Button variant="outline" size="sm" className="h-7 text-xs shrink-0 border-stone-200 hover:bg-stone-100"
                                                 onClick={() => updateRow(row.id, { bought: true, paid: '' })}>
                                                 Bought
                                             </Button>
