@@ -39,7 +39,7 @@ export function MobileUploadFAB({ onUploadComplete, className }: MobileUploadFAB
                     type="button"
                     onClick={openPicker}
                     className={cn(
-                        'w-14 h-14 rounded-2xl bg-persimmon-500 shadow-lg shadow-persimmon-500/30',
+                        'w-14 h-14 rounded-2xl bg-persimmon-600 shadow-lg shadow-persimmon-600/30',
                         'flex items-center justify-center active:scale-90 transition duration-200',
                         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-paper',
                     )}

@@ -191,11 +191,18 @@ export function ItemDetailDrawer({
                         : "sm:max-w-xl w-full overflow-hidden flex flex-col p-0"
                 }
             >
-                {/* Swipe indicator handle — mobile only */}
+                {/* Grabber — mobile only. There's no drag-to-dismiss wired up, so this
+                    is a tap-to-close control rather than a handle that implies a swipe
+                    the sheet doesn't support. */}
                 {isMobile && (
-                    <div className="flex justify-center pt-2 pb-0 flex-shrink-0">
-                        <div className="w-10 h-1.5 bg-stone-300 rounded-full" />
-                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        aria-label="Close"
+                        className="flex justify-center items-center pt-2 pb-1 flex-shrink-0 w-full min-h-[32px]"
+                    >
+                        <span className="w-10 h-1.5 bg-stone-300 rounded-full" />
+                    </button>
                 )}
 
                 <SheetHeader className="px-6 pt-4 pb-2 flex-shrink-0">
@@ -209,9 +216,9 @@ export function ItemDetailDrawer({
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
                     <div className="px-6 py-2 border-b border-stone-100 bg-stone-50/50 flex-shrink-0 flex items-center justify-between">
-                        <TabsList className="bg-stone-200/50 p-[2px] h-8">
-                            <TabsTrigger value="details" className="text-xs h-7 py-1 px-3">Edit Details</TabsTrigger>
-                            <TabsTrigger value="preview" className="text-xs h-7 py-1 px-3">Live Preview</TabsTrigger>
+                        <TabsList className="bg-stone-200/50 p-[3px] h-11">
+                            <TabsTrigger value="details" className="text-xs h-full py-1 px-3.5">Edit Details</TabsTrigger>
+                            <TabsTrigger value="preview" className="text-xs h-full py-1 px-3.5">Live Preview</TabsTrigger>
                         </TabsList>
                         
                         {job && (
@@ -306,6 +313,7 @@ export function ItemDetailDrawer({
                                             <Input
                                                 id="listing-price"
                                                 placeholder="0.00"
+                                                inputMode="decimal"
                                                 className="bg-stone-50 pl-7"
                                                 value={draft.price}
                                                 onChange={(e) => updateDraft({ price: e.target.value })}
@@ -381,8 +389,10 @@ export function ItemDetailDrawer({
                                                         {categorySuggestions.map((sug) => (
                                                             <button
                                                                 key={sug.category_id}
-                                                                onMouseDown={() => selectCategory(sug)}
-                                                                className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-stone-100 last:border-0"
+                                                                // pointerdown, not mousedown: on touch the synthetic mousedown
+                                                                // can lose the race with the input's blur and eat the tap.
+                                                                onPointerDown={() => selectCategory(sug)}
+                                                                className="w-full text-left px-3 py-2.5 min-h-[44px] hover:bg-persimmon-50 border-b border-stone-100 last:border-0"
                                                             >
                                                                 <div className="text-sm font-medium text-stone-800">{sug.category_name}</div>
                                                                 <div className="text-[10px] text-stone-400 truncate">{sug.full_path}</div>
@@ -475,7 +485,7 @@ export function ItemDetailDrawer({
                                                                     const newSpecs = { ...draft.itemSpecifics, [key]: e.target.value };
                                                                     updateDraft({ itemSpecifics: newSpecs });
                                                                 }}
-                                                                className={`h-8 py-0 px-2 text-sm bg-stone-50 focus:bg-white ${isRequired && !value ? 'border-red-500' : 'border-stone-200'}`}
+                                                                className={`h-11 py-0 px-2 text-sm bg-stone-50 focus:bg-white ${isRequired && !value ? 'border-red-500' : 'border-stone-200'}`}
                                                             />
                                                         )}
                                                     </div>
@@ -513,7 +523,7 @@ export function ItemDetailDrawer({
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1 block">Price</label>
-                                    <Input value={draft.price} onChange={(e) => updateDraft({ price: e.target.value })} className="bg-stone-50" />
+                                    <Input inputMode="decimal" value={draft.price} onChange={(e) => updateDraft({ price: e.target.value })} className="bg-stone-50" />
                                 </div>
                             </div>
                         )}
@@ -560,7 +570,7 @@ export function ItemDetailDrawer({
                         <div className="flex-1 relative">
                             {isGeneratingPreview && (
                                 <div className="absolute inset-0 bg-white/50 flex items-center justify-center z-10">
-                                    <Loader2 className="w-8 h-8 animate-spin text-persimmon-500" />
+                                    <Loader2 className="w-8 h-8 animate-spin text-persimmon-600" />
                                 </div>
                             )}
                             {job && (
@@ -587,7 +597,7 @@ export function ItemDetailDrawer({
                                     disabled={isCreating}
                                     className={`w-full py-3 px-4 rounded-xl font-semibold text-white transition ${isCreating
                                         ? 'bg-stone-400 cursor-wait'
-                                        : 'bg-persimmon-500 hover:bg-persimmon-600 shadow-lg shadow-persimmon-500/25'
+                                        : 'bg-persimmon-600 hover:bg-persimmon-700 shadow-lg shadow-persimmon-500/25'
                                         }`}
                                 >
                                     {isCreating ? (

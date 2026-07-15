@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Camera, Plus, Trash2, Upload } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useHaptics } from '@/hooks/useHaptics'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { getCaptureCategory } from '@/lib/categories'
+import { useCommanderStore } from '@/store/useCommanderStore'
 
 const genId = () => Math.random().toString(36).substring(7)
 
@@ -34,8 +36,13 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
     const [title, setTitle] = useState('')
     const [condition, setCondition] = useState<string>('')
     const [isUploading, setIsUploading] = useState(false)
-    const { tap, warning } = useHaptics()
+    const { tap, warning, error: errorHaptic } = useHaptics()
     const fileInputRef = useRef<HTMLInputElement>(null)
+
+    const uploadProgress = useCommanderStore(s => s.uploadProgress)
+    const pct = uploadProgress && uploadProgress.total > 0
+        ? Math.min(100, Math.round((uploadProgress.loaded / uploadProgress.total) * 100))
+        : null
 
     // Load initial files
     useEffect(() => {
@@ -94,7 +101,13 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
             )
             onClose()
         } catch (err) {
+            // Never fail silently here — this is the app's core action, and the
+            // sheet stays open with the photos intact so the tap can be retried.
             console.error(err)
+            errorHaptic()
+            toast.error('Upload failed', {
+                description: err instanceof Error ? err.message : 'Your photos are still here — tap Upload to retry.',
+            })
             setIsUploading(false)
         }
     }
@@ -118,7 +131,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                         disabled={isUploading}
                         title="Close"
                         aria-label="Close"
-                        className="p-2 rounded-full md3-icon-button hover:bg-stone-100 disabled:opacity-50"
+                        className="w-11 h-11 grid place-items-center rounded-full hover:bg-stone-100 disabled:opacity-50"
                     >
                         <X size={24} className="text-stone-500" />
                     </button>
@@ -133,7 +146,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                                 Photos <span className="text-stone-500 font-normal">({photos.length})</span>
                             </h3>
                             {photos.length > 0 && (
-                                <button onClick={handleAddPhoto} className="text-sm font-medium text-persimmon-600 px-2 py-1">
+                                <button onClick={handleAddPhoto} className="text-sm font-medium text-persimmon-600 px-3 min-h-[44px] rounded-lg hover:bg-persimmon-50">
                                     + Add More
                                 </button>
                             )}
@@ -176,7 +189,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                                     placeholder="Leave blank for AI to suggest"
                                     value={title}
                                     onChange={(e) => setTitle(e.target.value)}
-                                    className="bg-white text-base py-3 h-auto"
+                                    className="bg-white h-12"
                                 />
                             </div>
 
@@ -195,7 +208,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                                             className={cn(
                                                 "px-4 py-2 rounded-full text-sm font-medium border transition-colors",
                                                 condition === cond.value
-                                                    ? "bg-persimmon-500 text-white border-persimmon-500"
+                                                    ? "bg-persimmon-600 text-white border-persimmon-500"
                                                     : "bg-white text-stone-600 border-stone-200 hover:border-stone-300"
                                             )}
                                         >
@@ -213,10 +226,10 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                     <Button 
                         onClick={handleSubmit} 
                         disabled={photos.length === 0 || isUploading}
-                        className="w-full h-14 rounded-2xl text-base font-semibold shadow-md bg-persimmon-500 hover:bg-persimmon-600"
+                        className="w-full h-14 rounded-2xl text-base font-semibold shadow-md bg-persimmon-600 hover:bg-persimmon-700"
                     >
                         {isUploading ? (
-                            <span>Uploading…</span>
+                            <span>{pct === null ? 'Uploading…' : `Uploading… ${pct}%`}</span>
                         ) : (
                             <span className="flex items-center gap-2">
                                 <Upload size={20} />

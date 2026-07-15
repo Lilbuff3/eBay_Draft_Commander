@@ -247,18 +247,18 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
             className="flex flex-col h-full w-full overflow-hidden"
         >
             {/* Header */}
-            <div className="px-4 sm:px-6 py-4 border-b border-white/5 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-brand-500/20 border border-brand-500/30 flex items-center justify-center text-brand-400 shadow-sm animate-pulse">
+            <div className="px-4 sm:px-6 py-4 border-b border-stone-200 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 shrink-0 rounded-xl bg-persimmon-50 border border-persimmon-200 flex items-center justify-center text-persimmon-600">
                         <Package size={20} />
                     </div>
                     <div>
-                        <h2 className="font-display font-bold text-white text-lg tracking-tight">Inventory</h2>
-                        <div className="flex bg-slate-950/40 border border-white/10 rounded-xl p-0.5 mt-1.5 w-fit">
+                        <h2 className="font-display font-bold text-ink-800 text-lg tracking-tight">Inventory</h2>
+                        <div className="flex bg-stone-50 border border-stone-200 rounded-xl p-0.5 mt-1.5 w-fit">
                             {(['active', 'sold'] as const).map(tab => (
                                 <button
                                     key={tab}
-                                    className={`px-3 py-0.5 text-xs font-semibold rounded-lg transition capitalize ${filterStatus === tab ? 'bg-slate-800 text-brand-400 shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                                    className={`px-4 min-h-[44px] text-sm font-semibold rounded-lg transition capitalize ${filterStatus === tab ? 'bg-stone-100 text-persimmon-600 shadow-sm' : 'text-stone-500 hover:text-ink-800'}`}
                                     onClick={() => setFilterStatus(tab)}
                                 >
                                     {tab}
@@ -272,58 +272,58 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                         <Button
                             variant="outline" size="sm"
                             onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
-                            className={cn('gap-2 border-white/10 hover:bg-slate-800 hover:text-white',
-                                selectMode ? 'text-brand-300 bg-brand-500/15' : 'text-slate-300 bg-slate-900/60')}
+                            className={cn('gap-2 border-stone-200 hover:bg-stone-100 hover:text-ink-800',
+                                selectMode ? 'text-persimmon-700 bg-persimmon-50' : 'text-stone-600 bg-paper-card')}
                         >
                             <ListChecks size={16} />
                             <span className="hidden sm:inline">{selectMode ? 'Done' : 'Select'}</span>
                         </Button>
                     )}
-                    <Button variant="outline" size="sm" onClick={() => setShowMigration(true)} className="gap-2 text-brand-400 bg-slate-900/60 border-white/10 hover:bg-slate-800 hover:text-white">
+                    <Button variant="outline" size="sm" onClick={() => setShowMigration(true)} className="gap-2 text-persimmon-600 bg-paper-card border-stone-200 hover:bg-stone-100 hover:text-ink-800">
                         <Download size={16} />
                         <span className="hidden sm:inline">Import</span>
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={fetchListings} disabled={isLoading} aria-label="Refresh listings" title="Refresh" className="text-slate-400 hover:text-white hover:bg-white/5">
+                    <Button variant="ghost" size="icon" onClick={fetchListings} disabled={isLoading} aria-label="Refresh listings" title="Refresh" className="text-stone-500 hover:text-ink-800 hover:bg-stone-100">
                         <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
                     </Button>
                     {onClose && (
-                        <Button variant="ghost" size="sm" onClick={onClose} className="text-slate-400 hover:text-white hover:bg-white/5">Close</Button>
+                        <Button variant="ghost" size="sm" onClick={onClose} className="text-stone-500 hover:text-ink-800 hover:bg-stone-100">Close</Button>
                     )}
                 </div>
             </div>
 
             {filterStatus === 'sold' ? (
                 <>
-                    <div className="px-4 sm:px-6 py-3 border-b border-white/5 shrink-0 bg-slate-950/20">
+                    <div className="px-4 sm:px-6 py-3 border-b border-stone-200 shrink-0 bg-stone-50/20">
                         <Input placeholder="Search orders…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                     </div>
                     <div className="flex-1 overflow-hidden relative">
                         <ScrollArea className="h-full">
                             {ordersLoading ? (
-                                <div className="flex items-center justify-center h-64 text-slate-400">
-                                    <RefreshCw size={24} className="animate-spin mr-2 text-brand-400" />Loading orders…
+                                <div className="flex items-center justify-center h-64 text-stone-500">
+                                    <RefreshCw size={24} className="animate-spin mr-2 text-persimmon-600" />Loading orders…
                                 </div>
                             ) : ordersError ? (
-                                <div className="flex items-center justify-center h-64 text-rose-400 p-4 gap-2">
+                                <div className="flex items-center justify-center h-64 text-rose-600 p-4 gap-2">
                                     <AlertCircle size={20} />{ordersError}
                                 </div>
                             ) : orders.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center h-64 text-slate-500 gap-2">
-                                    <ShoppingBag size={32} className="text-slate-800" />No orders in the last 90 days
+                                <div className="flex flex-col items-center justify-center h-64 text-stone-500 gap-2">
+                                    <ShoppingBag size={32} className="text-stone-300" />No orders in the last 90 days
                                 </div>
                             ) : (
-                                <div className="divide-y divide-white/5 px-4 sm:px-6">
+                                <div className="divide-y divide-stone-200 px-4 sm:px-6">
                                     {orders
                                         .filter(o => !q || o.orderId.toLowerCase().includes(q) || o.buyer.toLowerCase().includes(q))
                                         .map(order => (
-                                            <div key={order.orderId} className="py-3 flex items-center justify-between gap-3 border-b border-white/5 hover:bg-white/5 transition px-2 rounded-xl">
+                                            <div key={order.orderId} className="py-3 flex items-center justify-between gap-3 border-b border-stone-200 hover:bg-stone-100 transition px-2 rounded-xl">
                                                 <div className="min-w-0">
-                                                    <p className="text-sm font-bold text-white truncate">{order.orderId}</p>
-                                                    <p className="text-[11px] text-slate-400 mt-0.5">{order.buyer} · {order.itemCount} item(s)</p>
+                                                    <p className="text-sm font-bold text-ink-800 truncate">{order.orderId}</p>
+                                                    <p className="text-[11px] text-stone-500 mt-0.5">{order.buyer} · {order.itemCount} item(s)</p>
                                                 </div>
                                                 <div className="text-right shrink-0">
-                                                    <div className="font-bold text-brand-400">${order.total.toFixed(2)}</div>
-                                                    <div className="text-[11px] text-slate-500">{new Date(order.creationDate).toLocaleDateString()}</div>
+                                                    <div className="font-bold text-persimmon-600">${order.total.toFixed(2)}</div>
+                                                    <div className="text-[11px] text-stone-500">{new Date(order.creationDate).toLocaleDateString()}</div>
                                                 </div>
                                             </div>
                                         ))}
@@ -338,12 +338,12 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                     {deadCapital > 0 && (
                         <button
                             onClick={() => setStaleFilter(staleFilter === 'dead' ? 'all' : 'dead')}
-                            className="mx-4 sm:mx-6 mt-3 text-left rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 transition hover:bg-rose-500/15"
+                            className="mx-4 sm:mx-6 mt-3 text-left rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 transition hover:bg-rose-100"
                         >
-                            <div className="font-display font-bold text-[20px] tracking-[-0.03em] text-rose-300">
+                            <div className="font-display font-bold text-[20px] tracking-[-0.03em] text-rose-700">
                                 ${Math.round(deadCapital).toLocaleString()} tied up
                             </div>
-                            <div className="text-[12px] text-rose-400/90 mt-0.5">
+                            <div className="text-[12px] text-rose-600/90 mt-0.5">
                                 {counts.dead} dead {counts.dead === 1 ? 'listing' : 'listings'} (&gt;{DEAD_AGE}d, 0 watchers){staleCapital > 0 ? ` · $${Math.round(staleCapital).toLocaleString()} more going stale` : ''}
                             </div>
                         </button>
@@ -355,7 +355,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                             <button
                                 key={c.key}
                                 onClick={() => setStaleFilter(c.key)}
-                                className={`px-3 py-1 rounded-full text-[12px] font-semibold transition-all ${staleFilter === c.key ? 'bg-brand-500 text-white shadow-glow' : 'bg-slate-900/60 border border-white/10 text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                                className={`px-4 min-h-[44px] rounded-full text-[13px] font-semibold transition-all ${staleFilter === c.key ? 'bg-persimmon-600 text-white shadow-sm' : 'bg-paper-card border border-stone-200 text-stone-500 hover:text-ink-800 hover:bg-stone-100'}`}
                             >
                                 {c.label} {c.n}
                             </button>
@@ -374,28 +374,28 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                         const allShownSelected = selectable.length > 0 && selected.length === selectable.length
                         const selectedValue = selected.reduce((s, e) => s + (e.l.price || 0), 0)
                         return (
-                            <div className="mx-4 sm:mx-6 mb-2 rounded-2xl bg-slate-900/70 border border-brand-500/30 px-3 py-2 flex items-center gap-2 flex-wrap shrink-0">
+                            <div className="mx-4 sm:mx-6 mb-2 rounded-2xl bg-paper-card border border-persimmon-200 px-3 py-2 flex items-center gap-2 flex-wrap shrink-0">
                                 <button
                                     onClick={() => setSelectedIds(allShownSelected ? new Set() : new Set(selectable.map(e => e.l.listingId!)))}
-                                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-300 hover:text-white"
+                                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-600 hover:text-ink-800"
                                 >
-                                    {allShownSelected ? <CheckSquare size={15} className="text-brand-400" /> : <Square size={15} />}
+                                    {allShownSelected ? <CheckSquare size={15} className="text-persimmon-600" /> : <Square size={15} />}
                                     All shown ({selectable.length})
                                 </button>
-                                <span className="text-xs text-slate-500 ml-auto">
+                                <span className="text-xs text-stone-500 ml-auto">
                                     {selected.length} selected · ${Math.round(selectedValue).toLocaleString()}
                                 </span>
                                 <button
                                     disabled={selected.length === 0 || bulkRunning}
                                     onClick={() => runBulk('drop10', selected.map(e => e.l))}
-                                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold bg-brand-500/10 text-brand-300 border border-brand-500/20 hover:bg-brand-500/20 disabled:opacity-50 transition"
+                                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold bg-persimmon-50 text-persimmon-700 border border-persimmon-200 hover:bg-persimmon-100 disabled:opacity-50 transition"
                                 >
                                     <TrendingDown size={13} /> Drop 10%
                                 </button>
                                 <button
                                     disabled={selected.length === 0 || bulkRunning}
                                     onClick={() => runBulk('end', selected.map(e => e.l))}
-                                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold bg-rose-500/10 text-rose-300 border border-rose-500/20 hover:bg-rose-500/20 disabled:opacity-50 transition"
+                                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 transition"
                                 >
                                     <XCircle size={13} /> End
                                 </button>
@@ -407,15 +407,15 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                     <div className="flex-1 overflow-hidden relative">
                         <ScrollArea className="h-full">
                             {isLoading ? (
-                                <div className="flex items-center justify-center h-64 text-slate-400">
-                                    <RefreshCw size={24} className="animate-spin mr-2 text-brand-400" />Loading inventory…
+                                <div className="flex items-center justify-center h-64 text-stone-500">
+                                    <RefreshCw size={24} className="animate-spin mr-2 text-persimmon-600" />Loading inventory…
                                 </div>
                             ) : error ? (
-                                <div className="flex items-center justify-center h-64 text-rose-400 p-4 gap-2">
+                                <div className="flex items-center justify-center h-64 text-rose-600 p-4 gap-2">
                                     <AlertCircle size={20} />{error}
                                 </div>
                             ) : shown.length === 0 ? (
-                                <div className="flex items-center justify-center h-64 text-slate-500">
+                                <div className="flex items-center justify-center h-64 text-stone-500">
                                     {searchQuery ? 'No matching listings' : staleFilter === 'all' ? 'No active listings' : `No ${staleFilter} listings`}
                                 </div>
                             ) : (
@@ -443,14 +443,14 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                                                 onClick={() => e.l.listingId && toggleSelected(e.l.listingId)}
                                                 onKeyDown={ev => { if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); e.l.listingId && toggleSelected(e.l.listingId) } }}
                                                 className={cn('relative rounded-2xl cursor-pointer transition',
-                                                    isSelected && 'ring-2 ring-brand-500')}
+                                                    isSelected && 'ring-2 ring-persimmon-500')}
                                             >
                                                 {/* Card is display-only while selecting */}
                                                 <div className="pointer-events-none">{card}</div>
                                                 <div className="absolute top-2.5 right-2.5">
                                                     {isSelected
-                                                        ? <CheckSquare size={20} className="text-brand-400" />
-                                                        : <Square size={20} className="text-slate-500" />}
+                                                        ? <CheckSquare size={20} className="text-persimmon-600" />
+                                                        : <Square size={20} className="text-stone-500" />}
                                                 </div>
                                             </div>
                                         )
@@ -460,7 +460,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                         </ScrollArea>
                     </div>
 
-                    <div className="px-4 sm:px-6 py-2.5 bg-slate-950/20 border-t border-white/5 flex items-center justify-between text-xs text-slate-500 shrink-0">
+                    <div className="px-4 sm:px-6 py-2.5 bg-stone-50/20 border-t border-stone-200 flex items-center justify-between text-xs text-stone-500 shrink-0">
                         <span>Showing {shown.length} of {counts.all}</span>
                         <span>eBay · live</span>
                     </div>

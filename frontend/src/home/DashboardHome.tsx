@@ -30,7 +30,7 @@ import { ActivityRail } from './ActivityRail'
 export function DashboardHome({ userName = 'there' }: { userName?: string }) {
     // Socket.IO pushes job updates when connected — only poll as a fallback
     const isSocketConnected = useCommanderStore(s => s.isSocketConnected)
-    const { data: jobs = [] } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs, refetchInterval: isSocketConnected ? false : 5000 })
+    const { data: jobs = [], isPending: jobsPending } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs, refetchInterval: isSocketConnected ? false : 5000 })
 
     const setSelectedJob = useCommanderStore(s => s.setSelectedJob)
     const setActiveTab = useCommanderStore(s => s.setActiveTab)
@@ -71,7 +71,7 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
     }
 
     return (
-        <div className="dark min-h-screen text-slate-100">
+        <div className="min-h-screen text-foreground">
             <motion.div 
                 className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col gap-6"
                 variants={containerVariants}
@@ -82,40 +82,40 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
                 {/* Header */}
                 <motion.header variants={itemVariants} className="flex justify-between items-center pb-2">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-glow">
+                        <div className="w-10 h-10 rounded-xl bg-persimmon-600 flex items-center justify-center shadow-sm">
                             <span className="font-bold text-white text-sm">DC</span>
                         </div>
                         <div>
-                            <div className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Draft Commander</div>
-                            <h1 className="font-display font-bold text-2xl tracking-tight leading-none text-white mt-1">
+                            <div className="text-xs font-bold tracking-widest text-stone-500 uppercase">Draft Commander</div>
+                            <h1 className="font-display font-bold text-2xl tracking-tight leading-none text-ink-800 mt-1">
                                 Good {part}, {userName}
                             </h1>
                         </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-4">
                         <button
                             onClick={handleScan}
                             disabled={isScanning}
-                            className="hidden sm:flex items-center gap-2 bg-brand-500/20 border border-brand-500/50 hover:bg-brand-500/30 transition-colors rounded-full px-4 py-1.5 shadow-[0_0_15px_rgba(167,139,250,0.15)] disabled:opacity-50 cursor-pointer"
+                            className="hidden sm:flex items-center gap-2 h-11 bg-persimmon-50 border border-persimmon-200 hover:bg-persimmon-100 transition-colors rounded-full px-4 disabled:opacity-50 cursor-pointer"
                         >
                             {isScanning ? (
-                                <div className="w-4 h-4 rounded-full border-2 border-brand-400 border-t-transparent animate-spin mr-1"></div>
+                                <div className="w-4 h-4 rounded-full border-2 border-persimmon-500 border-t-transparent animate-spin mr-1"></div>
                             ) : (
-                                <ScanLine className="w-4 h-4 text-brand-400" />
+                                <ScanLine className="w-4 h-4 text-persimmon-600" />
                             )}
-                            <span className="text-xs font-bold text-brand-400">
+                            <span className="text-xs font-bold text-persimmon-600">
                                 {isScanning ? 'Scanning...' : 'Scan Inbox'}
                             </span>
                         </button>
-                        
-                        {/* Mobile Settings Gear */}
+
+                        {/* Mobile Settings — also reachable from the More tab. */}
                         <button
                             onClick={() => setActiveTab('settings')}
-                            className="flex sm:hidden items-center justify-center w-9 h-9 bg-slate-900/60 border border-white/10 rounded-xl hover:bg-slate-800 transition-colors cursor-pointer text-slate-300 hover:text-white"
+                            className="flex sm:hidden items-center justify-center w-11 h-11 bg-paper-card border border-stone-200 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer text-stone-600 hover:text-ink-800"
                             aria-label="Settings"
                         >
-                            <SettingsIcon className="w-4 h-4" />
+                            <SettingsIcon className="w-5 h-5" />
                         </button>
                     </div>
                 </motion.header>
@@ -125,12 +125,12 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
                     <motion.div variants={itemVariants}>
                         <button
                             onClick={() => setActiveTab('settings')}
-                            className="w-full flex items-center gap-3 rounded-2xl bg-red-500/10 border border-red-500/40 px-4 py-3 text-left hover:bg-red-500/15 transition-colors"
+                            className="w-full flex items-center gap-3 rounded-2xl bg-red-50 border border-red-300 px-4 py-3 text-left hover:bg-red-100 transition-colors"
                         >
-                            <PlugZap className="w-5 h-5 text-red-400 shrink-0" />
+                            <PlugZap className="w-5 h-5 text-red-600 shrink-0" />
                             <div className="flex-1 min-w-0">
-                                <div className="text-sm font-bold text-red-300">eBay disconnected</div>
-                                <div className="text-xs text-red-300/70">New listings will fail — tap to check the token in Settings</div>
+                                <div className="text-sm font-bold text-red-800">eBay disconnected</div>
+                                <div className="text-xs text-red-700">New listings will fail — tap to check the token in Settings</div>
                             </div>
                         </button>
                     </motion.div>
@@ -141,14 +141,14 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
                     <motion.div variants={itemVariants}>
                         <button
                             onClick={() => setActiveTab('review')}
-                            className="w-full flex items-center gap-3 rounded-2xl bg-amber-500/10 border border-amber-500/40 px-4 py-3 text-left hover:bg-amber-500/15 transition-colors"
+                            className="w-full flex items-center gap-3 rounded-2xl bg-clay-300/25 border border-clay-400 px-4 py-3 text-left hover:bg-clay-300/40 transition-colors"
                         >
-                            <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0" />
+                            <ShieldAlert className="w-5 h-5 text-clay-600 shrink-0" />
                             <div className="flex-1 min-w-0">
-                                <div className="text-sm font-bold text-amber-300">
+                                <div className="text-sm font-bold text-ink-800">
                                     {needsReviewCount} listing{needsReviewCount !== 1 ? 's' : ''} waiting for price review
                                 </div>
-                                <div className="text-xs text-amber-300/70">Approve or fix them before they go live</div>
+                                <div className="text-xs text-ink-500">Approve or fix them before they go live</div>
                             </div>
                         </button>
                     </motion.div>
@@ -166,21 +166,23 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
 
 
 
-                {/* Two-column: workspace + activity */}
-                <motion.div variants={itemVariants} className="flex gap-5 items-start flex-wrap mt-6">
-                    <div className="flex-[1.7] min-w-0 md:min-w-[420px] flex flex-col gap-4">
+                {/* Stacked on phones, two columns from md. The old `flex flex-wrap`
+                    never wrapped — the workspace column could shrink to zero (min-w-0)
+                    while the rail held its 296px floor, so the two overlapped. */}
+                <motion.div variants={itemVariants} className="flex flex-col md:flex-row gap-5 items-stretch md:items-start mt-6">
+                    <div className="md:flex-[1.7] min-w-0 flex flex-col gap-4">
                         {showWorkspace ? (
                             <>
                                 {!isMobile && <UploadZone compact />}
 
                                 <div className="flex items-center gap-2.5 flex-wrap">
-                                    <div className="font-sans font-bold text-[15px] tracking-tight text-white">Workspace</div>
-                                    <div className="flex gap-1.5 flex-wrap ml-0.5 text-[12px] font-medium">
+                                    <div className="font-sans font-bold text-[15px] tracking-tight text-ink-800">Workspace</div>
+                                    <div className="flex gap-1.5 flex-wrap ml-0.5 text-xs font-medium">
                                         {needs > 0 && (
-                                            <span className="px-2.5 py-1 rounded-lg bg-red-500/20 text-red-300 border border-red-500/30">Needs you · {needs}</span>
+                                            <span className="px-2.5 py-1 rounded-lg bg-red-50 text-red-700 border border-red-200">Needs you · {needs}</span>
                                         )}
                                         {working > 0 && (
-                                            <span className="px-2.5 py-1 rounded-lg bg-brand-500/20 text-brand-300 border border-brand-500/30">Working · {working}</span>
+                                            <span className="px-2.5 py-1 rounded-lg bg-persimmon-50 text-persimmon-700 border border-persimmon-200">Working · {working}</span>
                                         )}
                                     </div>
                                 </div>
@@ -191,15 +193,20 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
                                     ))}
                                 </div>
                             </>
+                        ) : jobsPending ? (
+                            /* "All caught up" before the jobs land would be a claim we can't make yet. */
+                            <div className="rounded-3xl border border-stone-200 bg-paper-card px-4 py-5 shadow-sm">
+                                <div className="h-4 w-2/3 rounded bg-stone-200 animate-pulse" />
+                            </div>
                         ) : (
-                            <div className="rounded-3xl border border-slate-700/50 bg-slate-900/40 backdrop-blur-xl px-4 py-5 text-[13px] text-slate-400 flex items-start gap-3 shadow-lg">
-                                <span className="text-brand-400 font-bold mt-px text-lg">✓</span>
+                            <div className="rounded-3xl border border-stone-200 bg-paper-card px-4 py-5 text-sm text-stone-500 flex items-start gap-3 shadow-sm">
+                                <span className="text-sage-500 font-bold mt-px text-lg">✓</span>
                                 <span>All caught up — nothing needs you. Photos sent over WhatsApp list automatically; they’ll show here only if one needs a hand.</span>
                             </div>
                         )}
                     </div>
 
-                    <div className="flex-1 min-w-[296px] sticky top-0">
+                    <div className="w-full md:flex-1 md:min-w-[296px] md:sticky md:top-0">
                         <ActivityRail />
                     </div>
                 </motion.div>

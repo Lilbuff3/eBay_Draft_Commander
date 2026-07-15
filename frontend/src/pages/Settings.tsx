@@ -129,30 +129,30 @@ export function Settings() {
             <div className="mx-auto max-w-4xl space-y-6 pb-24">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div>
-                        <h1 className="text-2xl font-display font-bold text-white tracking-tight text-balance">Settings</h1>
-                        <p className="text-slate-450 text-sm">Configure API keys and application defaults</p>
+                        <h1 className="text-2xl font-display font-bold text-ink-800 tracking-tight text-balance">Settings</h1>
+                        <p className="text-stone-500 text-sm">Configure API keys and application defaults</p>
                     </div>
-                    <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto bg-brand-500 hover:bg-brand-600 text-white shadow-glow">
+                    <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto bg-persimmon-600 hover:bg-persimmon-700 text-white shadow-sm">
                         {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin text-white" /> : <Save className="mr-2 h-4 w-4" />}
                         Save Changes
                     </Button>
                 </div>
 
                 <Tabs defaultValue="ebay-policies" className="w-full">
-                    <TabsList className="w-full bg-slate-950/40 p-1 rounded-xl border border-white/10 flex overflow-x-auto">
-                        <TabsTrigger value="ebay-policies" className="flex-1 min-w-0 text-xs sm:text-sm data-[state=active]:bg-slate-800 data-[state=active]:text-brand-400">
+                    <TabsList className="w-full h-auto bg-stone-50 p-1 rounded-xl border border-stone-200 flex overflow-x-auto">
+                        <TabsTrigger value="ebay-policies" className="flex-1 min-w-0 min-h-[44px] text-xs sm:text-sm data-[state=active]:bg-stone-100 data-[state=active]:text-persimmon-600">
                             <span className="hidden sm:inline">eBay Policies</span>
                             <span className="sm:hidden">Policies</span>
                         </TabsTrigger>
-                        <TabsTrigger value="ebay-auth" className="flex-1 min-w-0 text-xs sm:text-sm data-[state=active]:bg-slate-800 data-[state=active]:text-brand-400">
+                        <TabsTrigger value="ebay-auth" className="flex-1 min-w-0 min-h-[44px] text-xs sm:text-sm data-[state=active]:bg-stone-100 data-[state=active]:text-persimmon-600">
                             <span className="hidden sm:inline">eBay Authentication</span>
                             <span className="sm:hidden">Auth</span>
                         </TabsTrigger>
-                        <TabsTrigger value="automation" className="flex-1 min-w-0 text-xs sm:text-sm data-[state=active]:bg-slate-800 data-[state=active]:text-brand-400">
+                        <TabsTrigger value="automation" className="flex-1 min-w-0 min-h-[44px] text-xs sm:text-sm data-[state=active]:bg-stone-100 data-[state=active]:text-persimmon-600">
                             <span className="hidden sm:inline">Automation</span>
                             <span className="sm:hidden"><Zap className="h-4 w-4" /></span>
                         </TabsTrigger>
-                        <TabsTrigger value="ai" className="flex-1 min-w-0 text-xs sm:text-sm data-[state=active]:bg-slate-800 data-[state=active]:text-brand-400">
+                        <TabsTrigger value="ai" className="flex-1 min-w-0 min-h-[44px] text-xs sm:text-sm data-[state=active]:bg-stone-100 data-[state=active]:text-persimmon-600">
                             <span className="hidden sm:inline">AI & Other</span>
                             <span className="sm:hidden">AI</span>
                         </TabsTrigger>
@@ -161,12 +161,12 @@ export function Settings() {
                     <TabsContent value="ebay-policies" className="mt-6">
                         <Card>
                             <CardHeader>
-                                <CardTitle className="text-white font-bold font-display">Listing Policies</CardTitle>
-                                <CardDescription className="text-slate-400">Default policies applied to new listings (IDs found in eBay Business Policies)</CardDescription>
+                                <CardTitle className="text-ink-800 font-bold font-display">Listing Policies</CardTitle>
+                                <CardDescription className="text-stone-500">Default policies applied to new listings (IDs found in eBay Business Policies)</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="fulfill" className="text-slate-200">Fulfillment Policy ID (Shipping)</Label>
+                                    <Label htmlFor="fulfill" className="text-stone-700">Fulfillment Policy ID (Shipping)</Label>
                                     <Input
                                         id="fulfill"
                                         value={settings['EBAY_FULFILLMENT_POLICY'] || ''}
@@ -175,7 +175,7 @@ export function Settings() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="payment" className="text-slate-200">Payment Policy ID</Label>
+                                    <Label htmlFor="payment" className="text-stone-700">Payment Policy ID</Label>
                                     <Input
                                         id="payment"
                                         value={settings['EBAY_PAYMENT_POLICY'] || ''}
@@ -184,7 +184,7 @@ export function Settings() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="return" className="text-slate-200">Return Policy ID</Label>
+                                    <Label htmlFor="return" className="text-stone-700">Return Policy ID</Label>
                                     <Input
                                         id="return"
                                         value={settings['EBAY_RETURN_POLICY'] || ''}
@@ -193,7 +193,7 @@ export function Settings() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="location" className="text-slate-200">Merchant Location Key</Label>
+                                    <Label htmlFor="location" className="text-stone-700">Merchant Location Key</Label>
                                     <Input
                                         id="location"
                                         value={settings['EBAY_MERCHANT_LOCATION'] || ''}
@@ -208,27 +208,27 @@ export function Settings() {
                     <TabsContent value="ebay-auth" className="mt-6">
                         <Card>
                             <CardHeader>
-                                <CardTitle className="text-white font-bold font-display">eBay API Credentials</CardTitle>
-                                <CardDescription className="text-slate-400">Application keys from eBay Developer Portal</CardDescription>
+                                <CardTitle className="text-ink-800 font-bold font-display">eBay API Credentials</CardTitle>
+                                <CardDescription className="text-stone-500">Application keys from eBay Developer Portal</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 {/* Live token status — the only place this is visible on mobile */}
                                 <div className={cn(
                                     'flex items-center gap-2 rounded-xl border px-3 py-2 text-sm',
-                                    ebayStatus.status === 'connected' && 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300',
-                                    ebayStatus.status === 'checking' && 'bg-white/5 border-white/10 text-slate-400',
-                                    !['connected', 'checking'].includes(ebayStatus.status) && 'bg-red-500/10 border-red-500/30 text-red-300',
+                                    ebayStatus.status === 'connected' && 'bg-emerald-50 border-emerald-200 text-emerald-700',
+                                    ebayStatus.status === 'checking' && 'bg-stone-100 border-stone-200 text-stone-500',
+                                    !['connected', 'checking'].includes(ebayStatus.status) && 'bg-red-50 border-red-200 text-red-700',
                                 )}>
                                     <span className={cn(
                                         'w-2 h-2 rounded-full shrink-0',
                                         ebayStatus.status === 'connected' ? 'bg-emerald-400' :
-                                            ebayStatus.status === 'checking' ? 'bg-slate-500 animate-pulse' : 'bg-red-400',
+                                            ebayStatus.status === 'checking' ? 'bg-stone-400 animate-pulse' : 'bg-red-400',
                                     )} />
                                     <span className="font-semibold capitalize">{ebayStatus.status}</span>
                                     <span className="text-xs opacity-80 truncate">{ebayStatus.message}</span>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="appid" className="text-slate-200">App ID (Client ID)</Label>
+                                    <Label htmlFor="appid" className="text-stone-700">App ID (Client ID)</Label>
                                     <Input
                                         id="appid"
                                         value={settings['EBAY_APP_ID'] || ''}
@@ -236,7 +236,7 @@ export function Settings() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="certid" className="text-slate-200">Cert ID (Client Secret)</Label>
+                                    <Label htmlFor="certid" className="text-stone-700">Cert ID (Client Secret)</Label>
                                     <Input
                                         id="certid"
                                         type="password"
@@ -245,7 +245,7 @@ export function Settings() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="runame" className="text-slate-200">RuName (Redirect URL Name)</Label>
+                                    <Label htmlFor="runame" className="text-stone-700">RuName (Redirect URL Name)</Label>
                                     <Input
                                         id="runame"
                                         value={settings['EBAY_RUNAME'] || ''}
@@ -253,7 +253,7 @@ export function Settings() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="token" className="text-slate-200">User Refresh Token</Label>
+                                    <Label htmlFor="token" className="text-stone-700">User Refresh Token</Label>
                                     <Input
                                         id="token"
                                         type="password"
@@ -264,23 +264,23 @@ export function Settings() {
                                     />
                                 </div>
                                 <div className="flex items-center space-x-2 pt-2">
-                                    <Label className="text-slate-200">Environment:</Label>
+                                    <Label className="text-stone-700">Environment:</Label>
                                     <div className="flex space-x-4">
-                                        <label className="flex items-center space-x-2 cursor-pointer text-slate-400 hover:text-white">
+                                        <label className="flex items-center space-x-2 cursor-pointer text-stone-500 hover:text-ink-800">
                                             <input
                                                 type="radio"
                                                 name="env"
-                                                className="accent-brand-500"
+                                                className="accent-persimmon-500"
                                                 checked={settings['EBAY_ENVIRONMENT'] !== 'sandbox'}
                                                 onChange={() => handleChange('EBAY_ENVIRONMENT', 'production')}
                                             />
                                             <span>Production</span>
                                         </label>
-                                        <label className="flex items-center space-x-2 cursor-pointer text-slate-400 hover:text-white">
+                                        <label className="flex items-center space-x-2 cursor-pointer text-stone-500 hover:text-ink-800">
                                             <input
                                                 type="radio"
                                                 name="env"
-                                                className="accent-brand-500"
+                                                className="accent-persimmon-500"
                                                 checked={settings['EBAY_ENVIRONMENT'] === 'sandbox'}
                                                 onChange={() => handleChange('EBAY_ENVIRONMENT', 'sandbox')}
                                             />
@@ -295,17 +295,17 @@ export function Settings() {
                     <TabsContent value="automation" className="mt-6">
                         <Card>
                             <CardHeader>
-                                <CardTitle className="text-white font-bold font-display">Auto-Publish</CardTitle>
-                                <CardDescription className="text-slate-400">
+                                <CardTitle className="text-ink-800 font-bold font-display">Auto-Publish</CardTitle>
+                                <CardDescription className="text-stone-500">
                                     When enabled, listings that meet all criteria will publish directly to eBay without manual review.
                                     Items below the confidence threshold or minimum price will still go to the Review Queue.
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-6">
-                                <div className="flex items-center justify-between p-4 bg-slate-950/40 border border-white/5 rounded-2xl">
+                                <div className="flex items-center justify-between p-4 bg-stone-50 border border-stone-200 rounded-2xl">
                                     <div>
-                                        <Label htmlFor="auto-publish" className="text-base font-medium text-slate-200">Auto-Publish Enabled</Label>
-                                        <p className="text-sm text-slate-500 mt-1">
+                                        <Label htmlFor="auto-publish" className="text-base font-medium text-stone-700">Auto-Publish Enabled</Label>
+                                        <p className="text-sm text-stone-500 mt-1">
                                             {settings['AUTO_PUBLISH'] === 'true'
                                                 ? 'High-confidence listings will publish automatically'
                                                 : 'All listings require manual approval'}
@@ -318,7 +318,7 @@ export function Settings() {
                                         aria-checked={settings['AUTO_PUBLISH'] === 'true'}
                                         onClick={() => handleChange('AUTO_PUBLISH', settings['AUTO_PUBLISH'] === 'true' ? 'false' : 'true')}
                                         className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-                                            settings['AUTO_PUBLISH'] === 'true' ? 'bg-emerald-600' : 'bg-slate-800'
+                                            settings['AUTO_PUBLISH'] === 'true' ? 'bg-emerald-600' : 'bg-stone-100'
                                         }`}
                                     >
                                         <span
@@ -330,7 +330,7 @@ export function Settings() {
                                 </div>
 
                                 <div className="space-y-2">
-                                    <Label htmlFor="confidence" className="text-slate-200">Confidence Threshold (%)</Label>
+                                    <Label htmlFor="confidence" className="text-stone-700">Confidence Threshold (%)</Label>
                                     <div className="flex items-center gap-4">
                                         <Input
                                             id="confidence"
@@ -341,14 +341,14 @@ export function Settings() {
                                             value={settings['CONFIDENCE_THRESHOLD'] || '85'}
                                             onChange={e => handleChange('CONFIDENCE_THRESHOLD', e.target.value)}
                                         />
-                                        <span className="text-sm text-slate-500">
+                                        <span className="text-sm text-stone-500">
                                             AI must be at least {settings['CONFIDENCE_THRESHOLD'] || '85'}% confident to auto-publish
                                         </span>
                                     </div>
                                 </div>
 
                                 <div className="space-y-2">
-                                    <Label htmlFor="min-price" className="text-slate-200">Minimum Price ($)</Label>
+                                    <Label htmlFor="min-price" className="text-stone-700">Minimum Price ($)</Label>
                                     <div className="flex items-center gap-4">
                                         <Input
                                             id="min-price"
@@ -359,16 +359,16 @@ export function Settings() {
                                             value={settings['AUTO_PUBLISH_MIN_PRICE'] || '15.00'}
                                             onChange={e => handleChange('AUTO_PUBLISH_MIN_PRICE', e.target.value)}
                                         />
-                                        <span className="text-sm text-slate-500">
+                                        <span className="text-sm text-stone-500">
                                             Items priced below this go to Review Queue for manual check
                                         </span>
                                     </div>
                                 </div>
 
-                                <div className="flex items-center justify-between p-4 bg-slate-950/40 border border-white/5 rounded-2xl">
+                                <div className="flex items-center justify-between p-4 bg-stone-50 border border-stone-200 rounded-2xl">
                                     <div>
-                                        <Label htmlFor="fast-mode" className="text-base font-medium text-slate-200">Fast Mode</Label>
-                                        <p className="text-sm text-slate-500 mt-1">
+                                        <Label htmlFor="fast-mode" className="text-base font-medium text-stone-700">Fast Mode</Label>
+                                        <p className="text-sm text-stone-500 mt-1">
                                             {settings['FAST_MODE'] === 'true'
                                                 ? 'Skipping web research — 5–13s faster per item'
                                                 : 'Full pipeline: Phase 2 web research + Gemini price grounding enabled'}
@@ -381,7 +381,7 @@ export function Settings() {
                                         aria-checked={settings['FAST_MODE'] === 'true'}
                                         onClick={() => handleChange('FAST_MODE', settings['FAST_MODE'] === 'true' ? 'false' : 'true')}
                                         className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-                                            settings['FAST_MODE'] === 'true' ? 'bg-emerald-600' : 'bg-slate-800'
+                                            settings['FAST_MODE'] === 'true' ? 'bg-emerald-600' : 'bg-stone-100'
                                         }`}
                                     >
                                         <span
@@ -392,10 +392,10 @@ export function Settings() {
                                     </button>
                                 </div>
 
-                                <div className="flex items-center justify-between p-4 bg-slate-950/40 border border-white/5 rounded-2xl">
+                                <div className="flex items-center justify-between p-4 bg-stone-50 border border-stone-200 rounded-2xl">
                                     <div className="flex-1 pr-6">
-                                        <Label htmlFor="promoted-listings" className="text-base font-medium text-slate-200">Promoted Listings</Label>
-                                        <p className="text-sm text-slate-500 mt-1">
+                                        <Label htmlFor="promoted-listings" className="text-base font-medium text-stone-700">Promoted Listings</Label>
+                                        <p className="text-sm text-stone-500 mt-1">
                                             {settings['PROMOTED_LISTINGS_ENABLED'] === 'true'
                                                 ? 'New listings will automatically be promoted at the ad rate below'
                                                 : 'Promoted Listings disabled'}
@@ -413,11 +413,11 @@ export function Settings() {
                                                         value={settings['PROMOTED_LISTINGS_AD_RATE'] || '5.0'}
                                                         onChange={e => handleChange('PROMOTED_LISTINGS_AD_RATE', e.target.value)}
                                                     />
-                                                    <div className="flex items-center justify-center h-10 px-3 bg-slate-950/60 border border-white/10 rounded-r-md text-slate-500 select-none">
+                                                    <div className="flex items-center justify-center h-10 px-3 bg-stone-50 border border-stone-200 rounded-r-md text-stone-500 select-none">
                                                         %
                                                     </div>
                                                 </div>
-                                                <Label htmlFor="ad-rate" className="text-sm font-normal text-slate-500">
+                                                <Label htmlFor="ad-rate" className="text-sm font-normal text-stone-500">
                                                     Ad Rate (Bid Percentage)
                                                 </Label>
                                             </div>
@@ -430,7 +430,7 @@ export function Settings() {
                                         aria-checked={settings['PROMOTED_LISTINGS_ENABLED'] === 'true'}
                                         onClick={() => handleChange('PROMOTED_LISTINGS_ENABLED', settings['PROMOTED_LISTINGS_ENABLED'] === 'true' ? 'false' : 'true')}
                                         className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer self-start rounded-full border-2 border-transparent transition-colors ${
-                                            settings['PROMOTED_LISTINGS_ENABLED'] === 'true' ? 'bg-emerald-600' : 'bg-slate-800'
+                                            settings['PROMOTED_LISTINGS_ENABLED'] === 'true' ? 'bg-emerald-600' : 'bg-stone-100'
                                         }`}
                                     >
                                         <span
@@ -441,8 +441,8 @@ export function Settings() {
                                     </button>
                                 </div>
 
-                                <div className="space-y-2 p-4 bg-slate-950/40 border border-white/5 rounded-2xl">
-                                    <Label htmlFor="price-agreement-ratio" className="text-slate-200">Price Conflict Threshold (×)</Label>
+                                <div className="space-y-2 p-4 bg-stone-50 border border-stone-200 rounded-2xl">
+                                    <Label htmlFor="price-agreement-ratio" className="text-stone-700">Price Conflict Threshold (×)</Label>
                                     <div className="flex items-center gap-4">
                                         <Input
                                             id="price-agreement-ratio"
@@ -453,12 +453,12 @@ export function Settings() {
                                             value={settings['PRICE_AGREEMENT_RATIO'] || '1.6'}
                                             onChange={e => handleChange('PRICE_AGREEMENT_RATIO', e.target.value)}
                                         />
-                                        <span className="text-sm text-slate-500">Comps vs AI research further apart than this → held for review with both prices</span>
+                                        <span className="text-sm text-stone-500">Comps vs AI research further apart than this → held for review with both prices</span>
                                     </div>
                                 </div>
 
-                                <div className="space-y-2 p-4 bg-slate-950/40 border border-white/5 rounded-2xl">
-                                    <Label htmlFor="whatsapp-notify-chat" className="text-slate-200">WhatsApp Notify Chat ID</Label>
+                                <div className="space-y-2 p-4 bg-stone-50 border border-stone-200 rounded-2xl">
+                                    <Label htmlFor="whatsapp-notify-chat" className="text-stone-700">WhatsApp Notify Chat ID</Label>
                                     <div className="flex items-center gap-4">
                                         <Input
                                             id="whatsapp-notify-chat"
@@ -468,7 +468,7 @@ export function Settings() {
                                             value={settings['WHATSAPP_NOTIFY_CHAT_ID'] || ''}
                                             onChange={e => handleChange('WHATSAPP_NOTIFY_CHAT_ID', e.target.value)}
                                         />
-                                        <span className="text-sm text-slate-500">Texts you when a listing needs price review + a queue summary (empty = off)</span>
+                                        <span className="text-sm text-stone-500">Texts you when a listing needs price review + a queue summary (empty = off)</span>
                                     </div>
                                 </div>
                             </CardContent>
@@ -476,15 +476,15 @@ export function Settings() {
 
                         <Card className="mt-6">
                             <CardHeader>
-                                <CardTitle className="text-white font-bold font-display">Sourcing Verdicts</CardTitle>
-                                <CardDescription className="text-slate-400">
+                                <CardTitle className="text-ink-800 font-bold font-display">Sourcing Verdicts</CardTitle>
+                                <CardDescription className="text-stone-500">
                                     Buy/pass math for the Source tab. Max buy price = the lower of
                                     (net proceeds − min profit) and (net proceeds ÷ ROI multiple).
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="sourcing-min-profit" className="text-slate-200">Minimum Profit ($)</Label>
+                                    <Label htmlFor="sourcing-min-profit" className="text-stone-700">Minimum Profit ($)</Label>
                                     <div className="flex items-center gap-4">
                                         <Input
                                             id="sourcing-min-profit"
@@ -495,11 +495,11 @@ export function Settings() {
                                             value={settings['SOURCING_MIN_PROFIT'] || '5.00'}
                                             onChange={e => handleChange('SOURCING_MIN_PROFIT', e.target.value)}
                                         />
-                                        <span className="text-sm text-slate-500">Smallest profit worth your time per item</span>
+                                        <span className="text-sm text-stone-500">Smallest profit worth your time per item</span>
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="sourcing-roi" className="text-slate-200">ROI Multiple (×)</Label>
+                                    <Label htmlFor="sourcing-roi" className="text-stone-700">ROI Multiple (×)</Label>
                                     <div className="flex items-center gap-4">
                                         <Input
                                             id="sourcing-roi"
@@ -510,11 +510,11 @@ export function Settings() {
                                             value={settings['SOURCING_ROI_MULTIPLE'] || '3.0'}
                                             onChange={e => handleChange('SOURCING_ROI_MULTIPLE', e.target.value)}
                                         />
-                                        <span className="text-sm text-slate-500">3 = classic "pay at most a third of net" rule. 0 disables.</span>
+                                        <span className="text-sm text-stone-500">3 = classic "pay at most a third of net" rule. 0 disables.</span>
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="sourcing-ship" className="text-slate-200">Est. Shipping Cost ($)</Label>
+                                    <Label htmlFor="sourcing-ship" className="text-stone-700">Est. Shipping Cost ($)</Label>
                                     <div className="flex items-center gap-4">
                                         <Input
                                             id="sourcing-ship"
@@ -525,7 +525,7 @@ export function Settings() {
                                             value={settings['SOURCING_SHIP_COST'] || '5.00'}
                                             onChange={e => handleChange('SOURCING_SHIP_COST', e.target.value)}
                                         />
-                                        <span className="text-sm text-slate-500">Actual cost to ship a sourced item (Media Mail ≈ $4–5)</span>
+                                        <span className="text-sm text-stone-500">Actual cost to ship a sourced item (Media Mail ≈ $4–5)</span>
                                     </div>
                                 </div>
                             </CardContent>
@@ -535,12 +535,12 @@ export function Settings() {
                     <TabsContent value="ai" className="mt-6">
                         <Card>
                             <CardHeader>
-                                <CardTitle className="text-white font-bold font-display">AI Configuration</CardTitle>
-                                <CardDescription className="text-slate-400">API Keys for AI Analysis</CardDescription>
+                                <CardTitle className="text-ink-800 font-bold font-display">AI Configuration</CardTitle>
+                                <CardDescription className="text-stone-500">API Keys for AI Analysis</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="google_key" className="text-slate-200">Google Gemini API Key</Label>
+                                    <Label htmlFor="google_key" className="text-stone-700">Google Gemini API Key</Label>
                                     <Input
                                         id="google_key"
                                         type="password"
@@ -552,14 +552,14 @@ export function Settings() {
                             </CardContent>
                         </Card>
 
-                        <Card className="border-rose-500/20 bg-rose-500/5 shadow-glass backdrop-blur-2xl rounded-3xl mt-6">
+                        <Card className="border-rose-200 bg-rose-500/5 shadow-sm backdrop-blur-2xl rounded-3xl mt-6">
                             <CardHeader>
-                                <CardTitle className="text-rose-300 font-bold font-display">System Controls</CardTitle>
-                                <CardDescription className="text-rose-400">Advanced actions for the application host.</CardDescription>
+                                <CardTitle className="text-rose-700 font-bold font-display">System Controls</CardTitle>
+                                <CardDescription className="text-rose-600">Advanced actions for the application host.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="flex flex-col gap-3">
-                                    <p className="text-sm text-rose-300">
+                                    <p className="text-sm text-rose-700">
                                         If the backend server is behaving unexpectedly, you can trigger a soft reboot.
                                         The app will become unavailable for a few seconds while the process restarts.
                                     </p>
@@ -567,7 +567,7 @@ export function Settings() {
                                         variant="destructive"
                                         onClick={handleRestart}
                                         disabled={restarting}
-                                        className="w-full sm:w-auto bg-rose-650 hover:bg-rose-700 text-white"
+                                        className="w-full sm:w-auto bg-rose-600 hover:bg-rose-700 text-white"
                                     >
                                         {restarting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                                         Reboot Backend Server

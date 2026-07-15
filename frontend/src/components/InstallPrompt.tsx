@@ -68,19 +68,19 @@ export function InstallPrompt() {
                     initial={{ opacity: 0, y: 50 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 50 }}
-                    className="fixed bottom-20 left-4 right-4 bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-2xl z-50 md:max-w-md md:left-auto md:right-8 md:bottom-4"
+                    className="fixed bottom-20 left-4 right-4 bg-paper-card border border-stone-200 p-4 rounded-xl shadow-2xl z-50 md:max-w-md md:left-auto md:right-8 md:bottom-4"
                 >
                     <div className="flex justify-between items-start mb-2">
-                        <h3 className="text-white font-semibold text-sm">Install App</h3>
+                        <h3 className="text-ink-800 font-semibold text-sm">Install App</h3>
                         <button
                             onClick={handleDismiss}
-                            className="text-slate-400 hover:text-white"
+                            className="text-stone-500 hover:text-ink-800"
                             aria-label="Dismiss"
                         >
                             <X className="w-4 h-4" />
                         </button>
                     </div>
-                    <p className="text-slate-300 text-xs mb-3">
+                    <p className="text-stone-600 text-xs mb-3">
                         Install this app on your iPhone:
                         <br />
                         1. Tap <Share className="w-3 h-3 inline mx-1" /> <strong>Share</strong>
