@@ -55,7 +55,7 @@
         }
     ],
     "start_url": "/app/",
-    "scope": "/",
+    "scope": "/app/",
     "display": "standalone",
     "display_override": [
         "standalone",
