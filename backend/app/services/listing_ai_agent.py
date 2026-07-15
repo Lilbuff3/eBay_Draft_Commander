@@ -151,6 +151,9 @@ class ListingAIAgent:
             )
             final_price = str(price_result['suggested_price']) if price_result['suggested_price'] else "0.00"
             _log(f"Suggested Price: ${final_price}")
+            # A hand-written projection, not a passthrough: an engine field that
+            # nobody names here dies silently. tests/unit/test_pricing_projection_seam.py
+            # reads get_price_with_comps' real return keys and fails on a new drop.
             return {
                 "price": final_price,
                 "timing": time.time() - pricing_start,
@@ -162,6 +165,8 @@ class ListingAIAgent:
                 "confidence_reason": price_result.get('confidence_reason'),
                 "comp_price": price_result.get('comp_price'),
                 "ai_price": price_result.get('ai_price'),
+                "projected_profit": price_result.get('projected_profit'),
+                "research_link": price_result.get('research_link'),
             }
         except Exception as e:
             _log(f"Pricing Logic Failed: {e}", level='error')

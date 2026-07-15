@@ -633,6 +633,17 @@ class ProcessorService:
                  f"-> using DEFAULT_PRICE ${_fallback_price:.2f}; review before go-live", level='warning')
             pricing_result["price"] = _fallback_price
             pricing_result["price_floored"] = True
+            # DEFAULT_PRICE is a placeholder, not a valuation — the signal that
+            # produced the sub-floor number was already broken. Downgrade the
+            # confidence so the existing low-confidence gate in
+            # apply_pre_listing_guardrails holds the job for review (and texts
+            # via WhatsApp) rather than quietly listing at a made-up price.
+            # user_approved still bypasses this downstream, as for any flag.
+            pricing_result["confidence"] = "low"
+            pricing_result["confidence_reason"] = (
+                f"Price fell below the ${MIN_LISTING_PRICE} floor (weak pricing signal) "
+                f"and was set to ${_fallback_price:.2f} — confirm before listing"
+            )
 
         # Persist pricing comps and reasoning for user inspection
         ai_data = job_obj.ai_data or {}
@@ -641,6 +652,8 @@ class ProcessorService:
         ai_data['pricing_source'] = pricing_result.get('source', '')
         ai_data['pricing_confidence'] = pricing_result.get('confidence')
         ai_data['pricing_confidence_reason'] = pricing_result.get('confidence_reason')
+        if pricing_result.get('price_floored'):
+            ai_data['price_floored'] = True
         if pricing_result.get('comp_price') is not None and pricing_result.get('ai_price') is not None:
             # Comps-vs-AI conflict: both numbers surface in the Review Queue.
             ai_data['pricing_conflict'] = {
@@ -670,16 +683,7 @@ class ProcessorService:
         ai_data['image_urls'] = upload_urls
         job_obj.ai_data = ai_data
 
-        # 7. Rendering (include web research data for enriched descriptions)
-        research = (job_obj.ai_data or {}).get('research', {})
-        template = self._render_listing_template(
-            analysis['title'], analysis['raw_description'], upload_urls,
-            analysis['item_specifics'], condition, research=research
-        )
-        job_obj.description = template["html"]
-        result["timing"]["templating"] = template["timing"]
-
-        # 8. Required-aspects completion (NO-BLOCKS ENGINE)
+        # 7. Required-aspects completion (NO-BLOCKS ENGINE)
         # REQUIRED ASPECTS GUARD: Auto-fill safe defaults, resolve the rest (below).
         # eBay accepts "Does Not Apply" for generic aspects (Brand, MPN, etc.)
         # but rejects listings missing category-specific aspects (Size, Color, etc.) —
@@ -754,7 +758,7 @@ class ProcessorService:
         # itself. Capture is the only human step. A genuine error during listing
         # creation below is the only path to "Needs you".
 
-        # 9. Listing Creation
+        # 8. Listing Creation
         # Auto-schedule at optimal traffic time if no manual schedule set.
         # Default ON (AUTO_SCHEDULE_OPTIMAL) — posts at peak traffic and gives a
         # quiet cancel window; set AUTO_SCHEDULE_OPTIMAL=false to list immediately.
@@ -790,6 +794,20 @@ class ProcessorService:
         )
         analysis['title'] = job_obj.title
         analysis['item_specifics'] = job_obj.item_specifics
+
+        # 9. Rendering (include web research data for enriched descriptions).
+        # MUST run after every pass that mutates title/item_specifics — the
+        # required-aspects guard, sanitize_numeric_aspects, and the guardrails
+        # above — or the description body contradicts the title and specifics
+        # actually submitted to eBay. Runs before the review gate below so a
+        # job held in the Review Queue still has a description to show.
+        research = (job_obj.ai_data or {}).get('research', {})
+        template = self._render_listing_template(
+            analysis['title'], analysis['raw_description'], upload_urls,
+            analysis['item_specifics'], condition, research=research
+        )
+        job_obj.description = template["html"]
+        result["timing"]["templating"] = template["timing"]
 
         review_reason = guardrail_result.get('review_reason')
         if review_reason and (job_obj.job_metadata or {}).get('user_approved'):

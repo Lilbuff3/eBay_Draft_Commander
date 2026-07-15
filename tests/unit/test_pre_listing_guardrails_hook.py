@@ -185,6 +185,65 @@ class TestPreListingGuardrailHook:
         assert result['listing_id'] == '111222333'
         trading_api_mock.assert_called_once()
 
+    def test_floored_price_routes_to_pending_review(self, processor, monkeypatch):
+        """A price below MIN_LISTING_PRICE means the pricing signal collapsed
+        (no comps -> AI estimate of ~0). create_listing clamps it to
+        DEFAULT_PRICE so eBay won't reject it (Trading API error 73), but a
+        made-up $29.99 must not go live unreviewed -- the clamp is a guess, not
+        a price."""
+        trading_api_mock = _wire_common_mocks(
+            processor, monkeypatch,
+            title="Unknown Widget",
+            price=0.0,
+            comps=[],
+            source="ai_estimate",
+            item_specifics={"Brand": "Unbranded"},
+        )
+        job_obj = _make_job_obj()
+
+        result = processor.create_listing(job_obj)
+
+        assert result.get('status') == 'pending_review'
+        trading_api_mock.assert_not_called()
+        assert job_obj.ai_data.get('price_floored') is True
+
+    def test_floored_price_respects_user_approval(self, processor, monkeypatch):
+        """An explicitly approved job still lists at the floored price -- the
+        approval override must win here too, or an approved job ping-pongs."""
+        trading_api_mock = _wire_common_mocks(
+            processor, monkeypatch,
+            title="Unknown Widget",
+            price=0.0,
+            comps=[],
+            source="ai_estimate",
+            item_specifics={"Brand": "Unbranded"},
+        )
+        job_obj = _make_job_obj(job_metadata={'user_approved': True})
+
+        result = processor.create_listing(job_obj)
+
+        assert result.get('status') != 'pending_review'
+        trading_api_mock.assert_called_once()
+
+    def test_healthy_price_is_not_flagged_as_floored(self, processor, monkeypatch):
+        """Guard against over-firing: a normal comp-backed price must not set
+        the floored flag or route to review."""
+        trading_api_mock = _wire_common_mocks(
+            processor, monkeypatch,
+            title="Aiwa CSD-ES227 Stereo Boombox",
+            price=45.0,
+            comps=[{"price": 40.0}, {"price": 42.0}, {"price": 50.0}],
+            source="market_data_isbn",
+            item_specifics={"Brand": "Aiwa"},
+        )
+        job_obj = _make_job_obj()
+
+        result = processor.create_listing(job_obj)
+
+        assert result.get('status') != 'pending_review'
+        assert job_obj.ai_data.get('price_floored') is not True
+        trading_api_mock.assert_called_once()
+
     def test_pending_review_result_carries_title_and_price(self, processor, monkeypatch):
         """Verify the pending_review result shape includes the fields
         queue_manager.py's review-routing branch reads off the result dict
