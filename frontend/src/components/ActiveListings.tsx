@@ -9,6 +9,9 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
 import { InventoryCard } from './listings/InventoryCard'
+import {
+    Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
 import { ageDays, staleTag, TAG_META, DEAD_AGE, type StaleTag } from '@/lib/staleness'
 
 export interface Listing {
@@ -126,10 +129,30 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
         }
     }
 
-    const promote = async (listing: Listing) => {
+    // One shared confirm dialog for promote / end / bulk — replaces window.confirm
+    // (unstyled OS dialog, jarring inside a PWA).
+    const [confirmAction, setConfirmAction] = useState<{
+        title: string
+        description: string
+        confirmLabel: string
+        destructive: boolean
+        onConfirm: () => void
+    } | null>(null)
+
+    const promote = (listing: Listing) => {
+        if (!listing.listingId) return
+        setConfirmAction({
+            title: 'Promote this listing?',
+            description: `"${listing.title}" — you only pay the ad rate when it sells.`,
+            confirmLabel: 'Promote',
+            destructive: false,
+            onConfirm: () => void doPromote(listing),
+        })
+    }
+
+    const doPromote = async (listing: Listing) => {
         const id = listing.listingId
         if (!id) return
-        if (!confirm(`Promote "${listing.title}"?\nYou only pay the ad rate when it sells.`)) return
         setBusy(id, 'promote', true)
         try {
             await apiFetch(`/api/listings/${id}/promote`, { method: 'POST' })
@@ -141,10 +164,20 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
         }
     }
 
-    const endListing = async (listing: Listing) => {
+    const endListing = (listing: Listing) => {
+        if (!listing.listingId) return
+        setConfirmAction({
+            title: 'End this listing?',
+            description: `"${listing.title}" will be removed from eBay. This can't be undone.`,
+            confirmLabel: 'End listing',
+            destructive: true,
+            onConfirm: () => void doEndListing(listing),
+        })
+    }
+
+    const doEndListing = async (listing: Listing) => {
         const id = listing.listingId
         if (!id) return
-        if (!confirm(`End "${listing.title}"?\nThis removes the live eBay listing. Can't be undone.`)) return
         setBusy(id, 'end', true)
         try {
             await apiFetch(`/api/listings/${id}/end`, { method: 'POST' })
@@ -171,12 +204,27 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
 
     const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
-    const runBulk = async (kind: 'drop10' | 'end', targets: Listing[]) => {
+    const runBulk = (kind: 'drop10' | 'end', targets: Listing[]) => {
         if (targets.length === 0 || bulkRunning) return
-        const prompt = kind === 'drop10'
-            ? `Drop price 10% on ${targets.length} listing${targets.length !== 1 ? 's' : ''}?`
-            : `End ${targets.length} listing${targets.length !== 1 ? 's' : ''}?\nThis removes them from eBay. Can't be undone.`
-        if (!confirm(prompt)) return
+        const n = targets.length
+        setConfirmAction(kind === 'drop10'
+            ? {
+                title: `Drop price 10% on ${n} listing${n !== 1 ? 's' : ''}?`,
+                description: 'Each price is revised on eBay immediately.',
+                confirmLabel: 'Drop prices',
+                destructive: false,
+                onConfirm: () => void doRunBulk(kind, targets),
+            }
+            : {
+                title: `End ${n} listing${n !== 1 ? 's' : ''}?`,
+                description: "They will be removed from eBay. This can't be undone.",
+                confirmLabel: 'End listings',
+                destructive: true,
+                onConfirm: () => void doRunBulk(kind, targets),
+            })
+    }
+
+    const doRunBulk = async (kind: 'drop10' | 'end', targets: Listing[]) => {
         setBulkRunning(true)
         const toastId = toast.loading(`Working… 0/${targets.length}`)
         let ok = 0, failedCount = 0
@@ -319,11 +367,11 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                                             <div key={order.orderId} className="py-3 flex items-center justify-between gap-3 border-b border-stone-200 hover:bg-stone-100 transition px-2 rounded-xl">
                                                 <div className="min-w-0">
                                                     <p className="text-sm font-bold text-ink-800 truncate">{order.orderId}</p>
-                                                    <p className="text-[11px] text-stone-500 mt-0.5">{order.buyer} · {order.itemCount} item(s)</p>
+                                                    <p className="text-xs text-stone-500 mt-0.5">{order.buyer} · {order.itemCount} item(s)</p>
                                                 </div>
                                                 <div className="text-right shrink-0">
                                                     <div className="font-bold text-persimmon-600">${order.total.toFixed(2)}</div>
-                                                    <div className="text-[11px] text-stone-500">{new Date(order.creationDate).toLocaleDateString()}</div>
+                                                    <div className="text-xs text-stone-500">{new Date(order.creationDate).toLocaleDateString()}</div>
                                                 </div>
                                             </div>
                                         ))}
@@ -343,7 +391,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                             <div className="font-display font-bold text-[20px] tracking-[-0.03em] text-rose-700">
                                 ${Math.round(deadCapital).toLocaleString()} tied up
                             </div>
-                            <div className="text-[12px] text-rose-600/90 mt-0.5">
+                            <div className="text-xs text-rose-600/90 mt-0.5">
                                 {counts.dead} dead {counts.dead === 1 ? 'listing' : 'listings'} (&gt;{DEAD_AGE}d, 0 watchers){staleCapital > 0 ? ` · $${Math.round(staleCapital).toLocaleString()} more going stale` : ''}
                             </div>
                         </button>
@@ -475,6 +523,24 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                     />
                 )}
             </AnimatePresence>
+
+            <Dialog open={confirmAction !== null} onOpenChange={(open) => { if (!open) setConfirmAction(null) }}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>{confirmAction?.title}</DialogTitle>
+                        <DialogDescription>{confirmAction?.description}</DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2 sm:gap-2">
+                        <Button variant="outline" onClick={() => setConfirmAction(null)}>Cancel</Button>
+                        <Button
+                            variant={confirmAction?.destructive ? 'destructive' : 'default'}
+                            onClick={() => { confirmAction?.onConfirm(); setConfirmAction(null) }}
+                        >
+                            {confirmAction?.confirmLabel}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </motion.div>
     )
 }

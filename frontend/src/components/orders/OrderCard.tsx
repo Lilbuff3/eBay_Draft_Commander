@@ -27,11 +27,11 @@ export function OrderCard({ order }: { order: Order }) {
                 <p className="text-sm font-bold text-ink-800 truncate">
                     {order.itemTitle || order.orderId}
                 </p>
-                <p className="text-[11px] text-stone-500 mt-0.5 truncate">
+                <p className="text-xs text-stone-500 mt-0.5 truncate">
                     {order.buyer} · sold {soldDate}
                     {(order.itemCount ?? 1) > 1 ? ` · ${order.itemCount} items` : ''}
                 </p>
-                <span className={`inline-block mt-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold ${meta.chip}`}>
+                <span className={`inline-block mt-1.5 px-2 py-0.5 rounded-md text-xs font-semibold ${meta.chip}`}>
                     {meta.label}{tag !== 'done' ? ` · ${shipLabel(order)}` : ''}
                 </span>
             </div>
@@ -39,7 +39,7 @@ export function OrderCard({ order }: { order: Order }) {
             {/* Money */}
             <div className="text-right shrink-0">
                 <div className="font-bold text-persimmon-600">${order.total.toFixed(2)}</div>
-                <div className="text-[11px] text-stone-500 mt-0.5">{order.orderId}</div>
+                <div className="text-xs text-stone-500 mt-0.5">{order.orderId}</div>
             </div>
         </div>
     )

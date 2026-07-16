@@ -74,7 +74,7 @@ function SortableThumbnail({ img, index, selectedIndex, onSelect }: { img: Galle
                 className="w-full h-full object-cover pointer-events-none"
             />
             {index === 0 && (
-                <div className="absolute top-0 right-0 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1 rounded-bl-md z-10 pointers-event-none">
+                <div className="absolute top-0 right-0 bg-yellow-400 text-yellow-900 text-xs font-bold px-1 rounded-bl-md z-10 pointers-event-none">
                     ★
                 </div>
             )}

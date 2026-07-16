@@ -125,7 +125,7 @@ export function ShippingSelector({ value, onChange, className = '' }: ShippingSe
                                             {policy.name}
                                         </span>
                                         {policy.id === defaultPolicy && (
-                                            <span className="text-[10px] px-1.5 py-0.5 bg-stone-100 text-stone-500 rounded uppercase">
+                                            <span className="text-xs px-1.5 py-0.5 bg-stone-100 text-stone-500 rounded uppercase">
                                                 Default
                                             </span>
                                         )}

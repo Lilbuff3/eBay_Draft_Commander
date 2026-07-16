@@ -72,7 +72,7 @@ export function Orders() {
                     </div>
                     <div>
                         <h2 className="font-display font-bold text-ink-800 text-lg tracking-tight">Orders</h2>
-                        <p className="text-[11px] text-stone-500 mt-0.5">Sold on eBay · last 90 days</p>
+                        <p className="text-xs text-stone-500 mt-0.5">Sold on eBay · last 90 days</p>
                     </div>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => refetch()} disabled={isFetching} aria-label="Refresh orders" title="Refresh" className="text-stone-500 hover:text-ink-800 hover:bg-stone-100">
@@ -89,7 +89,7 @@ export function Orders() {
                     <div className="font-display font-bold text-[20px] tracking-[-0.03em] text-rose-700">
                         {counts.overdue + counts.urgent} {counts.overdue + counts.urgent === 1 ? 'order needs' : 'orders need'} shipping
                     </div>
-                    <div className="text-[12px] text-rose-600/90 mt-0.5">
+                    <div className="text-xs text-rose-600/90 mt-0.5">
                         {counts.overdue > 0 ? `${counts.overdue} past the ship-by date — late shipments hurt your seller rating` : 'Due within 24 hours'}
                     </div>
                 </button>

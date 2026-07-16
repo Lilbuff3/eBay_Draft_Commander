@@ -90,7 +90,7 @@ export function ItemDetailDrawer({
                 body: JSON.stringify({
                     title: draft.title,
                     price: draft.price,
-                    description: jobDetails?.user_description || jobDetails?.ai_description,
+                    description: draft.description || jobDetails?.user_description || jobDetails?.ai_description,
                     condition: draft.condition,
                     item_specifics: draft.itemSpecifics,
                     ordered_images: images.map(img => img.name)
@@ -222,7 +222,7 @@ export function ItemDetailDrawer({
                         </TabsList>
                         
                         {job && (
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border tracking-wide uppercase ${
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full border tracking-wide uppercase ${
                                 job.status === 'needs_review' 
                                     ? 'bg-amber-50 text-amber-700 border-amber-200' 
                                     : job.status === 'scheduled' 
@@ -288,7 +288,7 @@ export function ItemDetailDrawer({
                                         <label htmlFor="listing-title" className="text-xs font-bold text-stone-400 uppercase tracking-wider">
                                             Title
                                         </label>
-                                        <span className={`text-[10px] font-bold ${draft.title.length >= 80 ? 'text-red-500' : 'text-stone-300'}`}>
+                                        <span className={`text-xs font-bold ${draft.title.length >= 80 ? 'text-red-500' : 'text-stone-300'}`}>
                                             {draft.title.length}/80
                                         </span>
                                     </div>
@@ -302,8 +302,9 @@ export function ItemDetailDrawer({
                                     />
                                 </div>
 
-                                {/* Price + Category */}
-                                <div className="grid grid-cols-2 gap-4">
+                                {/* Price + Category: stacked on phones — side-by-side at ~160px
+                                    each was unusable for the category search dropdown. */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
                                         <label htmlFor="listing-price" className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1 block">
                                             Price
@@ -320,7 +321,7 @@ export function ItemDetailDrawer({
                                             />
                                         </div>
                                         {jobDetails?.pricing_data?.price_source_label ? (
-                                            <p className={`text-[10px] mt-1 ${
+                                            <p className={`text-xs mt-1 ${
                                                 jobDetails.pricing_data.price_source_label.includes('listings')
                                                     ? 'text-amber-600'
                                                     : 'text-stone-400'
@@ -328,7 +329,7 @@ export function ItemDetailDrawer({
                                                 {jobDetails.pricing_data.price_source_label}
                                             </p>
                                         ) : jobDetails?.pricing_data?.price_source ? (
-                                            <p className="text-[10px] text-stone-400 mt-1">
+                                            <p className="text-xs text-stone-400 mt-1">
                                                 {jobDetails.pricing_data.price_source}
                                             </p>
                                         ) : null}
@@ -343,7 +344,7 @@ export function ItemDetailDrawer({
                                             const takeHome = Math.round((price - ebayFee - paymentFee - shippingCost) * 100) / 100
                                             const isNegative = takeHome < 0
                                             return (
-                                                <div className={`mt-2 p-2 rounded-md text-[11px] font-mono ${isNegative ? 'bg-red-50 border border-red-200' : 'bg-emerald-50 border border-emerald-200'}`}>
+                                                <div className={`mt-2 p-2 rounded-md text-xs font-mono ${isNegative ? 'bg-red-50 border border-red-200' : 'bg-emerald-50 border border-emerald-200'}`}>
                                                     <div className="flex justify-between text-stone-500">
                                                         <span>eBay fee (13.25%)</span>
                                                         <span>-${ebayFee.toFixed(2)}</span>
@@ -395,7 +396,7 @@ export function ItemDetailDrawer({
                                                                 className="w-full text-left px-3 py-2.5 min-h-[44px] hover:bg-persimmon-50 border-b border-stone-100 last:border-0"
                                                             >
                                                                 <div className="text-sm font-medium text-stone-800">{sug.category_name}</div>
-                                                                <div className="text-[10px] text-stone-400 truncate">{sug.full_path}</div>
+                                                                <div className="text-xs text-stone-400 truncate">{sug.full_path}</div>
                                                             </button>
                                                         ))}
                                                     </div>
@@ -437,7 +438,7 @@ export function ItemDetailDrawer({
                                         <label className="text-xs font-bold text-stone-400 uppercase tracking-wider block">
                                             Item Specifics
                                         </label>
-                                        <span className="text-[10px] text-stone-400">Click to edit</span>
+                                        <span className="text-xs text-stone-400">Click to edit</span>
                                     </div>
                                     <div className="grid grid-cols-1 gap-2">
                                         {(() => {
@@ -495,8 +496,11 @@ export function ItemDetailDrawer({
                                     </div>
                                 </div>
 
-                                {/* Description */}
-                                <ItemDescriptionCard description={jobDetails.ai_description} />
+                                {/* Description — editable; submits as user_description */}
+                                <ItemDescriptionCard
+                                    value={draft.description}
+                                    onChange={(description) => updateDraft({ description })}
+                                />
 
                                 {/* Shipping */}
                                 <div>

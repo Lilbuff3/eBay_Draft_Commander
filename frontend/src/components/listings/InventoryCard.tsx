@@ -43,7 +43,7 @@ export function InventoryCard({ listing, busy, onDropPrice, onPromote, onEnd }: 
                     <div className="text-[13px] font-bold leading-snug text-ink-800 line-clamp-2">
                         {listing.title}
                     </div>
-                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap text-[11px] font-medium">
+                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap text-xs font-medium">
                         <span className={`px-1.5 py-0.5 rounded-md ${meta.chip}`}>{meta.label}</span>
                         <span className="inline-flex items-center gap-1 text-stone-500">
                             <Clock size={11} strokeWidth={2} />{ageLabel(age)}
@@ -71,7 +71,7 @@ export function InventoryCard({ listing, busy, onDropPrice, onPromote, onEnd }: 
                 <button
                     onClick={() => setShowDrops(v => !v)}
                     disabled={anyBusy || listing.price <= 0}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 rounded-lg text-[12px] font-semibold
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 rounded-lg text-xs font-semibold
                                bg-persimmon-50 text-persimmon-700 border border-persimmon-200 hover:bg-persimmon-100
                                disabled:opacity-50 transition"
                 >
@@ -81,7 +81,7 @@ export function InventoryCard({ listing, busy, onDropPrice, onPromote, onEnd }: 
                 <button
                     onClick={() => onPromote(listing)}
                     disabled={anyBusy}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 rounded-lg text-[12px] font-semibold
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 rounded-lg text-xs font-semibold
                                bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50 transition"
                 >
                     {busy?.promote ? <Loader2 size={13} className="animate-spin" /> : <Megaphone size={13} />}
@@ -90,7 +90,7 @@ export function InventoryCard({ listing, busy, onDropPrice, onPromote, onEnd }: 
                 <button
                     onClick={() => onEnd(listing)}
                     disabled={anyBusy}
-                    className="inline-flex items-center justify-center gap-1.5 h-11 px-4 rounded-lg text-[12px] font-semibold
+                    className="inline-flex items-center justify-center gap-1.5 h-11 px-4 rounded-lg text-xs font-semibold
                                bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 transition"
                 >
                     {busy?.end ? <Loader2 size={13} className="animate-spin" /> : <XCircle size={13} />}
@@ -108,7 +108,7 @@ export function InventoryCard({ listing, busy, onDropPrice, onPromote, onEnd }: 
                                 key={pct}
                                 onClick={() => { setShowDrops(false); onDropPrice(listing, next) }}
                                 disabled={anyBusy}
-                                className="flex-1 h-11 rounded-lg text-[11.5px] font-semibold bg-stone-50/50 border border-stone-200
+                                className="flex-1 h-11 rounded-lg text-xs font-semibold bg-stone-50/50 border border-stone-200
                                            text-persimmon-700 hover:bg-paper-card disabled:opacity-50 transition"
                             >
                                 −{pct}% → ${next.toFixed(2)}

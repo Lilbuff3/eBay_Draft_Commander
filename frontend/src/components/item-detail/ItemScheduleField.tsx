@@ -63,7 +63,7 @@ export function ItemScheduleField({ scheduledTime, updateDraft }: ItemScheduleFi
                         key={preset.label}
                         type="button"
                         onClick={() => updateDraft({ scheduledTime: preset.value })}
-                        className="flex-1 px-2 py-1.5 text-[10px] leading-tight text-center rounded-md border border-stone-200 hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                        className="flex-1 px-2 py-1.5 text-xs leading-tight text-center rounded-md border border-stone-200 hover:border-blue-400 hover:bg-blue-50 transition-colors"
                     >
                         <div className="font-semibold">{preset.label}</div>
                         <div className="text-stone-400">{preset.sublabel}</div>
@@ -79,7 +79,7 @@ export function ItemScheduleField({ scheduledTime, updateDraft }: ItemScheduleFi
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateDraft({ scheduledTime: e.target.value })}
                 className="bg-white"
             />
-            <p className="text-[10px] text-stone-400 mt-1">
+            <p className="text-xs text-stone-400 mt-1">
                 Must be 48h+ from now. Leave blank to post immediately.
             </p>
         </div>
