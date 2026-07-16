@@ -139,11 +139,11 @@ function VerdictCard({ result, title }: { result: CompsResponse; title?: string 
                         <ConfidenceBadge result={result} />
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
                             <div className="bg-stone-50 border border-stone-200 rounded-2xl p-2.5">
-                                <div className="text-[10px] font-bold tracking-wide uppercase text-stone-500">Est. sold value</div>
+                                <div className="text-xs font-bold tracking-wide uppercase text-stone-500">Est. sold value</div>
                                 <div className="text-sm font-bold text-ink-800 mt-0.5">{usd(result.est_sold_value)}</div>
                             </div>
                             <div className="bg-stone-50 border border-stone-200 rounded-2xl p-2.5">
-                                <div className="text-[10px] font-bold tracking-wide uppercase text-stone-500">Comps</div>
+                                <div className="text-xs font-bold tracking-wide uppercase text-stone-500">Comps</div>
                                 <div className="text-sm font-bold text-ink-800 mt-0.5">
                                     {result.comp_count}
                                     {result.price_range && (
@@ -152,11 +152,11 @@ function VerdictCard({ result, title }: { result: CompsResponse; title?: string 
                                 </div>
                             </div>
                             <div className="bg-stone-50 border border-stone-200 rounded-2xl p-2.5">
-                                <div className="text-[10px] font-bold tracking-wide uppercase text-stone-500">Net after fees</div>
+                                <div className="text-xs font-bold tracking-wide uppercase text-stone-500">Net after fees</div>
                                 <div className="text-sm font-bold text-ink-800 mt-0.5">{usd(result.net_proceeds)}</div>
                             </div>
                             <div className="bg-stone-50 border border-stone-200 rounded-2xl p-2.5">
-                                <div className="text-[10px] font-bold tracking-wide uppercase text-stone-500">Would list at</div>
+                                <div className="text-xs font-bold tracking-wide uppercase text-stone-500">Would list at</div>
                                 <div className="text-sm font-bold text-ink-800 mt-0.5">{usd(result.would_list_at)}</div>
                             </div>
                         </div>
@@ -173,7 +173,7 @@ function VerdictCard({ result, title }: { result: CompsResponse; title?: string 
                             </div>
                         )}
                         {result.reasoning && (
-                            <p className="text-[11px] text-stone-500">{result.reasoning}</p>
+                            <p className="text-xs text-stone-500">{result.reasoning}</p>
                         )}
                     </>
                 )}
@@ -405,19 +405,19 @@ export function Sourcing() {
                         <div className="divide-y divide-stone-200">
                             {history.map(row => (
                                 <div key={row.id} className="px-4 py-3 flex items-center gap-3">
-                                    <Badge variant="outline" className={`shrink-0 text-[10px] ${VERDICT_STYLE[row.verdict].chip}`}>
+                                    <Badge variant="outline" className={`shrink-0 text-xs ${VERDICT_STYLE[row.verdict].chip}`}>
                                         {VERDICT_STYLE[row.verdict].label}
                                     </Badge>
                                     <div className="flex-1 min-w-0">
                                         <div className="text-xs text-stone-700 truncate">{row.title || row.gtin}</div>
-                                        <div className="text-[10px] text-stone-500">
+                                        <div className="text-xs text-stone-500">
                                             {row.maxBuy != null ? `pay ≤ ${usd(row.maxBuy)}` : row.gtin}
                                         </div>
                                     </div>
                                     {row.bought ? (
                                         <div className="flex items-center gap-1.5 shrink-0">
                                             <div className="relative w-16">
-                                                <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-stone-500">$</span>
+                                                <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-xs text-stone-500">$</span>
                                                 <Input
                                                     className="h-7 pl-4 text-xs"
                                                     value={row.paid || ''}

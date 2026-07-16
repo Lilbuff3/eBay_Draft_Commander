@@ -1,24 +1,15 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Camera, Plus, Trash2, Upload } from 'lucide-react'
+import { X, Camera, Images, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useHaptics } from '@/hooks/useHaptics'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { getCaptureCategory } from '@/lib/categories'
+import { getCaptureCategory, GENERIC_CONDITIONS } from '@/lib/categories'
 import { useCommanderStore } from '@/store/useCommanderStore'
 
 const genId = () => Math.random().toString(36).substring(7)
-
-// Generic fallback when no category is chosen.
-const CONDITIONS = [
-    { label: 'New', value: 'NEW' },
-    { label: 'Like New', value: 'LIKE_NEW' },
-    { label: 'Good', value: 'USED_GOOD' },
-    { label: 'Acceptable', value: 'USED_ACCEPTABLE' },
-    { label: 'For Parts', value: 'FOR_PARTS_OR_NOT_WORKING' },
-]
 
 interface MobileCaptureSheetProps {
     isOpen: boolean
@@ -31,7 +22,7 @@ interface MobileCaptureSheetProps {
 
 export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], category, onUpload }: MobileCaptureSheetProps) {
     const captureCategory = getCaptureCategory(category)
-    const conditions = captureCategory?.conditions ?? CONDITIONS
+    const conditions = captureCategory?.conditions ?? GENERIC_CONDITIONS
     const [photos, setPhotos] = useState<{ file: File; id: string; url: string }[]>([])
     const [title, setTitle] = useState('')
     const [condition, setCondition] = useState<string>('')
@@ -67,9 +58,16 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
         }
     }, [isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    const handleAddPhoto = () => {
+    const galleryInputRef = useRef<HTMLInputElement>(null)
+
+    const handleTakePhoto = () => {
         tap()
         fileInputRef.current?.click()
+    }
+
+    const handlePickFromGallery = () => {
+        tap()
+        galleryInputRef.current?.click()
     }
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,7 +119,9 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 100 }}
                 transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                className="fixed inset-0 z-50 flex flex-col bg-stone-50"
+                // z-[60]: clears the bottom nav (z-50, later in DOM) which otherwise
+                // paints over the footer CTA and intercepts its taps.
+                className="fixed inset-0 z-[60] flex flex-col bg-stone-50"
             >
                 {/* Header */}
                 <header className="flex items-center justify-between px-4 py-3 bg-white border-b border-stone-200">
@@ -146,9 +146,14 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                                 Photos <span className="text-stone-500 font-normal">({photos.length})</span>
                             </h3>
                             {photos.length > 0 && (
-                                <button onClick={handleAddPhoto} className="text-sm font-medium text-persimmon-600 px-3 min-h-[44px] rounded-lg hover:bg-persimmon-50">
-                                    + Add More
-                                </button>
+                                <div className="flex items-center gap-1">
+                                    <button onClick={handleTakePhoto} className="inline-flex items-center gap-1.5 text-sm font-medium text-persimmon-600 px-3 min-h-[44px] rounded-lg hover:bg-persimmon-50">
+                                        <Camera size={16} /> Camera
+                                    </button>
+                                    <button onClick={handlePickFromGallery} className="inline-flex items-center gap-1.5 text-sm font-medium text-persimmon-600 px-3 min-h-[44px] rounded-lg hover:bg-persimmon-50">
+                                        <Images size={16} /> Gallery
+                                    </button>
+                                </div>
                             )}
                         </div>
                         
@@ -167,16 +172,35 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                                     </button>
                                 </div>
                             ))}
-                            <button
-                                onClick={handleAddPhoto}
-                                className={cn(
-                                    "aspect-square rounded-xl border-2 border-dashed border-stone-300 bg-stone-100 flex flex-col items-center justify-center gap-1 text-stone-500 active:bg-stone-200 active:border-stone-400 transition-colors",
-                                    photos.length === 0 ? 'col-span-3 aspect-[3/1]' : ''
-                                )}
-                            >
-                                <Plus size={24} />
-                                {photos.length === 0 && <span className="font-medium">Tap to take photos</span>}
-                            </button>
+                            {photos.length === 0 ? (
+                                /* Empty state: both capture routes, side by side. The camera is
+                                   the fast path; gallery reaches photos already taken (and
+                                   multi-selects — capture inputs can't). */
+                                <div className="col-span-3 grid grid-cols-2 gap-3">
+                                    <button
+                                        onClick={handleTakePhoto}
+                                        className="aspect-[3/2] rounded-xl border-2 border-dashed border-persimmon-300 bg-persimmon-50 flex flex-col items-center justify-center gap-1.5 text-persimmon-700 active:bg-persimmon-100 transition-colors"
+                                    >
+                                        <Camera size={26} />
+                                        <span className="font-medium text-sm">Take photos</span>
+                                    </button>
+                                    <button
+                                        onClick={handlePickFromGallery}
+                                        className="aspect-[3/2] rounded-xl border-2 border-dashed border-stone-300 bg-stone-100 flex flex-col items-center justify-center gap-1.5 text-stone-600 active:bg-stone-200 transition-colors"
+                                    >
+                                        <Images size={26} />
+                                        <span className="font-medium text-sm">From gallery</span>
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={handleTakePhoto}
+                                    aria-label="Take another photo"
+                                    className="aspect-square rounded-xl border-2 border-dashed border-stone-300 bg-stone-100 flex flex-col items-center justify-center gap-1 text-stone-500 active:bg-stone-200 active:border-stone-400 transition-colors"
+                                >
+                                    <Camera size={24} />
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -239,7 +263,8 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                     </Button>
                 </div>
                 
-                {/* Hidden input for adding more photos using camera */}
+                {/* Two hidden inputs: `capture` forces the OS camera and silently
+                    ignores `multiple`, so gallery multi-select needs its own input. */}
                 <input
                     ref={fileInputRef}
                     type="file"
@@ -247,8 +272,16 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                     capture="environment"
                     title="Camera input"
                     aria-label="Camera input"
-                    placeholder="Take photo"
-                    multiple // allow multiple selection if gallery opens
+                    className="hidden"
+                    onChange={handleFileChange}
+                />
+                <input
+                    ref={galleryInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    title="Gallery input"
+                    aria-label="Gallery input"
                     className="hidden"
                     onChange={handleFileChange}
                 />

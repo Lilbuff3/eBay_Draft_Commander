@@ -232,6 +232,8 @@ export interface CreateListingParams {
 export interface ItemDraft {
     title: string;
     price: string;
+    /** listing description (HTML source); seeded from user_description || ai_description */
+    description: string;
     condition: string;
     shipping: string | null;
     scheduledTime: string;

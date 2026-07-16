@@ -45,7 +45,7 @@ export function LogViewer({ logs, className, autoScroll = true }: LogViewerProps
                     <Activity size={14} className="text-blue-500 animate-pulse" />
                     <span className="font-semibold">Live Activity Log</span>
                 </div>
-                <span className="text-[10px] text-stone-400">{logs.length} events</span>
+                <span className="text-xs text-stone-400">{logs.length} events</span>
             </div>
 
             <ScrollArea className="flex-1 p-4" ref={scrollRef}>

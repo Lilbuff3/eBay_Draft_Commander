@@ -11,6 +11,7 @@ import { mergeDraft } from '@/lib/mergeDraft'
 const emptyDraft = (): ItemDraft => ({
     title: '',
     price: '',
+    description: '',
     condition: '',
     shipping: null,
     scheduledTime: '',
@@ -113,6 +114,7 @@ export function useItemDraft(selectedJob: Job | null): UseItemDraftResult {
                     const newDraft: Partial<ItemDraft> = {
                         title: details.user_title || details.ai_title || selectedJob.name,
                         price: resolveDraftPrice(details),
+                        description: details.user_description || details.ai_description || '',
                         condition: details.condition
                             ? (typeof details.condition === 'object' && details.condition !== null
                                 ? String((details.condition as Record<string, unknown>).state ?? (details.condition as Record<string, unknown>).value ?? '')
@@ -156,6 +158,7 @@ export function useItemDraft(selectedJob: Job | null): UseItemDraftResult {
                 jobId: selectedJob.id,
                 price: draft.price,
                 title: draft.title,
+                description: draft.description || undefined,
                 condition: draft.condition || undefined,
                 categoryId: draft.categoryId || undefined,
                 categoryName: draft.categoryName || undefined,

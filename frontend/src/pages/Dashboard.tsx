@@ -36,24 +36,26 @@ export function Dashboard() {
     const jobsRef = useRef(jobs)
     useEffect(() => { jobsRef.current = jobs }, [jobs])
 
-    // Watch for mobile uploads and auto-select
+    // Mobile upload landed: toast and get out of the way. Auto-opening the edit
+    // drawer here killed capture momentum — the whole point is snap → next item,
+    // with review happening in a batch later. The Review action looks the job up
+    // at tap time so it works whether or not the jobs refetch has landed yet.
     useEffect(() => {
-        if (lastUploadedJobId) {
-            queryClient.invalidateQueries({ queryKey: ['jobs'] })
-            let attempts = 0
-            const maxAttempts = 20
-            const trySelect = () => {
-                const found = jobsRef.current.find(j => j.id === lastUploadedJobId)
-                if (found) {
-                    setSelectedJob(found)
-                    setLastUploadedJobId(null)
-                } else if (attempts < maxAttempts) {
-                    attempts++
-                    setTimeout(trySelect, 300)
-                }
-            }
-            trySelect()
-        }
+        if (!lastUploadedJobId) return
+        const jobId = lastUploadedJobId
+        setLastUploadedJobId(null)
+        queryClient.invalidateQueries({ queryKey: ['jobs'] })
+        toast.success('Item uploaded — AI is building the listing', {
+            description: 'Keep snapping; review whenever you like.',
+            action: {
+                label: 'Review',
+                onClick: () => {
+                    const found = jobsRef.current.find(j => j.id === jobId)
+                    if (found) setSelectedJob(found)
+                    else toast.info('Still processing — it will appear in the workspace shortly.')
+                },
+            },
+        })
     }, [lastUploadedJobId, setLastUploadedJobId, setSelectedJob, queryClient])
 
     // A wedge scan on the home screen queues the book into the Books tab

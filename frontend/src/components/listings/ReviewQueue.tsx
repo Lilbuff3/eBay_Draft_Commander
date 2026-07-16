@@ -241,7 +241,7 @@ export function ReviewQueue() {
                                                     <>
                                                         <h4 className="font-bold text-ink-800 leading-tight mb-1 truncate">{listing.display_name || listing.name}</h4>
                                                         <div className="flex items-center gap-2">
-                                                            <Badge variant="outline" className="text-[10px] uppercase tracking-wider font-bold bg-clay-300/25 text-clay-600 border-clay-400/50">Pending Review</Badge>
+                                                            <Badge variant="outline" className="text-xs uppercase tracking-wider font-bold bg-clay-300/25 text-clay-600 border-clay-400/50">Pending Review</Badge>
                                                             <span className="text-xs text-stone-400 font-medium truncate">{listing.folder_path}</span>
                                                         </div>
                                                         {listing.error_message && (
@@ -269,7 +269,7 @@ export function ReviewQueue() {
                                                         <span className="font-display font-bold text-lg text-persimmon-600">${listing.price || '0.00'}</span>
                                                         {listing.ai_data?.pricing_confidence && (
                                                             <span className={cn(
-                                                                'text-[10px] font-semibold mt-1 px-1.5 py-0.5 rounded border w-fit capitalize',
+                                                                'text-xs font-semibold mt-1 px-1.5 py-0.5 rounded border w-fit capitalize',
                                                                 listing.ai_data.pricing_confidence === 'high' && 'text-sage-700 bg-sage-100 border-sage-200',
                                                                 listing.ai_data.pricing_confidence === 'medium' && 'text-stone-600 bg-stone-100 border-stone-200',
                                                                 listing.ai_data.pricing_confidence === 'low' && 'text-clay-600 bg-clay-300/25 border-clay-400/50',

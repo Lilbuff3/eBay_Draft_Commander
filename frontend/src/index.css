@@ -1,4 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap');
+/* Fonts load via <link> in index.html — a CSS @import here blocks first paint
+   and defeats the preconnect hints. */
 @import "tw-animate-css";
 @import "tailwindcss";
 

@@ -6,6 +6,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+    Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
 import { Loader2, Save, RefreshCw, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -71,8 +74,10 @@ export function Settings() {
         setSettings(prev => ({ ...prev, [key]: value }))
     }
 
+    const [showRestartConfirm, setShowRestartConfirm] = useState(false)
+
     async function handleRestart() {
-        if (!confirm("Are you sure you want to reboot the backend? Current operations may be interrupted.")) return
+        setShowRestartConfirm(false)
         setRestarting(true)
         try {
             await softRestart()
@@ -565,7 +570,7 @@ export function Settings() {
                                     </p>
                                     <Button
                                         variant="destructive"
-                                        onClick={handleRestart}
+                                        onClick={() => setShowRestartConfirm(true)}
                                         disabled={restarting}
                                         className="w-full sm:w-auto bg-rose-600 hover:bg-rose-700 text-white"
                                     >
@@ -578,6 +583,21 @@ export function Settings() {
                     </TabsContent>
                 </Tabs>
             </div>
+
+            <Dialog open={showRestartConfirm} onOpenChange={setShowRestartConfirm}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Reboot the backend?</DialogTitle>
+                        <DialogDescription>
+                            Current operations may be interrupted, and the app will be unavailable for a few seconds while the process restarts.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2 sm:gap-2">
+                        <Button variant="outline" onClick={() => setShowRestartConfirm(false)}>Cancel</Button>
+                        <Button variant="destructive" onClick={handleRestart}>Reboot</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

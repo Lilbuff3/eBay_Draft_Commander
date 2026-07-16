@@ -22,7 +22,9 @@ export function CategoryPicker({ isOpen, onClose, onPick }: CategoryPickerProps)
     return (
         <AnimatePresence>
             <motion.div
-                className="fixed inset-0 z-50 flex items-end md:items-center md:justify-center"
+                // z-[60]: must clear the bottom nav (z-50), which sits LATER in the DOM
+                // and would otherwise paint over the sheet's bottom row and steal taps.
+                className="fixed inset-0 z-[60] flex items-end md:items-center md:justify-center"
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             >
                 <motion.div
@@ -51,7 +53,11 @@ export function CategoryPicker({ isOpen, onClose, onPick }: CategoryPickerProps)
                             <button
                                 key={cat.id}
                                 onClick={() => { tap(); onPick(cat.id) }}
-                                className="flex flex-col items-start gap-3 p-4 rounded-2xl bg-white border border-stone-200/80 transition active:scale-[0.98] hover:border-stone-300 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500/50"
+                                className={cn(
+                                    'flex flex-col items-start gap-3 p-4 rounded-2xl bg-white border border-stone-200/80 transition active:scale-[0.98] hover:border-stone-300 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500/50',
+                                    // Catch-all card rides alone on the last row — let it fill it.
+                                    cat.id === 'other' && 'col-span-2 flex-row items-center'
+                                )}
                             >
                                 <span className={cn('w-11 h-11 rounded-xl flex items-center justify-center', cat.iconBg, cat.iconText)}>
                                     <cat.icon size={22} />

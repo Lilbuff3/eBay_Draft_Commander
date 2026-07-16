@@ -77,14 +77,14 @@ export function MobileNavBar() {
                         className={cn('transition-colors', isActive ? 'text-persimmon-600' : 'text-stone-500')}
                     />
                     {badge > 0 && (
-                        <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-persimmon-600 text-white text-[10px] font-bold grid place-items-center">
+                        <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-persimmon-600 text-white text-xs font-bold grid place-items-center">
                             {badge > 9 ? '9+' : badge}
                         </span>
                     )}
                 </span>
                 <span
                     className={cn(
-                        'text-[11px] font-semibold tracking-tight transition-colors truncate max-w-full',
+                        'text-xs font-semibold tracking-tight transition-colors truncate max-w-full',
                         isActive ? 'text-persimmon-600' : 'text-stone-500'
                     )}
                 >
@@ -117,7 +117,7 @@ export function MobileNavBar() {
                             />
                             <span
                                 className={cn(
-                                    'text-[11px] font-semibold tracking-tight transition-colors',
+                                    'text-xs font-semibold tracking-tight transition-colors',
                                     moreActive ? 'text-persimmon-600' : 'text-stone-500'
                                 )}
                             >

@@ -1,4 +1,4 @@
-import { Shirt, Footprints, Cpu, BookOpen, type LucideIcon } from 'lucide-react'
+import { Shirt, Footprints, Cpu, BookOpen, Package, type LucideIcon } from 'lucide-react'
 
 /**
  * Category-first capture: the four things this seller lists. Tapping a card opens
@@ -29,6 +29,16 @@ const APPAREL: ConditionPreset[] = [
     { label: 'New without tags', value: 'NEW_OTHER' },
     { label: 'New with defects', value: 'NEW_WITH_DEFECTS' },
     { label: 'Pre-owned', value: 'USED_EXCELLENT' },
+]
+
+// Catch-all set for anything outside the four verticals. Also the capture
+// sheet's fallback when no category was picked.
+export const GENERIC_CONDITIONS: ConditionPreset[] = [
+    { label: 'New', value: 'NEW' },
+    { label: 'Like New', value: 'LIKE_NEW' },
+    { label: 'Good', value: 'USED_GOOD' },
+    { label: 'Acceptable', value: 'USED_ACCEPTABLE' },
+    { label: 'For Parts', value: 'FOR_PARTS_OR_NOT_WORKING' },
 ]
 
 export const CAPTURE_CATEGORIES: CaptureCategory[] = [
@@ -62,6 +72,13 @@ export const CAPTURE_CATEGORIES: CaptureCategory[] = [
             { label: 'Good', value: 'USED_GOOD' },
             { label: 'Acceptable', value: 'USED_ACCEPTABLE' },
         ],
+    },
+    // Escape hatch: the picker is the only front door on mobile, so anything
+    // outside the four verticals needs a card too. AI decides the real category.
+    {
+        id: 'other', label: 'Something else', icon: Package,
+        iconText: 'text-stone-600', iconBg: 'bg-stone-100',
+        conditions: GENERIC_CONDITIONS,
     },
 ]
 

@@ -5,6 +5,7 @@ import type { ItemDraft } from './api'
 const base: ItemDraft = {
     title: '',
     price: '',
+    description: '',
     condition: '',
     shipping: null,
     scheduledTime: '',
