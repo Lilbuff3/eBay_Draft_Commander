@@ -271,3 +271,17 @@ cd ~/.claude/skills/playwright-skill && node run.js /tmp/playwright-test-*.js
 - **DC restart (supervisor)** — `backend/run_service.py` is a supervisor that launches `wsgi_service.py` as a disposable child and sets `DC_SUPERVISED=1`. `POST /api/system/restart` now exits the child with code **42**; the supervisor relaunches it into a freshly released port 5000 (child death closes the eventlet listener FD *before* respawn — no bind race). Exit-code contract: `42`=restart, `0`=stop, other=crash→auto-relaunch (crash-loop guard: >3 crashes/60s gives up). **Launch detached:** `Start-Process pythonw backend\run_service.py` (not `wsgi_service.py`). If launched *without* the supervisor (e.g. `python backend/wsgi.py`), `/restart` returns **409** and does nothing — restart manually. The old `os.execv` approach left port 5000 unbound on Windows and is gone. Still required after backend changes (no hot-reload), but now a one-click restart instead of a manual PID kill. **Autostart:** `scripts/register-service.ps1` installs a logon-triggered launcher (Scheduled Task with admin, Startup-folder shortcut → `start-background.ps1` without). All three launch paths (`run-backend.bat` template, `start-background.ps1`, the script's immediate-start) now launch `run_service.py` — they previously launched `wsgi.py`/`wsgi_service.py` directly, which is why the backend kept ending up un-supervised with `/restart` 409ing. If editing these scripts, never point them back at `wsgi*.py`. **Phone HTTPS:** served by `tailscale serve --bg 5000` (config persists inside tailscaled across reboots) at `https://tuf-2.taile466a6.ts.net` — NOT Caddy; Windows Firewall auto-created block rules for caddy.exe, so inbound 443 to Caddy is unreachable from other devices. `register-service.ps1 -Https` still writes the Caddy setup but `start-background.ps1` deliberately doesn't launch it.
 - **Tests need Python 3.12** — use `"C:\Program Files\Python312\python.exe" -m pytest tests/unit -v`. The bare `python`/`py` launchers may resolve to a 3.13 install missing project deps (Flask etc.).
 - **Listing edits: price/qty revise + end** — `trading.py:revise_fixed_price_item(item_id, price, qty)` (ReviseFixedPriceItem) now does in-place **price/qty** changes on live Trading-API listings, exposed at `POST /api/listings/<itemId>/price`. **Title/specifics still have no revise** — end and re-capture for those (guardrails clean it on re-list). Also `POST /api/listings/<itemId>/end` (EndFixedPriceItem) and `POST /api/listings/<itemId>/promote` (Marketing API). `/api/jobs/<id>/cancel` ends the eBay listing + removes the job; `/api/jobs/bulk-delete` removes the job record without touching eBay.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues (`Lilbuff3/eBay_Draft_Commander`, via the `gh` CLI); external PRs are NOT a triage surface. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary: needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix (stock `wontfix` label reused). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root (created lazily). See `docs/agents/domain.md`.
