@@ -24,7 +24,13 @@ def serve_vite_app(path=''):
         # Serve manifest with correct MIME type
         if path.endswith('manifest.json') or path.endswith('.webmanifest'):
             return send_from_directory(app_dir, path, mimetype='application/manifest+json')
-        return send_from_directory(app_dir, path)
+        response = make_response(send_from_directory(app_dir, path))
+        # Hashed bundles under /app/assets/* are content-addressed, so they can
+        # be cached forever — skips a revalidation round-trip per asset (matters
+        # over Tailscale on first/non-SW loads).
+        if path.startswith('assets/'):
+            response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+        return response
 
     # Otherwise serve index.html (for SPA routing).
     # no-cache: browsers must revalidate the app shell every load, so a new

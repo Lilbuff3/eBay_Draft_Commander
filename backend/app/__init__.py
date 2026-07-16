@@ -23,7 +23,18 @@ _ALLOWED_ORIGIN_RE = re.compile(
 def _is_allowed_origin(origin):
     return bool(origin and _ALLOWED_ORIGIN_RE.match(origin))
 
-socketio = SocketIO(cors_allowed_origins=_is_allowed_origin)
+# async_mode='threading': the queue worker runs in a native threading.Thread and
+# emits socket events directly from it. Under eventlet (without monkey_patch) that
+# cross-thread emit is unsupported — events get dropped and the UI silently
+# freezes. Threading mode makes native-thread emits first-class and removes the
+# greenlet-starvation stalls caused by heavy native work (rembg/onnx, Pillow).
+# ping_timeout=60 gives batch processing headroom before a false disconnect.
+socketio = SocketIO(
+    cors_allowed_origins=_is_allowed_origin,
+    async_mode='threading',
+    ping_timeout=60,
+    ping_interval=25,
+)
 
 def create_app(config_class=Config, queue_manager=None):
     """

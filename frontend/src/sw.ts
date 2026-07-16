@@ -34,7 +34,9 @@ self.addEventListener('install', (event) => {
             return cache.addAll(['/offline.html'])
         })
     )
-    self.skipWaiting()
+    // No skipWaiting: a new build stays in 'waiting' until all app windows
+    // close, then activates on next launch. This is what makes updates silent —
+    // the running page is never hijacked/reloaded mid-task.
 })
 
 self.addEventListener('activate', (event) => {

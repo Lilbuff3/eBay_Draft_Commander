@@ -100,14 +100,56 @@ function requestApiKey(): Promise<string | null> {
     return pendingKeyRequest
 }
 
+// Per-request timeout so a hung connection (phone asleep, Tailscale
+// re-handshake, backend restart gap) fails fast instead of hanging forever.
+const REQUEST_TIMEOUT_MS = 15000
+const RETRY_DELAY_MS = 800
+
+function isIdempotent(init?: RequestInit): boolean {
+    const method = (init?.method ?? 'GET').toUpperCase()
+    return method === 'GET' || method === 'HEAD'
+}
+
+/** fetch + API key + an AbortController timeout. Respects a caller-supplied
+ * signal (aborting theirs aborts ours). */
+async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
+    const merged = withApiKey(init)
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+    const external = merged.signal
+    if (external) {
+        if (external.aborted) controller.abort()
+        else external.addEventListener('abort', () => controller.abort(), { once: true })
+    }
+    try {
+        return await fetch(url, { ...merged, signal: controller.signal })
+    } finally {
+        clearTimeout(timer)
+    }
+}
+
 /** Thin wrapper around fetch that checks res.ok and throws on HTTP errors */
 export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
-    let res = await fetch(url, withApiKey(init))
+    let res: Response
+    try {
+        res = await fetchWithTimeout(url, init)
+    } catch (err) {
+        // Network error or timeout. Retry ONCE for idempotent GETs — covers a
+        // transient blip (phone unlock, Tailscale re-handshake, ~3s restart gap).
+        // Never auto-retry writes (the SW background-syncs those), and don't
+        // retry if the caller deliberately aborted.
+        if (isIdempotent(init) && !init?.signal?.aborted) {
+            await new Promise(r => setTimeout(r, RETRY_DELAY_MS))
+            res = await fetchWithTimeout(url, init)
+        } else {
+            throw err
+        }
+    }
     if (res.status === 401) {
         const entered = await requestApiKey()
         if (entered?.trim()) {
             storeApiKey(entered.trim())
-            res = await fetch(url, withApiKey(init))
+            res = await fetchWithTimeout(url, init)
         }
     }
     if (!res.ok) {

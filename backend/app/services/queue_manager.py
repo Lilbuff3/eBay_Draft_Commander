@@ -202,7 +202,9 @@ class QueueManager:
             try:
                 self.socketio.emit(event, data)
             except Exception as e:
-                self.logger.warning(f"Socket.IO emit failed for '{event}': {e}")
+                # Dropped emit = stale UI on the phone. Log at error so it's
+                # visible if it ever happens under threading async_mode.
+                self.logger.error(f"Socket.IO emit failed for '{event}': {e}")
 
     def _token_maintainer(self):
         """Background thread to keep eBay token alive"""

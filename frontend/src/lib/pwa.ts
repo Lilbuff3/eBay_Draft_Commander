@@ -9,43 +9,25 @@ export interface BeforeInstallPromptEvent extends Event {
     prompt(): Promise<void>;
 }
 
-let updateAvailableCallback: (() => void) | null = null;
-
 // Browsers only recheck sw.js on navigation (and at most ~daily), so an
-// installed PWA resumed from memory can run a stale build for days. Nudge
-// registration.update() whenever the app regains focus and on a slow interval
-// — combined with skipWaiting + the auto-reload in App.tsx, every resume
-// picks up the newest build within seconds.
+// installed PWA resumed from memory can run a stale build for days. We nudge
+// registration.update() on focus + a slow interval so the newest build is
+// *fetched* in the background. It then installs as a waiting SW and activates
+// on the NEXT launch (sw.ts drops skipWaiting) — the running page is never
+// reloaded. Silent updates, no mid-task interruption.
 const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000;
 
-export function onUpdateAvailable(callback: () => void) {
-    updateAvailableCallback = callback;
-    // Listen for VitePWA's update mechanism
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.ready.then((registration) => {
-            registration.addEventListener('updatefound', () => {
-                const newWorker = registration.installing;
-                if (newWorker) {
-                    newWorker.addEventListener('statechange', () => {
-                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                            console.debug('[PWA] New version available');
-                            if (updateAvailableCallback) {
-                                updateAvailableCallback();
-                            }
-                        }
-                    });
-                }
-            });
-
-            const checkForUpdate = () => {
-                registration.update().catch(() => { /* offline — retry next trigger */ });
-            };
-            document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'visible') checkForUpdate();
-            });
-            setInterval(checkForUpdate, UPDATE_CHECK_INTERVAL_MS);
+export function checkForUpdatesInBackground() {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.ready.then((registration) => {
+        const checkForUpdate = () => {
+            registration.update().catch(() => { /* offline — retry next trigger */ });
+        };
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') checkForUpdate();
         });
-    }
+        setInterval(checkForUpdate, UPDATE_CHECK_INTERVAL_MS);
+    });
 }
 
 // PWA Install Prompt

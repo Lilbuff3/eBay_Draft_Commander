@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { Loader2, Save, RefreshCw, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { InstallCard } from '@/components/InstallCard'
 
 interface EbayStatusDetail {
     status: 'connected' | 'expired' | 'disconnected' | 'error' | 'checking'
@@ -142,6 +143,8 @@ export function Settings() {
                         Save Changes
                     </Button>
                 </div>
+
+                <InstallCard />
 
                 <Tabs defaultValue="ebay-policies" className="w-full">
                     <TabsList className="w-full h-auto bg-stone-50 p-1 rounded-xl border border-stone-200 flex overflow-x-auto">

@@ -27,10 +27,13 @@ if (-not (Test-Path $VBS_PATH)) {
     exit 1
 }
 
-# 2. Setup HTTPS / Tailscale / Caddy if requested
-$caddyExe = $null
+# 2. Setup HTTPS via `tailscale serve` if requested.
+# NOTE: Caddy was abandoned — Windows Firewall auto-created block rules for
+# caddy.exe, making inbound 443 unreachable from other tailnet devices.
+# `tailscale serve` terminates TLS on the tailnet and reverse-proxies to the
+# local backend; its config persists in tailscaled across reboots.
 if ($Https) {
-    Write-Host "`nConfiguring Tailscale HTTPS and Caddy..." -ForegroundColor Yellow
+    Write-Host "`nConfiguring Tailscale HTTPS (tailscale serve)..." -ForegroundColor Yellow
 
     # Detect Tailscale
     $TAILSCALE = Get-Command tailscale -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
@@ -49,23 +52,6 @@ if ($Https) {
         exit 1
     }
 
-    # Detect Caddy
-    $CADDY = Get-Command caddy -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
-    if (-not $CADDY) {
-        $candidates = @(
-            "$env:LOCALAPPDATA\Microsoft\WinGet\Links\caddy.exe",
-            (Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Recurse -Filter "caddy.exe" -Depth 3 -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName)
-        )
-        foreach ($c in $candidates) {
-            if ($c -and (Test-Path $c)) { $CADDY = $c; break }
-        }
-    }
-    if (-not $CADDY -or -not (Test-Path $CADDY)) {
-        Write-Host "[ERROR] Cannot find caddy.exe. Install Caddy with 'winget install Caddy'" -ForegroundColor Red
-        exit 1
-    }
-    $caddyExe = $CADDY
-
     # Check Tailscale Login
     $tsJson = & $TAILSCALE status --json 2>$null
     if (-not $tsJson) {
@@ -81,45 +67,10 @@ if ($Https) {
     $hostname = $tsStatus.Self.DNSName.TrimEnd('.')
     Write-Host "[OK] Tailscale hostname: $hostname" -ForegroundColor Green
 
-    # Generate TLS Certs
-    New-Item -ItemType Directory -Force -Path $CERT_DIR | Out-Null
-    $certFile = Join-Path $CERT_DIR "$hostname.crt"
-    $keyFile = Join-Path $CERT_DIR "$hostname.key"
-
-    if (-not (Test-Path $certFile) -or -not (Test-Path $keyFile)) {
-        Write-Host "[...] Generating TLS certificate for $hostname" -ForegroundColor Yellow
-        Push-Location $CERT_DIR
-        & $TAILSCALE cert $hostname
-        Pop-Location
-        
-        if (-not (Test-Path $certFile)) {
-            $possibleCert = Join-Path $PROJECT_DIR "$hostname.crt"
-            $possibleKey = Join-Path $PROJECT_DIR "$hostname.key"
-            if (Test-Path $possibleCert) {
-                Move-Item $possibleCert $certFile -Force
-                Move-Item $possibleKey $keyFile -Force
-            }
-        }
-    }
-
-    if (-not (Test-Path $certFile)) {
-        Write-Host "[ERROR] Failed to generate Tailscale certificates." -ForegroundColor Red
-        exit 1
-    }
-    Write-Host "[OK] TLS certificates ready" -ForegroundColor Green
-
-    # Write Caddyfile
-    $caddyfile = Join-Path $PROJECT_DIR "Caddyfile"
-    $certPath = $certFile -replace '\\', '/'
-    $keyPath = $keyFile -replace '\\', '/'
-    $caddyConfig = @"
-$hostname {
-    tls $certPath $keyPath
-    reverse_proxy localhost:5000
-}
-"@
-    Set-Content -Path $caddyfile -Value $caddyConfig
-    Write-Host "[OK] Caddyfile generated" -ForegroundColor Green
+    # Re-assert the serve mapping (idempotent). tailscale provisions the TLS cert
+    # automatically — no manual cert files or Caddyfile needed.
+    & $TAILSCALE serve --bg --https=443 http://127.0.0.1:5000
+    Write-Host "[OK] tailscale serve configured (443 -> 127.0.0.1:5000)" -ForegroundColor Green
 }
 
 # 3. Write run-backend.bat and run-caddy.bat dynamically
@@ -139,18 +90,6 @@ if not exist "data" mkdir "data"
 "@
 Set-Content -Path $BACKEND_BAT -Value $backendBatContent -Force
 Write-Host "[OK] Configured run-backend.bat" -ForegroundColor Green
-
-if ($Https) {
-    $caddyBatContent = @"
-@echo off
-cd /d "%~dp0.."
-if not exist "data" mkdir "data"
-
-"$caddyExe" run --config Caddyfile >> data\caddy_service.log 2>&1
-"@
-    Set-Content -Path $CADDY_BAT -Value $caddyBatContent -Force
-    Write-Host "[OK] Configured run-caddy.bat" -ForegroundColor Green
-}
 
 # 4. Create Scheduled Tasks or Fall back to Startup shortcuts
 Write-Host "`nRegistering background service..." -ForegroundColor Yellow
@@ -191,13 +130,8 @@ try {
     $backendAction = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$VBS_PATH`" `"$BACKEND_BAT`"" -WorkingDirectory $PROJECT_DIR
     Register-ScheduledTask -TaskName "eBayDraftCommanderBackend" -Action $backendAction -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
     Write-Host "[OK] Registered eBayDraftCommanderBackend Scheduled Task" -ForegroundColor Green
-
-    # Register Caddy Task if HTTPS is requested
-    if ($Https) {
-        $caddyAction = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$VBS_PATH`" `"$CADDY_BAT`"" -WorkingDirectory $PROJECT_DIR
-        Register-ScheduledTask -TaskName "eBayDraftCommanderCaddy" -Action $caddyAction -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
-        Write-Host "[OK] Registered eBayDraftCommanderCaddy Scheduled Task" -ForegroundColor Green
-    }
+    # HTTPS is served by `tailscale serve` (configured above, persists in
+    # tailscaled) — no separate scheduled task needed.
 } catch {
     # Fallback to Startup folder shortcuts
     Write-Host "[INFO] Scheduled Task registration requires admin permissions. Falling back to Startup folder shortcuts..." -ForegroundColor Yellow
@@ -219,15 +153,9 @@ try {
 Write-Host "`nStarting services in background..." -ForegroundColor Yellow
 if ($useScheduledTasks) {
     Start-ScheduledTask -TaskName "eBayDraftCommanderBackend"
-    if ($Https) {
-        Start-ScheduledTask -TaskName "eBayDraftCommanderCaddy"
-    }
 } else {
     # Launch the supervisor with pythonw.exe — its child handles log redirection
     Start-Process -FilePath $pythonwExe -ArgumentList "`"$RUN_SERVICE`"" -WindowStyle Hidden -WorkingDirectory $PROJECT_DIR
-    if ($Https) {
-        Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"$CADDY_BAT`"" -WindowStyle Hidden -WorkingDirectory $PROJECT_DIR
-    }
 }
 
 Start-Sleep -Seconds 8

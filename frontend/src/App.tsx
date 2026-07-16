@@ -9,12 +9,12 @@ import { MobileNavBar } from '@/components/MobileNavBar'
 import { MobileUploadFAB } from '@/components/MobileUploadFAB'
 import { ApiKeyDialog } from '@/components/ApiKeyDialog'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { Toaster, toast } from 'sonner'
+import { Toaster } from 'sonner'
 import { InstallPrompt } from '@/components/InstallPrompt'
 import { OfflineIndicator } from '@/components/OfflineIndicator'
 import { useJobSync } from '@/hooks/useJobSync'
 import { useIsMobile } from '@/hooks/useIsMobile'
-import { onUpdateAvailable } from '@/lib/pwa'
+import { checkForUpdatesInBackground } from '@/lib/pwa'
 
 // Lazy tab bodies (named exports → default-wrap for React.lazy).
 const ActiveListings = lazy(() => import('@/components/ActiveListings').then(m => ({ default: m.ActiveListings })))
@@ -105,18 +105,11 @@ export default function App() {
     window.history.pushState({ tab: activeTab }, '')
   }, [activeTab])
 
-  // PWA: auto-reload onto the newest build (no manual "Reload" tap).
-  // Fires at most ONCE per tab session — the sessionStorage guard is a hard
-  // backstop against reload loops (a controllerchange-based reload can tight-loop
-  // if the SW keeps re-detecting an update). After the one reload the user is on
-  // the latest build; a second update in the same session waits for next launch.
+  // PWA: silent updates. A new build downloads in the background and activates
+  // the next time the app is opened (sw.ts drops skipWaiting). The running page
+  // is never reloaded mid-task — no more "constantly reloading" on the phone.
   useEffect(() => {
-    onUpdateAvailable(() => {
-      if (sessionStorage.getItem('dc-pwa-updated')) return
-      sessionStorage.setItem('dc-pwa-updated', '1')
-      toast('Updating to the latest version…', { id: 'pwa-update', duration: 2500 })
-      setTimeout(() => window.location.reload(), 1200)
-    })
+    checkForUpdatesInBackground()
   }, [])
 
   // Determine slide direction: positive = slide from right, negative = slide from left

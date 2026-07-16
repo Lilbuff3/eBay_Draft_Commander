@@ -23,4 +23,22 @@ if (Test-Path $runService) {
 
 # HTTPS is handled by `tailscale serve` (persists in tailscaled across reboots),
 # not Caddy — Windows Firewall block-rules on caddy.exe made inbound 443 unreachable
-# from other tailnet devices. Nothing to start here for HTTPS.
+# from other tailnet devices.
+#
+# Re-assert the tailscale serve mapping on every launch so the phone endpoint is
+# self-healing: if tailscaled's persisted config is ever lost/reset, HTTPS would
+# otherwise silently die with nothing to restore it. The command is idempotent —
+# re-running it with the same target is a no-op.
+$tailscaleExe = (Get-Command tailscale -ErrorAction SilentlyContinue).Source
+if (-not $tailscaleExe) {
+    $candidate = Join-Path $env:ProgramFiles "Tailscale\tailscale.exe"
+    if (Test-Path $candidate) { $tailscaleExe = $candidate }
+}
+if ($tailscaleExe) {
+    try {
+        & $tailscaleExe serve --bg --https=443 http://127.0.0.1:5000 | Out-Null
+    } catch {
+        # Best-effort: if tailscaled isn't up yet, the persisted config still
+        # applies once it starts. Don't block backend launch on this.
+    }
+}

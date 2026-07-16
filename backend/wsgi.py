@@ -61,7 +61,11 @@ def main():
     boot_logger.info(f"[START] Starting Backend Server on port {port}")
     
     # Debug=True is fine for dev, but we might want to toggle it
-    socketio.run(app, host='0.0.0.0', port=port, debug=False, use_reloader=False)
+    # allow_unsafe_werkzeug: threading async_mode uses the Werkzeug server, which
+    # refuses to run without this flag. Safe here — single user, bound behind
+    # Tailscale/loopback, not a public multi-tenant deployment.
+    socketio.run(app, host='0.0.0.0', port=port, debug=False, use_reloader=False,
+                 allow_unsafe_werkzeug=True)
 
 if __name__ == "__main__":
     main()
