@@ -39,6 +39,21 @@ class SettingsManager:
         'PRICE_DISCOVERY_ENABLED': 'true',   # No-comp items: list high + Best Offer instead of review
         'PRICE_DISCOVERY_MARKUP_PCT': '25',  # Discovery list price = suggested * (1 + this%)
         'PRICE_DISCOVERY_DECLINE_PCT': '50', # Aggressive auto-decline floor for discovery listings
+        # Autopilot (daily offers-to-watchers + stale markdown ladder + relist)
+        'OFFERS_ENABLED': 'true',            # Send offers to watchers
+        'OFFER_DISCOUNT_PCT': '10',          # Offer discount % off current price
+        'OFFER_MIN_WATCHERS': '1',           # Min watchers before an offer is sent
+        'MARKDOWN_ENABLED': 'true',          # Stale-item markdown ladder
+        'MARKDOWN_AFTER_DAYS': '14',         # First markdown after N live days (also step spacing)
+        'MARKDOWN_STEP_PCT': '5',            # Each step drops this % off current price
+        'MARKDOWN_FLOOR_PCT': '70',          # Never below this % of original price
+        'OFFERS_MARKDOWNS_DRY_RUN': 'true',  # Log-only until the owner flips live
+        'DISCOVERY_MARKDOWN_AFTER_DAYS': '7',   # Aggressive ladder for price-discovery items
+        'DISCOVERY_MARKDOWN_STEP_PCT': '10',
+        'DISCOVERY_MARKDOWN_FLOOR_PCT': '40',
+        'AUTOPILOT_RUN_HOUR': '9',           # Local hour the daily cycle fires
+        'RELIST_ENABLED': 'true',            # Relist unsold listings (one markdown step applied)
+        'RELIST_MAX_TIMES': '3',             # Max automatic relists per listing
     }
     
     # All known setting keys organized by category
@@ -92,6 +107,22 @@ class SettingsManager:
             'SOURCING_MIN_PROFIT',
             'SOURCING_ROI_MULTIPLE',
             'SOURCING_SHIP_COST',
+        ],
+        'Autopilot': [
+            'OFFERS_ENABLED',
+            'OFFER_DISCOUNT_PCT',
+            'OFFER_MIN_WATCHERS',
+            'MARKDOWN_ENABLED',
+            'MARKDOWN_AFTER_DAYS',
+            'MARKDOWN_STEP_PCT',
+            'MARKDOWN_FLOOR_PCT',
+            'OFFERS_MARKDOWNS_DRY_RUN',
+            'DISCOVERY_MARKDOWN_AFTER_DAYS',
+            'DISCOVERY_MARKDOWN_STEP_PCT',
+            'DISCOVERY_MARKDOWN_FLOOR_PCT',
+            'AUTOPILOT_RUN_HOUR',
+            'RELIST_ENABLED',
+            'RELIST_MAX_TIMES',
         ],
         'Security': [
             'API_ACCESS_TOKEN',

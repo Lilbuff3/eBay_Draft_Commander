@@ -191,6 +191,14 @@ class QueueManager:
         self._watcher_thread = threading.Thread(target=self._watch_inbox, daemon=True)
         self._watcher_thread.start()
 
+        # Autopilot scanner (offers to watchers + markdown ladder + relist).
+        # Dry-run by default; sleeps until AUTOPILOT_RUN_HOUR before acting.
+        from backend.app.services.autopilot_scanner import AutopilotScanner
+        self.autopilot = AutopilotScanner(self)
+        self._autopilot_thread = threading.Thread(
+            target=self.autopilot.run_forever, daemon=True)
+        self._autopilot_thread.start()
+
     @property
     def current_job(self) -> Optional[QueueJob]:
         """Get the currently processing job"""

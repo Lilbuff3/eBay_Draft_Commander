@@ -125,3 +125,21 @@ def build_queue_summary_message(listed_count: int, total_value: float,
     if review_count:
         parts.append(f"{review_count} held for price review")
     return "Queue done: " + ", ".join(parts) + "."
+
+
+def build_autopilot_summary_message(offers: int, markdowns: int, relists: int,
+                                    dry_run: bool) -> str:
+    """Daily autopilot digest ("DRY RUN: would send 4 offers, ...")."""
+    def _n(count, noun):
+        return f"{count} {noun}{'s' if count != 1 else ''}"
+    parts = []
+    if offers:
+        parts.append(f"sen{'d' if dry_run else 't'} {_n(offers, 'offer')} to watchers")
+    if markdowns:
+        parts.append(f"{_n(markdowns, 'markdown')}")
+    if relists:
+        parts.append(f"{_n(relists, 'relist')}")
+    body = ", ".join(parts) if parts else "no actions"
+    if dry_run:
+        return f"Autopilot DRY RUN: would {body}. Flip live in Settings → Autopilot."
+    return f"Autopilot: {body}."

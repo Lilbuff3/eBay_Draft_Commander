@@ -167,6 +167,34 @@ class SaleModel(Base):
                         onupdate=lambda: datetime.now(timezone.utc))
 
 
+class ListingActionModel(Base):
+    """Autopilot audit + idempotency trail: one row per offer/markdown/relist
+    decision. Dry-run cycles write rows too (dry_run=1) — that's the audit
+    feed the owner reviews before flipping live; idempotency checks only
+    count live rows so an observation window never suppresses real actions.
+    action_type 'no_relist' blocklists intentionally-ended listings."""
+    __tablename__ = 'listing_actions'
+    __table_args__ = (
+        Index('idx_listing_actions_listing', 'listing_id'),
+        Index('idx_listing_actions_type', 'action_type'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    listing_id = Column(String(50), nullable=False)
+    action_type = Column(String(20), nullable=False)  # offer|markdown|relist|no_relist
+    executed_at = Column(Float, nullable=False)       # epoch seconds
+    dry_run = Column(Boolean, default=False, nullable=False)
+    details_json = Column(Text)
+
+    @property
+    def details(self):
+        return json.loads(self.details_json) if self.details_json else {}
+
+    @details.setter
+    def details(self, value):
+        self.details_json = json.dumps(value)
+
+
 # Database Setup
 def get_db_engine(db_path: Path):
     from sqlalchemy import event
