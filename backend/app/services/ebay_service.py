@@ -42,7 +42,22 @@ class eBayService:
 
     def end_listing(self, item_id: str) -> Dict[str, Any]:
         """End a live or scheduled fixed-price listing by its eBay ItemID."""
-        return self.trading_service.end_fixed_price_item(item_id)
+        result = self.trading_service.end_fixed_price_item(item_id)
+        if result.get('success'):
+            # Blocklist so the autopilot relist sweep never resurrects an
+            # intentionally ended listing. Best-effort.
+            try:
+                import time as _time
+                from flask import current_app
+                autopilot = getattr(getattr(current_app, 'queue_manager', None),
+                                    'autopilot', None)
+                if autopilot:
+                    autopilot.record_action(str(item_id), 'no_relist', False,
+                                            {'reason': 'manual_end'}, _time.time())
+            except Exception:
+                logger.warning("no_relist blocklist write failed (non-fatal)",
+                               exc_info=True)
+        return result
 
     def revise_listing_price(self, item_id: str, price, qty=None) -> Dict[str, Any]:
         """Drop (or change) a live listing's price in place via ReviseFixedPriceItem."""

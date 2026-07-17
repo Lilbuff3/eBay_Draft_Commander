@@ -199,13 +199,66 @@ class AutopilotScanner:
                             self.record_action(listing_id, 'markdown', dry_run, entry, now)
                             result['markdowns'].append(entry)
 
-        self._run_relist_sweep(result, now, std_knobs, dry_run, s)
+        self._run_relist_sweep(result, now, std_knobs, dry_run, flag, num,
+                               jobs_by_listing)
         self._send_digest(result)
         return result
 
-    def _run_relist_sweep(self, result, now, knobs, dry_run, settings):
-        """Unsold relist sweep — implemented with the B3 task."""
-        return
+    def _run_relist_sweep(self, result, now, knobs, dry_run, flag, num,
+                          jobs_by_listing):
+        """Relist unsold listings with one markdown step applied — nothing
+        dies silently. Blocklisted (no_relist) and over-cap items skipped;
+        a successful relist rewrites the job's listing_id so ledger/orders
+        joins survive the new ItemID."""
+        if not flag('RELIST_ENABLED', 'true'):
+            return
+        max_times = int(num('RELIST_MAX_TIMES', '3'))
+        try:
+            unsold = self.trading.get_unsold_listings()
+        except Exception as e:
+            logger.error(f"Autopilot: unsold fetch failed: {e}")
+            return
+        for item in unsold or []:
+            item_id = str(item.get('item_id') or '')
+            if not item_id:
+                continue
+            if self._last_live_action(item_id, 'no_relist') is not None:
+                continue
+            if self.count_live_actions(item_id, 'relist') >= max_times:
+                continue
+            current = _to_float(item.get('price'))
+            if current <= 0:
+                continue
+            job = jobs_by_listing.get(item_id)
+            original = _to_float(getattr(job, 'price', None), current) \
+                if job is not None else current
+            if original <= 0:
+                original = current
+            new_price = compute_markdown(
+                original, current, knobs['after_days'], **knobs) or current
+            entry = {'listing_id': item_id, 'from': current, 'to': new_price,
+                     'title': item.get('title')}
+            ok = True
+            if not dry_run:
+                relisted = self.trading.relist_fixed_price_item(item_id, price=new_price)
+                ok = bool(relisted.get('success'))
+                if ok:
+                    new_id = relisted.get('new_item_id')
+                    entry['new_item_id'] = new_id
+                    if job is not None and new_id:
+                        try:
+                            self.qm.update_job(job.id, {'listing_id': new_id})
+                        except Exception as e:
+                            logger.warning(
+                                f"Autopilot: listing_id rewrite failed for job "
+                                f"{getattr(job, 'id', '?')}: {e}")
+                else:
+                    result['errors'].append(
+                        {'listing_id': item_id, 'action': 'relist',
+                         'error': relisted.get('error')})
+            if ok:
+                self.record_action(item_id, 'relist', dry_run, entry, now)
+                result['relists'].append(entry)
 
     def _days_live(self, start_time, now: float) -> Optional[float]:
         if not start_time:

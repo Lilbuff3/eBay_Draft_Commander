@@ -759,3 +759,129 @@ class TradingService:
         except Exception as e:
             logger.exception("ReviseFixedPriceItem Exception")
             return {'success': False, 'error': str(e)}
+
+    def get_unsold_listings(self, days_back: int = 30) -> list:
+        """Unsold (ended without sale) listings via GetMyeBaySelling UnsoldList.
+
+        Returns [{'item_id', 'title', 'price', 'sku', 'end_time'}]; [] on any
+        error — the relist sweep is best-effort.
+        """
+        try:
+            from backend.app.core.token_manager import get_token_manager
+            tm = get_token_manager()
+            token = tm.get_access_token()
+            if not token:
+                creds = load_env()
+                token = creds.get('EBAY_USER_TOKEN')
+            if not token:
+                return []
+
+            xmlns = "urn:ebay:apis:eBLBaseComponents"
+            xml_request = f"""<?xml version="1.0" encoding="utf-8"?>
+            <GetMyeBaySellingRequest xmlns="{xmlns}">
+                <RequesterCredentials>
+                    <eBayAuthToken>{token}</eBayAuthToken>
+                </RequesterCredentials>
+                <ErrorLanguage>en_US</ErrorLanguage>
+                <UnsoldList>
+                    <Include>true</Include>
+                    <DurationInDays>{int(days_back)}</DurationInDays>
+                    <Pagination>
+                        <EntriesPerPage>200</EntriesPerPage>
+                        <PageNumber>1</PageNumber>
+                    </Pagination>
+                </UnsoldList>
+            </GetMyeBaySellingRequest>"""
+
+            response, _ = _post_trading_request('GetMyeBaySelling', xml_request)
+            if not response or response.status_code != 200:
+                logger.warning(
+                    f"GetMyeBaySelling failed: HTTP {response.status_code if response else 'No Response'}")
+                return []
+
+            root = ET.fromstring(response.content)
+            ns = {'e': xmlns}
+            ack_node = root.find('.//e:Ack', ns)
+            if ack_node is None or ack_node.text not in ('Success', 'Warning'):
+                logger.warning(f"GetMyeBaySelling Ack failure: {_extract_trading_errors(root, ns)}")
+                return []
+
+            items = []
+            for item in root.findall('.//e:UnsoldList//e:Item', ns):
+                def get_text(node, tag):
+                    n = node.find(tag, ns)
+                    return n.text if n is not None else None
+
+                price = 0.0
+                selling_status = item.find('e:SellingStatus', ns)
+                if selling_status is not None:
+                    cp = selling_status.find('e:CurrentPrice', ns)
+                    if cp is not None:
+                        try:
+                            price = float(cp.text)
+                        except (TypeError, ValueError):
+                            price = 0.0
+                listing_details = item.find('e:ListingDetails', ns)
+                end_time = None
+                if listing_details is not None:
+                    end_time = get_text(listing_details, 'e:EndTime')
+                items.append({
+                    'item_id': get_text(item, 'e:ItemID'),
+                    'title': get_text(item, 'e:Title'),
+                    'sku': get_text(item, 'e:SKU') or '',
+                    'price': price,
+                    'end_time': end_time,
+                })
+            return items
+        except Exception as e:
+            logger.exception("GetMyeBaySelling Exception")
+            return []
+
+    def relist_fixed_price_item(self, item_id: str, price=None) -> dict:
+        """Relist an ended fixed-price listing (RelistFixedPriceItem),
+        optionally at a new StartPrice. Returns {success, new_item_id, error}."""
+        try:
+            from backend.app.core.token_manager import get_token_manager
+            tm = get_token_manager()
+            token = tm.get_access_token()
+            if not token:
+                creds = load_env()
+                token = creds.get('EBAY_USER_TOKEN')
+            if not token:
+                return {'success': False, 'error': 'No eBay User Token found'}
+
+            fields = f"<ItemID>{xml_escape(str(item_id))}</ItemID>"
+            if price is not None:
+                fields += f"<StartPrice>{float(price):.2f}</StartPrice>"
+
+            xmlns = "urn:ebay:apis:eBLBaseComponents"
+            xml_request = f"""<?xml version="1.0" encoding="utf-8"?>
+            <RelistFixedPriceItemRequest xmlns="{xmlns}">
+                <RequesterCredentials>
+                    <eBayAuthToken>{token}</eBayAuthToken>
+                </RequesterCredentials>
+                <ErrorLanguage>en_US</ErrorLanguage>
+                <Item>{fields}</Item>
+            </RelistFixedPriceItemRequest>"""
+
+            response, _ = _post_trading_request('RelistFixedPriceItem', xml_request)
+            if not response or response.status_code != 200:
+                return {'success': False,
+                        'error': f"HTTP {response.status_code if response else 'No Response'}"}
+
+            root = ET.fromstring(response.content)
+            ns = {'e': xmlns}
+            ack_node = root.find('.//e:Ack', ns)
+            ack = ack_node.text if ack_node is not None else 'Failure'
+            if ack in ('Success', 'Warning'):
+                new_id_el = root.find('.//e:ItemID', ns)
+                new_id = new_id_el.text if new_id_el is not None else None
+                logger.info(f"Relisted {item_id} -> {new_id} (price={price})")
+                return {'success': True, 'new_item_id': new_id}
+
+            error_text = _extract_trading_errors(root, ns)
+            logger.error(f"RelistFixedPriceItem failed: {error_text}")
+            return {'success': False, 'error': error_text or 'Relist failed'}
+        except Exception as e:
+            logger.exception("RelistFixedPriceItem Exception")
+            return {'success': False, 'error': str(e)}
