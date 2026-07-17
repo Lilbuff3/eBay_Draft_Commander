@@ -32,6 +32,7 @@ class SettingsManager:
         'SOURCING_ROI_MULTIPLE': '3.0',  # Pay at most net_proceeds / this (3x rule)
         'SOURCING_SHIP_COST': '5.00',    # Est. actual ship cost when sourcing (Media Mail-ish)
         'PRICE_AGREEMENT_RATIO': '1.6',  # Comps vs AI cross-check: further apart = conflict -> review
+        'ACTIVE_TO_SOLD_FACTOR': '0.87', # Active-comp -> est. sold discount (restart to apply; tune via tools/accuracy_benchmark.py --suggest-factor)
         'WHATSAPP_NOTIFY_CHAT_ID': '',   # Owner chat for review/summary texts (empty = off)
         'BEST_OFFER_ENABLED': 'true',        # Add Best Offer to every new listing
         'BEST_OFFER_AUTO_ACCEPT_PCT': '90',  # Auto-accept offers >= this % of list price
@@ -88,6 +89,7 @@ class SettingsManager:
             'PROMOTED_LISTINGS_ENABLED',
             'PROMOTED_LISTINGS_AD_RATE',
             'PRICE_AGREEMENT_RATIO',
+            'ACTIVE_TO_SOLD_FACTOR',
             'WHATSAPP_NOTIFY_CHAT_ID',
             'BEST_OFFER_ENABLED',
             'BEST_OFFER_AUTO_ACCEPT_PCT',

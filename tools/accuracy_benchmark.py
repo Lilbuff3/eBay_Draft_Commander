@@ -198,11 +198,37 @@ def _stats(pairs):
     }
 
 
+def suggest_factor(scored):
+    """Data-driven ACTIVE_TO_SOLD_FACTOR: median(actual / raw_median) over the
+    scored rows, preferring exact-ID matches (>=5) since keyword comps are the
+    noisy fallback. Returns {'suggested_factor','n','basis','low_sample'} or
+    None when nothing is scoreable."""
+    def usable(rows):
+        return [(rm, a) for mt, _, rm, _, a in rows if rm and rm > 0 and a and a > 0]
+
+    exact = usable([r for r in scored if r[0] == 'exact-ID'])
+    if len(exact) >= 5:
+        used, basis = exact, 'exact-ID'
+    else:
+        used, basis = usable(scored), 'all'
+    if not used:
+        return None
+    ratios = [a / rm for rm, a in used]
+    return {
+        'suggested_factor': round(statistics.median(ratios), 3),
+        'n': len(used),
+        'basis': basis,
+        'low_sample': len(used) < 25,
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--csv', help='eBay sold-history export CSV (bigger ground-truth sample)')
     ap.add_argument('--books-only', action='store_true', help='only rows with an ISBN')
     ap.add_argument('--limit', type=int, default=500)
+    ap.add_argument('--suggest-factor', action='store_true',
+                    help='derive ACTIVE_TO_SOLD_FACTOR from actual sales and compare to current')
     args = ap.parse_args()
 
     index = load_listing_index()
@@ -271,6 +297,24 @@ def main():
     if len(exact) < 25:
         print(f'  ! Only {len(exact)} exact-ID items — too few to judge. Export book sales (--csv) for 25-30+.')
     print('  Judge the thesis on the EXACT-ID rows only; keyword rows are the low-confidence fallback the product should flag, not trust.')
+    if args.suggest_factor:
+        sf = suggest_factor(scored)
+        print('\nFACTOR SUGGESTION:')
+        if not sf:
+            print('  Nothing scoreable — no factor suggestion.')
+        else:
+            delta = sf['suggested_factor'] - ACTIVE_TO_SOLD_FACTOR
+            print(f"  current ACTIVE_TO_SOLD_FACTOR = {ACTIVE_TO_SOLD_FACTOR}")
+            print(f"  suggested (median actual/raw_median, {sf['basis']} rows, n={sf['n']}) "
+                  f"= {sf['suggested_factor']}  (delta {delta:+.3f})")
+            if sf['low_sample']:
+                print(f"  ! n={sf['n']} < 25 — treat as directional only; export more sales via --csv.")
+            elif abs(delta) > 0.03:
+                print('  -> Materially different: set ACTIVE_TO_SOLD_FACTOR in Settings '
+                      '(Automation), restart the backend, and re-run to confirm bias moves toward $0.')
+            else:
+                print('  -> Within noise of the current factor; leave it.')
+
     print('\nCaveat: comps fetched now vs past sales; free-shipping total ~= list price.')
 
 
