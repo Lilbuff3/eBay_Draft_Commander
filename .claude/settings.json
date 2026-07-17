@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "git pull --ff-only 2>/dev/null | tail -1 || true",
+            "timeout": 30,
+            "statusMessage": "Pulling latest from GitHub..."
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "git push origin HEAD --quiet 2>/dev/null || true",
+            "timeout": 60,
+            "statusMessage": "Pushing commits to GitHub..."
+          }
+        ]
+      }
+    ]
+  }
+}
