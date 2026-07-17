@@ -16,11 +16,11 @@ AI-powered eBay listing automation platform. Flask backend + React TypeScript PW
 | `manage.py` | CLI management commands (update_policies, fix_publish) |
 | `requirements.txt` | Python dependencies (Flask, SQLAlchemy, rembg, google-genai) |
 | `pytest.ini` | Test configuration |
-| `Caddyfile` | Caddy reverse proxy config for local HTTPS |
 | `launch_app.bat` | Windows app launcher |
-| `start-https.ps1` | PowerShell HTTPS startup script |
 | `create_desktop_shortcut.ps1` | Desktop shortcut creator |
 | `server.spec` | PyInstaller spec for packaging |
+
+(Phone HTTPS is `tailscale serve --bg 5000` at `https://tuf-2.taile466a6.ts.net` — Caddy is retired; Windows Firewall blocks it.)
 
 ## Subdirectories
 
@@ -39,19 +39,37 @@ AI-powered eBay listing automation platform. Flask backend + React TypeScript PW
 ## For AI Agents
 
 ### Working In This Directory
-- **Read `CLAUDE.md` first** — it is the authoritative architecture reference
+- **Read `CLAUDE.md` first** — it is the authoritative architecture reference (kept current; this file is the thin cross-tool summary)
+- **Canonical dir**: `C:\Users\adam\Projects\ebay-draft-commander` — the old OneDrive path is dead, never use it
 - `master` is the default branch — feature branches for isolation, merge and push at end of session
+- **Pull before starting, push before stopping** — Claude Code sessions share this repo via GitHub master
 - Backend on port 5000, Vite dev on port 5175 (proxies `/api` → `127.0.0.1:5000`)
-- `.env` contains secrets — **never edit directly**, use SettingsManager/API or Settings UI
 - `load_dotenv_manually()` walks parent dirs to find `.env` (supports git worktrees)
-- Run `npm run build` in `frontend/` before committing frontend changes
 - SQLite DB at `data/commander.db` — WAL mode, auto-created on first run
+
+### Hard Rules (no IDE hook enforces these here — discipline required)
+Claude Code enforces some of these with hooks; Antigravity/Gemini has no such rails, so they are rules:
+1. **Never edit `.env` directly** — use SettingsManager / the Settings UI / `/api/settings`. `.env` writes are atomic (`.tmp` + `os.replace`) and GET-masked secrets (`••••`) must never be written back.
+2. **Never hand-edit `static/app/`** — it is build output. Change `frontend/src`, then `npm run build`, and commit the regenerated build with the source.
+3. **Never commit `data/commander.db` from a feature branch/worktree** — a local DB riding a branch clobbers master's (happened 2026-07-17).
+4. **Restart the backend after backend changes** — no hot reload: `POST http://127.0.0.1:5000/api/system/restart` (409 = running unsupervised, restart manually).
+5. **Run `npx eslint` on changed frontend files** — Claude's auto-lint hook doesn't exist here.
+6. **Tests need Python 3.12**: `"C:\Program Files\Python312\python.exe" -m pytest tests/unit -q` — bare `python` may be a 3.13 without deps.
+
+### Recent Systems (2026-07 — details in CLAUDE.md)
+- **Autopilot** — daily offers-to-watchers, markdown ladder, unsold relists (`autopilot_scanner.py`, dry-run default)
+- **Best Offer everywhere** + **price-discovery mode** for no-comp items (list high + aggressive markdowns instead of review-stalling)
+- **Profit ledger** — local sold-order snapshots, COGS tracking, net-per-sale (Profit tab)
+- **Price explainer** — comp range bar + photo comp cards in the item drawer (`pricing_data.comps`/`median_price`/`price_range`)
+- **Mobile capture momentum loop** — success interstitial + one-tap next item, sticky category; the capture sheet owns ALL upload feedback (don't add toasts)
+- **WhatsApp review flow** — price flags pause + text; reply "ok"/price/"skip" resolves from chat
+- **Pricing confidence** — every price graded high/medium/low; low → `pending_review`; engine fields must be threaded through `get_final_pricing`'s projection (enforced by `tests/unit/test_pricing_projection_seam.py`)
 
 ### Testing Requirements
 ```bash
-pytest tests/unit/ -v                # 244+ unit tests (no external deps)
-pytest tests/integration/ -v         # Needs .env credentials + eBay sandbox
-cd frontend && npm run test          # Vitest frontend tests
+"C:\Program Files\Python312\python.exe" -m pytest tests/unit -q   # ~829 unit tests (no external deps)
+pytest tests/integration/ -v         # Needs .env credentials + eBay sandbox — don't run casually
+cd frontend && npx vitest run        # ~50 frontend tests
 ```
 
 ### Common Patterns
