@@ -17,11 +17,14 @@ interface CategoryPickerProps {
  */
 export function CategoryPicker({ isOpen, onClose, onPick }: CategoryPickerProps) {
     const { tap } = useHaptics()
-    if (!isOpen) return null
 
+    // The open check lives INSIDE AnimatePresence — an early return above it
+    // unmounts the tree instantly and the exit animation never plays.
     return (
         <AnimatePresence>
+            {isOpen && (
             <motion.div
+                key="category-picker"
                 // z-[60]: must clear the bottom nav (z-50), which sits LATER in the DOM
                 // and would otherwise paint over the sheet's bottom row and steal taps.
                 className="fixed inset-0 z-[60] flex items-end md:items-center md:justify-center"
@@ -68,6 +71,7 @@ export function CategoryPicker({ isOpen, onClose, onPick }: CategoryPickerProps)
                     </div>
                 </motion.div>
             </motion.div>
+            )}
         </AnimatePresence>
     )
 }

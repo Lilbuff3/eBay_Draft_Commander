@@ -156,7 +156,15 @@ def get_job_details(job_id):
         'price_reasoning': listing.get('price_reasoning'),
         'pricing_data': {
             'confidence': identification.get('confidence_score'),
-            'comparables': ai_data.get('comparables', [])[:5],
+            # Real key is pricing_comps (written by processor_service); the old
+            # 'comparables' key was never written anywhere.
+            'comps': ai_data.get('pricing_comps', [])[:5],
+            'median_price': ai_data.get('pricing_median'),
+            'price_range': ai_data.get('pricing_range'),
+            'comp_count': ai_data.get('pricing_comp_count'),
+            'reasoning': ai_data.get('pricing_reasoning', ''),
+            'pricing_confidence': ai_data.get('pricing_confidence'),
+            'pricing_confidence_reason': ai_data.get('pricing_confidence_reason'),
             'price_source': ai_data.get('price_source', 'AI estimate'),
             'price_source_label': format_price_source(
                 ai_data.get('pricing_source', ''),

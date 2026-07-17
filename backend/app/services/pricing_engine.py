@@ -137,7 +137,9 @@ class PricingEngine:
                         "currency": "USD", # Researcher normalizes to float, assuming USD for now
                         "condition": item['condition'],
                         "end_date": item['date'],
-                        "url": item['url']
+                        "url": item['url'],
+                        # Thumbnail for the "why this price" comp cards
+                        "image_url": item.get('imageUrl', '')
                     })
             
             return sold_items
@@ -485,6 +487,9 @@ class PricingEngine:
             "suggested_price": suggested_price,
             "comp_count": len(prices),
             "median_price": round(median_price, 2),
+            # Raw asking-price spread of the comps that priced this item —
+            # drives the range bar in the frontend price explainer.
+            "price_range": [round(min(prices), 2), round(max(prices), 2)],
             "reasoning": reasoning,
             "projected_profit": round(suggested_price - est_fees - acquisition_cost - shipping_cost, 2)
         }
@@ -715,6 +720,9 @@ class PricingEngine:
                 return {
                     "suggested_price": price_data["suggested_price"],
                     "comps": sold_items[:5],
+                    "median_price": price_data.get("median_price"),
+                    "comp_count": price_data.get("comp_count"),
+                    "price_range": price_data.get("price_range"),
                     "reasoning": f"ISBN Match: {price_data['reasoning']}",
                     "projected_profit": price_data.get("projected_profit"),
                     "source": "market_data_isbn",
@@ -747,6 +755,9 @@ class PricingEngine:
                     return {
                         "suggested_price": price_data["suggested_price"],
                         "comps": sold_items[:5],
+                        "median_price": price_data.get("median_price"),
+                        "comp_count": price_data.get("comp_count"),
+                        "price_range": price_data.get("price_range"),
                         "reasoning": f"ID Match ({id_query}): {price_data['reasoning']}",
                         "projected_profit": price_data.get("projected_profit"),
                         "source": "market_data_id",
@@ -778,6 +789,9 @@ class PricingEngine:
                         return {
                             "suggested_price": price_data["suggested_price"],
                             "comps": sold_items[:5],
+                            "median_price": price_data.get("median_price"),
+                            "comp_count": price_data.get("comp_count"),
+                            "price_range": price_data.get("price_range"),
                             "reasoning": f"Alt PN Match ({alt_pn}): {price_data['reasoning']}",
                             "projected_profit": price_data.get("projected_profit"),
                             "source": "market_data_alt_pn",
@@ -835,6 +849,9 @@ class PricingEngine:
                             "comp_price": comp_final,
                             "ai_price": ai_final,
                             "comps": sold_items[:5],
+                            "median_price": price_data.get("median_price"),
+                            "comp_count": price_data.get("comp_count"),
+                            "price_range": price_data.get("price_range"),
                             "reasoning": f"Comp/AI conflict: {conflict_reason}",
                             "source": "market_ai_conflict",
                             "confidence": "low",
@@ -846,6 +863,9 @@ class PricingEngine:
             return {
                 "suggested_price": price_data["suggested_price"],
                 "comps": sold_items[:5],
+                "median_price": price_data.get("median_price"),
+                "comp_count": price_data.get("comp_count"),
+                "price_range": price_data.get("price_range"),
                 "reasoning": price_data["reasoning"],
                 "projected_profit": price_data.get("projected_profit"),
                 "source": "market_data_keyword",

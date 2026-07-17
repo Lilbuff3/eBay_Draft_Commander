@@ -332,6 +332,16 @@ export async function saveSettings(settings: Record<string, string>): Promise<{ 
 }
 
 
+/** One market comparable from the pricing engine (Browse API = active asking prices) */
+export interface PricingComp {
+    title: string
+    price: number
+    condition?: string
+    url?: string
+    image_url?: string
+    end_date?: string
+}
+
 export interface JobDetails {
     success: boolean
     id: string
@@ -354,7 +364,13 @@ export interface JobDetails {
     price_reasoning?: string
     pricing_data: {
         confidence?: string
-        comparables: Array<{ title: string; price: number }>
+        comps?: PricingComp[]
+        median_price?: number | null
+        price_range?: [number, number] | null
+        comp_count?: number | null
+        reasoning?: string
+        pricing_confidence?: 'high' | 'medium' | 'low' | 'user' | null
+        pricing_confidence_reason?: string | null
         price_source: string
         price_source_label?: string
         market_price?: Record<string, unknown>
@@ -399,8 +415,12 @@ export async function searchCategories(query: string): Promise<CategorySuggestio
 export async function uploadFiles(
     files: FileList | File[],
     onProgress?: (loaded: number, total: number) => void,
-    metadata?: { title?: string; condition?: string; category?: string }
+    metadata?: { title?: string; condition?: string; category?: string },
+    // silent: caller owns success/error feedback (mobile capture sheet shows its
+    // own interstitial + retry toast — api-level toasts would double up)
+    opts?: { silent?: boolean }
 ): Promise<{ success: boolean; job_id?: string; jobId?: string; error?: string }> {
+    const silent = opts?.silent ?? false
     const formData = new FormData()
     const fileArray = Array.from(files)
     fileArray.forEach(f => formData.append('files[]', f))
@@ -427,20 +447,20 @@ export async function uploadFiles(
                 try {
                     const result = JSON.parse(xhr.responseText)
                     if (xhr.status >= 200 && xhr.status < 300) {
-                        if (result.job_id) toast.success('Upload started')
+                        if (result.job_id && !silent) toast.success('Upload started')
                         resolve(result)
                     } else {
-                        toast.error(result.error || 'Upload failed')
+                        if (!silent) toast.error(result.error || 'Upload failed')
                         reject(new Error(result.error || `Upload failed (${xhr.status})`))
                     }
                 } catch {
-                    toast.error('Upload failed')
+                    if (!silent) toast.error('Upload failed')
                     reject(new Error('Invalid server response'))
                 }
             }
 
             xhr.onerror = () => {
-                toast.error('Upload failed')
+                if (!silent) toast.error('Upload failed')
                 reject(new Error('Network error'))
             }
 
@@ -454,12 +474,12 @@ export async function uploadFiles(
             `${API_BASE}/upload`,
             { method: 'POST', body: formData }
         )
-        if (result.job_id) {
+        if (result.job_id && !silent) {
             toast.success('Upload started')
         }
         return result
     } catch (err) {
-        toast.error('Upload failed')
+        if (!silent) toast.error('Upload failed')
         throw err
     }
 }
