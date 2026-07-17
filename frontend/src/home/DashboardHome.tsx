@@ -8,6 +8,7 @@ import { useCommanderStore } from '@/store/useCommanderStore'
 import { UploadZone } from '@/components/UploadZone'
 import { ScoreboardStats } from './ScoreboardStats'
 import { OrderStats } from './OrderStats'
+import { TodayPanel } from './TodayPanel'
 import { WorkspaceCard } from './WorkspaceCard'
 import { ActivityRail } from './ActivityRail'
 
@@ -162,6 +163,11 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
                 {/* Orders needing shipment — loud when due, hidden when clear */}
                 <motion.div variants={itemVariants}>
                     <OrderStats />
+                </motion.div>
+
+                {/* Autopilot daily report + live price-discovery count */}
+                <motion.div variants={itemVariants}>
+                    <TodayPanel />
                 </motion.div>
 
 
