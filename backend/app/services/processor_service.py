@@ -400,7 +400,7 @@ class ProcessorService:
             logger.error(f"Template rendering failed: {e}")
             return {"html": f"<p>{description}</p>", "timing": time.time() - timing_start}
 
-    def _create_trading_api_listing(self, title: str, final_price: str, condition: str, category_id: str, html_description: str, image_urls: list, item_specifics: dict, shipping_policy: str, scheduled_time: str = None, estimated_weight_lbs=None) -> dict:
+    def _create_trading_api_listing(self, title: str, final_price: str, condition: str, category_id: str, html_description: str, image_urls: list, item_specifics: dict, shipping_policy: str, scheduled_time: str = None, estimated_weight_lbs=None, best_offer_decline_pct=None) -> dict:
         """Create eBay Listing via Trading API"""
         timing_start = time.time()
         sku = 'DC-' + uuid.uuid4().hex[:8].upper()
@@ -443,7 +443,10 @@ class ProcessorService:
             if str(settings_mgr.get('BEST_OFFER_ENABLED', 'true')).lower() == 'true':
                 price_f = float(final_price)
                 accept_pct = float(settings_mgr.get('BEST_OFFER_AUTO_ACCEPT_PCT', '90') or 90)
-                decline_pct = float(settings_mgr.get('BEST_OFFER_AUTO_DECLINE_PCT', '60') or 60)
+                # Discovery listings pass a looser floor so lowball-but-real
+                # offers surface instead of being auto-declined.
+                decline_pct = (best_offer_decline_pct if best_offer_decline_pct is not None
+                               else float(settings_mgr.get('BEST_OFFER_AUTO_DECLINE_PCT', '60') or 60))
                 item_data.update({
                     'best_offer_enabled': True,
                     'best_offer_auto_accept': round(price_f * accept_pct / 100, 2),
@@ -812,6 +815,49 @@ class ProcessorService:
             _log(f"Guardrail flag overridden by prior user approval: {review_reason}",
                  level='warning')
             review_reason = None
+        best_offer_decline_pct = None
+        if review_reason:
+            # Price-discovery mode: a no-comp item (commercial parts etc.)
+            # lists HIGH with Best Offer + aggressive markdown tag instead of
+            # stalling in review. Must sit AFTER the user_approved bypass so
+            # an approved price is never re-priced. Conflicts/dups/unpriceable
+            # items fall through to the review routing below.
+            from backend.app.core.settings_manager import get_settings_manager
+            from backend.app.services.price_discovery import (
+                is_discovery_eligible, compute_discovery_price,
+            )
+            settings_mgr = get_settings_manager()
+            discovery_enabled = str(settings_mgr.get(
+                'PRICE_DISCOVERY_ENABLED', 'true')).lower() == 'true'
+            if is_discovery_eligible(pricing_result, discovery_enabled):
+                markup_pct = float(settings_mgr.get('PRICE_DISCOVERY_MARKUP_PCT', '25') or 25)
+                discovery = compute_discovery_price(
+                    pricing_result, job_obj.ai_data, markup_pct)
+                if discovery:
+                    _log(f"Price discovery: listing at ${discovery['list_price']:.2f} "
+                         f"({discovery['basis']}) instead of review hold ({review_reason})")
+                    if not job_obj.job_metadata:
+                        job_obj.job_metadata = {}
+                    job_obj.job_metadata['price_discovery'] = {
+                        'started_at': time.time(),
+                        'base_price': float(pricing_result.get('price') or 0),
+                        'list_price': discovery['list_price'],
+                        'basis': discovery['basis'],
+                        'reason': review_reason,
+                    }
+                    pricing_result['price'] = f"{discovery['list_price']:.2f}"
+                    best_offer_decline_pct = float(settings_mgr.get(
+                        'PRICE_DISCOVERY_DECLINE_PCT', '50') or 50)
+                    from backend.app.services.whatsapp_notify import (
+                        get_notify_destination, notify_whatsapp,
+                        build_price_discovery_message,
+                    )
+                    dest = get_notify_destination(job_obj.job_metadata)
+                    if dest:
+                        notify_whatsapp(dest, build_price_discovery_message(
+                            analysis['title'], discovery['list_price'],
+                            discovery['basis']))
+                    review_reason = None
         if review_reason:
             # Pause + tell me: the job holds in the Review Queue AND the user
             # gets a WhatsApp text (originating chat for bridge jobs, else the
@@ -848,6 +894,7 @@ class ProcessorService:
             category_id=cat_result['id'], html_description=template["html"],
             image_urls=upload_urls, item_specifics=analysis['item_specifics'],
             shipping_policy=job_obj.job_metadata.get('fulfillment_policy') if job_obj.job_metadata else None,
+            best_offer_decline_pct=best_offer_decline_pct,
             scheduled_time=listing_schedule_time,
             estimated_weight_lbs=(analysis.get('ai_data', {}).get('identification', {}) or {}).get('estimated_weight_lbs')
         )

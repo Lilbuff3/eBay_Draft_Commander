@@ -36,6 +36,9 @@ class SettingsManager:
         'BEST_OFFER_ENABLED': 'true',        # Add Best Offer to every new listing
         'BEST_OFFER_AUTO_ACCEPT_PCT': '90',  # Auto-accept offers >= this % of list price
         'BEST_OFFER_AUTO_DECLINE_PCT': '60', # Auto-decline offers < this % of list price
+        'PRICE_DISCOVERY_ENABLED': 'true',   # No-comp items: list high + Best Offer instead of review
+        'PRICE_DISCOVERY_MARKUP_PCT': '25',  # Discovery list price = suggested * (1 + this%)
+        'PRICE_DISCOVERY_DECLINE_PCT': '50', # Aggressive auto-decline floor for discovery listings
     }
     
     # All known setting keys organized by category
@@ -74,6 +77,9 @@ class SettingsManager:
             'BEST_OFFER_ENABLED',
             'BEST_OFFER_AUTO_ACCEPT_PCT',
             'BEST_OFFER_AUTO_DECLINE_PCT',
+            'PRICE_DISCOVERY_ENABLED',
+            'PRICE_DISCOVERY_MARKUP_PCT',
+            'PRICE_DISCOVERY_DECLINE_PCT',
         ],
         'Application': [
             'DEFAULT_CONDITION',

@@ -65,8 +65,12 @@ def _wire_common_mocks(processor, monkeypatch, title="Test Item", price=10.0,
 
     # Promoted-listings hook (runs after a successful trading API call) reads
     # settings via get_settings_manager(); avoid touching the real .env file.
+    # PRICE_DISCOVERY_ENABLED is pinned off: these tests guard the classic
+    # review-routing behavior (discovery-off path); discovery-on behavior is
+    # covered in test_price_discovery.py.
     mock_settings = MagicMock()
-    mock_settings.get.side_effect = lambda k, d=None: 'false' if k == 'PROMOTED_LISTINGS_ENABLED' else d
+    mock_settings.get.side_effect = lambda k, d=None: (
+        'false' if k in ('PROMOTED_LISTINGS_ENABLED', 'PRICE_DISCOVERY_ENABLED') else d)
     monkeypatch.setattr('backend.app.core.settings_manager.get_settings_manager', lambda: mock_settings)
 
     return trading_api_mock

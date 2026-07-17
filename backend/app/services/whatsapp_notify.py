@@ -105,6 +105,18 @@ def build_price_review_message(title: Optional[str], price: Any,
             f'Held for review; approve or adjust in the app.')
 
 
+def build_price_discovery_message(title: Optional[str], price: Any,
+                                  basis: str = '') -> str:
+    """Inform-only text for a no-comp item listed in price-discovery mode."""
+    name = title or 'your item'
+    price_s = _fmt_money(price) or f"${price}"
+    basis_s = ('AI research high estimate' if basis == 'research_high'
+               else 'suggested price + discovery markup')
+    return (f'Listed "{name}" at {price_s} for price discovery ({basis_s}) '
+            f'with Best Offer — no solid comps, so it will auto-markdown '
+            f'if nobody bites. Reply "cancel last" to pull it.')
+
+
 def build_queue_summary_message(listed_count: int, total_value: float,
                                 review_count: int) -> str:
     """One-line end-of-queue digest."""
