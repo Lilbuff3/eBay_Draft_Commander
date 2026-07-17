@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect } from 'react'
 import { toast } from 'sonner'
 import { ItemDetailDrawer } from '@/components/ItemDetailDrawer'
 import { ScannerListener, type ScannedBook } from '@/components/ScannerListener'
@@ -13,7 +13,6 @@ export function Dashboard() {
 
     // Store State
     const setActiveTab = useCommanderStore(state => state.setActiveTab)
-    const jobs = useCommanderStore(state => state.jobs)
     const selectedJob = useCommanderStore(state => state.selectedJob)
     const setSelectedJob = useCommanderStore(state => state.setSelectedJob)
     const lastUploadedJobId = useCommanderStore(state => state.lastUploadedJobId)
@@ -32,31 +31,17 @@ export function Dashboard() {
         submitListing,
     } = useItemDraft(selectedJob)
 
-    // Keep a ref to latest jobs for use in closures
-    const jobsRef = useRef(jobs)
-    useEffect(() => { jobsRef.current = jobs }, [jobs])
-
-    // Mobile upload landed: toast and get out of the way. Auto-opening the edit
-    // drawer here killed capture momentum — the whole point is snap → next item,
-    // with review happening in a batch later. The Review action looks the job up
-    // at tap time so it works whether or not the jobs refetch has landed yet.
+    // Mobile upload landed: refresh the jobs list and get out of the way. The
+    // capture sheet's success interstitial ("Item #N on its way → Snap next
+    // item") owns all feedback now — a toast on top of it was double noise, and
+    // its Review action opened the drawer underneath the still-open sheet.
+    // Review happens in a batch later from the workspace; that's the momentum
+    // philosophy: snap → next item.
     useEffect(() => {
         if (!lastUploadedJobId) return
-        const jobId = lastUploadedJobId
         setLastUploadedJobId(null)
         queryClient.invalidateQueries({ queryKey: ['jobs'] })
-        toast.success('Item uploaded — AI is building the listing', {
-            description: 'Keep snapping; review whenever you like.',
-            action: {
-                label: 'Review',
-                onClick: () => {
-                    const found = jobsRef.current.find(j => j.id === jobId)
-                    if (found) setSelectedJob(found)
-                    else toast.info('Still processing — it will appear in the workspace shortly.')
-                },
-            },
-        })
-    }, [lastUploadedJobId, setLastUploadedJobId, setSelectedJob, queryClient])
+    }, [lastUploadedJobId, setLastUploadedJobId, queryClient])
 
     // A wedge scan on the home screen queues the book into the Books tab
     // (same localStorage handoff Sourcing's "Send to Books" uses — BatchScan

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Camera, Images, Trash2, Upload } from 'lucide-react'
+import { X, Camera, Images, Trash2, Upload, Check, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useHaptics } from '@/hooks/useHaptics'
@@ -17,17 +17,24 @@ interface MobileCaptureSheetProps {
     initialFiles?: File[]
     /** category id from the picker (clothing/shoes/electronics/books) */
     category?: string
+    /** reopen the category picker on top of the sheet */
+    onChangeCategory?: () => void
     onUpload: (files: File[], metadata: { title: string; condition: string; category?: string }) => Promise<void>
 }
 
-export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], category, onUpload }: MobileCaptureSheetProps) {
+export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], category, onChangeCategory, onUpload }: MobileCaptureSheetProps) {
     const captureCategory = getCaptureCategory(category)
     const conditions = captureCategory?.conditions ?? GENERIC_CONDITIONS
     const [photos, setPhotos] = useState<{ file: File; id: string; url: string }[]>([])
     const [title, setTitle] = useState('')
     const [condition, setCondition] = useState<string>('')
     const [isUploading, setIsUploading] = useState(false)
-    const { tap, warning, error: errorHaptic } = useHaptics()
+    // The momentum loop: 'capture' is the form, 'success' is the interstitial
+    // between items. sessionCount survives close/reopen on purpose — it's the
+    // pile counter for the whole capture session, not one sheet-open.
+    const [phase, setPhase] = useState<'capture' | 'success'>('capture')
+    const [sessionCount, setSessionCount] = useState(0)
+    const { tap, press, success: successHaptic, warning, error: errorHaptic } = useHaptics()
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     const uploadProgress = useCommanderStore(s => s.uploadProgress)
@@ -55,8 +62,15 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
             setTitle('')
             setCondition('')
             setIsUploading(false)
+            setPhase('capture')
         }
     }, [isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Category switched mid-session: keep the condition only if the new
+    // category's condition set still contains it (values differ per vertical).
+    useEffect(() => {
+        setCondition(prev => (prev && !conditions.some(c => c.value === prev) ? '' : prev))
+    }, [captureCategory]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const galleryInputRef = useRef<HTMLInputElement>(null)
 
@@ -97,7 +111,16 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                 photos.map(p => p.file),
                 { title, condition, category }
             )
-            onClose()
+            // Momentum, not a dead end: clear the item but keep the sheet (and
+            // the sticky condition — piles are usually same-condition) and land
+            // on the success interstitial with a one-tap path to the next item.
+            successHaptic()
+            photos.forEach(p => URL.revokeObjectURL(p.url))
+            setPhotos([])
+            setTitle('')
+            setIsUploading(false)
+            setSessionCount(n => n + 1)
+            setPhase('success')
         } catch (err) {
             // Never fail silently here — this is the app's core action, and the
             // sheet stays open with the photos intact so the tap can be retried.
@@ -110,11 +133,19 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
         }
     }
 
-    if (!isOpen) return null
+    // One tap from "item sent" to shooting the next one: reset the phase and
+    // fire the camera input in the same gesture.
+    const handleNextItem = () => {
+        press()
+        setPhase('capture')
+        fileInputRef.current?.click()
+    }
 
     return (
         <AnimatePresence>
+            {isOpen && (
             <motion.div
+                key="capture-sheet"
                 initial={{ opacity: 0, y: 100 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 100 }}
@@ -125,18 +156,85 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
             >
                 {/* Header */}
                 <header className="flex items-center justify-between px-4 py-3 bg-white border-b border-stone-200">
-                    <h2 className="text-xl font-bold tracking-tight text-stone-800">New Listing</h2>
-                    <button
-                        onClick={onClose}
-                        disabled={isUploading}
-                        title="Close"
-                        aria-label="Close"
-                        className="w-11 h-11 grid place-items-center rounded-full hover:bg-stone-100 disabled:opacity-50"
-                    >
-                        <X size={24} className="text-stone-500" />
-                    </button>
+                    <div className="min-w-0">
+                        <h2 className="text-xl font-bold tracking-tight text-stone-800">New Listing</h2>
+                        {captureCategory && onChangeCategory && phase === 'capture' && (
+                            <button
+                                onClick={() => { tap(); onChangeCategory() }}
+                                className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-persimmon-600 active:text-persimmon-700"
+                            >
+                                <captureCategory.icon size={12} />
+                                {captureCategory.label}
+                                <ChevronDown size={12} />
+                            </button>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {sessionCount > 0 && (
+                            <span className="px-2.5 py-1 rounded-full bg-sage-100 text-sage-700 text-xs font-bold">
+                                {sessionCount} sent
+                            </span>
+                        )}
+                        <button
+                            onClick={onClose}
+                            disabled={isUploading}
+                            title="Close"
+                            aria-label="Close"
+                            className="w-11 h-11 grid place-items-center rounded-full hover:bg-stone-100 disabled:opacity-50"
+                        >
+                            <X size={24} className="text-stone-500" />
+                        </button>
+                    </div>
                 </header>
 
+                {phase === 'success' ? (
+                    /* Success interstitial — the Vendit-style momentum beat. AI runs in
+                       the background; the only job here is getting to the next item. */
+                    <>
+                        <div className="flex-1 flex flex-col items-center justify-center gap-5 px-8 text-center">
+                            <motion.div
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                transition={{ type: 'spring', damping: 12, stiffness: 250, delay: 0.05 }}
+                                className="w-20 h-20 rounded-full bg-sage-100 grid place-items-center"
+                            >
+                                <Check size={40} className="text-sage-600" strokeWidth={3} />
+                            </motion.div>
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.15 }}
+                                className="space-y-1.5"
+                            >
+                                <div className="font-bold text-2xl tracking-tight text-stone-800">
+                                    Item #{sessionCount} on its way
+                                </div>
+                                <p className="text-sm text-stone-500">
+                                    AI is researching and building the listing — keep the pile moving.
+                                </p>
+                            </motion.div>
+                        </div>
+                        <div className="fixed bottom-0 left-0 right-0 p-4 pb-safe bg-white border-t border-stone-200 space-y-2">
+                            <Button
+                                onClick={handleNextItem}
+                                className="w-full h-14 rounded-2xl text-base font-semibold shadow-md bg-persimmon-600 hover:bg-persimmon-700"
+                            >
+                                <span className="flex items-center gap-2">
+                                    <Camera size={20} />
+                                    Snap next item
+                                </span>
+                            </Button>
+                            <Button
+                                onClick={() => { tap(); onClose() }}
+                                variant="ghost"
+                                className="w-full h-11 rounded-2xl text-sm font-medium text-stone-500"
+                            >
+                                Done for now
+                            </Button>
+                        </div>
+                    </>
+                ) : (
+                <>
                 <div className="flex-1 overflow-y-auto w-full pb-safe p-4 pb-24 space-y-6">
                     {/* Photo Grid */}
                     <div className="space-y-3">
@@ -156,22 +254,32 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                                 </div>
                             )}
                         </div>
-                        
+
                         <div className="grid grid-cols-3 gap-3">
-                            {photos.map((photo, index) => (
-                                <div key={photo.id} className="relative aspect-square rounded-xl overflow-hidden bg-stone-200 shadow-sm outline outline-1 outline-stone-200">
-                                    <img src={photo.url} alt={`Preview ${index}`} className="w-full h-full object-cover" />
-                                    <button
-                                        type="button"
-                                        title="Delete photo"
-                                        aria-label="Delete photo"
-                                        onClick={() => handleDelete(photo.id, photo.url)}
-                                        className="absolute top-1 right-1 p-1.5 rounded-full bg-black/50 text-white backdrop-blur-sm active:scale-90 transition-transform"
+                            <AnimatePresence mode="popLayout" initial={false}>
+                                {photos.map((photo, index) => (
+                                    <motion.div
+                                        key={photo.id}
+                                        layout
+                                        initial={{ opacity: 0, scale: 0.8 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.8 }}
+                                        transition={{ type: 'spring', damping: 22, stiffness: 300 }}
+                                        className="relative aspect-square rounded-xl overflow-hidden bg-stone-200 shadow-sm outline outline-1 outline-stone-200"
                                     >
-                                        <Trash2 size={16} />
-                                    </button>
-                                </div>
-                            ))}
+                                        <img src={photo.url} alt={`Preview ${index}`} className="w-full h-full object-cover" />
+                                        <button
+                                            type="button"
+                                            title="Delete photo"
+                                            aria-label="Delete photo"
+                                            onClick={() => handleDelete(photo.id, photo.url)}
+                                            className="absolute top-1 right-1 p-1.5 rounded-full bg-black/50 text-white backdrop-blur-sm active:scale-90 transition-transform"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </motion.div>
+                                ))}
+                            </AnimatePresence>
                             {photos.length === 0 ? (
                                 /* Empty state: both capture routes, side by side. The camera is
                                    the fast path; gallery reaches photos already taken (and
@@ -247,24 +355,36 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
 
                 {/* Footer fixed */}
                 <div className="fixed bottom-0 left-0 right-0 p-4 pb-safe bg-white border-t border-stone-200">
-                    <Button 
-                        onClick={handleSubmit} 
+                    <Button
+                        onClick={handleSubmit}
                         disabled={photos.length === 0 || isUploading}
-                        className="w-full h-14 rounded-2xl text-base font-semibold shadow-md bg-persimmon-600 hover:bg-persimmon-700"
+                        className="relative overflow-hidden w-full h-14 rounded-2xl text-base font-semibold shadow-md bg-persimmon-600 hover:bg-persimmon-700"
                     >
+                        {/* Progress fill behind the label while the upload streams */}
+                        {isUploading && pct !== null && (
+                            <span
+                                aria-hidden
+                                className="absolute inset-y-0 left-0 bg-white/25 transition-[width] duration-200 ease-out"
+                                style={{ width: `${pct}%` }}
+                            />
+                        )}
                         {isUploading ? (
-                            <span>{pct === null ? 'Uploading…' : `Uploading… ${pct}%`}</span>
+                            <span className="relative">{pct === null ? 'Uploading…' : `Uploading… ${pct}%`}</span>
                         ) : (
-                            <span className="flex items-center gap-2">
+                            <span className="relative flex items-center gap-2">
                                 <Upload size={20} />
                                 Upload & List ({photos.length})
                             </span>
                         )}
                     </Button>
                 </div>
-                
+                </>
+                )}
+
                 {/* Two hidden inputs: `capture` forces the OS camera and silently
-                    ignores `multiple`, so gallery multi-select needs its own input. */}
+                    ignores `multiple`, so gallery multi-select needs its own input.
+                    They live outside the phase switch so "Snap next item" can fire
+                    the camera from the success screen. */}
                 <input
                     ref={fileInputRef}
                     type="file"
@@ -286,6 +406,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                     onChange={handleFileChange}
                 />
             </motion.div>
+            )}
         </AnimatePresence>
     )
 }
