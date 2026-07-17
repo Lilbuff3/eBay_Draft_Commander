@@ -34,8 +34,76 @@ interface LedgerItem {
     thumbnailUrl: string | null
 }
 
+interface PerfRow {
+    listed: number
+    sold: number
+    sell_through: number | null
+    revenue: number
+    net: number | null
+    roi: number | null
+    avg_days: number | null
+}
+
+interface Performance {
+    days: number
+    listed: number
+    sold: number
+    sell_through_rate: number | null
+    avg_days_to_sell: number | null
+    median_days_to_sell: number | null
+    by_category: (PerfRow & { category: string })[]
+    by_source: (PerfRow & { source: string })[]
+}
+
 const money = (n: number | null | undefined) =>
     n === null || n === undefined ? '—' : `$${n.toFixed(2)}`
+
+const pct = (n: number | null | undefined) =>
+    n === null || n === undefined ? '—' : `${Math.round(n * 100)}%`
+
+function PerfTable({ rows, label }: {
+    rows: (PerfRow & { category?: string; source?: string })[]
+    label: string
+}) {
+    if (rows.length === 0) return null
+    return (
+        <div className="rounded-2xl bg-stone-100 border border-stone-200 p-3">
+            <div className="text-xs uppercase tracking-wide text-stone-500 mb-2">{label}</div>
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                    <thead>
+                        <tr className="text-xs text-stone-500 text-left">
+                            <th className="pb-1 pr-2 font-normal">{label}</th>
+                            <th className="pb-1 pr-2 font-normal text-right">Sold/Listed</th>
+                            <th className="pb-1 pr-2 font-normal text-right">Sell-thru</th>
+                            <th className="pb-1 pr-2 font-normal text-right">Revenue</th>
+                            <th className="pb-1 pr-2 font-normal text-right">Net</th>
+                            <th className="pb-1 font-normal text-right">Days</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.map((r, i) => (
+                            <tr key={i} className="text-ink-800">
+                                <td className="py-1 pr-2 truncate max-w-[10rem]">{r.category ?? r.source}</td>
+                                <td className="py-1 pr-2 text-right text-stone-600">{r.sold}/{r.listed}</td>
+                                <td className="py-1 pr-2 text-right text-stone-600">{pct(r.sell_through)}</td>
+                                <td className="py-1 pr-2 text-right">{money(r.revenue)}</td>
+                                <td className={cn('py-1 pr-2 text-right font-medium',
+                                    r.net === null ? 'text-stone-400'
+                                        : r.net >= 0 ? 'text-emerald-600' : 'text-red-600')}>
+                                    {r.net === null ? '?' : money(r.net)}
+                                </td>
+                                <td className="py-1 text-right text-stone-600">
+                                    {r.avg_days === null ? '—' : `${Math.round(r.avg_days)}d`}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    )
+}
 
 function WeekCard({ week, label }: { week: LedgerWeek | undefined; label: string }) {
     return (
@@ -112,6 +180,7 @@ function CogsCell({ item, onSaved }: { item: LedgerItem; onSaved: () => void }) 
 export function Profit() {
     const [summary, setSummary] = useState<LedgerSummary | null>(null)
     const [items, setItems] = useState<LedgerItem[]>([])
+    const [perf, setPerf] = useState<Performance | null>(null)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
@@ -121,12 +190,14 @@ export function Profit() {
         try {
             // Fetch orders first so the sweep runs and the ledger is fresh
             await apiFetch('/api/orders?days=30').catch(() => null)
-            const [s, i] = await Promise.all([
+            const [s, i, p] = await Promise.all([
                 apiFetch<LedgerSummary>('/api/ledger/summary?weeks=8'),
                 apiFetch<{ items: LedgerItem[] }>('/api/ledger/items?limit=200'),
+                apiFetch<Performance>('/api/ledger/performance?days=90').catch(() => null),
             ])
             setSummary(s)
             setItems(i.items)
+            setPerf(p)
         } catch (e) {
             // A failed load must never render as "$0.00, no sales"
             setError(e instanceof Error ? e.message : 'Failed to load ledger')
@@ -175,6 +246,31 @@ export function Profit() {
                     <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-700">
                         {missing} sold item{missing !== 1 ? 's' : ''} missing cost — tap “add cost” below to fix your numbers
                     </div>
+                )}
+
+                {perf && perf.listed > 0 && (
+                    <>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="rounded-2xl bg-stone-100 border border-stone-200 p-4">
+                                <div className="text-xs uppercase tracking-wide text-stone-500 mb-1">
+                                    Sell-through · {perf.days}d
+                                </div>
+                                <div className="text-2xl font-bold text-ink-800">{pct(perf.sell_through_rate)}</div>
+                                <div className="text-xs text-stone-500 mt-1">{perf.sold} of {perf.listed} listed</div>
+                            </div>
+                            <div className="rounded-2xl bg-stone-100 border border-stone-200 p-4">
+                                <div className="text-xs uppercase tracking-wide text-stone-500 mb-1">Days to sell</div>
+                                <div className="text-2xl font-bold text-ink-800">
+                                    {perf.median_days_to_sell === null ? '—' : `${Math.round(perf.median_days_to_sell)}d`}
+                                </div>
+                                <div className="text-xs text-stone-500 mt-1">
+                                    {perf.avg_days_to_sell === null ? 'no sales matched' : `avg ${Math.round(perf.avg_days_to_sell)}d`}
+                                </div>
+                            </div>
+                        </div>
+                        <PerfTable rows={perf.by_category} label="Category" />
+                        <PerfTable rows={perf.by_source} label="Source" />
+                    </>
                 )}
 
                 <div className="space-y-2">

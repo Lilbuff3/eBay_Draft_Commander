@@ -214,6 +214,157 @@ class LedgerService:
         finally:
             session.close()
 
+    def get_performance(self, queue_manager, days: int = 90,
+                        now: Optional[datetime] = None) -> Dict[str, Any]:
+        """What's making me money: sell-through rate, days-to-sell, and
+        revenue/net/ROI broken down by category and by capture source.
+
+        Listed base = jobs holding a listing_id whose completed_at falls in
+        the window; sold = sale rows in the window. Unknown COGS rows count
+        toward sell-through/revenue but are excluded from net/ROI."""
+        from backend.app.core.database import SaleModel
+        now = now or datetime.now(timezone.utc)
+        cutoff = now - timedelta(days=days)
+
+        def _category(job) -> str:
+            ai = getattr(job, 'ai_data', None) or {}
+            ident = ai.get('identification')
+            if not isinstance(ident, dict):
+                ident = {}
+            return (ident.get('category_name') or ident.get('category_id')
+                    or ai.get('category_name') or ai.get('category_id')
+                    or 'Unknown')
+
+        def _source(job) -> str:
+            meta = getattr(job, 'job_metadata', None) or {}
+            origin = meta.get('origin') or {}
+            if origin.get('channel') == 'whatsapp':
+                return 'whatsapp'
+            if getattr(job, 'batch_id', None) or \
+                    getattr(job, 'source', '') == 'metadata_import':
+                return 'books'
+            if getattr(job, 'source', '') == 'ebay_import':
+                return 'ebay_import'
+            return 'web'
+
+        # Listed base: jobs with a listing_id completed inside the window.
+        jobs_by_listing: Dict[str, Any] = {}
+        jobs_by_id: Dict[str, Any] = {}
+        listed_jobs = []
+        try:
+            for job in queue_manager.get_all_jobs():
+                lid = getattr(job, 'listing_id', None)
+                if not lid:
+                    continue
+                jobs_by_listing[str(lid)] = job
+                if getattr(job, 'id', None):
+                    jobs_by_id[str(job.id)] = job
+                completed = _parse_dt(str(getattr(job, 'completed_at', '') or '')) \
+                    or _parse_dt(str(getattr(job, 'created_at', '') or ''))
+                if completed is not None and completed >= cutoff:
+                    listed_jobs.append(job)
+        except Exception:
+            logger.warning("Performance: job scan failed", exc_info=True)
+
+        session = self.SessionFactory()
+        try:
+            rows = session.query(SaleModel).all()
+        finally:
+            session.close()
+
+        def _bucket():
+            return {'listed': 0, 'sold': 0, 'revenue': 0.0,
+                    'net': 0.0, 'cogs': 0.0, 'days': []}
+
+        by_category: Dict[str, Dict[str, Any]] = {}
+        by_source: Dict[str, Dict[str, Any]] = {}
+        for job in listed_jobs:
+            by_category.setdefault(_category(job), _bucket())['listed'] += 1
+            by_source.setdefault(_source(job), _bucket())['listed'] += 1
+
+        sold_count = 0
+        all_days: List[float] = []
+        for r in rows:
+            sold = r.sold_at
+            if sold is None:
+                continue
+            if sold.tzinfo is None:
+                sold = sold.replace(tzinfo=timezone.utc)
+            if sold < cutoff:
+                continue
+            job = None
+            if r.job_id and str(r.job_id) in jobs_by_id:
+                job = jobs_by_id[str(r.job_id)]
+            elif r.listing_id and str(r.listing_id) in jobs_by_listing:
+                job = jobs_by_listing[str(r.listing_id)]
+            sold_count += 1
+
+            net = None
+            if r.cogs is not None:
+                net = (r.sale_total or 0.0) - (r.fees_est or 0.0) \
+                    - (r.ship_est or 0.0) - r.cogs
+
+            days_to_sell = None
+            if job is not None:
+                listed_at = _parse_dt(str(getattr(job, 'completed_at', '') or '')) \
+                    or _parse_dt(str(getattr(job, 'created_at', '') or ''))
+                if listed_at is not None:
+                    days_to_sell = max(0.0, (sold - listed_at).total_seconds() / 86400)
+                    all_days.append(days_to_sell)
+
+            for bucket in (
+                by_category.setdefault(_category(job) if job else 'Unknown', _bucket()),
+                by_source.setdefault(_source(job) if job else 'web', _bucket()),
+            ):
+                bucket['sold'] += 1
+                bucket['revenue'] += r.sale_total or 0.0
+                if net is not None:
+                    bucket['net'] += net
+                    bucket['cogs'] += r.cogs or 0.0
+                if days_to_sell is not None:
+                    bucket['days'].append(days_to_sell)
+
+        def _finish(table: Dict[str, Dict[str, Any]], key_name: str) -> List[Dict[str, Any]]:
+            out = []
+            for key, b in table.items():
+                has_net = b['net'] != 0.0 or b['cogs'] > 0
+                out.append({
+                    key_name: key,
+                    'listed': b['listed'],
+                    'sold': b['sold'],
+                    'sell_through': (round(b['sold'] / b['listed'], 3)
+                                     if b['listed'] else None),
+                    'revenue': round(b['revenue'], 2),
+                    'net': round(b['net'], 2) if has_net else None,
+                    'roi': (round(b['net'] / b['cogs'], 2)
+                            if b['cogs'] > 0 else None),
+                    'avg_days': (round(sum(b['days']) / len(b['days']), 1)
+                                 if b['days'] else None),
+                })
+            out.sort(key=lambda x: x['revenue'], reverse=True)
+            return out
+
+        listed_count = len(listed_jobs)
+        sorted_days = sorted(all_days)
+        median_days = None
+        if sorted_days:
+            mid = len(sorted_days) // 2
+            median_days = (sorted_days[mid] if len(sorted_days) % 2
+                           else (sorted_days[mid - 1] + sorted_days[mid]) / 2)
+        return {
+            'days': days,
+            'listed': listed_count,
+            'sold': sold_count,
+            'sell_through_rate': (round(sold_count / listed_count, 3)
+                                  if listed_count else None),
+            'avg_days_to_sell': (round(sum(all_days) / len(all_days), 1)
+                                 if all_days else None),
+            'median_days_to_sell': (round(median_days, 1)
+                                    if median_days is not None else None),
+            'by_category': _finish(by_category, 'category'),
+            'by_source': _finish(by_source, 'source'),
+        }
+
     def set_cogs(self, order_id: str, cogs: float) -> bool:
         """Fill/correct COGS on a sale row from the Profit tab. Returns False if unknown order."""
         from backend.app.core.database import SaleModel

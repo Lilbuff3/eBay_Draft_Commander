@@ -63,6 +63,17 @@ def ledger_items():
     return jsonify({'items': items})
 
 
+@ledger_bp.route('/performance')
+def ledger_performance():
+    """Sell-through, days-to-sell, and category/source ROI breakdowns."""
+    try:
+        days = int(request.args.get('days', '90'))
+    except (ValueError, TypeError):
+        return error_response('Invalid value for days parameter', 400)
+    days = max(7, min(days, 365))
+    return jsonify(_ledger().get_performance(current_app.queue_manager, days=days))
+
+
 @ledger_bp.route('/sales/<order_id>/cogs', methods=['POST'])
 def ledger_set_cogs(order_id):
     data = request.json or {}
