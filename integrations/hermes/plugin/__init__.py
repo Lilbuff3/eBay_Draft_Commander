@@ -45,6 +45,39 @@ def _staging_dir(chat_id):
     return os.path.join(captures, ".pending", safe)
 
 
+_REVIEW_OK_WORDS = ("ok", "okay", "yes", "approve")
+_REVIEW_PRICE_RE = re.compile(r"^\$?(\d+(?:\.\d{1,2})?)$")
+
+
+def _parse_review_reply(text):
+    """'ok' | 'skip' | price-string | None. Mirrors the backend parser in
+    backend/app/services/review_reply.py (kept dependency-free on purpose —
+    this module runs inside the Hermes process)."""
+    t = (text or "").strip().lower()
+    if t in _REVIEW_OK_WORDS:
+        return "ok"
+    if t == "skip":
+        return "skip"
+    m = _REVIEW_PRICE_RE.match(t)
+    if m:
+        return m.group(1)
+    return None
+
+
+def _review_marker_exists(chat_id):
+    """True when the backend has an outstanding price-review text for this
+    chat (<DC_CAPTURES_DIR>/.review_pending/<safe chat id> is non-empty)."""
+    captures = os.environ.get("DC_CAPTURES_DIR", "")
+    if not captures:
+        return False
+    safe = re.sub(r"[^A-Za-z0-9_.-]", "_", str(chat_id))
+    path = os.path.join(captures, ".review_pending", safe)
+    try:
+        return os.path.isfile(path) and os.path.getsize(path) > 0
+    except OSError:
+        return False
+
+
 def register(ctx):
     def on_message(event=None, gateway=None, session_store=None, **kwargs):
         raw_text = getattr(event, "text", "") or ""
@@ -58,6 +91,20 @@ def register(ctx):
         script = os.path.join(repo, "integrations", "hermes", "capture_to_dc.py")
         port = os.environ.get("WHATSAPP_BRIDGE_PORT", "3000")
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # no console flash on Windows
+
+        # Review-reply gate (additive): only fires when the backend has texted
+        # a price review for THIS chat (marker file) and the message is a bare
+        # ok/number/skip with no photo. Everything else falls through to the
+        # pre-existing branches untouched.
+        if not media:
+            review_cmd = _parse_review_reply(raw_text)
+            if review_cmd is not None and _review_marker_exists(chat_id):
+                subprocess.Popen(
+                    [sys.executable, script, "--review-reply", raw_text.strip(),
+                     "--chat-id", chat_id, "--bridge-port", port],
+                    creationflags=flags,
+                )
+                return {"action": "skip", "reason": "ebay review reply"}
 
         # Buffer every inbound photo into this chat's staging folder.
         staging = _staging_dir(chat_id)

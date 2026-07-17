@@ -95,14 +95,15 @@ def build_price_review_message(title: Optional[str], price: Any,
     """Text for a job held in price review. Conflict form shows both numbers;
     plain form shows the held price + why."""
     name = title or 'your item'
+    reply_hint = 'Reply "ok" to approve, a number to set the price, or "skip".'
     comp_s, ai_s = _fmt_money(comp_price), _fmt_money(ai_price)
     if comp_s and ai_s:
         return (f'Price check: "{name}" — comps say {comp_s} but AI research says {ai_s}. '
-                f'Held for review with {ai_s} pre-filled; approve or adjust in the app.')
+                f'Held for review with {ai_s} pre-filled. {reply_hint}')
     price_s = _fmt_money(price) or f"${price}"
     detail = f" ({reason})" if reason else ""
     return (f'Price check: "{name}" at {price_s}{detail}. '
-            f'Held for review; approve or adjust in the app.')
+            f'Held for review. {reply_hint}')
 
 
 def build_price_discovery_message(title: Optional[str], price: Any,

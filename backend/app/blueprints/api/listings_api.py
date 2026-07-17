@@ -192,18 +192,9 @@ def batch_approve_listings():
         if not queue_manager:
             return error_response('Queue manager not initialized')
 
-        success_count = 0
-        for job_id in job_ids:
-            job = queue_manager.get_job_by_id(job_id)
-            if not job:
-                continue
-            metadata = job.job_metadata or {}
-            metadata['user_approved'] = True
-            if queue_manager.update_job(job_id, {
-                'status': JobStatus.PENDING,
-                'job_metadata': metadata,
-            }):
-                success_count += 1
+        from backend.app.services.review_reply import approve_job
+        success_count = sum(
+            1 for job_id in job_ids if approve_job(queue_manager, job_id))
 
         # Trigger queue processing if needed
         if success_count > 0:
@@ -213,4 +204,28 @@ def batch_approve_listings():
         return jsonify({'success': True, 'approved_count': success_count}), 200
     except Exception as e:
         logger.error(f"Batch approval failed: {e}")
+        return error_response(e)
+
+
+@listings_bp.route('/review/reply', methods=['POST'])
+def review_reply_route():
+    """WhatsApp reply-to-review: 'ok' approves, a number sets price+approves,
+    'skip' skips. Called by the Hermes capture bridge (loopback)."""
+    try:
+        data = request.json or {}
+        chat_id = (data.get('chat_id') or '').strip()
+        text = data.get('text') or ''
+        if not chat_id:
+            return jsonify({'success': False, 'error': 'chat_id required'}), 400
+        queue_manager = getattr(current_app, 'queue_manager', None)
+        if not queue_manager:
+            return error_response('Queue manager not initialized')
+
+        from backend.app.services.review_reply import apply_review_reply
+        result = apply_review_reply(
+            queue_manager, chat_id, text,
+            captures_dir=current_app.config.get('CAPTURES_DIR'))
+        return jsonify(result), (200 if result['success'] else 404)
+    except Exception as e:
+        logger.error(f"Review reply failed: {e}")
         return error_response(e)

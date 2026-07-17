@@ -877,6 +877,15 @@ class ProcessorService:
                     pricing_result.get('ai_price'),
                     review_reason,
                 ))
+                try:
+                    # Marker gates the Hermes plugin's reply-to-approve
+                    # commands (ok / price / skip) for this chat.
+                    from backend.app.services.review_reply import append_review_marker
+                    append_review_marker(
+                        current_app.config.get('CAPTURES_DIR'),
+                        dest.get('chat_id'), getattr(job_obj, 'id', None))
+                except Exception as e:
+                    _log(f"Review marker write failed (non-fatal): {e}", level='warning')
             result.update({
                 "success": True,
                 "status": "pending_review",

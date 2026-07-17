@@ -133,6 +133,24 @@ def capture(image_paths, api_base=None, captures_dir=None, poll_interval=3, poll
     return f"{prefix_warn}Scheduled: {title} - ${price} - live {when_disp} (job {job_id}). Reply 'cancel last' to undo."
 
 
+def review_reply(text, chat_id, api_base=None):
+    """Forward an ok/price/skip reply to the backend review endpoint and
+    return its human-readable outcome for the chat."""
+    api_base = api_base or DEFAULT_API_BASE
+    try:
+        r = requests.post(f"{api_base}/api/review/reply",
+                          json={'chat_id': chat_id, 'text': text}, timeout=30)
+    except requests.RequestException as e:
+        return f"Review reply failed: {e}"
+    try:
+        body = r.json()
+    except ValueError:
+        body = {}
+    if r.status_code in (200, 404) and body.get('message'):
+        return body['message']
+    return f"Review reply failed: {r.status_code} {r.text[:160]}"
+
+
 def send_whatsapp(message, chat_id, bridge_port=3000):
     """Reply into the WhatsApp chat via the local Hermes bridge /send endpoint."""
     try:
@@ -217,6 +235,8 @@ if __name__ == '__main__':
     parser.add_argument('--collect', default=None, metavar='CHAT_ID',
                         help="flush this chat's buffered photos into one listing")
     parser.add_argument('--note', default='', help="seller note (trusted context for AI/pricing)")
+    parser.add_argument('--review-reply', default=None, metavar='TEXT',
+                        help="forward an ok/price/skip review reply to the backend")
     args = parser.parse_args()
 
     def reply(msg):
@@ -224,7 +244,9 @@ if __name__ == '__main__':
         if args.chat_id:
             send_whatsapp(msg, args.chat_id, args.bridge_port)
 
-    if args.cancel:
+    if args.review_reply:
+        reply(review_reply(args.review_reply, args.chat_id))
+    elif args.cancel:
         reply(cancel_last())
     elif args.collect:
         if args.chat_id:  # immediate ack while the album finishes arriving + analysis runs
