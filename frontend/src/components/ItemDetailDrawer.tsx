@@ -13,6 +13,7 @@ import type { Job, JobDetails, ItemDraft, CategorySuggestion } from '@/lib/api'
 import { fetchWithKey, searchCategories, fetchCategoryAspects } from '@/lib/api'
 import { ItemDescriptionCard } from './item-detail/ItemDescriptionCard'
 import { ItemScheduleField } from './item-detail/ItemScheduleField'
+import { PriceExplainer } from './item-detail/PriceExplainer'
 
 // Condition options synced with backend CONDITION_MAP (constants.py)
 const CONDITION_OPTIONS = [
@@ -412,6 +413,9 @@ export function ItemDetailDrawer({
                                         )}
                                     </div>
                                 </div>
+
+                                {/* Why this price — comp range + comparable listings */}
+                                <PriceExplainer pricing={jobDetails.pricing_data} price={draft.price} />
 
                                 {/* Condition */}
                                 <div>

@@ -332,6 +332,16 @@ export async function saveSettings(settings: Record<string, string>): Promise<{ 
 }
 
 
+/** One market comparable from the pricing engine (Browse API = active asking prices) */
+export interface PricingComp {
+    title: string
+    price: number
+    condition?: string
+    url?: string
+    image_url?: string
+    end_date?: string
+}
+
 export interface JobDetails {
     success: boolean
     id: string
@@ -354,7 +364,13 @@ export interface JobDetails {
     price_reasoning?: string
     pricing_data: {
         confidence?: string
-        comparables: Array<{ title: string; price: number }>
+        comps?: PricingComp[]
+        median_price?: number | null
+        price_range?: [number, number] | null
+        comp_count?: number | null
+        reasoning?: string
+        pricing_confidence?: 'high' | 'medium' | 'low' | 'user' | null
+        pricing_confidence_reason?: string | null
         price_source: string
         price_source_label?: string
         market_price?: Record<string, unknown>

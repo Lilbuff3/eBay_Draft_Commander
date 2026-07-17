@@ -641,6 +641,10 @@ class ProcessorService:
         ai_data['pricing_source'] = pricing_result.get('source', '')
         ai_data['pricing_confidence'] = pricing_result.get('confidence')
         ai_data['pricing_confidence_reason'] = pricing_result.get('confidence_reason')
+        # Comp stats for the price explainer (median + asking-price spread)
+        ai_data['pricing_median'] = pricing_result.get('median_price')
+        ai_data['pricing_range'] = pricing_result.get('price_range')
+        ai_data['pricing_comp_count'] = pricing_result.get('comp_count')
         if pricing_result.get('comp_price') is not None and pricing_result.get('ai_price') is not None:
             # Comps-vs-AI conflict: both numbers surface in the Review Queue.
             ai_data['pricing_conflict'] = {

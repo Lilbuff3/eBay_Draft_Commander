@@ -162,6 +162,10 @@ class ListingAIAgent:
                 "confidence_reason": price_result.get('confidence_reason'),
                 "comp_price": price_result.get('comp_price'),
                 "ai_price": price_result.get('ai_price'),
+                # Comp stats for the frontend price explainer (range bar)
+                "median_price": price_result.get('median_price'),
+                "comp_count": price_result.get('comp_count'),
+                "price_range": price_result.get('price_range'),
             }
         except Exception as e:
             _log(f"Pricing Logic Failed: {e}", level='error')
