@@ -66,7 +66,7 @@ def _refresh_token_if_needed(response) -> bool:
     return False
 
 
-def ebay_request(method, url, max_retries=2, **kwargs):
+def ebay_request(method, url, max_retries=2, extra_headers=None, **kwargs):
     """
     Centralized eBay request wrapper.
     - Applies rate limiting
@@ -74,11 +74,16 @@ def ebay_request(method, url, max_retries=2, **kwargs):
     - Auto-refreshes tokens on 401
     - Retries on 429 with exponential backoff
     - Retries on transient 5xx errors
+
+    extra_headers are merged ON TOP of the auth headers and survive the 401
+    token-refresh retry (which rebuilds the auth headers from scratch).
     """
     limiter.wait_if_needed('ebay')
 
     if 'headers' not in kwargs:
         kwargs['headers'] = _get_headers()
+    if extra_headers:
+        kwargs['headers'] = {**kwargs['headers'], **extra_headers}
 
     last_response = None
     for attempt in range(max_retries + 1):
@@ -93,6 +98,8 @@ def ebay_request(method, url, max_retries=2, **kwargs):
                 if _refresh_token_if_needed(response):
                     logger.info(f"Token refreshed after 401. Retrying {method} {url}...")
                     kwargs['headers'] = _get_headers()
+                    if extra_headers:
+                        kwargs['headers'] = {**kwargs['headers'], **extra_headers}
                     continue
                 return response  # Refresh failed
 
