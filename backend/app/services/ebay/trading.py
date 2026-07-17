@@ -32,6 +32,48 @@ def build_shipping_package_xml(weight_lbs) -> str:
         f'<WeightMinor unit="oz">{minor}</WeightMinor>'
         "</ShippingPackageDetails>"
     )
+
+
+def build_best_offer_xml(item_data) -> tuple:
+    """Best Offer blocks for AddFixedPriceItem.
+
+    Returns (best_offer_details_block, listing_details_block); both empty
+    strings unless item_data['best_offer_enabled'] is truthy. eBay rejects
+    floors >= StartPrice, so amounts are clamped strictly below it, and the
+    minimum (auto-decline) never exceeds the auto-accept.
+    """
+    if not item_data.get('best_offer_enabled'):
+        return '', ''
+    details = ('<BestOfferDetails>'
+               '<BestOfferEnabled>true</BestOfferEnabled>'
+               '</BestOfferDetails>')
+    try:
+        price = float(item_data.get('price') or 0)
+    except (TypeError, ValueError):
+        price = 0
+
+    def _floor(value):
+        try:
+            v = float(value)
+        except (TypeError, ValueError):
+            return None
+        if v <= 0:
+            return None
+        if price > 0 and v >= price:
+            v = round(price * 0.99, 2)
+        return v
+
+    accept = _floor(item_data.get('best_offer_auto_accept'))
+    minimum = _floor(item_data.get('best_offer_minimum'))
+    if accept is not None and minimum is not None and minimum > accept:
+        minimum = accept
+    parts = ''
+    if accept is not None:
+        parts += f'<BestOfferAutoAcceptPrice currencyID="USD">{accept:.2f}</BestOfferAutoAcceptPrice>'
+    if minimum is not None:
+        parts += f'<MinimumBestOfferPrice currencyID="USD">{minimum:.2f}</MinimumBestOfferPrice>'
+    listing = f'<ListingDetails>{parts}</ListingDetails>' if parts else ''
+    return details, listing
 from backend.app.services.ebay.policies import load_env
 from backend.app.core.token_manager import get_token_manager
 
@@ -354,6 +396,8 @@ class TradingService:
                     logger.warning(f"Could not parse schedule_time '{schedule_time}': {e}. Skipping schedule.")
                     schedule_tag = ""
 
+            best_offer_details, best_offer_listing_details = build_best_offer_xml(item_data)
+
             call_name = 'VerifyAddFixedPriceItem' if verify_only else 'AddFixedPriceItem'
             xml_request = f"""<?xml version="1.0" encoding="utf-8"?>
             <{call_name}Request xmlns="{xmlns}">
@@ -377,6 +421,8 @@ class TradingService:
                     <DispatchTimeMax>3</DispatchTimeMax>
                     <ListingDuration>GTC</ListingDuration>
                     <ListingType>FixedPriceItem</ListingType>
+                    {best_offer_details}
+                    {best_offer_listing_details}
                     {picture_details}
                     {seller_profiles}
                     {tag('PostalCode', item_data.get('postal_code'))}
@@ -463,6 +509,21 @@ class TradingService:
                 }
             else:
                 error_text = _extract_trading_errors(root, ns)
+                if (item_data.get('best_offer_enabled')
+                        and 'best offer' in (error_text or '').lower()):
+                    # Some categories reject Best Offer outright and fail the
+                    # whole Add. Retry once without the Best Offer blocks —
+                    # the stripped item_data can't re-enter this branch.
+                    logger.warning(
+                        f"Category rejected Best Offer for SKU {item_data.get('sku')}; "
+                        f"retrying without it: {error_text}")
+                    retry_data = {k: v for k, v in item_data.items()
+                                  if not k.startswith('best_offer')}
+                    retry_result = self.add_fixed_price_item(
+                        retry_data, schedule_time=schedule_time, verify_only=verify_only)
+                    if retry_result.get('success'):
+                        retry_result['best_offer_stripped'] = True
+                    return retry_result
                 logger.error(f"Trading API Failure: {error_text}")
                 return {'success': False, 'error': error_text or 'Unknown Trading API failure'}
 

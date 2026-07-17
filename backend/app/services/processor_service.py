@@ -438,6 +438,18 @@ class ProcessorService:
                 'weight_lbs': estimated_weight_lbs
             }
 
+            from backend.app.core.settings_manager import get_settings_manager
+            settings_mgr = get_settings_manager()
+            if str(settings_mgr.get('BEST_OFFER_ENABLED', 'true')).lower() == 'true':
+                price_f = float(final_price)
+                accept_pct = float(settings_mgr.get('BEST_OFFER_AUTO_ACCEPT_PCT', '90') or 90)
+                decline_pct = float(settings_mgr.get('BEST_OFFER_AUTO_DECLINE_PCT', '60') or 60)
+                item_data.update({
+                    'best_offer_enabled': True,
+                    'best_offer_auto_accept': round(price_f * accept_pct / 100, 2),
+                    'best_offer_minimum': round(price_f * decline_pct / 100, 2),
+                })
+
             api_result = self.ebay_service.create_trading_api_listing(item_data, schedule_time=scheduled_time)
             if not api_result.get('success'):
                 raise Exception(f"Trading API Failed: {api_result.get('error')}")

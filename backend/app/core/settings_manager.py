@@ -33,6 +33,9 @@ class SettingsManager:
         'SOURCING_SHIP_COST': '5.00',    # Est. actual ship cost when sourcing (Media Mail-ish)
         'PRICE_AGREEMENT_RATIO': '1.6',  # Comps vs AI cross-check: further apart = conflict -> review
         'WHATSAPP_NOTIFY_CHAT_ID': '',   # Owner chat for review/summary texts (empty = off)
+        'BEST_OFFER_ENABLED': 'true',        # Add Best Offer to every new listing
+        'BEST_OFFER_AUTO_ACCEPT_PCT': '90',  # Auto-accept offers >= this % of list price
+        'BEST_OFFER_AUTO_DECLINE_PCT': '60', # Auto-decline offers < this % of list price
     }
     
     # All known setting keys organized by category
@@ -68,6 +71,9 @@ class SettingsManager:
             'PROMOTED_LISTINGS_AD_RATE',
             'PRICE_AGREEMENT_RATIO',
             'WHATSAPP_NOTIFY_CHAT_ID',
+            'BEST_OFFER_ENABLED',
+            'BEST_OFFER_AUTO_ACCEPT_PCT',
+            'BEST_OFFER_AUTO_DECLINE_PCT',
         ],
         'Application': [
             'DEFAULT_CONDITION',
