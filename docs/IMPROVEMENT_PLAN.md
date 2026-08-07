@@ -7,7 +7,7 @@
 
 ## P0 — Money sitting on the table (do first, mostly ops not code)
 
-### 1. Flip autopilot live [P0] [size: S] [surface: ops]
+### 1. [x] Flip autopilot live [P0] [size: S] [surface: ops]
 Problem: Autopilot is still in dry-run with real money parked behind the flip.
 Files: none (config)
 Approach:
@@ -15,18 +15,18 @@ Approach:
 - Spot-check ~10 for sanity (floors respected, no absurd drops).
 - Set `OFFERS_MARKDOWNS_DRY_RUN=false` in Settings → Automation + restart.
 Verify: next cycle's digest text + `listing_actions` live rows; eBay Seller Hub shows the offers.
-Issue: #83
+Issue: #83 — flipped 2026-08-07 after audit (last cycle 79/32/5; steps ~5%/10%).
 
-### 2. Backfill the 8 missing COGS [P0] [size: S] [surface: ops]
-Problem: Profit ledger is blind because 8 recent sales have `missing_cogs` causing net to show $0.
+### 2. Backfill missing COGS [P0] [size: S] [surface: ops]
+Problem: Profit ledger is blind when sales have `missing_cogs` (net null).
 Files: none (UI)
 Approach:
-- Use the Profit tab amber "add cost" fill-ins (`POST /api/ledger/sales/<order_id>/cogs`) for the 8 missing COGS.
-- Adopt the habit: `paid X` in WhatsApp captions moving forward.
+- Use the Profit tab amber "add cost" fill-ins (`POST /api/ledger/sales/<order_id>/cogs`).
+- Adopt the habit: `paid X` in WhatsApp captions / capture COGS field moving forward.
 Verify: `/api/ledger/summary` net ≠ 0.
-Issue: #84
+Issue: #84 — **still human**: 42 sales with null COGS, none recoverable from job metadata (legacy / no paid notes). Do not invent.
 
-### 3. Fix Tailscale for good [P0] [size: S] [surface: ops]
+### 3. Fix Tailscale for good [P0] [size: S] [surface: ops] — **deferred**
 Problem: Tailscale client logged out twice in one day (v1.98.9), killing phone HTTPS and PWA install.
 Files: none (system)
 Approach:
@@ -34,14 +34,16 @@ Approach:
 - Confirm `tailscale serve status` persists across a reboot.
 - Complete the phone PWA install (docs/ANTIGRAVITY.md §quirks + prior session steps).
 Verify: standalone app on phone, no Chrome bar.
+Deferred by owner 2026-08-07.
 
-### 4. Run the factor calibration [P0] [size: S] [surface: ops]
+### 4. [x] Run the factor calibration [P0] [size: S] [surface: ops]
 Problem: ACTIVE_TO_SOLD_FACTOR needs to be calibrated against actual sales.
 Files: `tools/accuracy_benchmark.py`
 Approach:
 - Run `python tools/accuracy_benchmark.py --suggest-factor` against real sold orders (n≥25 warning respected).
 - Update `ACTIVE_TO_SOLD_FACTOR` in Settings if it moves >0.03.
 Verify: benchmark report; new listings priced with updated factor.
+Done 2026-08-07: suggested 1.017 (n=10 keyword-only, 0 exact-ID) — **left at 0.87**; n≪25, not trustworthy.
 
 ## P1 — Pricing accuracy moat (code, ordered by leverage)
 
