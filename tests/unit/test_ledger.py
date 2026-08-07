@@ -227,6 +227,72 @@ class TestSummaryAndItems:
         assert svc.set_cogs('nope', 4.0) is False
 
 
+from backend.app.core.database import JobModel
+from backend.app.services.ledger import LedgerService
+
+
+class TestFindOwnSale:
+    def _seed_job_and_sale(self, session_factory, job_id, isbn=None, mpn=None,
+                           sale_total=30.0, order_id="ord-1"):
+        session = session_factory()
+        try:
+            ident = {}
+            if isbn:
+                ident["isbn"] = isbn
+            if mpn:
+                ident["mpn"] = mpn
+            job = JobModel(
+                id=job_id,
+                folder_path=f"/tmp/{job_id}",
+                folder_name=job_id,
+                status="completed",
+            )
+            job.ai_data = {"identification": ident}
+            session.add(job)
+            session.add(SaleModel(
+                order_id=order_id,
+                listing_id=f"list-{job_id}",
+                job_id=job_id,
+                title="Test Item",
+                sale_total=sale_total,
+                sold_at=datetime(2026, 6, 1, 12, 0, tzinfo=timezone.utc),
+            ))
+            session.commit()
+        finally:
+            session.close()
+
+    def test_matches_isbn(self, session_factory, tmp_path):
+        self._seed_job_and_sale(session_factory, "jobisbn01", isbn="9780000000001", sale_total=44.0)
+        svc = LedgerService(tmp_path / "test_ledger.db")
+        # Point the service at the same SessionFactory the fixture created
+        svc.SessionFactory = session_factory
+        hit = svc.find_own_sale(isbn="9780000000001")
+        assert hit is not None
+        assert hit["price"] == 44.0
+        assert hit["order_id"] == "ord-1"
+        assert hit["sold_at"] is not None
+
+    def test_matches_mpn(self, session_factory, tmp_path):
+        self._seed_job_and_sale(session_factory, "jobmpn001", mpn="XYZ-9", sale_total=19.5, order_id="ord-m")
+        svc = LedgerService(tmp_path / "test_ledger.db")
+        svc.SessionFactory = session_factory
+        hit = svc.find_own_sale(mpn="XYZ-9")
+        assert hit is not None
+        assert hit["price"] == 19.5
+
+    def test_no_match_returns_none(self, session_factory, tmp_path):
+        self._seed_job_and_sale(session_factory, "jobother1", isbn="9781111111111")
+        svc = LedgerService(tmp_path / "test_ledger.db")
+        svc.SessionFactory = session_factory
+        assert svc.find_own_sale(isbn="9789999999999") is None
+
+    def test_empty_args_returns_none(self, session_factory, tmp_path):
+        svc = LedgerService(tmp_path / "test_ledger.db")
+        svc.SessionFactory = session_factory
+        assert svc.find_own_sale() is None
+        assert svc.find_own_sale(isbn=None, mpn=None) is None
+
+
 from backend.app.blueprints.api.queue_api import _extract_cogs
 
 

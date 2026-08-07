@@ -21,6 +21,7 @@ React application source. Tab-based navigation (no react-router), Zustand single
 | Directory | Purpose |
 |-----------|---------|
 | `components/` | 30+ UI components (see `components/AGENTS.md`) |
+| `home/` | Dashboard widgets and scorecard stats |
 | `pages/` | Dashboard, Settings, BatchScan (see `pages/AGENTS.md`) |
 | `store/` | Zustand store — single source of truth (see `store/AGENTS.md`) |
 | `hooks/` | Custom hooks — Socket.IO sync, mobile detection (see `hooks/AGENTS.md`) |

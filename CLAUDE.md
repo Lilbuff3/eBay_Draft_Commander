@@ -296,3 +296,4 @@ Default vocabulary: needs-triage, needs-info, ready-for-agent, ready-for-human, 
 ### Domain docs
 
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root (created lazily). See `docs/agents/domain.md`.
+  - **Eventlet Migration Decision** — Eventlet is officially dead (last release early 2024, Python 3.12+ issues) and the backend relies on it for SocketIO. We cannot migrate today as it requires switching to gevent or moving to FastAPI. TODO: Migrate to gevent/asyncio before Python 3.13 becomes mandatory.

@@ -217,6 +217,64 @@ class TestGetPriceWithComps:
         assert call_kwargs[1].get("condition") == "USED_GOOD" or \
                (len(call_kwargs[0]) >= 4 and call_kwargs[0][3] == "USED_GOOD")
 
+    def test_own_sales_beats_isbn_comps(self, engine):
+        """Past sale of the same ISBN is a high-confidence anchor before Browse."""
+        fake_ledger = type("L", (), {
+            "find_own_sale": staticmethod(lambda **kw: {
+                "price": 42.0,
+                "sold_at": "2026-06-01T12:00:00+00:00",
+                "title": "Same Book",
+                "order_id": "ord-1",
+            })
+        })()
+        with patch("backend.app.services.ledger.get_ledger", return_value=fake_ledger), \
+             patch.object(engine, "search_sold_listings") as mock_search:
+            result = engine.get_price_with_comps(
+                "Same Book", isbn="9781234567890", shipping_cost=0,
+            )
+        assert result["source"] == "own_sales"
+        assert result["confidence"] == "high"
+        assert result["median_price"] == 42.0
+        assert "You sold this for $42.00" in result["reasoning"]
+        # Shipping buffer off → smart-round of 42
+        assert result["suggested_price"] is not None
+        mock_search.assert_not_called()
+
+    def test_own_sales_adds_shipping_buffer(self, engine):
+        fake_ledger = type("L", (), {
+            "find_own_sale": staticmethod(lambda **kw: {
+                "price": 20.0,
+                "sold_at": "2026-06-01T12:00:00+00:00",
+                "title": "Widget",
+                "order_id": "ord-2",
+            })
+        })()
+        with patch("backend.app.services.ledger.get_ledger", return_value=fake_ledger):
+            result = engine.get_price_with_comps(
+                "Widget",
+                identification={"mpn": "ABC-123"},
+                shipping_cost=6.50,
+            )
+        assert result["source"] == "own_sales"
+        # 20 + 6.50 = 26.50 → smart pricing floor(26.50)=26, cents=0.50 < 0.80 → 25.99
+        assert result["suggested_price"] == 25.99
+
+    def test_own_sales_miss_falls_through_to_isbn(self, engine):
+        fake_ledger = type("L", (), {
+            "find_own_sale": staticmethod(lambda **kw: None)
+        })()
+        with patch("backend.app.services.ledger.get_ledger", return_value=fake_ledger), \
+             patch.object(engine, "search_sold_listings", return_value=self._sold):
+            result = engine.get_price_with_comps("Test Book", isbn="1234567890")
+        assert result["source"] == "market_data_isbn"
+
+    def test_used_comps_returned_for_display(self, engine):
+        """Grade-filtered comps (used_comps) are what the UI range bar should show."""
+        items = _make_sold_items([10, 20, 30, 40, 50])
+        result = engine.calculate_suggested_price(items, our_condition="New")
+        assert "used_comps" in result
+        assert len(result["used_comps"]) == 5
+
 
 # ---------------------------------------------------------------------------
 # TestGenerateSearchLink
@@ -741,6 +799,11 @@ class TestPriceSourceLabeling:
     def test_unknown_source_returns_raw(self):
         from backend.app.services.pricing_engine import format_price_source
         assert format_price_source('something_custom') == 'something_custom'
+
+    def test_own_sales_source_labeled(self):
+        from backend.app.services.pricing_engine import format_price_source
+        label = format_price_source('own_sales')
+        assert 'past sale' in label.lower()
 
 
 class TestSameGradeComps:

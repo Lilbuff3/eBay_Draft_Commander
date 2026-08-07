@@ -382,6 +382,69 @@ class LedgerService:
         finally:
             session.close()
 
+    def find_own_sale(self, isbn: Optional[str] = None, mpn: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Find the most recent past sale of the exact same ISBN/MPN as a pricing anchor.
+
+        Joins sales → jobs and matches identification.isbn / identification.mpn
+        in the job's ai_json. Returns sale_total (what the buyer paid), not list price.
+        """
+        if not isbn and not mpn:
+            return None
+
+        from backend.app.core.database import SaleModel, JobModel
+        from sqlalchemy import desc
+        import json
+
+        def _sold_at_iso(sold_at):
+            if not sold_at:
+                return None
+            if sold_at.tzinfo is None:
+                sold_at = sold_at.replace(tzinfo=timezone.utc)
+            return sold_at.isoformat()
+
+        def _match_payload(sale):
+            return {
+                'price': sale.sale_total,
+                'sold_at': _sold_at_iso(sale.sold_at),
+                'title': sale.title,
+                'order_id': sale.order_id,
+            }
+
+        session = self.SessionFactory()
+        try:
+            rows = (
+                session.query(SaleModel, JobModel)
+                .join(JobModel, SaleModel.job_id == JobModel.id)
+                .order_by(desc(SaleModel.sold_at))
+                .all()
+            )
+
+            for sale, job in rows:
+                if not sale.sale_total:
+                    continue
+
+                ai_data = job.ai_data or {}
+                if isinstance(ai_data, str):
+                    try:
+                        ai_data = json.loads(ai_data)
+                    except json.JSONDecodeError:
+                        ai_data = {}
+
+                ident = ai_data.get('identification', {})
+                if not isinstance(ident, dict):
+                    continue
+
+                if isbn and ident.get('isbn') == isbn:
+                    return _match_payload(sale)
+                if mpn and ident.get('mpn') == mpn:
+                    return _match_payload(sale)
+        except Exception:
+            logger.warning("Error finding own sale", exc_info=True)
+        finally:
+            session.close()
+
+        return None
+
 
 _ledger: Optional[LedgerService] = None
 

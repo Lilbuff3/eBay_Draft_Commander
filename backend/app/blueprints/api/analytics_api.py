@@ -60,3 +60,14 @@ def get_analytics_orders():
         except Exception:
             logger.warning("Ledger sales sweep failed", exc_info=True)
     return jsonify(result), status
+
+@analytics_bp.route('/analytics/track', methods=['POST'])
+def track_event():
+    """Generic endpoint to track frontend UI events (e.g. momentum loop dropoff)."""
+    payload = request.get_json() or {}
+    event_name = payload.get('event', 'unknown_event')
+    event_data = payload.get('data', {})
+    
+    # Log it at INFO level so it can be parsed from logs if needed
+    logger.info(f"Frontend Event: {event_name} | Data: {event_data}")
+    return jsonify({'success': True}), 200

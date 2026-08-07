@@ -30,6 +30,7 @@ def format_price_source(source: str, comp_count: int = 0) -> str:
     """Convert internal price source key to human-readable label."""
     count_str = f"{comp_count} " if comp_count > 0 else ""
     labels = {
+        'own_sales': 'Based on your past sale of this item',
         'market_data_isbn': f'Based on {count_str}listings (ISBN match)',
         'market_data_id': f'Based on {count_str}listings (ID match)',
         'market_data_alt_pn': f'Based on {count_str}listings (alt part #)',
@@ -491,7 +492,8 @@ class PricingEngine:
             # drives the range bar in the frontend price explainer.
             "price_range": [round(min(prices), 2), round(max(prices), 2)],
             "reasoning": reasoning,
-            "projected_profit": round(suggested_price - est_fees - acquisition_cost - shipping_cost, 2)
+            "projected_profit": round(suggested_price - est_fees - acquisition_cost - shipping_cost, 2),
+            "used_comps": sold_items
         }
     
     def generate_ebay_search_link(self, title: str) -> str:
@@ -707,6 +709,50 @@ class PricingEngine:
         """
         research_link = self.generate_ebay_search_link(title)
 
+        # --- STRATEGY 0.5: OWN PAST SALES ---
+        own_sale = None
+        ident = identification or {}
+        search_isbn = isbn or ident.get('isbn')
+        search_mpn = ident.get('mpn')
+        
+        if search_isbn or search_mpn:
+            try:
+                from backend.app.core.paths import get_data_dir
+                from backend.app.services.ledger import get_ledger
+                ledger = get_ledger(str(get_data_dir() / 'commander.db'))
+                own_sale = ledger.find_own_sale(isbn=search_isbn, mpn=search_mpn)
+                
+                if own_sale:
+                    sold_price = own_sale['price']
+                    sold_date = own_sale['sold_at'][:10] if own_sale['sold_at'] else 'the past'
+                    logger.info(f"[PRICE] Own sales match: ${sold_price:.2f} on {sold_date}")
+                    
+                    # Bake in shipping buffer if free shipping
+                    final_price = sold_price
+                    if shipping_cost > 0:
+                        final_price += shipping_cost
+                        
+                    final_price = self._sanitize_price(self._smart_round_99(final_price))
+                    
+                    fees = (final_price * EBAY_FINAL_VALUE_FEE_RATE) + EBAY_PAYMENT_PROCESSING_FEE
+                    return {
+                        "suggested_price": final_price,
+                        "comps": [],
+                        "median_price": sold_price,
+                        "comp_count": 1,
+                        "price_range": [sold_price, sold_price],
+                        "reasoning": f"You sold this for ${sold_price:.2f} on {sold_date}",
+                        "projected_profit": round(
+                            final_price - fees - acquisition_cost - shipping_cost, 2
+                        ),
+                        "source": "own_sales",
+                        "confidence": "high",
+                        "confidence_reason": "Based on your actual past sale",
+                        "research_link": research_link,
+                    }
+            except Exception as e:
+                logger.warning(f"Failed to query own sales: {e}")
+
         # --- STRATEGY 1: ISBN SEARCH (Gold Standard for Books) ---
         if isbn:
             logger.info(f"[SEARCH] ISBN search: {isbn}...")
@@ -719,7 +765,7 @@ class PricingEngine:
                 logger.info(f"   [PRICE] ISBN price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
                 return {
                     "suggested_price": price_data["suggested_price"],
-                    "comps": sold_items[:5],
+                    "comps": price_data.get("used_comps", sold_items)[:5],
                     "median_price": price_data.get("median_price"),
                     "comp_count": price_data.get("comp_count"),
                     "price_range": price_data.get("price_range"),
@@ -754,7 +800,7 @@ class PricingEngine:
                     logger.info(f"   [PRICE] ID price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
                     return {
                         "suggested_price": price_data["suggested_price"],
-                        "comps": sold_items[:5],
+                        "comps": price_data.get("used_comps", sold_items)[:5],
                         "median_price": price_data.get("median_price"),
                         "comp_count": price_data.get("comp_count"),
                         "price_range": price_data.get("price_range"),
@@ -788,7 +834,7 @@ class PricingEngine:
                         logger.info(f"   [PRICE] Alt PN price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
                         return {
                             "suggested_price": price_data["suggested_price"],
-                            "comps": sold_items[:5],
+                            "comps": price_data.get("used_comps", sold_items)[:5],
                             "median_price": price_data.get("median_price"),
                             "comp_count": price_data.get("comp_count"),
                             "price_range": price_data.get("price_range"),
@@ -848,7 +894,7 @@ class PricingEngine:
                             "suggested_price": ai_final,
                             "comp_price": comp_final,
                             "ai_price": ai_final,
-                            "comps": sold_items[:5],
+                            "comps": price_data.get("used_comps", sold_items)[:5],
                             "median_price": price_data.get("median_price"),
                             "comp_count": price_data.get("comp_count"),
                             "price_range": price_data.get("price_range"),
@@ -862,7 +908,7 @@ class PricingEngine:
             logger.info(f"   [PRICE] Keyword price: ${price_data['suggested_price']:.2f} ({price_data['reasoning']})")
             return {
                 "suggested_price": price_data["suggested_price"],
-                "comps": sold_items[:5],
+                "comps": price_data.get("used_comps", sold_items)[:5],
                 "median_price": price_data.get("median_price"),
                 "comp_count": price_data.get("comp_count"),
                 "price_range": price_data.get("price_range"),

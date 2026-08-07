@@ -27,6 +27,14 @@ Business logic layer. Orchestrates AI analysis, eBay integration, pricing, image
 | `isbn_scanner.py` | ISBN barcode detection from images via Gemini vision |
 | `book_service.py` | Book metadata lookup: ISBN → title, author, edition, price |
 | `category_correction_cache.py` | User feedback cache to prevent repeat miscategorizations |
+| `ledger.py` | Profit tracking, COGS recording, and snapshot sales tracking |
+| `autopilot_scanner.py` | Daily automated offers-to-watchers, markdowns, and unsold relists |
+| `markdown_engine.py` | Applies automated discounting ladders |
+| `price_discovery.py` | High list prices with aggressive markdowns for no-comp items |
+| `sourcing.py` | Sourcing tools and comp thumbnails |
+| `whatsapp_notify.py` | WhatsApp review flow via Twilio |
+| `listing_guardrails.py` | Prevents listings from violating rules or brand protections |
+| `review_reply.py` | Handles resolving pending items via WhatsApp chat |
 
 ## Subdirectories
 

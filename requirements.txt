@@ -18,7 +18,7 @@ sqlalchemy>=2.0.23
 # Real-time
 flask-socketio>=5.6.0
 simple-websocket>=1.0.0  # WebSocket transport for threading async_mode (see app/__init__.py)
-eventlet>=0.40.4  # deprecated/no longer on the run path; kept pinned, safe to remove later
+eventlet>=0.40.4  # TODO: Migrate to gevent/asyncio before Python 3.13 becomes mandatory. Eventlet is dead.
 
 # Image Processing
 pillow>=12.1.1

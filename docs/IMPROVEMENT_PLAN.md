@@ -45,7 +45,7 @@ Verify: benchmark report; new listings priced with updated factor.
 
 ## P1 — Pricing accuracy moat (code, ordered by leverage)
 
-### 5. Own-sales comp source [P1] [size: M] [surface: backend/frontend]
+### 5. [x] Own-sales comp source [P1] [size: M] [surface: backend/frontend]
 Problem: Past sales of the same identifier aren't being used as a high-confidence pricing anchor.
 Files: `backend/app/services/pricing_engine.py`, `backend/app/core/ledger.py`, `frontend/src/components/item-detail/PriceExplainer.tsx`, `backend/app/services/listing_ai_agent.py`
 Approach:
@@ -55,7 +55,7 @@ Approach:
 - Thread through `get_final_pricing` projection (seam test will enforce).
 Verify: `tests/unit/test_pricing_engine.py` + `test_ledger.py` extended and passing.
 
-### 6. Range-bar/comp-cards consistency [P1] [size: S] [surface: backend]
+### 6. [x] Range-bar/comp-cards consistency [P1] [size: S] [surface: backend]
 Problem: `calculate_suggested_price` grade-filters internally but displays top-5 pre-filter comps, causing mismatch with the range bar.
 Files: `backend/app/services/pricing_engine.py`
 Approach:
@@ -70,7 +70,7 @@ Approach:
 - No code until granted.
 Verify: Request submitted on developer portal.
 
-### 8. Sourcing comp thumbnails [P1] [size: S] [surface: frontend]
+### 8. [x] Sourcing comp thumbnails [P1] [size: S] [surface: frontend]
 Problem: `/lookup/comps` returns `image_url` but the Sourcing comp list doesn't display them, missing a visual confirmation opportunity.
 Files: `frontend/src/pages/Sourcing.tsx`
 Approach:
@@ -80,19 +80,20 @@ Verify: Visual confirm that comps match the scanned item in the UI.
 
 ## P2 — UX / confidence polish
 
-### 9. Price explainer in ReviewQueue [P2] [size: S] [surface: frontend]
+### 9. [x] Price explainer in ReviewQueue [P2] [size: S] [surface: frontend]
 Problem: The pending-review card lacks price justification context where it's needed most.
 Files: `frontend/src/components/listings/ReviewQueue.tsx`
 Approach:
 - Embed the `PriceExplainer` component under the review reason.
 Verify: Price explainer renders correctly inside ReviewQueue cards.
 
-### 10. Component tests for the stateful UI [P2] [size: M] [surface: frontend]
+### 10. [~] Component tests for the stateful UI [P2] [size: M] [surface: frontend]
 Problem: Missing tests for stateful UI pieces (`PriceExplainer` and `MobileCaptureSheet`).
-Files: `frontend/src/components/item-detail/PriceExplainer.test.tsx`, `frontend/src/components/listings/MobileCaptureSheet.test.tsx`
+Files: `frontend/src/components/item-detail/PriceExplainer.test.tsx`, `frontend/src/components/listings/MobileCaptureSheet.test.tsx`, `frontend/src/components/listings/ReviewQueue.test.tsx`
 Approach:
 - Write @testing-library/react + jsdom tests for `PriceExplainer` (range math, clamping, states).
 - Write tests for `MobileCaptureSheet` phase machine (capture⇄success, sticky condition, counter).
+- ReviewQueue + CompactPriceExplainer covered (`ReviewQueue.test.tsx`); PriceExplainer/MobileCaptureSheet unit tests still open.
 Verify: `npx vitest run` passes with new tests.
 
 ### 11. Momentum-loop analytics sanity [P2] [size: S] [surface: ops/frontend]
@@ -105,7 +106,7 @@ Verify: Smooth on-device experience without jarring transitions.
 
 ## P3 — Hygiene / debt (batch into one session)
 
-### 12. Silent exception handlers sweep [P3] [size: S] [surface: backend]
+### 12. [x] Silent exception handlers sweep [P3] [size: S] [surface: backend]
 Problem: Memory obs #1468 identified swallowed exceptions hiding real errors.
 Files: `backend/app/**/*.py`
 Approach:
@@ -122,7 +123,7 @@ Approach:
 - Full manual smoke via `draft-commander-test` skill.
 Verify: Live queue-run proof before merging.
 
-### 14. Nested AGENTS.md regeneration [P3] [size: S] [surface: docs]
+### 14. [x] Nested AGENTS.md regeneration [P3] [size: S] [surface: docs]
 Problem: `backend/AGENTS.md` and others are from March and likely stale.
 Files: `backend/AGENTS.md`, `frontend/AGENTS.md`, `tests/AGENTS.md`, `templates/AGENTS.md`, `scripts/AGENTS.md`, `tools/AGENTS.md`, `docs/AGENTS.md`
 Approach:

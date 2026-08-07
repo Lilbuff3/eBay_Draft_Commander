@@ -328,6 +328,7 @@ class AIAnalyzer:
                 img = PILImage.open(path)
                 contents.append(img)
             except Exception:
+                logger.warning(f"Failed to open image {path} for vision context", exc_info=True)
                 continue
 
         try:
@@ -424,6 +425,7 @@ class AIAnalyzer:
                     try:
                         contents.append(PILImage.open(path))
                     except Exception:
+                        logger.warning(f"Failed to open image {path} for phase 3 context", exc_info=True)
                         continue
 
                 limiter.wait_if_needed('gemini')

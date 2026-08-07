@@ -165,6 +165,8 @@ def get_job_details(job_id):
             'reasoning': ai_data.get('pricing_reasoning', ''),
             'pricing_confidence': ai_data.get('pricing_confidence'),
             'pricing_confidence_reason': ai_data.get('pricing_confidence_reason'),
+            # Raw engine source (e.g. own_sales) for UI badges; label is display copy.
+            'source': ai_data.get('pricing_source', ''),
             'price_source': ai_data.get('price_source', 'AI estimate'),
             'price_source_label': format_price_source(
                 ai_data.get('pricing_source', ''),
@@ -577,7 +579,21 @@ def upload_files():
             job_folder.rmdir()
             return error_response(f"No supported image files. Rejected: {', '.join(rejected)}" if rejected else 'No valid files saved', 400)
         
+        # COGS must land on job_metadata via add_folder — writing metadata.json
+        # alone is not enough because upload skips the inbox scanner path.
         metadata = {}
+        cogs = request.form.get('cogs')
+        if cogs not in (None, ''):
+            try:
+                cogs_val = round(float(cogs), 2)
+                if cogs_val < 0 or cogs_val > 1_000_000:
+                    raise ValueError('out of range')
+                metadata['cogs'] = cogs_val
+                import json
+                with open(job_folder / 'metadata.json', 'w') as f:
+                    json.dump({'cogs': cogs_val}, f)
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid cogs value: {cogs}")
         try:
             if request.form.get('title'):
                 metadata['user_title'] = validate_title(request.form.get('title'))
@@ -622,7 +638,7 @@ def get_job_preview(job_id):
             try:
                 post_data = request.json or {}
             except Exception:
-                pass
+                logger.warning("Failed to parse JSON from template preview request", exc_info=True)
         
         # Priority: POST override -> user override -> resolved job title -> AI suggested title -> folder name
         title = post_data.get('title') or job.user_title or job.title or listing.get('suggested_title') or ai_data.get('seo_title') or job.folder_name

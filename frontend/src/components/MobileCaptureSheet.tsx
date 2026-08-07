@@ -8,8 +8,11 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { getCaptureCategory, GENERIC_CONDITIONS } from '@/lib/categories'
 import { useCommanderStore } from '@/store/useCommanderStore'
+import { trackEvent } from '@/lib/api'
 
 const genId = () => Math.random().toString(36).substring(7)
+
+type CaptureMetadata = { title: string; condition: string; category?: string; cogs?: number }
 
 interface MobileCaptureSheetProps {
     isOpen: boolean
@@ -19,8 +22,12 @@ interface MobileCaptureSheetProps {
     category?: string
     /** reopen the category picker on top of the sheet */
     onChangeCategory?: () => void
-    onUpload: (files: File[], metadata: { title: string; condition: string; category?: string }) => Promise<void>
+    /** Returns job id when known so the session scoreboard can track list prices. */
+    onUpload: (files: File[], metadata: CaptureMetadata) => Promise<string | void>
 }
+
+/** Session scoreboard entry — COGS is known at upload; list price arrives later via jobs store. */
+type SessionItem = { jobId?: string; cogs: number }
 
 export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], category, onChangeCategory, onUpload }: MobileCaptureSheetProps) {
     const captureCategory = getCaptureCategory(category)
@@ -28,12 +35,14 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
     const [photos, setPhotos] = useState<{ file: File; id: string; url: string }[]>([])
     const [title, setTitle] = useState('')
     const [condition, setCondition] = useState<string>('')
+    const [cogs, setCogs] = useState<string>('')
     const [isUploading, setIsUploading] = useState(false)
     // The momentum loop: 'capture' is the form, 'success' is the interstitial
     // between items. sessionCount survives close/reopen on purpose — it's the
     // pile counter for the whole capture session, not one sheet-open.
     const [phase, setPhase] = useState<'capture' | 'success'>('capture')
     const [sessionCount, setSessionCount] = useState(0)
+    const [sessionItems, setSessionItems] = useState<SessionItem[]>([])
     const { tap, press, success: successHaptic, warning, error: errorHaptic } = useHaptics()
     const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -41,6 +50,23 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
     const pct = uploadProgress && uploadProgress.total > 0
         ? Math.min(100, Math.round((uploadProgress.loaded / uploadProgress.total) * 100))
         : null
+
+    // /api/jobs list carries price (not would_list_at / metadata_json). Match by
+    // job id captured at upload so the scoreboard updates when AI finishes.
+    const jobs = useCommanderStore(s => s.jobs)
+    const sessionCogs = sessionItems.reduce((sum, item) => sum + item.cogs, 0)
+    const sessionSales = sessionItems.reduce((sum, item) => {
+        if (!item.jobId) return sum
+        const job = jobs.find(j => j.id === item.jobId)
+        const listPrice = parseFloat(job?.price || '0') || 0
+        if (listPrice <= 0) return sum
+        const fees = listPrice * 0.15 + 0.30
+        const shipping = 6.50
+        const net = listPrice - fees - shipping
+        return sum + (net > 0 ? net : 0)
+    }, 0)
+    const sessionProfit = sessionSales - sessionCogs
+    const showScoreboard = sessionItems.length > 0
 
     // Load initial files
     useEffect(() => {
@@ -61,6 +87,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
             setPhotos([])
             setTitle('')
             setCondition('')
+            setCogs('')
             setIsUploading(false)
             setPhase('capture')
         }
@@ -107,10 +134,30 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
         tap()
         setIsUploading(true)
         try {
-            await onUpload(
+            const metadataPayload: CaptureMetadata = { title, condition, category }
+            const cogsVal = cogs.trim() !== '' ? parseFloat(cogs) : NaN
+            if (!Number.isNaN(cogsVal) && cogsVal >= 0) {
+                metadataPayload.cogs = cogsVal
+            }
+
+            const jobId = await onUpload(
                 photos.map(p => p.file),
-                { title, condition, category }
+                metadataPayload
             )
+
+            setSessionItems(prev => [
+                ...prev,
+                { jobId: jobId || undefined, cogs: metadataPayload.cogs ?? 0 },
+            ])
+            
+            trackEvent('capture_success', { 
+                category, 
+                has_title: !!title, 
+                has_condition: !!condition, 
+                photo_count: photos.length,
+                session_count: sessionCount + 1
+            })
+
             // Momentum, not a dead end: clear the item but keep the sheet (and
             // the sticky condition — piles are usually same-condition) and land
             // on the success interstitial with a one-tap path to the next item.
@@ -118,6 +165,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
             photos.forEach(p => URL.revokeObjectURL(p.url))
             setPhotos([])
             setTitle('')
+            setCogs('')
             setIsUploading(false)
             setSessionCount(n => n + 1)
             setPhase('success')
@@ -125,6 +173,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
             // Never fail silently here — this is the app's core action, and the
             // sheet stays open with the photos intact so the tap can be retried.
             console.error(err)
+            trackEvent('capture_error', { error: err instanceof Error ? err.message : String(err) })
             errorHaptic()
             toast.error('Upload failed', {
                 description: err instanceof Error ? err.message : 'Your photos are still here — tap Upload to retry.',
@@ -136,9 +185,16 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
     // One tap from "item sent" to shooting the next one: reset the phase and
     // fire the camera input in the same gesture.
     const handleNextItem = () => {
+        trackEvent('momentum_loop_next', { session_count: sessionCount })
         press()
         setPhase('capture')
         fileInputRef.current?.click()
+    }
+    
+    const handleDoneForNow = () => {
+        trackEvent('momentum_loop_done', { session_count: sessionCount })
+        tap()
+        onClose()
     }
 
     return (
@@ -187,6 +243,30 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                     </div>
                 </header>
 
+                {/* Session Scoreboard — COGS from this sheet session; sales/profit update when job.price arrives */}
+                {showScoreboard && (
+                    <div className="bg-stone-50 px-4 py-3 border-b border-stone-200 flex items-center justify-between shadow-sm z-10 relative">
+                        <div className="flex flex-col">
+                            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Total Spent</span>
+                            <span className="text-sm font-semibold text-stone-700">${sessionCogs.toFixed(2)}</span>
+                        </div>
+                        <div className="flex flex-col text-center">
+                            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Expected Net</span>
+                            <span className="text-sm font-semibold text-stone-700">
+                                {sessionSales > 0 ? `$${sessionSales.toFixed(2)}` : '—'}
+                            </span>
+                        </div>
+                        <div className="flex flex-col text-right">
+                            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Expected Profit</span>
+                            <span className={cn("text-base font-bold", sessionProfit > 0 ? "text-sage-600" : "text-stone-700")}>
+                                {sessionSales > 0
+                                    ? `${sessionProfit > 0 ? '+' : ''}$${sessionProfit.toFixed(2)}`
+                                    : '—'}
+                            </span>
+                        </div>
+                    </div>
+                )}
+
                 {phase === 'success' ? (
                     /* Success interstitial — the Vendit-style momentum beat. AI runs in
                        the background; the only job here is getting to the next item. */
@@ -225,7 +305,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                                 </span>
                             </Button>
                             <Button
-                                onClick={() => { tap(); onClose() }}
+                                onClick={handleDoneForNow}
                                 variant="ghost"
                                 className="w-full h-11 rounded-2xl text-sm font-medium text-stone-500"
                             >
@@ -347,6 +427,22 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                                             {cond.label}
                                         </button>
                                     ))}
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-2">
+                                <label className="text-sm font-semibold text-stone-700">Cost of Goods (COGS)</label>
+                                <div className="relative">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-500 font-medium">$</span>
+                                    <Input
+                                        type="number"
+                                        placeholder="0.00"
+                                        value={cogs}
+                                        onChange={(e) => setCogs(e.target.value)}
+                                        className="bg-white h-12 pl-8 font-medium"
+                                        step="0.01"
+                                        min="0"
+                                    />
                                 </div>
                             </div>
                         </motion.div>

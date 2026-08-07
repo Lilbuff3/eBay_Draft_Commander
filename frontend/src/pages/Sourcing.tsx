@@ -35,7 +35,7 @@ interface CompsResponse {
     id_type?: 'isbn' | 'upc'
     confidence: 'high' | 'medium' | 'low' | null
     confidence_reason: string | null
-    comps: Array<{ title: string; price: number; condition?: string; url?: string }>
+    comps: Array<{ title: string; price: number; condition?: string; url?: string; image_url?: string }>
     reasoning: string | null
     ebay_search_url: string
     error?: string
@@ -165,9 +165,18 @@ function VerdictCard({ result, title }: { result: CompsResponse; title?: string 
                             <div className="space-y-1 bg-stone-50/20 border border-stone-200 rounded-2xl p-2">
                                 {result.comps.slice(0, 5).map((c, i) => (
                                     <a key={i} href={c.url} target="_blank" rel="noreferrer"
-                                        className="flex items-center justify-between gap-2 text-xs text-stone-600 hover:text-persimmon-600 py-1 transition-colors px-1 rounded-md hover:bg-stone-100">
-                                        <span className="truncate">{c.title}</span>
-                                        <span className="font-medium whitespace-nowrap">{usd(c.price)}</span>
+                                        className="flex items-center gap-3 text-xs text-stone-600 hover:text-persimmon-600 py-1.5 transition-colors px-1.5 rounded-md hover:bg-stone-100">
+                                        <div className="shrink-0 w-10 h-10 rounded border border-stone-200 overflow-hidden bg-stone-100 flex items-center justify-center">
+                                            {c.image_url ? (
+                                                <img src={c.image_url} alt="" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <AlertTriangle size={16} className="text-stone-400" />
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="truncate">{c.title}</div>
+                                        </div>
+                                        <div className="font-medium whitespace-nowrap shrink-0">{usd(c.price)}</div>
                                     </a>
                                 ))}
                             </div>

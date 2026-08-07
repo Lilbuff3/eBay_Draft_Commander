@@ -9,6 +9,31 @@ import { Badge } from '@/components/ui/badge'
 import {
     Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
+import { CompactPriceExplainer } from '@/components/item-detail/PriceExplainer'
+import type { Job, JobDetails } from '@/lib/api'
+
+/** Pending listings store flat pricing_* keys on ai_data; details uses pricing_data. */
+function pricingFromListing(listing: Job): JobDetails['pricing_data'] | null {
+    const ai = (listing.ai_data || {}) as Record<string, unknown>
+    if (ai.pricing_data && typeof ai.pricing_data === 'object') {
+        return ai.pricing_data as JobDetails['pricing_data']
+    }
+    const comps = (ai.pricing_comps as JobDetails['pricing_data']['comps']) || []
+    const range = ai.pricing_range as [number, number] | null | undefined
+    const hasRange = Array.isArray(range) && range.length === 2 && range[1] > 0
+    if (comps.length === 0 && !hasRange) return null
+    return {
+        comps,
+        median_price: (ai.pricing_median as number | null | undefined) ?? null,
+        price_range: range ?? null,
+        comp_count: (ai.pricing_comp_count as number | null | undefined) ?? comps.length,
+        reasoning: (ai.pricing_reasoning as string) || '',
+        pricing_confidence: ai.pricing_confidence as JobDetails['pricing_data']['pricing_confidence'],
+        pricing_confidence_reason: (ai.pricing_confidence_reason as string) || null,
+        source: (ai.pricing_source as string) || '',
+        price_source: (ai.pricing_source as string) || 'AI estimate',
+    }
+}
 
 export function ReviewQueue() {
     const pendingListings = useCommanderStore(state => state.pendingListings)
@@ -249,10 +274,28 @@ export function ReviewQueue() {
                                                                 {listing.error_message}
                                                             </p>
                                                         )}
+                                                        {(() => {
+                                                            const pricing = pricingFromListing(listing)
+                                                            return pricing ? (
+                                                                <div className="mt-2 max-w-sm hidden sm:block">
+                                                                    <CompactPriceExplainer pricing={pricing} price={listing.price || '0'} />
+                                                                </div>
+                                                            ) : null
+                                                        })()}
                                                     </>
                                                 )}
                                             </div>
                                             </div>
+
+                                            {/* Mobile only PriceExplainer (below the thumbnail+title row) */}
+                                            {(() => {
+                                                const pricing = pricingFromListing(listing)
+                                                return pricing && editingId !== listing.id ? (
+                                                    <div className="sm:hidden -mt-1 mb-2 max-w-sm">
+                                                        <CompactPriceExplainer pricing={pricing} price={listing.price || '0'} />
+                                                    </div>
+                                                ) : null
+                                            })()}
 
                                             {/* Price — inline edit or display */}
                                             <div className="sm:col-span-2">
@@ -267,7 +310,7 @@ export function ReviewQueue() {
                                                 ) : (
                                                     <div className="flex flex-col">
                                                         <span className="font-display font-bold text-lg text-persimmon-600">${listing.price || '0.00'}</span>
-                                                        {listing.ai_data?.pricing_confidence && (
+                                                        {typeof listing.ai_data?.pricing_confidence === 'string' && (
                                                             <span className={cn(
                                                                 'text-xs font-semibold mt-1 px-1.5 py-0.5 rounded border w-fit capitalize',
                                                                 listing.ai_data.pricing_confidence === 'high' && 'text-sage-700 bg-sage-100 border-sage-200',

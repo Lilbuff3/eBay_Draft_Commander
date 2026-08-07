@@ -72,7 +72,7 @@ class eBayBrowseAPI:
                 self.app_id = self.app_id or credentials.get('EBAY_APP_ID')
                 self.cert_id = self.cert_id or credentials.get('EBAY_CERT_ID')
             except Exception:
-                pass
+                logger.warning(f"Failed to read browse credentials from {env_path}", exc_info=True)
     
     def get_access_token(self) -> Optional[str]:
         """Get OAuth access token using Client Credentials Grant"""

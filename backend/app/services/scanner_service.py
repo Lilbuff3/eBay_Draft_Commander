@@ -67,6 +67,16 @@ class ScannerService:
                         if folder.parent.name in self.CONDITION_FOLDERS:
                             metadata['condition'] = folder.parent.name
                             
+                        metadata_file = folder / 'metadata.json'
+                        if metadata_file.exists():
+                            try:
+                                import json
+                                with open(metadata_file, 'r') as f:
+                                    folder_metadata = json.load(f)
+                                    metadata.update(folder_metadata)
+                            except Exception as e:
+                                logger.warning(f"Failed to read metadata.json in {folder.name}: {e}")
+                                
                         queue_manager.add_folder(str(folder), metadata=metadata, batch_id=batch_id)
                         added_count += 1
                         logger.info(f"Added new job from folder: {folder.name} (Condition: {metadata.get('condition', 'Default')})")

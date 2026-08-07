@@ -87,6 +87,7 @@ export function MobileUploadFAB({ onUploadComplete, className }: MobileUploadFAB
                         if (newJobId) {
                             onUploadComplete(newJobId)
                         }
+                        return newJobId
                     } finally {
                         setProgress(null)
                     }

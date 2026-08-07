@@ -21,7 +21,7 @@ export interface Job {
     condition?: string | null
     scheduled_time?: string | null
     confidence_score?: number | null
-    ai_data?: any | null
+    ai_data?: Record<string, unknown> | null
 }
 
 export interface QueueStats {
@@ -373,6 +373,7 @@ export interface JobDetails {
         pricing_confidence_reason?: string | null
         price_source: string
         price_source_label?: string
+        source?: string
         market_price?: Record<string, unknown>
     }
     profit_breakdown?: {
@@ -415,7 +416,7 @@ export async function searchCategories(query: string): Promise<CategorySuggestio
 export async function uploadFiles(
     files: FileList | File[],
     onProgress?: (loaded: number, total: number) => void,
-    metadata?: { title?: string; condition?: string; category?: string },
+    metadata?: { title?: string; condition?: string; category?: string; cogs?: number },
     // silent: caller owns success/error feedback (mobile capture sheet shows its
     // own interstitial + retry toast — api-level toasts would double up)
     opts?: { silent?: boolean }
@@ -428,6 +429,7 @@ export async function uploadFiles(
     if (metadata?.title) formData.append('title', metadata.title)
     if (metadata?.condition) formData.append('condition', metadata.condition)
     if (metadata?.category) formData.append('category', metadata.category)
+    if (metadata?.cogs !== undefined) formData.append('cogs', metadata.cogs.toString())
 
     // Use XHR for upload progress tracking
     if (onProgress || metadata) {
@@ -522,4 +524,17 @@ export async function fetchRecentOrders(days: string, limit = 50): Promise<{ ord
 
 export async function fetchOrders(days = '90', limit = 100): Promise<{ orders: Order[] }> {
     return apiFetch(`${API_BASE}/orders?days=${days}&limit=${limit}`)
+}
+
+export async function trackEvent(event: string, data: Record<string, unknown> = {}): Promise<void> {
+    try {
+        // fetchWithKey so Tailscale/phone sessions (API_ACCESS_TOKEN) still log
+        await fetchWithKey(`${API_BASE}/analytics/track`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ event, data }),
+        })
+    } catch {
+        // Silently swallow analytics errors so they never interrupt UX
+    }
 }

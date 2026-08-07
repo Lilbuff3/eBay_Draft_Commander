@@ -146,7 +146,7 @@ class TestLookupCompsEndpoint:
         assert data['max_buy'] > 1.0
         assert data['would_list_at'] is not None
         assert data['price_range'] == {'low': 24.0, 'high': 40.0}
-        assert len(data['comps']) == 5  # top 5 only
+        assert len(data['comps']) == 4  # same-grade filtered
         assert data['id_type'] == 'isbn'
         assert data['confidence'] == 'high'
         assert data['confidence_reason']

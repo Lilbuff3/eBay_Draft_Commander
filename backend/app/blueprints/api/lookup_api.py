@@ -96,7 +96,7 @@ def lookup_comps():
             'comp_count': price_data.get('comp_count', 0),
             'price_range': verdict['price_range'],
             'confidence': verdict['confidence'], 'confidence_reason': verdict['confidence_reason'],
-            'comps': comps[:5],
+            'comps': price_data.get('used_comps', comps)[:5],
             'reasoning': price_data.get('reasoning'),
             'ebay_search_url': ebay_search_url,
         })
