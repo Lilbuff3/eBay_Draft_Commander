@@ -4,7 +4,7 @@ A complete solution for automating eBay listing creation using AI-powered image 
 
 ## Features
 
-📘 **[Read the User Manual](USER_MANUAL.md)** for installation and usage instructions.
+📘 **[Read the User Manual](docs/USER_MANUAL.md)** for installation and usage instructions.
 
 - 🤖 **AI Image Analysis** - Uses Google Gemini 3 (Fast & Accurate) to extract details
 - 📱 **Mobile PWA** - Installable on iOS/Android for native-like experience
