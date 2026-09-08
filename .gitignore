@@ -59,7 +59,6 @@ data/inbox/
 posted/
 logs/
 *.png
-!frontend/public/logo.png  # Example: keep if there is a real logo
 
 # Additional Debug & Test Outputs
 *_output.txt
