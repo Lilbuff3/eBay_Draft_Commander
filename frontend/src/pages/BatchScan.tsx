@@ -138,6 +138,7 @@ function PhotoAttachButton({ hasPhoto, onAttach, compact }: {
                 className={compact ? 'h-8 w-8 flex-shrink-0 hover:bg-stone-100' : 'h-8 hover:bg-stone-100'}
                 onClick={() => inputRef.current?.click()}
                 title={hasPhoto ? 'Photo attached — tap to replace' : 'Add a real photo (optional)'}
+                aria-label={hasPhoto ? 'Replace photo' : 'Add photo'}
             >
                 <ImagePlus size={14} className={hasPhoto ? 'text-emerald-600' : 'text-stone-500'} />
             </Button>
@@ -204,7 +205,7 @@ function BatchItemCard({
                             </SelectContent>
                         </Select>
                         <PhotoAttachButton compact hasPhoto={hasPhoto} onAttach={onAttachPhoto} />
-                        <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 hover:bg-rose-50 text-stone-500 hover:text-rose-600" onClick={onRemove}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 hover:bg-rose-50 text-stone-500 hover:text-rose-600" onClick={onRemove} aria-label="Remove item">
                             <Trash2 size={14} />
                         </Button>
                     </div>
@@ -561,7 +562,7 @@ export function BatchScan() {
                                                 hasPhoto={photoVersion >= 0 && photosRef.current.has(item.id)}
                                                 onAttach={(file) => attachPhoto(item.id, file)}
                                             />
-                                            <Button variant="ghost" size="icon" className="hover:bg-rose-50 text-stone-500 hover:text-rose-600" onClick={() => dispatch({ type: 'REMOVE_ITEM', payload: item.id })}>
+                                            <Button variant="ghost" size="icon" className="hover:bg-rose-50 text-stone-500 hover:text-rose-600" onClick={() => dispatch({ type: 'REMOVE_ITEM', payload: item.id })} aria-label="Remove item">
                                                 <Trash2 size={16} />
                                             </Button>
                                         </div>
