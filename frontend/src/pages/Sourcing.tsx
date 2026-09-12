@@ -437,6 +437,7 @@ export function Sourcing() {
                                             {row.bookData && !row.sentToBooks && (
                                                 <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-stone-100"
                                                     title="Queue in Books tab"
+                                                    aria-label="Queue in Books tab"
                                                     onClick={() => sendToBooks(row)}>
                                                     <BookOpen size={14} className="text-persimmon-600" />
                                                 </Button>
