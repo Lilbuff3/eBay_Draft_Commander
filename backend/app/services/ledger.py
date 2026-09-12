@@ -385,60 +385,65 @@ class LedgerService:
     def find_own_sale(self, isbn: Optional[str] = None, mpn: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Find the most recent past sale of the exact same ISBN/MPN as a pricing anchor.
 
-        Joins sales → jobs and matches identification.isbn / identification.mpn
-        in the job's ai_json. Returns sale_total (what the buyer paid), not list price.
+        Matches identification.isbn / identification.mpn inside the job's ai_json.
+        Returns sale_total (what the buyer actually paid), not list price.
+
+        The match runs in SQL via json_extract so this stays one indexed lookup
+        on the pricing hot path — it used to load every sale joined to every job
+        and deserialize each ai_json in Python, growing with sales history.
+        json_extract raises on malformed JSON, so the json_valid CASE reproduces
+        the old per-row skip (SQLite guarantees CASE short-circuits).
         """
         if not isbn and not mpn:
             return None
 
         from backend.app.core.database import SaleModel, JobModel
-        from sqlalchemy import desc
-        import json
+        from sqlalchemy import desc, func, case, or_
 
-        def _sold_at_iso(sold_at):
-            if not sold_at:
-                return None
-            if sold_at.tzinfo is None:
-                sold_at = sold_at.replace(tzinfo=timezone.utc)
-            return sold_at.isoformat()
+        def _identifier(field):
+            return case(
+                (func.json_valid(JobModel.ai_json) == 1,
+                 func.json_extract(JobModel.ai_json, f'$.identification.{field}')),
+                else_=None,
+            )
+
+        # ponytail: no index on the extracted identifier, so a miss still scans
+        # (~10ms at 4k sales; a hit on a recent sale short-circuits on
+        # idx_sales_sold_at in ~1ms). Add an expression index on
+        # json_extract(ai_json,'$.identification.isbn') if that stops being fine.
+        match = []
+        if isbn:
+            match.append(_identifier('isbn') == isbn)
+        if mpn:
+            match.append(_identifier('mpn') == mpn)
 
         session = self.SessionFactory()
         try:
-            rows = (
-                session.query(SaleModel, JobModel)
+            sale = (
+                session.query(SaleModel)
                 .join(JobModel, SaleModel.job_id == JobModel.id)
+                .filter(SaleModel.sale_total.isnot(None), SaleModel.sale_total != 0)
+                .filter(or_(*match))
                 .order_by(desc(SaleModel.sold_at))
-                .all()
+                .first()
             )
+            if sale is None:
+                return None
 
-            for sale, job in rows:
-                if not sale.sale_total:
-                    continue
-
-                ai_data = job.ai_data or {}
-                if isinstance(ai_data, str):
-                    try:
-                        ai_data = json.loads(ai_data)
-                    except json.JSONDecodeError:
-                        ai_data = {}
-
-                ident = ai_data.get('identification', {})
-                if not isinstance(ident, dict):
-                    continue
-
-                if (isbn and ident.get('isbn') == isbn) or (mpn and ident.get('mpn') == mpn):
-                    return {
-                        'price': sale.sale_total,
-                        'sold_at': _sold_at_iso(sale.sold_at),
-                        'title': sale.title,
-                        'order_id': sale.order_id,
-                    }
+            sold_at = sale.sold_at
+            if sold_at is not None and sold_at.tzinfo is None:
+                sold_at = sold_at.replace(tzinfo=timezone.utc)
+            return {
+                'price': sale.sale_total,
+                'sold_at': sold_at.isoformat() if sold_at else None,
+                'title': sale.title,
+                'order_id': sale.order_id,
+            }
         except Exception:
             logger.warning("Error finding own sale", exc_info=True)
+            return None
         finally:
             session.close()
-
-        return None
 
 
 _ledger: Optional[LedgerService] = None
