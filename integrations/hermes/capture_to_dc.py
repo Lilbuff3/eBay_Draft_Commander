@@ -23,16 +23,16 @@ def _format_when_pt(iso_utc):
     """Render a UTC ISO-8601 timestamp as friendly US Pacific time for chat replies.
 
     Peak windows store 7 PM PT as 02:00 UTC, which reads as "2 AM" if shown raw.
-    e.g. '2026-07-01T02:00:00+00:00' -> 'Tue Jun 30, 7:00 PM PT'. Uses pytz (bundled
-    tz data, no tzdata dependency). Returns the input unchanged if it can't parse.
+    e.g. '2026-07-01T02:00:00+00:00' -> 'Tue Jun 30, 7:00 PM PT'. Returns the input
+    unchanged if it can't parse.
     """
     if not iso_utc:
         return iso_utc
     try:
         from datetime import datetime
-        import pytz
+        from zoneinfo import ZoneInfo
         dt = datetime.fromisoformat(str(iso_utc))
-        pt = dt.astimezone(pytz.timezone('America/Los_Angeles'))
+        pt = dt.astimezone(ZoneInfo('America/Los_Angeles'))
         hour12 = pt.hour % 12 or 12
         return f"{pt.strftime('%a %b')} {pt.day}, {hour12}:{pt.minute:02d} {pt.strftime('%p')} PT"
     except Exception:

@@ -4,6 +4,7 @@ Uses the official Browse API to get current market prices for similar items.
 """
 import os
 import base64
+import statistics
 import requests
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -212,9 +213,9 @@ class eBayBrowseAPI:
             }
         
         prices = sorted([item.price for item in items])
-        
-        avg_price = sum(prices) / len(prices)
-        median_price = prices[len(prices) // 2]
+
+        avg_price = statistics.fmean(prices)
+        median_price = statistics.median(prices)
         low_price = prices[0]
         high_price = prices[-1]
         

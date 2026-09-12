@@ -207,11 +207,11 @@ def get_next_optimal_listing_time(exclude_times=None):
     across distinct windows instead of colliding on one time.
     """
     from datetime import datetime, timedelta, timezone
+    from zoneinfo import ZoneInfo
     import os
-    import pytz
 
     exclude = set(exclude_times or [])
-    pt = pytz.timezone('America/Los_Angeles')
+    pt = ZoneInfo('America/Los_Angeles')
     now_utc = datetime.now(timezone.utc)
     now_pt = now_utc.astimezone(pt)
     min_time = now_pt + timedelta(minutes=75)  # eBay requires >= 1h; add buffer
@@ -241,15 +241,8 @@ def get_next_optimal_listing_time(exclude_times=None):
         check_date = now_pt + timedelta(days=day_offset)
         for dow, hour in PEAK_WINDOWS_PT:
             if check_date.weekday() == dow:
-                # Construct naive local datetime for the peak window time
-                naive_cand = datetime(check_date.year, check_date.month, check_date.day, hour, 0, 0, 0)
-                # Localize properly using America/Los_Angeles timezone to correctly calculate DST offset
-                try:
-                    cand = pt.localize(naive_cand, is_dst=None)
-                except pytz.InvalidTimeError:
-                    # Fallback for invalid or ambiguous local times (e.g. spring forward skipped hour)
-                    cand = pt.localize(naive_cand, is_dst=False)
-                
+                # ZoneInfo resolves the DST offset (and any fold) itself
+                cand = datetime(check_date.year, check_date.month, check_date.day, hour, tzinfo=pt)
                 if cand > min_time:
                     candidates.append(cand)
     candidates.sort()
