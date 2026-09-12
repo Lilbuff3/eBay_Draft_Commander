@@ -23,11 +23,6 @@ def _attach_thumbnails(orders: list) -> None:
         for order in orders:
             order.setdefault('thumbnailUrl', None)
 
-@analytics_bp.route('/sales/recent')
-def get_recent_sales():
-    result, status = ebay_service.get_recent_sales()
-    return jsonify(result), status
-
 @analytics_bp.route('/analytics/summary')
 def get_analytics_summary():
     try:

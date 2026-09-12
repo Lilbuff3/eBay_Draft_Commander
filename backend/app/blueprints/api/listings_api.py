@@ -20,11 +20,6 @@ def get_active_listings():
     result, status = ebay_service.get_active_listings()
     return jsonify(result), status
 
-@listings_bp.route('/listings/<sku>/details')
-def get_listing_details(sku):
-    result, status = ebay_service.get_listing_details(sku)
-    return jsonify(result), status
-
 @listings_bp.route('/listings/<item_id>/price', methods=['POST'])
 def revise_listing_price(item_id):
     """Drop/change a live listing's price in place (ReviseFixedPriceItem)."""
@@ -46,64 +41,6 @@ def promote_listing_route(item_id):
     """Promote a listing at the configured ad rate (Promoted Listings)."""
     result = ebay_service.promote_listing(item_id)
     return jsonify(result), 200 if result.get('success') else 502
-
-@listings_bp.route('/listings/<sku>', methods=['PUT', 'POST'])
-def update_listing(sku):
-    """
-    Update listing details (Title, Description, Price, Qty).
-    Coordinatess updates to both Inventory Item (Product) and Offer.
-    """
-    try:
-        data = request.json
-        if data is None:
-            return jsonify({'error': 'Request body must be JSON'}), 400
-        results = {}
-        if 'title' in data or 'description' in data:
-            item_updates = {}
-            if 'title' in data: item_updates['title'] = data['title']
-            if 'description' in data: item_updates['description'] = data['description']
-            res, status = ebay_service.update_inventory_item(sku, item_updates)
-            if status not in [200, 204]: return error_response('Failed to update item details', status, details=res)
-            results['item_update'] = 'success'
-        if 'price' in data or 'quantity' in data:
-            updates = [{
-                'sku': sku, 'offerId': data.get('offerId'), 'price': data.get('price'), 'quantity': data.get('quantity')
-            }]
-            res, status = ebay_service.bulk_update(updates)
-            if status not in [200, 204]: return error_response('Failed to update price/qty', status, details=res)
-            results['offer_update'] = 'success'
-        return jsonify({'success': True, 'results': results}), 200
-    except Exception as e: return error_response(e)
-
-@listings_bp.route('/listings/bulk', methods=['POST'])
-def bulk_update_listings():
-    data = request.json
-    if data is None:
-        return jsonify({'error': 'Request body must be JSON'}), 400
-    updates = data.get('updates', [])
-    if not updates: return error_response('No updates provided', 400)
-    result, status = ebay_service.bulk_update(updates)
-    return jsonify(result), status
-
-@listings_bp.route('/listings/<offer_id>/withdraw', methods=['POST'])
-def withdraw_listing(offer_id):
-    result, status = ebay_service.withdraw_listing(offer_id)
-    return jsonify(result), status
-
-@listings_bp.route('/listings/<offer_id>/publish', methods=['POST'])
-def publish_listing(offer_id):
-    result, status = ebay_service.publish_listing(offer_id)
-    return jsonify(result), status
-
-@listings_bp.route('/listings/bulk/title', methods=['POST'])
-def bulk_update_titles():
-    data = request.json
-    if data is None:
-        return jsonify({'error': 'Request body must be JSON'}), 400
-    updates = data.get('updates', [])
-    if not updates: return error_response('No updates provided', 400)
-    result, status = ebay_service.bulk_update_titles(updates)
-    return jsonify(result), status
 
 @listings_bp.route('/policies/fulfillment')
 def get_fulfillment_policies():

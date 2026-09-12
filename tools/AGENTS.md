@@ -9,25 +9,17 @@ Command-line utility scripts for debugging, eBay API operations, inventory manag
 ## Key Files
 | File | Description |
 |------|-------------|
-| `preview_generator.py` | Generate HTML preview of how a listing will appear on eBay (used by ItemDetailDrawer UI for preview) |
 | `inventory_sync.py` | Sync active eBay listings locally via Trading API GetSellerList or Inventory API (feeds migration/import workflow) |
 | `queue_logger.py` | Query and analyze job queue state, log job events, outcomes, error tracking |
-| `fix_and_publish.py` | End-to-end manual listing fix: validate policies, update specifics, publish to eBay |
-| `final_listing.py` | Create and publish final eBay listing from job metadata (full Trading API `AddFixedPriceItem` flow) |
-| `publish_remaining_drafts.py` | Batch publish all pending/draft jobs in queue to eBay |
-| `publish_offer.py` | Publish single offer/job to eBay via Trading API |
-| `try_publish.py` | Attempt to publish job with error reporting and retry logic |
 | `get_policies.py` | Fetch and validate eBay business policies (fulfillment, payment, return) |
 | `update_policies.py` | Update policy IDs in .env from eBay API (automated credential sync) |
 | `get_aspects.py` | Fetch item specifics schema (aspects) for a category ID from Taxonomy API |
 | `find_category.py` | Query eBay Taxonomy API to find correct category ID for a product |
 | `end_listing.py` | End/cancel active eBay listing by item ID |
 | `exchange_token.py` | Refresh eBay OAuth token (manual credential renewal) |
-| `fetch_locations.py` | Fetch seller locations for shipping origin validation |
 | `inspect_db_schema.py` | Inspect SQLite database schema and table structure (debug tool) |
 | `inspect_queue.py` | Print current job queue state (pending, processing, completed, failed) |
 | `run_queue_now.py` | Manually trigger queue processing (equivalent to QueueService.start_processing()) |
-| `update_title.py` | Update a listing title on eBay by item ID |
 | `read_last_error.py` | Read and print last error from queue logs for debugging |
 | `reset_and_cleanup.py` | Reset queue state and clean up orphaned media files |
 | `debug_mcp.py` | Debug MCP (Model Context Protocol) server connectivity and diagnostics |
@@ -50,8 +42,6 @@ Command-line utility scripts for debugging, eBay API operations, inventory manag
 ### Running Tools
 
 ```bash
-# Preview a listing
-python tools/preview_generator.py <job_id>
 
 # Check queue state
 python tools/inspect_queue.py
@@ -62,8 +52,6 @@ python tools/get_policies.py
 # Sync inventory from eBay
 python tools/inventory_sync.py --seller-list
 
-# Publish a job
-python tools/final_listing.py <job_id>
 
 # Cleanup and reset
 python tools/reset_and_cleanup.py --dry-run

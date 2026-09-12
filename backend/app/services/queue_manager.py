@@ -744,32 +744,6 @@ class QueueManager:
         finally:
             session.close()
 
-    def clear_failed(self, delete_folders: bool = False) -> dict:
-        """Remove all failed jobs from the queue.
-        Returns {'count': N, 'folders_deleted': M}."""
-        session = self.SessionFactory()
-        try:
-            jobs = session.query(self.JobModel).filter(
-                self.JobModel.status == JobStatus.FAILED.value
-            ).all()
-            count = len(jobs)
-            folders_deleted = 0
-            if delete_folders:
-                folder_paths = [db_job.folder_path for db_job in jobs if db_job.folder_path]
-                if folder_paths:
-                    with ThreadPoolExecutor(max_workers=min(len(folder_paths), 10)) as executor:
-                        results = list(executor.map(self._delete_folder, folder_paths))
-                    folders_deleted = sum(1 for r in results if r)
-            for db_job in jobs:
-                session.delete(db_job)
-            session.commit()
-            return {'count': count, 'folders_deleted': folders_deleted}
-        except Exception as e:
-            session.rollback()
-            return {'count': 0, 'folders_deleted': 0}
-        finally:
-            session.close()
-    
     def purge_missing_folders(self) -> dict:
         """Remove jobs whose source folder no longer exists on disk (stale
         test rows, manually deleted inbox folders). Active jobs are exempt —
@@ -1129,49 +1103,3 @@ class QueueManager:
 
         return None
 
-    def get_batch_summary(self, batch_id: str) -> Dict[str, Any]:
-        """Calculate summary statistics for a specific batch."""
-        session = self.SessionFactory()
-        try:
-            db_jobs = session.query(self.JobModel).filter_by(batch_id=batch_id).all()
-            if not db_jobs:
-                return {
-                    'batch_id': batch_id,
-                    'total_processed': 0,
-                    'succeeded': 0,
-                    'failed': 0,
-                    'total_value_listed': 0.0,
-                    'average_processing_time_seconds': 0.0
-                }
-                
-            jobs = [self._db_to_queue_job(db_job) for db_job in db_jobs]
-            
-            total = len(jobs)
-            succeeded = [j for j in jobs if j.status in (JobStatus.COMPLETED, JobStatus.SCHEDULED)]
-            failed = [j for j in jobs if j.status == JobStatus.FAILED]
-            
-            total_value = 0.0
-            for j in succeeded:
-                try:
-                    price_str = str(j.price or "0").replace('$', '').replace(',', '')
-                    total_value += float(price_str)
-                except (ValueError, TypeError):
-                    pass
-            
-            durations = []
-            for j in jobs:
-                if j.timing and 'total' in j.timing:
-                    durations.append(j.timing['total'])
-            
-            avg_time = sum(durations) / len(durations) if durations else 0.0
-            
-            return {
-                'batch_id': batch_id,
-                'total_processed': total,
-                'succeeded': len(succeeded),
-                'failed': len(failed),
-                'total_value_listed': round(total_value, 2),
-                'average_processing_time_seconds': round(avg_time, 2)
-            }
-        finally:
-            session.close()

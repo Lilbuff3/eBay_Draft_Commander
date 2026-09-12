@@ -346,41 +346,6 @@ def retry_job_endpoint(job_id):
         qm.start_processing()
     return jsonify({'success': True, 'job_id': job_id, 'status': 'pending'})
 
-@jobs_bp.route('/jobs/bulk-update', methods=['POST'])
-def bulk_update_jobs():
-    qm = current_app.queue_manager
-    data = request.json
-    job_ids = data.get('jobIds', [])
-    updates = data.get('updates', {})
-    if not job_ids:
-        return error_response('No jobIds provided', 400)
-
-    updated_count = 0
-    errors = []
-    for job_id in job_ids:
-        try:
-            # Build per-job update dict
-            job_updates = {}
-            if 'condition' in updates:
-                job_updates['user_condition'] = updates['condition']
-            if 'price' in updates:
-                job_updates['user_price'] = str(validate_price(updates['price']))
-            if updates.get('reset_status'):
-                from backend.app.services.queue_manager import JobStatus
-                job_updates['status'] = JobStatus.PENDING
-                job_updates['error_type'] = None
-                job_updates['error_message'] = None
-
-            if job_updates:
-                if qm.update_job(job_id, job_updates):
-                    updated_count += 1
-                else:
-                    errors.append(f"Job {job_id} not found")
-        except Exception as e:
-            errors.append(f"Failed to update {job_id}: {e}")
-
-    return jsonify({'success': True, 'count': updated_count, 'errors': errors})
-
 @jobs_bp.route('/jobs/bulk-delete', methods=['POST'])
 def bulk_delete_jobs():
     qm = current_app.queue_manager

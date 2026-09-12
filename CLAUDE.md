@@ -26,7 +26,6 @@ python backend/run_service.py             # Start server under supervisor (resta
 python backend/wsgi.py                     # Start server directly (no /restart support)
 pytest tests/ -v                          # Run tests
 python manage.py update_policies          # Fetch eBay policies to .env
-python manage.py fix_publish <offer_id>   # Fix policies and publish offer
 
 # Frontend
 cd frontend && npm install
