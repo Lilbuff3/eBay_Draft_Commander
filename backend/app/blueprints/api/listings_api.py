@@ -3,7 +3,7 @@ from backend.app.services.ebay_service import eBayService
 from backend.app.services.ebay import policies as ebay_policies
 from backend.app.core.logger import get_logger
 from backend.app.services.queue_job import JobStatus
-from .helpers import error_response
+from .helpers import error_response, build_pricing_data
 
 listings_bp = Blueprint('listings', __name__)
 logger = get_logger('api.listings')
@@ -82,7 +82,15 @@ def get_pending_listings():
                 status=JobStatus.PENDING_REVIEW.value
             ).all()
 
-            jobs = [queue_manager._db_to_queue_job(j).to_dict() for j in db_jobs]
+            jobs = []
+            for j in db_jobs:
+                job = queue_manager._db_to_queue_job(j).to_dict()
+                # Same nested shape /api/job/<id>/details serves, so the review
+                # queue and the item drawer read one structure.
+                ai = job.get('ai_data') or {}
+                job['pricing_data'] = build_pricing_data(
+                    ai, ai.get('identification', {}))
+                jobs.append(job)
             return jsonify({'listings': jobs, 'count': len(jobs)}), 200
         finally:
             session.close()

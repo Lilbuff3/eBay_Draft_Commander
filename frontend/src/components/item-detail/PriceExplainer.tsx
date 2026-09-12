@@ -36,9 +36,11 @@ interface PriceExplainerProps {
     pricing: JobDetails['pricing_data']
     /** current draft price, as typed in the input */
     price: string
+    /** Review-queue variant: range bar + notes only, smaller type, no comp cards. */
+    compact?: boolean
 }
 
-export function PriceExplainer({ pricing, price }: PriceExplainerProps) {
+export function PriceExplainer({ pricing, price, compact = false }: PriceExplainerProps) {
     const comps = pricing?.comps ?? []
     const range = pricing?.price_range
     const hasRange = Array.isArray(range) && range.length === 2 && range[1] > 0
@@ -59,20 +61,24 @@ export function PriceExplainer({ pricing, price }: PriceExplainerProps) {
     const confidence = pricing?.pricing_confidence
     const isOwnSale = pricing?.source === 'own_sales'
 
+    const tiny = compact ? 'text-[10px]' : 'text-xs'
+
     return (
-        <div className="rounded-2xl border border-stone-200 bg-white p-4 space-y-3">
-            <div className="flex items-baseline justify-between gap-2">
-                <h4 className="text-xs font-bold text-stone-400 uppercase tracking-wider">Why this price</h4>
-                <span className="text-xs text-stone-400">
-                    {isOwnSale
-                        ? 'your past sale'
-                        : `${compCount} live listing${compCount !== 1 ? 's' : ''} · asking prices`}
-                </span>
-            </div>
+        <div className={compact ? 'space-y-2 w-full mt-2' : 'rounded-2xl border border-stone-200 bg-white p-4 space-y-3'}>
+            {!compact && (
+                <div className="flex items-baseline justify-between gap-2">
+                    <h4 className="text-xs font-bold text-stone-400 uppercase tracking-wider">Why this price</h4>
+                    <span className="text-xs text-stone-400">
+                        {isOwnSale
+                            ? 'your past sale'
+                            : `${compCount} live listing${compCount !== 1 ? 's' : ''} · asking prices`}
+                    </span>
+                </div>
+            )}
 
             {/* Range bar: comp spread with median + your price markers */}
             {high > low && (
-                <div className="pt-3 pb-1">
+                <div className={compact ? 'pt-2' : 'pt-3 pb-1'}>
                     <div className="relative h-1.5 rounded-full bg-gradient-to-r from-sage-100 via-amber-200 to-amber-300">
                         {median !== null && (
                             <div
@@ -89,7 +95,7 @@ export function PriceExplainer({ pricing, price }: PriceExplainerProps) {
                             />
                         )}
                     </div>
-                    <div className="flex justify-between mt-1.5 text-xs font-medium text-stone-500">
+                    <div className={`flex justify-between mt-1.5 ${tiny} font-medium text-stone-500`}>
                         <span>${low.toFixed(0)}</span>
                         {median !== null && (
                             <span className="text-sage-700">median ${median.toFixed(2)}</span>
@@ -99,27 +105,29 @@ export function PriceExplainer({ pricing, price }: PriceExplainerProps) {
                 </div>
             )}
 
-            {pricing?.source === 'own_sales' && (
-                <div className="flex items-center gap-2 mb-2">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sage-100 text-sage-800 border border-sage-200">
+            {isOwnSale && (
+                <div className={compact ? 'flex items-center gap-1.5' : 'flex items-center gap-2 mb-2'}>
+                    <span className={`inline-flex items-center rounded font-medium bg-sage-100 text-sage-800 border border-sage-200 ${compact ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-xs'}`}>
                         Past Sale
                     </span>
-                    <span className="text-sm font-medium text-sage-700">
+                    <span className={`font-medium text-sage-700 ${compact ? 'text-[10px] truncate' : 'text-sm'}`}>
                         {pricing.reasoning}
                     </span>
                 </div>
             )}
-            {pricing?.reasoning && pricing?.source !== 'own_sales' && (
-                <p className="text-xs text-stone-500">{pricing.reasoning}</p>
+            {pricing?.reasoning && !isOwnSale && (
+                <p className={`${tiny} text-stone-500 ${compact ? 'line-clamp-2' : ''}`} title={compact ? pricing.reasoning : undefined}>
+                    {pricing.reasoning}
+                </p>
             )}
             {confidence === 'low' && pricing?.pricing_confidence_reason && (
-                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
-                    Rough estimate — {pricing.pricing_confidence_reason}
+                <p className={`${tiny} text-amber-700 bg-amber-50 border border-amber-200 ${compact ? 'rounded px-1.5 py-1 line-clamp-2' : 'rounded-lg px-2.5 py-1.5'}`}>
+                    {compact ? pricing.pricing_confidence_reason : `Rough estimate — ${pricing.pricing_confidence_reason}`}
                 </p>
             )}
 
-            {/* Comparable listings */}
-            {comps.length > 0 && (
+            {/* Comparable listings — full card only */}
+            {!compact && comps.length > 0 && (
                 <div className="space-y-2">
                     {comps.map((comp, i) => (
                         <a
@@ -143,77 +151,6 @@ export function PriceExplainer({ pricing, price }: PriceExplainerProps) {
                         </a>
                     ))}
                 </div>
-            )}
-        </div>
-    )
-}
-
-export function CompactPriceExplainer({ pricing, price }: PriceExplainerProps) {
-    const comps = pricing?.comps ?? []
-    const range = pricing?.price_range
-    const hasRange = Array.isArray(range) && range.length === 2 && range[1] > 0
-    if (comps.length === 0 && !hasRange) return null
-
-    const low = hasRange ? range![0] : Math.min(...comps.map(c => c.price))
-    const high = hasRange ? range![1] : Math.max(...comps.map(c => c.price))
-    const median = pricing?.median_price ?? null
-    const yourPrice = parseFloat(price) || 0
-
-    const pct = (v: number) => {
-        if (high <= low) return 50
-        return Math.min(100, Math.max(0, ((v - low) / (high - low)) * 100))
-    }
-
-    const confidence = pricing?.pricing_confidence
-
-    return (
-        <div className="space-y-2 w-full mt-2">
-            {/* Range bar */}
-            {high > low && (
-                <div className="pt-2">
-                    <div className="relative h-1.5 rounded-full bg-gradient-to-r from-sage-100 via-amber-200 to-amber-300">
-                        {median !== null && (
-                            <div
-                                className="absolute -top-[3px] w-3 h-3 rounded-full bg-sage-600 border-2 border-white shadow"
-                                style={{ left: `calc(${pct(median)}% - 6px)` }}
-                                title={`Comp median $${median.toFixed(2)}`}
-                            />
-                        )}
-                        {yourPrice > 0 && (
-                            <div
-                                className="absolute -top-2 h-[22px] w-0.5 bg-persimmon-600 rounded"
-                                style={{ left: `${pct(yourPrice)}%` }}
-                                title={`Your price $${yourPrice.toFixed(2)}`}
-                            />
-                        )}
-                    </div>
-                    <div className="flex justify-between mt-1.5 text-[10px] font-medium text-stone-500">
-                        <span>${low.toFixed(0)}</span>
-                        {median !== null && (
-                            <span className="text-sage-700">median ${median.toFixed(2)}</span>
-                        )}
-                        <span>${high.toFixed(0)}</span>
-                    </div>
-                </div>
-            )}
-
-            {pricing?.source === 'own_sales' && (
-                <div className="flex items-center gap-1.5">
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-sage-100 text-sage-800 border border-sage-200">
-                        Past Sale
-                    </span>
-                    <span className="text-[10px] font-medium text-sage-700 truncate">
-                        {pricing.reasoning}
-                    </span>
-                </div>
-            )}
-            {pricing?.reasoning && pricing?.source !== 'own_sales' && (
-                <p className="text-[10px] text-stone-500 line-clamp-2" title={pricing.reasoning}>{pricing.reasoning}</p>
-            )}
-            {confidence === 'low' && pricing?.pricing_confidence_reason && (
-                <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-1 line-clamp-2">
-                    {pricing.pricing_confidence_reason}
-                </p>
             )}
         </div>
     )

@@ -26,16 +26,17 @@ const mockListings: Job[] = [
         folder_path: 'C:/inbox/camera',
         price: '149.99',
         status: 'pending_review',
-        // Real pipeline shape: flat pricing_* keys on ai_data (not nested pricing_data)
-        ai_data: {
+        // /api/listings/pending projects this server-side via build_pricing_data
+        pricing_data: {
             pricing_confidence: 'low',
             pricing_confidence_reason: 'Testing confidence reason',
-            pricing_comps: [],
-            pricing_range: [100, 200],
-            pricing_median: 150,
-            pricing_comp_count: 5,
-            pricing_reasoning: 'Keyword comps',
-            pricing_source: 'market_data_keyword',
+            comps: [],
+            price_range: [100, 200],
+            median_price: 150,
+            comp_count: 5,
+            reasoning: 'Keyword comps',
+            source: 'market_data_keyword',
+            price_source: 'market_data_keyword',
         },
         confidence_score: 0.75,
         thumbnail_url: '',
@@ -89,7 +90,7 @@ describe('ReviewQueue Component', () => {
         expect(screen.getByText('95%')).toBeInTheDocument();
     });
 
-    it('renders the price explainer from flat pricing_* ai_data keys', async () => {
+    it('renders the price explainer from the server-projected pricing_data', async () => {
         render(<ReviewQueue />);
 
         await waitFor(() => {

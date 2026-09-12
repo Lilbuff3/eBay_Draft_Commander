@@ -22,6 +22,8 @@ export interface Job {
     scheduled_time?: string | null
     confidence_score?: number | null
     ai_data?: Record<string, unknown> | null
+    /** Projected server-side by /api/listings/pending — same shape as JobDetails. */
+    pricing_data?: JobDetails['pricing_data'] | null
 }
 
 export interface QueueStats {
@@ -524,17 +526,4 @@ export async function fetchRecentOrders(days: string, limit = 50): Promise<{ ord
 
 export async function fetchOrders(days = '90', limit = 100): Promise<{ orders: Order[] }> {
     return apiFetch(`${API_BASE}/orders?days=${days}&limit=${limit}`)
-}
-
-export async function trackEvent(event: string, data: Record<string, unknown> = {}): Promise<void> {
-    try {
-        // fetchWithKey so Tailscale/phone sessions (API_ACCESS_TOKEN) still log
-        await fetchWithKey(`${API_BASE}/analytics/track`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ event, data }),
-        })
-    } catch {
-        // Silently swallow analytics errors so they never interrupt UX
-    }
 }
