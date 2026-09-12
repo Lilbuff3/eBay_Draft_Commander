@@ -40,3 +40,30 @@ def test_empty_ai_data_is_safe():
     assert out['comps'] == []
     assert out['median_price'] is None
     assert out['source'] == ''
+
+
+def test_pending_listings_carry_the_name_fields_the_ui_reads(tmp_path):
+    """/listings/pending returned raw to_dict(), which has folder_name but not
+    name/display_name — so every Review row rendered a blank title and the
+    inline edit form pre-filled empty."""
+    from backend.app import create_app
+    from backend.app.services.queue_manager import QueueManager
+    from backend.app.services.queue_job import JobStatus
+
+    qm = QueueManager(base_path=tmp_path)
+    app = create_app(queue_manager=qm)
+    app.config['TESTING'] = True
+
+    folder = tmp_path / 'inbox' / 'canon-ae1'
+    folder.mkdir(parents=True)
+    (folder / 'photo_1.jpg').write_bytes(b'\xff\xd8')
+    job = qm.add_folder(str(folder))
+    qm.update_job(job.id, {
+        'status': JobStatus.PENDING_REVIEW,
+        'ai_data': {'listing': {'suggested_title': 'Canon AE-1 35mm SLR Body'}},
+    })
+
+    row = next(l for l in app.test_client().get('/api/listings/pending')
+               .get_json()['listings'] if l['id'] == job.id)
+    assert row['name'] == 'canon-ae1'
+    assert row['display_name'] == 'Canon AE-1 35mm SLR Body'

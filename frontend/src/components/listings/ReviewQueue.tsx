@@ -58,10 +58,10 @@ export function ReviewQueue() {
         setSelectedIds([])
     }
 
-    const handleEdit = (listing: { id: string; name: string; price: string | null }) => {
+    const handleEdit = (listing: { id: string; name?: string; display_name?: string; price: string | null }) => {
         setEditingId(listing.id)
         setEditValues({
-            title: listing.name || '',
+            title: listing.display_name || listing.name || '',
             price: listing.price || '',
         })
     }

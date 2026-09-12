@@ -82,9 +82,16 @@ def get_pending_listings():
                 status=JobStatus.PENDING_REVIEW.value
             ).all()
 
+            from backend.app.blueprints.api.jobs_api import _resolve_display_name
+
             jobs = []
             for j in db_jobs:
-                job = queue_manager._db_to_queue_job(j).to_dict()
+                queue_job = queue_manager._db_to_queue_job(j)
+                job = queue_job.to_dict()
+                # to_dict() carries folder_name only; the UI reads name /
+                # display_name, resolved the same way /api/jobs does.
+                job['name'] = queue_job.folder_name
+                job['display_name'] = _resolve_display_name(queue_job)
                 # Same nested shape /api/job/<id>/details serves, so the review
                 # queue and the item drawer read one structure.
                 ai = job.get('ai_data') or {}
