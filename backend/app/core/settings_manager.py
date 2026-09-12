@@ -131,13 +131,6 @@ class SettingsManager:
         ],
     }
     
-    # Required settings that must have values
-    REQUIRED = [
-        'EBAY_APP_ID',
-        'EBAY_CERT_ID',
-        'EBAY_USER_TOKEN',
-    ]
-    
     # Sensitive settings that should be masked in UI
     SENSITIVE = [
         'EBAY_USER_TOKEN',
@@ -316,30 +309,6 @@ class SettingsManager:
         """
         return self._settings.copy()
     
-    def validate(self) -> list:
-        """
-        Validate settings and return list of errors
-        
-        Returns:
-            List of validation error messages (empty if valid)
-        """
-        errors = []
-        
-        for key in self.REQUIRED:
-            if not self._settings.get(key):
-                errors.append(f"Missing required setting: {key}")
-        
-        # Validate specific formats
-        if self._settings.get('DEFAULT_PRICE'):
-            try:
-                price = float(self._settings['DEFAULT_PRICE'])
-                if price < 0:
-                    errors.append("Default price cannot be negative")
-            except ValueError:
-                errors.append("Default price must be a valid number")
-        
-        return errors
-    
     def is_sensitive(self, key: str) -> bool:
         """
         Check if a setting is sensitive (should be masked)
@@ -366,18 +335,6 @@ class SettingsManager:
             if key in keys:
                 return category
         return None
-    
-    def get_all_keys(self) -> list:
-        """
-        Get all known setting keys in order
-        
-        Returns:
-            List of all setting keys
-        """
-        keys = []
-        for category_keys in self.SETTING_CATEGORIES.values():
-            keys.extend(category_keys)
-        return keys
 
 
 # Singleton instance
@@ -393,32 +350,3 @@ def get_settings_manager() -> SettingsManager:
             if _instance is None:
                 _instance = SettingsManager()
     return _instance
-
-
-if __name__ == "__main__":
-    # Test the settings manager
-    logger.info("Testing Settings Manager...")
-    
-    manager = SettingsManager()
-    settings = manager.load()
-    
-    logger.info(f"\nLoaded {len(settings)} settings from {manager.env_path}")
-    logger.info("\nSettings by category:")
-    
-    for category, keys in SettingsManager.SETTING_CATEGORIES.items():
-        logger.info(f"\n{category}:")
-        for key in keys:
-            value = manager.get(key, "(not set)")
-            if manager.is_sensitive(key) and value != "(not set)":
-                # Mask sensitive values
-                value = value[:10] + "..." if len(value) > 10 else "***"
-            logger.info(f"  {key}: {value}")
-    
-    # Validate
-    errors = manager.validate()
-    if errors:
-        logger.warning("\n[WARN] Validation errors:")
-        for error in errors:
-            logger.warning(f"  - {error}")
-    else:
-        logger.info("\n[OK] All settings valid")

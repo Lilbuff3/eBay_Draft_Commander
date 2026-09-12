@@ -53,15 +53,9 @@ ASPECT_VALUE_MAX_LENGTH = 65  # eBay item specific value character limit
 
 # AI Analysis Configuration
 MAX_AI_IMAGES = 8  # Gemini API limit per request
-AI_REQUIRED_KEYS = ['identification', 'listing']  # Required response fields
-
-# Auto-Publish Configuration
-DEFAULT_CONFIDENCE_THRESHOLD = 85  # Minimum AI confidence % to auto-publish
-DEFAULT_MIN_PRICE = 10.00  # Minimum price to auto-publish
 
 # Token Refresh Configuration
 TOKEN_REFRESH_INTERVAL = 1800  # 30 minutes in seconds (eBay tokens expire at 120min)
-TOKEN_RETRY_DELAY = 300  # 5 minutes in seconds
 
 # Rate Limiting Configuration (Issue #8)
 # Gemini: env-configurable RPM (default 60 for paid tier, set to 2 for free tier)

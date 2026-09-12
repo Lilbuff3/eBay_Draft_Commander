@@ -653,11 +653,11 @@ python backend/wsgi.py
 
 ### Testing
 ```bash
-# Run all tests
-python run_all_tests.py
+# Backend
+pytest tests/unit -v
 
-# Or use pytest directly
-pytest tests/
+# Frontend
+cd frontend && npm run test:run
 ```
 
 ---

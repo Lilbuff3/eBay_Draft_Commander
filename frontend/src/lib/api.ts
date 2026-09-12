@@ -50,7 +50,7 @@ const API_BASE = '/api'
 // API_ACCESS_TOKEN configured in Settings on the server machine.
 const API_KEY_STORAGE = 'dc-api-key'
 
-export function getApiKey(): string | null {
+function getApiKey(): string | null {
     try {
         return localStorage.getItem(API_KEY_STORAGE)
     } catch {

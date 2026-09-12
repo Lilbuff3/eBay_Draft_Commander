@@ -12,7 +12,6 @@ Utility layer: typed HTTP client, helpers, input sanitization, PWA lifecycle, of
 |------|-------------|
 | `api.ts` | Typed HTTP client (`apiFetch<T>`), all API type definitions (Job, JobStatus, QueueStats, JobDetails, ItemDraft, etc.), and REST endpoint functions |
 | `utils.ts` | `cn()` for merging Tailwind class names (clsx + tailwind-merge) |
-| `sanitizer.ts` | `sanitizeDescription()` — removes XSS vectors, preserves safe HTML formatting |
 | `pwa.ts` | PWA lifecycle — install prompt, update detection, cache invalidation |
 | `offlineQueue.ts` | Stores failed requests in localStorage, replays when online |
 
