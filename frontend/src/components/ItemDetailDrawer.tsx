@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { ChevronDown, ChevronUp, AlertCircle, Loader2, Check, Search } from 'lucide-react'
 import { useIsMobile } from '@/hooks/useIsMobile'
+import { useHaptics } from '@/hooks/useHaptics'
 import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
@@ -76,6 +78,7 @@ export function ItemDetailDrawer({
     const [isSearchingCategories, setIsSearchingCategories] = useState(false)
     const categorySearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
     const isMobile = useIsMobile()
+    const { tap } = useHaptics()
 
     const [previewHtml, setPreviewHtml] = useState<string>('')
     const [isGeneratingPreview, setIsGeneratingPreview] = useState(false)
@@ -163,18 +166,12 @@ export function ItemDetailDrawer({
                     }
                 }
             }
-
-            // Enforce value validation for the overlapping aspects
-            for (const aspect of newSchema) {
-                if (aspect.values && aspect.values.length > 0) {
-                    const currentVal = newSpecs[aspect.name]
-                    if (currentVal && !aspect.values.includes(currentVal)) {
-                        delete newSpecs[aspect.name]
-                    }
-                }
-            }
-
-            updateDraft({ itemSpecifics: newSpecs })
+            const aspects = await fetchCategoryAspects(suggestion.category_id)
+            const aspectMap = aspects.reduce((acc, aspect) => {
+                acc[aspect.name] = ''
+                return acc
+            }, {} as Record<string, string>)
+            updateDraft({ itemSpecifics: { ...aspectMap, ...draft.itemSpecifics } })
         } catch (err) {
             console.error('Failed to fetch category aspects:', err)
         }
@@ -188,21 +185,22 @@ export function ItemDetailDrawer({
                 side={sheetSide}
                 className={
                     isMobile
-                        ? "w-full h-[85vh] rounded-t-2xl overflow-hidden flex flex-col p-0"
+                        ? "w-full h-[90dvh] max-h-[90dvh] rounded-t-3xl overflow-hidden flex flex-col p-0 border-stone-200 shadow-2xl"
                         : "sm:max-w-xl w-full overflow-hidden flex flex-col p-0"
                 }
             >
-                {/* Grabber — mobile only. There's no drag-to-dismiss wired up, so this
-                    is a tap-to-close control rather than a handle that implies a swipe
-                    the sheet doesn't support. */}
+                {/* Grabber — mobile tap-to-close with haptic feedback */}
                 {isMobile && (
                     <button
                         type="button"
-                        onClick={onClose}
-                        aria-label="Close"
-                        className="flex justify-center items-center pt-2 pb-1 flex-shrink-0 w-full min-h-[32px]"
+                        onClick={() => {
+                            tap()
+                            onClose()
+                        }}
+                        aria-label="Close drawer"
+                        className="flex justify-center items-center pt-3 pb-1 flex-shrink-0 w-full min-h-[44px] active:opacity-60 transition-opacity"
                     >
-                        <span className="w-10 h-1.5 bg-stone-300 rounded-full" />
+                        <span className="w-12 h-1.5 bg-stone-300 rounded-full" />
                     </button>
                 )}
 
@@ -334,7 +332,7 @@ export function ItemDetailDrawer({
                                                 {jobDetails.pricing_data.price_source}
                                             </p>
                                         ) : null}
-                                        {/* Profit Calculator */}
+                                        {/* Profit & Net Margin Calculator */}
                                         {(() => {
                                             const price = parseFloat(draft.price) || 0
                                             if (price <= 0) return null
@@ -342,8 +340,11 @@ export function ItemDetailDrawer({
                                             const shippingMethod = jobDetails?.profit_breakdown?.shipping_method ?? 'standard'
                                             const ebayFee = Math.round(price * 0.1325 * 100) / 100
                                             const paymentFee = 0.30
+                                            const cogsVal = draft.cogs !== undefined && draft.cogs !== '' ? parseFloat(draft.cogs) : (jobDetails?.profit_breakdown?.cogs ?? (typeof jobDetails?.raw_metadata?.cogs === 'number' ? jobDetails.raw_metadata.cogs : null))
                                             const takeHome = Math.round((price - ebayFee - paymentFee - shippingCost) * 100) / 100
-                                            const isNegative = takeHome < 0
+                                            const netProfit = cogsVal !== null && !isNaN(cogsVal) ? Math.round((takeHome - cogsVal) * 100) / 100 : null
+                                            const marginPct = netProfit !== null && price > 0 ? Math.round((netProfit / price) * 100) : null
+                                            const isNegative = (netProfit !== null ? netProfit : takeHome) < 0
                                             return (
                                                 <div className={`mt-2 p-2 rounded-md text-xs font-mono ${isNegative ? 'bg-red-50 border border-red-200' : 'bg-emerald-50 border border-emerald-200'}`}>
                                                     <div className="flex justify-between text-stone-500">
@@ -358,9 +359,18 @@ export function ItemDetailDrawer({
                                                         <span>Shipping ({shippingMethod === 'media_mail' ? 'Media Mail' : shippingCost <= 4.50 ? 'Small pkg' : shippingCost <= 6.50 ? 'Standard' : shippingCost <= 10 ? 'Large pkg' : 'Heavy'})</span>
                                                         <span>-${shippingCost.toFixed(2)}</span>
                                                     </div>
+                                                    {cogsVal !== null && !isNaN(cogsVal) && (
+                                                        <div className="flex justify-between text-stone-500">
+                                                            <span>Cost of Goods (COGS)</span>
+                                                            <span>-${cogsVal.toFixed(2)}</span>
+                                                        </div>
+                                                    )}
                                                     <div className={`flex justify-between font-bold border-t mt-1 pt-1 ${isNegative ? 'text-red-600 border-red-300' : 'text-emerald-700 border-emerald-300'}`}>
-                                                        <span>Your take-home</span>
-                                                        <span>${takeHome.toFixed(2)}</span>
+                                                        <span>{netProfit !== null ? 'Net Profit' : 'Your take-home'}</span>
+                                                        <span>
+                                                            ${(netProfit !== null ? netProfit : takeHome).toFixed(2)}
+                                                            {marginPct !== null ? ` (${marginPct}% margin)` : ''}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             )
@@ -439,10 +449,15 @@ export function ItemDetailDrawer({
                                 {/* Item Specifics */}
                                 <div className="space-y-3">
                                     <div className="flex justify-between items-center">
-                                        <label className="text-xs font-bold text-stone-400 uppercase tracking-wider block">
-                                            Item Specifics
-                                        </label>
-                                        <span className="text-xs text-stone-400">Click to edit</span>
+                                        <div>
+                                            <label className="text-xs font-bold text-stone-400 uppercase tracking-wider block">
+                                                Item Specifics & Cassini SEO
+                                            </label>
+                                            <span className="text-[10px] text-stone-400">100% required & recommended facet coverage</span>
+                                        </div>
+                                        <Badge className="bg-sage-100 text-sage-800 border-sage-200 text-[10px] font-bold">
+                                            {Object.values(draft.itemSpecifics).filter(v => v && String(v).trim() && v !== 'Does Not Apply').length} Specs Filled
+                                        </Badge>
                                     </div>
                                     <div className="grid grid-cols-1 gap-2">
                                         {(() => {

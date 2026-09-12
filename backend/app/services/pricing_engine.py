@@ -416,7 +416,14 @@ class PricingEngine:
         
         sold_items, grade_filtered = self.prefer_same_grade_comps(sold_items, our_condition)
 
-        prices = [item["price"] for item in sold_items if item["price"] > 0]
+        prices = []
+        for item in sold_items:
+            try:
+                p = float(item.get("price", 0))
+                if p > 0:
+                    prices.append(p)
+            except (TypeError, ValueError):
+                continue
 
         if not prices:
             return {

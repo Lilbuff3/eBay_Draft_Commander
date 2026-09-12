@@ -25,6 +25,7 @@ import { normalizeIsbn, isLikelyIsbn, ScanDeduper, playScanBeep } from '@/lib/is
 import { CONDITION_OPTIONS } from '@/lib/conditions'
 import { CameraBarcodeScanner } from '@/components/CameraBarcodeScanner'
 import { useCommanderStore } from '@/store/useCommanderStore'
+import { useHaptics } from '@/hooks/useHaptics'
 import { cn } from '@/lib/utils'
 
 function ConditionItems() {
@@ -219,6 +220,7 @@ export function BatchScan() {
     const [items, dispatch] = useReducer(batchReducer, [], initBatchState)
     const [isProcessing, setIsProcessing] = useState(false)
     const handlePhotoFlow = useCommanderStore(s => s.handleScan)
+    const { success: hapticSuccess, error: hapticError } = useHaptics()
 
     // Condition session: every new scan inherits this until you change it —
     // scan the New pile, switch, scan the Very Good pile.
@@ -255,6 +257,7 @@ export function BatchScan() {
         const isbn = normalizeIsbn(rawIsbn)
         if (!isLikelyIsbn(isbn)) {
             playScanBeep('error')
+            hapticError()
             return
         }
         if (!deduperRef.current.shouldAccept(isbn)) return // camera re-read / double-Enter
@@ -283,20 +286,23 @@ export function BatchScan() {
                     }
                 })
                 playScanBeep('success')
+                hapticSuccess()
             } else {
                 dispatch({
                     type: 'UPDATE_ITEM',
                     payload: { id, data: { title: 'Book Not Found', status: 'not_found' } }
                 })
                 playScanBeep('error')
+                hapticError()
             }
         } catch {
             dispatch({
                 type: 'UPDATE_ITEM',
                 payload: { id, data: { title: 'Lookup Error', status: 'error' } }
             })
+            hapticError()
         }
-    }, [dispatch])
+    }, [dispatch, hapticSuccess, hapticError])
 
     const attachPhoto = useCallback((itemId: string, file: File) => {
         photosRef.current.set(itemId, file)

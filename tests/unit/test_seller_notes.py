@@ -241,3 +241,21 @@ class TestPluginDeriveNote:
     def test_collapses_whitespace(self):
         from integrations.hermes.plugin import _derive_note
         assert _derive_note("new   old   stock  sell") == "new old stock"
+
+
+class TestQueueManagerNotePersistence:
+    def test_add_folder_sets_job_note(self, tmp_path):
+        from backend.app.services.queue_manager import QueueManager
+        qm = QueueManager(base_path=tmp_path)
+        item_folder = tmp_path / "inbox" / "item1"
+        item_folder.mkdir(parents=True)
+        
+        job = qm.add_folder(str(item_folder), metadata={'note': 'limited edition 1 of 500'})
+        assert job.note == 'limited edition 1 of 500'
+        assert job.job_metadata.get('note') == 'limited edition 1 of 500'
+        
+        # Verify persistence round-trip
+        reloaded = qm.get_job_by_id(job.id)
+        assert reloaded is not None
+        assert reloaded.note == 'limited edition 1 of 500'
+

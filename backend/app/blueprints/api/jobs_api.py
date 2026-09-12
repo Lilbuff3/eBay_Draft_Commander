@@ -90,6 +90,15 @@ def get_jobs():
     jobs_data = []
     all_jobs = qm.get_all_jobs()
     for j in all_jobs:
+        ai_data = j.ai_data or {}
+        cogs = (j.job_metadata or {}).get('cogs') if hasattr(j, 'job_metadata') and j.job_metadata else None
+        p_val = float(j.price or ai_data.get('suggested_price') or 0)
+        s_val = float(ai_data.get('shipping_cost', 6.50))
+        fees = round(p_val * EBAY_FINAL_VALUE_FEE_RATE + EBAY_PAYMENT_PROCESSING_FEE, 2) if p_val > 0 else 0
+        take_home = round(p_val - fees - s_val, 2) if p_val > 0 else 0
+        net = round(take_home - float(cogs), 2) if (p_val > 0 and cogs is not None) else None
+        margin_pct = round((net / p_val) * 100, 1) if (net is not None and p_val > 0) else None
+
         jobs_data.append({
             'id': j.id,
             'name': j.folder_name,
@@ -99,13 +108,17 @@ def get_jobs():
             'listing_id': getattr(j, 'listing_id', None),
             'offer_id': getattr(j, 'offer_id', None),
             'price': getattr(j, 'price', None),
+            'cogs': cogs,
+            'net_profit': net,
+            'net_margin_pct': margin_pct,
             'error_type': getattr(j, 'error_type', None),
             'error_message': getattr(j, 'error_message', None),
             'started_at': getattr(j, 'started_at', None),
             'completed_at': getattr(j, 'completed_at', None),
             'thumbnail_url': _resolve_thumb_url(j, qm),
-            'condition': j.job_metadata.get('condition') if hasattr(j, 'job_metadata') else None,
-            'scheduled_time': getattr(j, 'scheduled_time', None)
+            'condition': j.job_metadata.get('condition') if hasattr(j, 'job_metadata') and j.job_metadata else None,
+            'scheduled_time': getattr(j, 'scheduled_time', None),
+            'note': getattr(j, 'note', None) or (j.job_metadata.get('note') if hasattr(j, 'job_metadata') and j.job_metadata else None),
         })
     return jsonify(jobs_data)
 
@@ -196,16 +209,22 @@ def get_job_details(job_id):
     shipping_cost_val = float(ai_data.get('shipping_cost', 6.50))
     ebay_fee = round(listing_price * EBAY_FINAL_VALUE_FEE_RATE, 2) if listing_price > 0 else 0
     payment_fee = EBAY_PAYMENT_PROCESSING_FEE if listing_price > 0 else 0
+    cogs_val = float(job.job_metadata.get('cogs')) if (job.job_metadata and job.job_metadata.get('cogs') is not None) else None
     take_home = round(listing_price - ebay_fee - payment_fee - shipping_cost_val, 2) if listing_price > 0 else 0
+    net_profit = round(take_home - cogs_val, 2) if (cogs_val is not None and listing_price > 0) else None
+    net_margin_pct = round((net_profit / listing_price) * 100, 1) if (net_profit is not None and listing_price > 0) else None
 
     response['profit_breakdown'] = {
         'listing_price': listing_price,
+        'cogs': cogs_val,
         'ebay_fee': ebay_fee,
         'ebay_fee_rate': EBAY_FINAL_VALUE_FEE_RATE,
         'payment_fee': payment_fee,
         'shipping_cost': shipping_cost_val,
         'shipping_method': ai_data.get('shipping_method', 'standard'),
         'take_home': take_home,
+        'net_profit': net_profit,
+        'net_margin_pct': net_margin_pct,
     }
 
     return jsonify(response)
@@ -594,6 +613,17 @@ def upload_files():
                     json.dump({'cogs': cogs_val}, f)
             except (ValueError, TypeError):
                 logger.warning(f"Invalid cogs value: {cogs}")
+
+        # Seller note extraction and COGS fallback
+        note_raw = (request.form.get('note') or request.form.get('seller_note') or '').strip()
+        if note_raw:
+            from backend.app.blueprints.api.queue_api import _extract_cogs, _clean_capture_note
+            extracted_cogs, note_clean = _extract_cogs(_clean_capture_note(note_raw))
+            if extracted_cogs is not None and 'cogs' not in metadata:
+                metadata['cogs'] = extracted_cogs
+            if note_clean:
+                metadata['note'] = note_clean
+
         try:
             if request.form.get('title'):
                 metadata['user_title'] = validate_title(request.form.get('title'))

@@ -5,7 +5,7 @@ Now powered by SQLite database.
 import json
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from backend.app.core.database import init_db, TemplateModel
 from backend.app.core.logger import get_logger
 
@@ -138,52 +138,43 @@ class TemplateManager:
     def get_names(self) -> List[str]:
         return [t.name for t in self.get_all()]
 
-    def render_description(self, title: str, description: str, images: List[str], aspects: Dict[str, List[str]], condition: str) -> str:
+    def render_description(self, title: str, description: str, images: Optional[List[str]] = None, aspects: Optional[Dict[str, Any]] = None, condition: str = "") -> str:
         """
-        Render the final HTML description using templates/ebay_master.html.
+        Render clean, mobile-native 2026 description using semantic HTML (<p>, <b>, <ul>, <li>).
+        Eliminates heavy HTML tables, inline style containers, and duplicate image embeds to ensure
+        100% native editability in the official eBay mobile app.
         """
         try:
-            # Locate the master template
-            template_path = Path(__file__).parent.parent.parent.parent / "templates" / "ebay_master.html"
-            if not template_path.exists():
-                return f"<h1>{title}</h1><p>{description}</p>" # Fallback
-                
-            with open(template_path, 'r', encoding='utf-8') as f:
-                html = f.read()
-                
-            # 1. Render Images (inline-styled, stacked for mobile)
-            img_html = ""
-            for img in images[:12]:  # Max 12
-                img_html += (
-                    f'<div style="text-align: center; margin-bottom: 12px;">'
-                    f'<img src="{img}" alt="{title}" style="max-width: 100%; height: auto; border: 1px solid #eee; border-radius: 6px;">'
-                    f'</div>'
-                )
+            desc_clean = (description or "").strip()
+            cond_clean = (condition or "").strip()
+            cond_html = f"<p><strong>Condition:</strong> {cond_clean}</p>" if cond_clean else ""
 
-            # 2. Render Aspects (inline-styled table — works on eBay mobile)
-            aspects_html = '<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">'
-            for k, v in aspects.items():
-                val_str = ", ".join(v) if isinstance(v, list) else str(v)
-                aspects_html += (
-                    f'<tr style="border-bottom: 1px solid #f0f0f0;">'
-                    f'<th style="text-align: left; padding: 10px 8px; width: 40%; color: #666; font-weight: 500; background: #fdfdfd;">{k}</th>'
-                    f'<td style="padding: 10px 8px; font-weight: 600;">{val_str}</td>'
-                    f'</tr>'
-                )
-            aspects_html += '</table>'
+            template_path = Path(__file__).parent.parent.parent.parent / "templates" / "ebay_master.html"
+            if template_path.exists():
+                with open(template_path, 'r', encoding='utf-8') as f:
+                    html = f.read()
+                
+                # Replace tokens, omitting legacy image stacks and aspect tables
+                html = html.replace('{{TITLE}}', title or '')
+                html = html.replace('{{DESCRIPTION}}', desc_clean)
+                html = html.replace('{{IMAGES}}', '')
+                html = html.replace('{{ASPECTS}}', '')
+                html = html.replace('{{CONDITION}}', cond_html)
+                return html.strip()
             
-            # 3. Replace Token
-            html = html.replace('{{TITLE}}', title)
-            html = html.replace('{{DESCRIPTION}}', description)
-            html = html.replace('{{IMAGES}}', img_html)
-            html = html.replace('{{ASPECTS}}', aspects_html)
-            html = html.replace('{{CONDITION}}', condition)
-            
-            return html
+            # Fallback when template file is absent
+            parts = []
+            if title:
+                parts.append(f"<p><strong>{title}</strong></p>")
+            if desc_clean:
+                parts.append(desc_clean)
+            if cond_html:
+                parts.append(cond_html)
+            return "\n\n".join(parts)
             
         except Exception as e:
             logger.error(f"Template Render Error: {e}")
-            return f"<h1>{title}</h1><p>{description}</p>"
+            return f"<p><strong>{title}</strong></p>\n<p>{description}</p>"
 
 def get_template_manager() -> TemplateManager:
     global _instance

@@ -47,14 +47,14 @@ AI-powered eBay listing automation platform. Flask backend + React TypeScript PW
 - `load_dotenv_manually()` walks parent dirs to find `.env` (supports git worktrees)
 - SQLite DB at `data/commander.db` — WAL mode, auto-created on first run
 
-### Hard Rules (no IDE hook enforces these here — discipline required)
-Claude Code enforces some of these with hooks; Antigravity/Gemini has no such rails, so they are rules:
-1. **Never edit `.env` directly** — use SettingsManager / the Settings UI / `/api/settings`. `.env` writes are atomic (`.tmp` + `os.replace`) and GET-masked secrets (`••••`) must never be written back.
-2. **Never hand-edit `static/app/`** — it is build output. Change `frontend/src`, then `npm run build`, and commit the regenerated build with the source.
+### Hard Rules (enforced via .agents/hooks.json & tool rails)
+Antigravity and Claude Code both enforce these safety rails (via `.agents/hooks.json`):
+1. **Never edit `.env` directly** — use SettingsManager / the Settings UI / `/api/settings`. `.env` writes are atomic (`.tmp` + `os.replace`) and GET-masked secrets (`••••`) must never be written back. (Hard-blocked by PreToolUse hook).
+2. **Never hand-edit `static/app/`** — it is build output. Change `frontend/src`, then `npm run build`, and commit the regenerated build with the source. (Hard-blocked by PreToolUse hook).
 3. **Never commit `data/commander.db` from a feature branch/worktree** — a local DB riding a branch clobbers master's (happened 2026-07-17).
-4. **Restart the backend after backend changes** — no hot reload: `POST http://127.0.0.1:5000/api/system/restart` (409 = running unsupervised, restart manually).
-5. **Run `npx eslint` on changed frontend files** — Claude's auto-lint hook doesn't exist here.
-6. **Tests need Python 3.12**: `"C:\Program Files\Python312\python.exe" -m pytest tests/unit -q` — bare `python` may be a 3.13 without deps.
+4. **Restart the backend after backend changes** — no hot reload: `POST http://127.0.0.1:5000/api/system/restart` (use `/restart-backend`; 409 = running unsupervised, restart manually).
+5. **Run `npx eslint` on changed frontend files** — automated post-tool hook runs on frontend file edits.
+6. **Tests need Python 3.12**: `"C:\Program Files\Python312\python.exe" -m pytest tests/unit -q` (or invoke `/run-tests`) — bare `python` may be a 3.13 without deps.
 
 ### Recent Systems (2026-07 — details in CLAUDE.md)
 - **Autopilot** — daily offers-to-watchers, markdown ladder, unsold relists (`autopilot_scanner.py`, dry-run default)

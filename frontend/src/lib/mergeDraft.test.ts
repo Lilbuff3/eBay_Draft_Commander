@@ -11,7 +11,8 @@ const base: ItemDraft = {
     scheduledTime: '',
     itemSpecifics: {},
     categoryId: '',
-    categoryName: ''
+    categoryName: '',
+    cogs: ''
 }
 
 describe('mergeDraft', () => {

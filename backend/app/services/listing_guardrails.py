@@ -51,6 +51,13 @@ _TRAILING_DANGLE_RE = re.compile(r'[,:\-(]+\s*$')
 # Title hygiene
 # ---------------------------------------------------------------------------
 
+_SPAM_WORDS_RE = re.compile(
+    r'\b(l@@k|look|wow|must see|rare|awesome|cheap|best price|great deal|fast ship(?:ping)?|free ship(?:ping)?|mint!|new!)\b',
+    re.IGNORECASE
+)
+_FORBIDDEN_TITLE_CHARS = re.compile(r'[*~_!#$^+=<>{}\[\]|\\]+')
+
+
 def clean_title(title: Optional[str]) -> str:
     """Strip dangling trailing fragments, collapse repeated words, normalize
     whitespace, and guarantee the result is <= TITLE_MAX_LENGTH with no
@@ -98,17 +105,119 @@ def clean_title(title: Optional[str]) -> str:
     return text
 
 
+def optimize_cassini_title(
+    title: Optional[str],
+    specifics: Optional[Dict[str, Any]] = None,
+    condition: Optional[str] = None
+) -> str:
+    """Optimize title to target 75-80 characters, front-loading keywords,
+    eliminating duplicates and spam tokens, and appending high-value specific attributes.
+    """
+    if not title:
+        return ""
+
+    # 1. Strip forbidden characters and spam words
+    text = _FORBIDDEN_TITLE_CHARS.sub(' ', title)
+    text = _SPAM_WORDS_RE.sub('', text)
+    text = clean_title(text)
+
+    if not specifics:
+        return clean_title(text)
+
+    # 2. Backfill high-value aspect keywords if title is under-budget (< 68 chars)
+    attribute_priority = ['MPN', 'Model', 'Color', 'Material', 'Size', 'Department']
+    existing_words = {w.lower().rstrip(',:;-') for w in text.split()}
+
+    for attr in attribute_priority:
+        val = specifics.get(attr)
+        if not val or not isinstance(val, str):
+            continue
+        val_clean = val.strip()
+        val_lower = val_clean.lower()
+        if val_lower in {'does not apply', 'unbranded', 'n/a', 'none'}:
+            continue
+        
+        # Check if already present in title
+        val_words = [w.lower().rstrip(',:;-') for w in val_clean.split()]
+        if any(w in existing_words for w in val_words):
+            continue
+        
+        # Try appending
+        candidate = f"{text} {val_clean}"
+        if len(candidate) <= TITLE_MAX_LENGTH:
+            text = candidate
+            existing_words.update(val_words)
+
+    # 3. Add condition keyword if room and not already present
+    if condition and len(text) <= TITLE_MAX_LENGTH - 5:
+        cond_str = condition.strip().lower()
+        cond_word = "New" if "new" in cond_str else ("Parts" if "parts" in cond_str else "Used")
+        if cond_word.lower() not in existing_words:
+            if len(f"{text} {cond_word}") <= TITLE_MAX_LENGTH:
+                text = f"{text} {cond_word}"
+
+    return clean_title(text)
+
+
 # ---------------------------------------------------------------------------
 # Brand / aspect normalization
 # ---------------------------------------------------------------------------
 
+COMMON_CANONICAL_SYNONYMS = {
+    'cotton': '100% Cotton',
+    'polyester': '100% Polyester',
+    'poly': 'Polyester',
+    'fleece': 'Fleece',
+    'leather': 'Leather',
+    'faux leather': 'Faux Leather',
+    'wood': 'Wood',
+    'plastic': 'Plastic',
+    'metal': 'Metal',
+    'stainless steel': 'Stainless Steel',
+    'aluminum': 'Aluminum',
+    'silver': 'Silver',
+    'gold': 'Gold',
+    'black': 'Black',
+    'white': 'White',
+    'blue': 'Blue',
+    'red': 'Red',
+    'green': 'Green',
+    'gray': 'Gray',
+    'grey': 'Gray',
+    'brown': 'Brown',
+    'beige': 'Beige',
+    'tan': 'Tan',
+    'yellow': 'Yellow',
+    'orange': 'Orange',
+    'purple': 'Purple',
+    'pink': 'Pink',
+    'men': "Men's",
+    'mens': "Men's",
+    'women': "Women's",
+    'womens': "Women's",
+    'unisex': 'Unisex Adults',
+    'kids': 'Unisex Kids',
+    'boys': "Boys'",
+    'girls': "Girls'",
+    'wireless': 'Wireless',
+    'bluetooth': 'Bluetooth',
+    'na': 'Does Not Apply',
+    'n/a': 'Does Not Apply',
+    'none': 'Does Not Apply',
+    'unknown': 'Unbranded',
+    'generic': 'Unbranded',
+}
+
+
 def normalize_aspects(specs: Dict[str, Any]) -> Dict[str, Any]:
-    """Normalize identity aspects (Brand) in `specs`.
+    """Normalize identity and facet aspects in `specs`.
 
     - Blocklisted non-brand tokens ("Signed", "Various", "N/A", "Unknown",
-      "Unbranded") -> "Unbranded" (case-insensitive compare).
+      "Unbranded", "Generic") -> "Unbranded" (case-insensitive compare).
+    - Blocklisted MPN/UPC tokens ("N/A", "Unknown", "None", "na") -> "Does Not Apply".
+    - Canonicalizes common single-word values (e.g. "cotton" -> "100% Cotton", "black" -> "Black").
     - "A / B" style multi-value strings -> first meaningful value ("A").
-    - Empty/junk values are dropped entirely.
+    - Empty/junk placeholder values ("Varies", "See description") are dropped entirely.
 
     Returns a (possibly new) dict; safe no-op on clean input.
     """
@@ -139,7 +248,86 @@ def normalize_aspects(specs: Dict[str, Any]) -> Dict[str, Any]:
         else:
             result[name] = value
 
+    # Canonicalize and clean standard facet fields
+    for k, v in list(result.items()):
+        if not isinstance(v, str):
+            continue
+        v_clean = v.strip()
+        v_lower = v_clean.lower()
+
+        # Drop generic placeholder phrases that harm Cassini SEO
+        if v_lower in {'varies', 'see description', 'see photos', 'see title', 'check photos', 'unknown/other'}:
+            result.pop(k, None)
+            continue
+
+        # Standardize MPN / UPC / ISBN / Part Number
+        if k in {'MPN', 'UPC', 'ISBN', 'Manufacturer Part Number'} and v_lower in {'na', 'n/a', 'none', 'unknown', 'generic', 'does not apply'}:
+            result[k] = 'Does Not Apply'
+            continue
+
+        # Apply canonical synonym mapping
+        if v_lower in COMMON_CANONICAL_SYNONYMS:
+            if k == 'Brand':
+                result[k] = 'Unbranded' if v_lower in {'unknown', 'generic'} else COMMON_CANONICAL_SYNONYMS[v_lower]
+            elif v_lower in {'unknown', 'generic'}:
+                result.pop(k, None)
+            else:
+                result[k] = COMMON_CANONICAL_SYNONYMS[v_lower]
+        elif len(v_clean.split()) == 1 and v_clean.islower() and len(v_clean) > 2:
+            result[k] = v_clean.capitalize()
+
     return result
+
+
+def calculate_cassini_seo_score(specifics: Dict[str, Any], aspect_schema: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Compute quantified Cassini SEO search readiness score (0-100%) and fill metrics."""
+    if not specifics:
+        return {
+            'seo_score': 0,
+            'required_total': 0,
+            'required_filled': 0,
+            'recommended_total': 0,
+            'recommended_filled': 0,
+            'total_aspects_count': 0
+        }
+
+    clean_specs = {k: v for k, v in specifics.items() if v and str(v).strip() and str(v).strip().lower() not in {'does not apply', 'n/a', 'none', 'varies'}}
+    
+    if not aspect_schema:
+        count = len(clean_specs)
+        score = min(100, int((count / 8.0) * 100))
+        return {
+            'seo_score': score,
+            'required_total': 0,
+            'required_filled': 0,
+            'recommended_total': 8,
+            'recommended_filled': count,
+            'total_aspects_count': len(clean_specs)
+        }
+
+    required_aspects = [a for a in aspect_schema if a.get('isRequired')]
+    optional_aspects = [a for a in aspect_schema if not a.get('isRequired')]
+
+    req_total = len(required_aspects)
+    req_filled = sum(1 for a in required_aspects if a.get('name') in specifics and str(specifics[a.get('name')]).strip())
+
+    rec_sample = optional_aspects[:12]
+    rec_total = max(1, len(rec_sample))
+    rec_filled = sum(1 for a in rec_sample if a.get('name') in specifics and str(specifics[a.get('name')]).strip())
+
+    if req_total > 0:
+        score = (req_filled / req_total) * 60 + (rec_filled / rec_total) * 40
+    else:
+        score = (rec_filled / rec_total) * 100
+
+    return {
+        'seo_score': max(10, min(100, round(score))),
+        'required_total': req_total,
+        'required_filled': req_filled,
+        'recommended_total': rec_total,
+        'recommended_filled': rec_filled,
+        'total_aspects_count': len(clean_specs)
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -322,15 +510,12 @@ def apply_pre_listing_guardrails(
     review_reason = None
 
     try:
-        job.title = clean_title(getattr(job, 'title', None))
-    except Exception as e:
-        logger.error(f"Title guardrail failed (job proceeds unmodified): {e}")
-
-    try:
         specifics = getattr(job, 'item_specifics', None) or {}
         job.item_specifics = normalize_aspects(specifics)
+        condition = getattr(job, 'condition', None)
+        job.title = optimize_cassini_title(getattr(job, 'title', None), specifics=job.item_specifics, condition=condition)
     except Exception as e:
-        logger.error(f"Aspect guardrail failed (job proceeds unmodified): {e}")
+        logger.error(f"Title/Aspect guardrail failed (job proceeds unmodified): {e}")
 
     # Under-price guard: engine flagged its own number as untrustworthy.
     if confidence == 'low':

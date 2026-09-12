@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CheckCircle, AlertCircle, Edit3, Trash2, CheckSquare, Square, RefreshCcw, ShieldCheck, ShieldAlert, Save, X } from 'lucide-react'
+import { CheckCircle, AlertCircle, Edit3, Trash2, CheckSquare, Square, RefreshCcw, ShieldCheck, ShieldAlert, Save, X, LayoutGrid, Layers } from 'lucide-react'
 import { useCommanderStore } from '@/store/useCommanderStore'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,7 @@ import {
     Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import { CompactPriceExplainer } from '@/components/item-detail/PriceExplainer'
+import { MobileReviewDeck } from './MobileReviewDeck'
 import type { Job, JobDetails } from '@/lib/api'
 
 /** Pending listings store flat pricing_* keys on ai_data; details uses pricing_data. */
@@ -43,6 +44,7 @@ export function ReviewQueue() {
     const deletePending = useCommanderStore(state => state.deletePending)
 
     const [selectedIds, setSelectedIds] = useState<string[]>([])
+    const [viewMode, setViewMode] = useState<'list' | 'deck'>('list')
     const [isRefreshing, setIsRefreshing] = useState(false)
     const [isLoading, setIsLoading] = useState(true)
     const [loadFailed, setLoadFailed] = useState(false)
@@ -159,6 +161,35 @@ export function ReviewQueue() {
                     <p className="text-stone-500 text-sm">Review and approve listings that didn't meet the auto-publish threshold.</p>
                 </div>
                 <div className="flex items-center gap-3">
+                    <div className="flex items-center bg-stone-100 p-1 rounded-xl border border-stone-200">
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('list')}
+                            className={cn(
+                                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors",
+                                viewMode === 'list'
+                                    ? "bg-white text-ink-800 shadow-xs"
+                                    : "text-stone-500 hover:text-stone-800"
+                            )}
+                        >
+                            <LayoutGrid size={14} />
+                            List
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('deck')}
+                            className={cn(
+                                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors",
+                                viewMode === 'deck'
+                                    ? "bg-white text-persimmon-600 shadow-xs"
+                                    : "text-stone-500 hover:text-stone-800"
+                            )}
+                        >
+                            <Layers size={14} />
+                            5s Cards
+                        </button>
+                    </div>
+
                     <Button
                         variant="outline"
                         onClick={handleRefresh}
@@ -168,14 +199,16 @@ export function ReviewQueue() {
                         <RefreshCcw size={16} className={cn(isRefreshing && 'animate-spin')} />
                         Refresh
                     </Button>
-                    <Button
-                        disabled={selectedIds.length === 0}
-                        onClick={handleBatchApprove}
-                        className="gap-2 flex-1 sm:flex-none disabled:opacity-50"
-                    >
-                        <CheckCircle size={16} />
-                        Approve ({selectedIds.length})
-                    </Button>
+                    {viewMode === 'list' && (
+                        <Button
+                            disabled={selectedIds.length === 0}
+                            onClick={handleBatchApprove}
+                            className="gap-2 flex-1 sm:flex-none disabled:opacity-50"
+                        >
+                            <CheckCircle size={16} />
+                            Approve ({selectedIds.length})
+                        </Button>
+                    )}
                 </div>
             </div>
 
@@ -198,6 +231,14 @@ export function ReviewQueue() {
                     <h3 className="text-ink-800 font-bold text-lg">Queue Clear</h3>
                     <p className="text-stone-500 max-w-sm text-center">All listings have either been published or are waiting in the main queue.</p>
                 </div>
+            ) : viewMode === 'deck' ? (
+                <MobileReviewDeck
+                    listings={pendingListings}
+                    onApprove={approvePending}
+                    onUpdate={updatePending}
+                    onDelete={deletePending}
+                    onSwitchToList={() => setViewMode('list')}
+                />
             ) : (
                 <div className="space-y-4">
                     <div className="flex items-center gap-3 px-4 py-2 text-xs font-bold text-stone-500 uppercase tracking-wider">
