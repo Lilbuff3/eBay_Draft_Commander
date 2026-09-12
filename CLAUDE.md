@@ -63,7 +63,7 @@ backend/                    Flask app factory
       ui.py                 Serves React SPA at /app/, redirects / to /app/
     core/
       constants.py          CONDITION_MAP, CONDITION_ID_MAP, rate limits, model names
-      database.py           SQLAlchemy models (JobModel, TemplateModel, OrphanedMedia, AppToken)
+      database.py           SQLAlchemy models (JobModel, OrphanedMedia, AppToken)
       models.py             InternalListing dataclass (adapter pattern)
       settings_manager.py   .env read/write singleton
       rate_limiter.py       Token-bucket (gemini: GEMINI_RPM_LIMIT env, default 60; ebay: 5 burst)
@@ -170,7 +170,6 @@ frontend/                   React 18 + Vite + TypeScript
 SQLite at `data/commander.db`. ORM: SQLAlchemy. WAL mode enabled.
 
 - **`jobs`** table (JobModel) — id (8-char hex PK), folder_path, status, scheduled_time, AI data + user overrides stored as JSON text columns (ai_json, item_specifics_json, metadata_json, timing_json)
-- **`templates`** table (TemplateModel) — name (unique), data_json, use_count
 - **`orphaned_media`** table — Tracks uploaded images from failed listings for cleanup
 - **`app_tokens`** table — eBay access token persistence
 - **`sales`** table (SaleModel) — local sold-order snapshots for the profit ledger: order_id PK, listing_id/job_id join keys, sale_total, sold_at, frozen fees_est/ship_est/cogs
