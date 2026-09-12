@@ -9,6 +9,7 @@ import re
 import statistics
 from typing import List, Dict, Optional, Union, Any
 from urllib.parse import quote
+from backend.app.core import selling_costs
 from backend.app.core.constants import (
     AI_PRICING_MODEL,
     EBAY_FINAL_VALUE_FEE_RATE,
@@ -456,8 +457,7 @@ class PricingEngine:
             shipping_buffered = True
 
         # --- Margin Protection ---
-        # Estimated eBay Fees: ~13.25% + $0.30
-        est_fees = (suggested_price * EBAY_FINAL_VALUE_FEE_RATE) + EBAY_PAYMENT_PROCESSING_FEE
+        est_fees = selling_costs.fees(suggested_price)
         projected_profit = suggested_price - est_fees - acquisition_cost - shipping_cost
         
         min_margin = 10.00 # Minimum desired profit per item
@@ -734,7 +734,7 @@ class PricingEngine:
                         
                     final_price = self._sanitize_price(self._smart_round_99(final_price))
                     
-                    fees = (final_price * EBAY_FINAL_VALUE_FEE_RATE) + EBAY_PAYMENT_PROCESSING_FEE
+                    fees = selling_costs.fees(final_price)
                     return {
                         "suggested_price": final_price,
                         "comps": [],

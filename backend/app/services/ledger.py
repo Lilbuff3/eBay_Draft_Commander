@@ -5,39 +5,27 @@ upsert sweep piggybacked on every /api/orders fetch. COGS comes from
 job_metadata['cogs'] (WhatsApp caption, item edit, or sourcing flow) and is
 frozen onto the sale row; unknown COGS is a first-class state (net = None).
 
-Fee estimate reuses the same constants as sourcing.compute_verdict:
-    fees = sale_total * FVF_RATE + payment_fee
-    net  = sale_total - fees - ship_est - cogs
+Fee and net math lives in core.selling_costs -- shared with the sourcing
+verdict and the item drawer's profit breakdown, so the three can't drift.
 """
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from backend.app.core.constants import (
-    EBAY_FINAL_VALUE_FEE_RATE,
-    EBAY_PAYMENT_PROCESSING_FEE,
-)
+from backend.app.core import selling_costs
 from backend.app.core.logger import get_logger
 
 logger = get_logger('services.ledger')
-
-
-def _setting_float(key: str, default: float) -> float:
-    from backend.app.core.settings_manager import get_settings_manager
-    try:
-        return float(get_settings_manager().get(key, str(default)))
-    except (TypeError, ValueError):
-        return default
 
 
 def estimate_net(sale_total: float, cogs: Optional[float] = None,
                  ship_cost: Optional[float] = None) -> Dict[str, Any]:
     """Fee/net estimate for one sale. cogs=None -> net=None (unknown, not zero)."""
     if ship_cost is None:
-        ship_cost = _setting_float('SOURCING_SHIP_COST', 5.0)
-    fees = sale_total * EBAY_FINAL_VALUE_FEE_RATE + EBAY_PAYMENT_PROCESSING_FEE
+        ship_cost = selling_costs.ship_cost()
+    fees = selling_costs.fees(sale_total)
     net = None
     if cogs is not None:
-        net = sale_total - fees - ship_cost - cogs
+        net = selling_costs.net(sale_total, ship_cost, cogs)
     return {
         'fees_est': round(fees, 2),
         'ship_est': round(ship_cost, 2),
