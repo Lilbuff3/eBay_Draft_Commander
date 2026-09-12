@@ -292,6 +292,54 @@ class TestFindOwnSale:
         assert svc.find_own_sale() is None
         assert svc.find_own_sale(isbn=None, mpn=None) is None
 
+    def test_malformed_ai_json_is_skipped_not_fatal(self, session_factory, tmp_path):
+        """json_extract raises on malformed JSON — a single bad row must not
+        take down the whole lookup (the Python loop used to skip it per-row)."""
+        session = session_factory()
+        try:
+            bad = JobModel(id="jobbadjson", folder_path="/tmp/bad", folder_name="bad",
+                           status="completed")
+            bad.ai_json = "{not valid json"
+            session.add(bad)
+            session.add(SaleModel(order_id="ord-bad", listing_id="list-bad", job_id="jobbadjson",
+                                  title="Broken", sale_total=99.0,
+                                  sold_at=datetime(2026, 7, 1, tzinfo=timezone.utc)))
+            session.commit()
+        finally:
+            session.close()
+        self._seed_job_and_sale(session_factory, "jobgood01", isbn="9780000000009",
+                                sale_total=31.0, order_id="ord-good")
+        svc = LedgerService(tmp_path / "test_ledger.db")
+        svc.SessionFactory = session_factory
+        hit = svc.find_own_sale(isbn="9780000000009")
+        assert hit is not None and hit["price"] == 31.0
+
+    def test_returns_most_recent_sale(self, session_factory, tmp_path):
+        self._seed_job_and_sale(session_factory, "jobold001", isbn="9780000000777",
+                                sale_total=10.0, order_id="ord-old")
+        session = session_factory()
+        try:
+            newer = JobModel(id="jobnew001", folder_path="/tmp/new", folder_name="new",
+                             status="completed")
+            newer.ai_data = {"identification": {"isbn": "9780000000777"}}
+            session.add(newer)
+            session.add(SaleModel(order_id="ord-new", listing_id="list-new", job_id="jobnew001",
+                                  title="Newer", sale_total=25.0,
+                                  sold_at=datetime(2026, 8, 1, tzinfo=timezone.utc)))
+            session.commit()
+        finally:
+            session.close()
+        svc = LedgerService(tmp_path / "test_ledger.db")
+        svc.SessionFactory = session_factory
+        assert svc.find_own_sale(isbn="9780000000777")["price"] == 25.0
+
+    def test_zero_total_sale_is_skipped(self, session_factory, tmp_path):
+        self._seed_job_and_sale(session_factory, "jobzero01", isbn="9780000000888",
+                                sale_total=0.0, order_id="ord-zero")
+        svc = LedgerService(tmp_path / "test_ledger.db")
+        svc.SessionFactory = session_factory
+        assert svc.find_own_sale(isbn="9780000000888") is None
+
 
 from backend.app.blueprints.api.queue_api import _extract_cogs
 

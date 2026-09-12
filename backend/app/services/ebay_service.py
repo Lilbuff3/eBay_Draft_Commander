@@ -116,10 +116,15 @@ class eBayService:
 
     def get_active_listings(self) -> Tuple[Dict[str, Any], int]:
         """
-        Fetch active listings using Inventory API (REST).
-        Compliance Note: Legacy Trading API fallback has been removed for 2026 alignment.
+        Fetch active listings, Inventory API (REST) first.
+
+        The Trading API fallback was NOT removed — get_inventory_items() falls
+        back to GetSellerList whenever the Inventory API returns 0 items, which
+        is the normal case here because listings are created with the Trading
+        API (AddFixedPriceItem), so they never appear as Inventory items. That
+        fallback is what supplies watchCount and startTime, and why listings
+        carry status 'Active' rather than 'PUBLISHED'.
         """
-        # Exclusively use Inventory API (Sell Feed / Inventory Items)
         return self.inventory_service.get_inventory_items()
 
     # --- Delegated Methods ---
