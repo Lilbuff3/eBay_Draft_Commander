@@ -7,6 +7,7 @@ from werkzeug.utils import secure_filename
 from backend.app.blueprints.api.helpers import error_response, build_pricing_data
 from backend.app.services.image_service import ImageService
 from backend.app.services.ebay_service import eBayService
+from backend.app.core import selling_costs
 from backend.app.core.constants import SUPPORTED_IMAGE_EXTENSIONS, EBAY_FINAL_VALUE_FEE_RATE, EBAY_PAYMENT_PROCESSING_FEE
 from backend.app.core.validator import validate_price, validate_title, validate_isbn, validate_condition, is_allowed_image_file, ValidationError
 from backend.app.core.logger import get_logger
@@ -194,9 +195,12 @@ def get_job_details(job_id):
     # --- Profit Breakdown ---
     listing_price = float(job.price or ai_data.get('suggested_price') or ai_data.get('price') or 0)
     shipping_cost_val = float(ai_data.get('shipping_cost', 6.50))
+    # Fee components are returned for display; the net comes from selling_costs
+    # so this page can't drift from the ledger. shipping_cost_val stays the
+    # per-item tier (Media Mail for books) -- better than a flat knob here.
     ebay_fee = round(listing_price * EBAY_FINAL_VALUE_FEE_RATE, 2) if listing_price > 0 else 0
     payment_fee = EBAY_PAYMENT_PROCESSING_FEE if listing_price > 0 else 0
-    take_home = round(listing_price - ebay_fee - payment_fee - shipping_cost_val, 2) if listing_price > 0 else 0
+    take_home = round(selling_costs.net(listing_price, shipping_cost_val), 2)
 
     response['profit_breakdown'] = {
         'listing_price': listing_price,

@@ -6,11 +6,8 @@ margin-protected or .99-rounded pipeline price), no rarity percentile.
 """
 from typing import Any, Dict, List, Optional
 
-from backend.app.core.constants import (
-    ACTIVE_TO_SOLD_FACTOR,
-    EBAY_FINAL_VALUE_FEE_RATE,
-    EBAY_PAYMENT_PROCESSING_FEE,
-)
+from backend.app.core import selling_costs
+from backend.app.core.constants import ACTIVE_TO_SOLD_FACTOR
 
 DEFAULT_MIN_PROFIT = 5.00
 DEFAULT_ROI_MULTIPLE = 3.0
@@ -77,11 +74,7 @@ def compute_verdict(
 
     est_sold_value = median_price * ACTIVE_TO_SOLD_FACTOR
     assumed_list = est_sold_value + ship_cost
-    net_proceeds = (
-        assumed_list * (1 - EBAY_FINAL_VALUE_FEE_RATE)
-        - EBAY_PAYMENT_PROCESSING_FEE
-        - ship_cost
-    )
+    net_proceeds = selling_costs.net(assumed_list, ship_cost)
 
     roi_cap = net_proceeds / roi_multiple if roi_multiple and roi_multiple > 0 else net_proceeds
     max_buy = max(0.0, min(net_proceeds - min_profit, roi_cap))
