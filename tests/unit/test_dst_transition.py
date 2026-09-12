@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 import pytest
-import pytz
 from unittest.mock import patch
 
 from backend.app.core.constants import get_next_optimal_listing_time
@@ -34,8 +33,6 @@ def test_spring_forward_dst_transition():
 
         # Let's look at a Sunday slot (which is March 8, 2026, after the 2:00 AM transition)
         # Sunday 6:00 PM PT (18:00) -> should be Monday, March 9, 2026 01:00 UTC (since offset is -07:00)
-        pt = pytz.timezone('America/Los_Angeles')
-        
         # Collect multiple slots to find one on Sunday/Monday
         slots = []
         exclude = set()

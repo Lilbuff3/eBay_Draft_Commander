@@ -402,14 +402,6 @@ class LedgerService:
                 sold_at = sold_at.replace(tzinfo=timezone.utc)
             return sold_at.isoformat()
 
-        def _match_payload(sale):
-            return {
-                'price': sale.sale_total,
-                'sold_at': _sold_at_iso(sale.sold_at),
-                'title': sale.title,
-                'order_id': sale.order_id,
-            }
-
         session = self.SessionFactory()
         try:
             rows = (
@@ -434,10 +426,13 @@ class LedgerService:
                 if not isinstance(ident, dict):
                     continue
 
-                if isbn and ident.get('isbn') == isbn:
-                    return _match_payload(sale)
-                if mpn and ident.get('mpn') == mpn:
-                    return _match_payload(sale)
+                if (isbn and ident.get('isbn') == isbn) or (mpn and ident.get('mpn') == mpn):
+                    return {
+                        'price': sale.sale_total,
+                        'sold_at': _sold_at_iso(sale.sold_at),
+                        'title': sale.title,
+                        'order_id': sale.order_id,
+                    }
         except Exception:
             logger.warning("Error finding own sale", exc_info=True)
         finally:

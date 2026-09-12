@@ -11,7 +11,7 @@ Foundation layer with zero internal dependencies. Provides database models, cons
 | File | Description |
 |------|-------------|
 | `constants.py` | CONDITION_MAP, CONDITION_ID_MAP, rate limits, default aspects, image extensions, fees, timeouts |
-| `database.py` | SQLAlchemy 2.0 ORM — JobModel, TemplateModel, OrphanedMediaModel, AppTokenModel with WAL pragmas |
+| `database.py` | SQLAlchemy 2.0 ORM — JobModel, OrphanedMediaModel, AppTokenModel with WAL pragmas |
 | `models.py` | InternalListing dataclass — adapter for normalizing eBay API responses |
 | `exceptions.py` | DraftCommanderError base, eBayAPIError subtypes, NeedsReviewException for manual review routes |
 | `logger.py` | `get_logger(name)` factory — JSON/console handlers, Windows cp1252 emoji safety |

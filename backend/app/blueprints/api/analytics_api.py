@@ -23,11 +23,6 @@ def _attach_thumbnails(orders: list) -> None:
         for order in orders:
             order.setdefault('thumbnailUrl', None)
 
-@analytics_bp.route('/sales/recent')
-def get_recent_sales():
-    result, status = ebay_service.get_recent_sales()
-    return jsonify(result), status
-
 @analytics_bp.route('/analytics/summary')
 def get_analytics_summary():
     try:
@@ -60,14 +55,3 @@ def get_analytics_orders():
         except Exception:
             logger.warning("Ledger sales sweep failed", exc_info=True)
     return jsonify(result), status
-
-@analytics_bp.route('/analytics/track', methods=['POST'])
-def track_event():
-    """Generic endpoint to track frontend UI events (e.g. momentum loop dropoff)."""
-    payload = request.get_json() or {}
-    event_name = payload.get('event', 'unknown_event')
-    event_data = payload.get('data', {})
-    
-    # Log it at INFO level so it can be parsed from logs if needed
-    logger.info(f"Frontend Event: {event_name} | Data: {event_data}")
-    return jsonify({'success': True}), 200

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { getCaptureCategory, GENERIC_CONDITIONS } from '@/lib/categories'
 import { useCommanderStore } from '@/store/useCommanderStore'
-import { trackEvent } from '@/lib/api'
+import { estimateNet } from '@/lib/fees'
 
 const genId = () => Math.random().toString(36).substring(7)
 
@@ -58,15 +58,10 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
     const sessionSales = sessionItems.reduce((sum, item) => {
         if (!item.jobId) return sum
         const job = jobs.find(j => j.id === item.jobId)
-        const listPrice = parseFloat(job?.price || '0') || 0
-        if (listPrice <= 0) return sum
-        const fees = listPrice * 0.15 + 0.30
-        const shipping = 6.50
-        const net = listPrice - fees - shipping
+        const net = estimateNet(parseFloat(job?.price || '0') || 0)
         return sum + (net > 0 ? net : 0)
     }, 0)
     const sessionProfit = sessionSales - sessionCogs
-    const showScoreboard = sessionItems.length > 0
 
     // Load initial files
     useEffect(() => {
@@ -149,14 +144,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                 ...prev,
                 { jobId: jobId || undefined, cogs: metadataPayload.cogs ?? 0 },
             ])
-            
-            trackEvent('capture_success', { 
-                category, 
-                has_title: !!title, 
-                has_condition: !!condition, 
-                photo_count: photos.length,
-                session_count: sessionCount + 1
-            })
+
 
             // Momentum, not a dead end: clear the item but keep the sheet (and
             // the sticky condition — piles are usually same-condition) and land
@@ -173,7 +161,6 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
             // Never fail silently here — this is the app's core action, and the
             // sheet stays open with the photos intact so the tap can be retried.
             console.error(err)
-            trackEvent('capture_error', { error: err instanceof Error ? err.message : String(err) })
             errorHaptic()
             toast.error('Upload failed', {
                 description: err instanceof Error ? err.message : 'Your photos are still here — tap Upload to retry.',
@@ -185,14 +172,12 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
     // One tap from "item sent" to shooting the next one: reset the phase and
     // fire the camera input in the same gesture.
     const handleNextItem = () => {
-        trackEvent('momentum_loop_next', { session_count: sessionCount })
         press()
         setPhase('capture')
         fileInputRef.current?.click()
     }
     
     const handleDoneForNow = () => {
-        trackEvent('momentum_loop_done', { session_count: sessionCount })
         tap()
         onClose()
     }
@@ -244,7 +229,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                 </header>
 
                 {/* Session Scoreboard — COGS from this sheet session; sales/profit update when job.price arrives */}
-                {showScoreboard && (
+                {sessionItems.length > 0 && (
                     <div className="bg-stone-50 px-4 py-3 border-b border-stone-200 flex items-center justify-between shadow-sm z-10 relative">
                         <div className="flex flex-col">
                             <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Total Spent</span>

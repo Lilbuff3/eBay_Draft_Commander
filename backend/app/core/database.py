@@ -106,25 +106,6 @@ class JobModel(Base):
     def job_metadata(self, value):
         self.metadata_json = json.dumps(value)
 
-class TemplateModel(Base):
-    """Database model for listing templates"""
-    __tablename__ = 'templates'
-    
-    id = Column(Integer, primary_key=True)
-    name = Column(String(100), unique=True, nullable=False)
-    data_json = Column(Text, nullable=False)  # Stores the template configuration
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-    use_count = Column(Integer, default=0)
-    
-    @property
-    def data(self):
-        return json.loads(self.data_json) if self.data_json else {}
-    
-    @data.setter
-    def data(self, value):
-        self.data_json = json.dumps(value)
-
 class AppToken(Base):
     """Database model for application tokens (e.g. eBay access tokens)"""
     __tablename__ = 'app_tokens'

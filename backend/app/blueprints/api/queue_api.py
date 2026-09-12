@@ -104,21 +104,6 @@ def clear_completed():
     result = qm.clear_completed(delete_folders=delete_folders)
     return jsonify({'success': True, **result})
 
-@queue_bp.route('/clear-failed', methods=['POST'])
-def clear_failed():
-    qm = current_app.queue_manager
-    data = request.get_json(silent=True) or {}
-    delete_folders = data.get('deleteFolders', False)
-    result = qm.clear_failed(delete_folders=delete_folders)
-    return jsonify({'success': True, **result})
-
-@queue_bp.route('/purge-stale', methods=['POST'])
-def purge_stale_jobs():
-    """Remove jobs whose source folder no longer exists on disk."""
-    qm = current_app.queue_manager
-    result = qm.purge_missing_folders()
-    return jsonify({'success': True, **result})
-
 @queue_bp.route('/scan', methods=['POST'])
 def scan_inbox_endpoint():
     """Trigger scan of inbox directory"""
@@ -137,13 +122,6 @@ def scan_inbox_endpoint():
         })
     except Exception as e:
         return error_response(str(e))
-
-@queue_bp.route('/batch-summary/<batch_id>')
-def get_batch_summary(batch_id):
-    """Retrieve summary statistics for a specific batch processing run."""
-    qm = current_app.queue_manager
-    summary = qm.get_batch_summary(batch_id)
-    return jsonify(summary)
 
 @queue_bp.route('/add-folder', methods=['POST'])
 def add_folder_to_queue():

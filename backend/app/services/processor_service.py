@@ -32,7 +32,7 @@ from backend.app.core.constants import (
     get_shipping_cost as get_shipping_cost_from_constants,
 )
 
-logger = get_logger('processor_service')
+logger = get_logger('processor_service', level='DEBUG')
 
 # A single leading positive number, optionally followed by a letter/symbol unit
 # ("7", "7.5", "12 oz", "3ct", "8 oz/yd²"). Rejects ranges ("7-8"), descriptive

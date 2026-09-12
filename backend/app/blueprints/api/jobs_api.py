@@ -4,18 +4,37 @@ import os
 import time
 import uuid
 from werkzeug.utils import secure_filename
-from backend.app.blueprints.api.helpers import error_response
+from backend.app.blueprints.api.helpers import error_response, build_pricing_data
 from backend.app.services.image_service import ImageService
 from backend.app.services.ebay_service import eBayService
 from backend.app.core.constants import SUPPORTED_IMAGE_EXTENSIONS, EBAY_FINAL_VALUE_FEE_RATE, EBAY_PAYMENT_PROCESSING_FEE
 from backend.app.core.validator import validate_price, validate_title, validate_isbn, validate_condition, is_allowed_image_file, ValidationError
 from backend.app.core.logger import get_logger
 from backend.app.services.queue_job import resolve_thumbnail
-from backend.app.services.pricing_engine import format_price_source
 
 jobs_bp = Blueprint('jobs', __name__)
 logger = get_logger('api.jobs')
 image_service = ImageService()
+
+
+COGS_MAX = 99999
+
+
+def _parse_cogs(raw):
+    """Parse a cost-of-goods value to 2dp.
+
+    Returns None when unset/empty. Raises ValueError on anything that isn't a
+    sane number so each caller can choose to surface it or skip it.
+    """
+    if raw in (None, ''):
+        return None
+    try:
+        val = float(raw)
+    except (TypeError, ValueError):
+        raise ValueError('cogs must be a number')
+    if not 0 <= val <= COGS_MAX:
+        raise ValueError(f'cogs out of range (0-{COGS_MAX})')
+    return round(val, 2)
 
 
 def _ensure_inbox_dir() -> Path:
@@ -154,26 +173,7 @@ def get_job_details(job_id):
         'identification': identification,
         'suggested_price': listing.get('suggested_price') or ai_data.get('suggested_price') or ai_data.get('price'),
         'price_reasoning': listing.get('price_reasoning'),
-        'pricing_data': {
-            'confidence': identification.get('confidence_score'),
-            # Real key is pricing_comps (written by processor_service); the old
-            # 'comparables' key was never written anywhere.
-            'comps': ai_data.get('pricing_comps', [])[:5],
-            'median_price': ai_data.get('pricing_median'),
-            'price_range': ai_data.get('pricing_range'),
-            'comp_count': ai_data.get('pricing_comp_count'),
-            'reasoning': ai_data.get('pricing_reasoning', ''),
-            'pricing_confidence': ai_data.get('pricing_confidence'),
-            'pricing_confidence_reason': ai_data.get('pricing_confidence_reason'),
-            # Raw engine source (e.g. own_sales) for UI badges; label is display copy.
-            'source': ai_data.get('pricing_source', ''),
-            'price_source': ai_data.get('price_source', 'AI estimate'),
-            'price_source_label': format_price_source(
-                ai_data.get('pricing_source', ''),
-                comp_count=len(ai_data.get('pricing_comps', []))
-            ),
-            'market_price': ai_data.get('research', {}).get('market_price', {})
-        },
+        'pricing_data': build_pricing_data(ai_data, identification),
         'condition': job.user_condition or (condition_data.get('state') if isinstance(condition_data, dict) else condition_data) or '',
         'condition_id': ai_data.get('condition_id'),
         'condition_description': ai_data.get('condition_description'),
@@ -257,17 +257,14 @@ def update_job_metadata(job_id):
             updates['job_metadata'] = metadata
         if 'cogs' in data:
             metadata = updates.get('job_metadata', job.job_metadata or {})
-            raw = data['cogs']
-            if raw in (None, ''):
+            try:
+                val = _parse_cogs(data['cogs'])
+            except ValueError as e:
+                raise ValidationError(str(e))
+            if val is None:
                 metadata.pop('cogs', None)
             else:
-                try:
-                    val = float(raw)
-                except (TypeError, ValueError):
-                    raise ValidationError('cogs must be a number')
-                if val < 0 or val > 99999:
-                    raise ValidationError('cogs out of range')
-                metadata['cogs'] = round(val, 2)
+                metadata['cogs'] = val
             updates['job_metadata'] = metadata
         if 'scheduled_time' in data:
             s_time_str = data['scheduled_time']
@@ -345,41 +342,6 @@ def retry_job_endpoint(job_id):
     if not qm.is_processing() and not qm.is_paused():
         qm.start_processing()
     return jsonify({'success': True, 'job_id': job_id, 'status': 'pending'})
-
-@jobs_bp.route('/jobs/bulk-update', methods=['POST'])
-def bulk_update_jobs():
-    qm = current_app.queue_manager
-    data = request.json
-    job_ids = data.get('jobIds', [])
-    updates = data.get('updates', {})
-    if not job_ids:
-        return error_response('No jobIds provided', 400)
-
-    updated_count = 0
-    errors = []
-    for job_id in job_ids:
-        try:
-            # Build per-job update dict
-            job_updates = {}
-            if 'condition' in updates:
-                job_updates['user_condition'] = updates['condition']
-            if 'price' in updates:
-                job_updates['user_price'] = str(validate_price(updates['price']))
-            if updates.get('reset_status'):
-                from backend.app.services.queue_manager import JobStatus
-                job_updates['status'] = JobStatus.PENDING
-                job_updates['error_type'] = None
-                job_updates['error_message'] = None
-
-            if job_updates:
-                if qm.update_job(job_id, job_updates):
-                    updated_count += 1
-                else:
-                    errors.append(f"Job {job_id} not found")
-        except Exception as e:
-            errors.append(f"Failed to update {job_id}: {e}")
-
-    return jsonify({'success': True, 'count': updated_count, 'errors': errors})
 
 @jobs_bp.route('/jobs/bulk-delete', methods=['POST'])
 def bulk_delete_jobs():
@@ -529,12 +491,11 @@ def create_job_from_metadata():
             metadata['user_condition'] = condition
         if data.get('user_approved'):
             metadata['user_approved'] = True
-        cogs_raw = data.get('cogs')
-        if cogs_raw not in (None, ''):
-            try:
-                metadata['cogs'] = round(float(cogs_raw), 2)
-            except (TypeError, ValueError):
-                pass  # bad cogs never blocks a draft
+        try:
+            if (cogs := _parse_cogs(data.get('cogs'))) is not None:
+                metadata['cogs'] = cogs
+        except ValueError:
+            pass  # bad cogs never blocks a draft
 
         job = qm.add_folder(str(job_folder), metadata=metadata)
 
@@ -579,21 +540,14 @@ def upload_files():
             job_folder.rmdir()
             return error_response(f"No supported image files. Rejected: {', '.join(rejected)}" if rejected else 'No valid files saved', 400)
         
-        # COGS must land on job_metadata via add_folder — writing metadata.json
-        # alone is not enough because upload skips the inbox scanner path.
+        # COGS rides on the metadata dict into add_folder — upload skips the
+        # inbox scanner, so there is nothing to write metadata.json for.
         metadata = {}
-        cogs = request.form.get('cogs')
-        if cogs not in (None, ''):
-            try:
-                cogs_val = round(float(cogs), 2)
-                if cogs_val < 0 or cogs_val > 1_000_000:
-                    raise ValueError('out of range')
-                metadata['cogs'] = cogs_val
-                import json
-                with open(job_folder / 'metadata.json', 'w') as f:
-                    json.dump({'cogs': cogs_val}, f)
-            except (ValueError, TypeError):
-                logger.warning(f"Invalid cogs value: {cogs}")
+        try:
+            if (cogs := _parse_cogs(request.form.get('cogs'))) is not None:
+                metadata['cogs'] = cogs
+        except ValueError as e:
+            logger.warning(f"Ignoring cogs on upload: {e}")
         try:
             if request.form.get('title'):
                 metadata['user_title'] = validate_title(request.form.get('title'))

@@ -49,11 +49,8 @@ def create_app(config_class=Config, queue_manager=None):
     # Initialize Socket.IO with app
     socketio.init_app(app)
     
-    # Configure Logging
-    from backend.app.core.logger import configure_module_loggers, get_logger
-    configure_module_loggers(use_json=False)
-    
     # Log Data Directory
+    from backend.app.core.logger import get_logger
     from backend.app.core.paths import get_data_dir
     startup_logger = get_logger('startup')
     startup_logger.info(f"Data Directory: {get_data_dir()}")

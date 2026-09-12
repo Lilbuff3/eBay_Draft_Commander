@@ -26,7 +26,6 @@ python backend/run_service.py             # Start server under supervisor (resta
 python backend/wsgi.py                     # Start server directly (no /restart support)
 pytest tests/ -v                          # Run tests
 python manage.py update_policies          # Fetch eBay policies to .env
-python manage.py fix_publish <offer_id>   # Fix policies and publish offer
 
 # Frontend
 cd frontend && npm install
@@ -64,7 +63,7 @@ backend/                    Flask app factory
       ui.py                 Serves React SPA at /app/, redirects / to /app/
     core/
       constants.py          CONDITION_MAP, CONDITION_ID_MAP, rate limits, model names
-      database.py           SQLAlchemy models (JobModel, TemplateModel, OrphanedMedia, AppToken)
+      database.py           SQLAlchemy models (JobModel, OrphanedMedia, AppToken)
       models.py             InternalListing dataclass (adapter pattern)
       settings_manager.py   .env read/write singleton
       rate_limiter.py       Token-bucket (gemini: GEMINI_RPM_LIMIT env, default 60; ebay: 5 burst)
@@ -117,7 +116,6 @@ frontend/                   React 18 + Vite + TypeScript
     lib/
       api.ts                Typed fetch wrapper (apiFetch<T>)
       utils.ts              Shared utilities
-      sanitizer.ts          Input sanitization
       pwa.ts                PWA install/update logic
     pages/                  Dashboard, Settings, BatchScan, Orders, Sourcing
     components/             30+ components
@@ -172,7 +170,6 @@ frontend/                   React 18 + Vite + TypeScript
 SQLite at `data/commander.db`. ORM: SQLAlchemy. WAL mode enabled.
 
 - **`jobs`** table (JobModel) — id (8-char hex PK), folder_path, status, scheduled_time, AI data + user overrides stored as JSON text columns (ai_json, item_specifics_json, metadata_json, timing_json)
-- **`templates`** table (TemplateModel) — name (unique), data_json, use_count
 - **`orphaned_media`** table — Tracks uploaded images from failed listings for cleanup
 - **`app_tokens`** table — eBay access token persistence
 - **`sales`** table (SaleModel) — local sold-order snapshots for the profit ledger: order_id PK, listing_id/job_id join keys, sale_total, sold_at, frozen fees_est/ship_est/cogs
@@ -252,7 +249,7 @@ cd ~/.claude/skills/playwright-skill && node run.js /tmp/playwright-test-*.js
 - **API auth: loopback trusted, remote needs X-API-Key** — `api/__init__.py` `before_request` allows 127.0.0.1/::1 (desktop browser, Hermes bridge, supervisor) without a key; any other caller (LAN/Tailscale phone) must send `X-API-Key` matching `API_ACCESS_TOKEN` (read live from SettingsManager, so saving it in Settings applies without restart; unset = remote denied 401). Exempt: `/api/system/health` and GET `/api/job/<id>/image/<file>` (`<img>` tags can't send headers; path-traversal-guarded instead). Frontend `apiFetch` stores the key in localStorage (`dc-api-key`) and prompts once on 401. Socket.IO events are NOT gated (read-only job status).
 - **Masked secrets never round-trip** — GET `/api/settings` masks sensitive values as `••••` (full mask, no suffix). POST `/api/settings` drops any value starting with `••••`, so the Settings page posting back untouched masked fields can't overwrite real secrets in `.env`.
 - **`.env` writes are atomic** — `settings_manager.save()` and `auth.save_tokens()` write `<name>.tmp` then `os.replace()`. Never revert to plain `open('w')`: a crash mid-write would truncate every credential.
-- **Frontend lib/ files** — `src/lib/api.ts`, `utils.ts`, `sanitizer.ts`, `pwa.ts` are imported everywhere. If missing, nothing compiles.
+- **Frontend lib/ files** — `src/lib/api.ts`, `utils.ts`, `pwa.ts` are imported everywhere. If missing, nothing compiles.
 - **Worktree `.env` shadowing** — Never create `.env` in a worktree. `load_dotenv_manually()` walks up parent dirs to find the main project's `.env` automatically. A worktree `.env` will shadow it and cause missing-policy errors.
 - **eBay token refresh** — Background thread. Also auto-refreshes on 401 in ebay_request()
 - **AI data caching** — If job.ai_data already has `listing` key, AI analysis is skipped (uses cached). Clear ai_json to force re-analysis

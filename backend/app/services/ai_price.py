@@ -8,31 +8,15 @@ Updated for 2026 google-genai SDK syntax.
 import os
 import json
 import base64
+import statistics
 from typing import Dict, List, Optional
 from backend.app.core.constants import AI_PRICING_MODEL
 from backend.app.core.logger import get_logger
 
 logger = get_logger('ai_price')
 
-# Try the NEW google-genai SDK first (2025+)
-try:
-    from google import genai
-    from google.genai import types
-    HAS_NEW_GENAI = True
-except ImportError:
-    HAS_NEW_GENAI = False
-
-# Fall back to legacy google.generativeai if new SDK not available
-if not HAS_NEW_GENAI:
-    try:
-        import google.generativeai as genai_legacy
-        from google.generativeai.types import HarmCategory, HarmBlockThreshold
-        HAS_LEGACY_GENAI = True
-    except ImportError:
-        HAS_LEGACY_GENAI = False
-        logger.warning("[WARN] Neither google-genai nor google.generativeai installed")
-else:
-    HAS_LEGACY_GENAI = False
+from google import genai
+from google.genai import types
 
 
 class AIPriceEstimator:
@@ -43,7 +27,6 @@ class AIPriceEstimator:
     
     def __init__(self):
         self.client = None
-        self.legacy_model = None
         self._load_api_key()
     
     def _load_api_key(self):
@@ -54,23 +37,11 @@ class AIPriceEstimator:
             logger.warning("[WARN] GOOGLE_API_KEY not found")
             return
         
-        # Initialize with NEW google-genai SDK (preferred)
-        if HAS_NEW_GENAI:
-            try:
-                self.client = genai.Client(api_key=api_key)
-                logger.info("[OK] AI Price Estimator initialized (google-genai SDK with Google Search)")
-                return
-            except Exception as e:
-                logger.warning(f"[WARN] New SDK init failed: {e}, trying legacy...")
-        
-        # Fall back to legacy SDK
-        if HAS_LEGACY_GENAI:
-            try:
-                genai_legacy.configure(api_key=api_key)
-                self.legacy_model = genai_legacy.GenerativeModel(AI_PRICING_MODEL)
-                logger.info("[OK] AI Price Estimator initialized (legacy SDK, no live search)")
-            except Exception as e:
-                logger.error(f"[FAIL] Legacy SDK init failed: {e}")
+        try:
+            self.client = genai.Client(api_key=api_key)
+            logger.info("[OK] AI Price Estimator initialized (google-genai SDK with Google Search)")
+        except Exception as e:
+            logger.error(f"[FAIL] google-genai init failed: {e}")
     
     def estimate_price(
         self,
@@ -91,14 +62,8 @@ class AIPriceEstimator:
         Returns:
             Dict with price estimate, reasoning, and sources
         """
-        # Try new SDK with Google Search first
         if self.client:
             return self._estimate_with_search(query, condition, additional_context)
-        
-        # Fall back to legacy SDK (no live search)
-        if self.legacy_model:
-            return self._estimate_legacy(query, condition, additional_context)
-        
         return self._error_result("AI not initialized")
     
     def _estimate_with_search(self, query: str, condition: str, context: Optional[str]) -> Dict:
@@ -139,16 +104,6 @@ class AIPriceEstimator:
                 return self._parse_response(response.text, query, [])
             except Exception as e2:
                 return self._error_result(str(e2))
-    
-    def _estimate_legacy(self, query: str, condition: str, context: Optional[str]) -> Dict:
-        """Estimate using legacy SDK (no live search)"""
-        prompt = self._build_prompt(query, condition, context)
-        
-        try:
-            response = self.legacy_model.generate_content(prompt)
-            return self._parse_response(response.text, query, [])
-        except Exception as e:
-            return self._error_result(str(e))
     
     def _build_prompt(self, query: str, condition: str, context: Optional[str]) -> str:
         """Build the price estimation prompt"""
@@ -260,8 +215,8 @@ Be thorough. Base your estimate on real market data you find."""
                 'source': 'ai_estimate',
                 'stats': {
                     'low': prices[0],
-                    'average': sum(prices) / len(prices),
-                    'median': prices[len(prices) // 2],
+                    'average': statistics.fmean(prices),
+                    'median': statistics.median(prices),
                     'high': prices[-1],
                     'sold': 0,
                     'trend': 'neutral',
