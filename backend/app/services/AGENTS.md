@@ -14,7 +14,8 @@ Business logic layer. Orchestrates AI analysis, eBay integration, pricing, image
 | `processor_service.py` | Main pipeline — condition validation, AI analysis, category mapping, pricing, images, eBay submission |
 | `queue_manager.py` | Job lifecycle management, background processing thread, Socket.IO event hub, pause/resume/skip logic |
 | `queue_job.py` | JobStatus enum, QueueJob dataclass, thumbnail resolution constants |
-| `ai_analyzer.py` | Gemini 2.0 Flash Phase 1 (vision) + Phase 2 (web research grounding) |
+| `ai_analyzer.py` | Gemini vision Phase 1 + Phase 2 (web research grounding) — model from `AI_MODEL_NAME` in core/constants.py |
+| `cover_service.py` | ISBN → Open Library / Google book cover fetch, upscaled for eBay |
 | `ai_price.py` | Gemini-based price estimation fallback when market data insufficient |
 | `pricing_engine.py` | Market pricing cascade: ISBN → MPN → keywords → web research → AI estimate |
 | `category_mapper.py` | AI-to-eBay category mapping with taxonomy validation and printer parts guard |

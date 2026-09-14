@@ -12,6 +12,7 @@ Specialized components for the job detail drawer: description display and schedu
 |------|-------------|
 | `ItemDescriptionCard.tsx` | Read-only HTML description with sanitization (XSS prevention), prose styling, 500-char truncation |
 | `ItemScheduleField.tsx` | Datetime picker with preset buttons (Sun/Mon/Wed evening), UTC-aware min/max validation, eBay 48-hour lead time |
+| `PriceExplainer.tsx` | "Why this price" — comp-spread range bar + comp cards (ACTIVE asking prices) |
 
 ## For AI Agents
 

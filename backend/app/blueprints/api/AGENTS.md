@@ -10,7 +10,7 @@ REST API sub-modules organized by functional domain. Each module defines a Bluep
 
 | File | Description |
 |------|-------------|
-| `__init__.py` | Blueprint registration hub — imports 8 sub-blueprints, registers with `/api/` prefix, global 400/404/500 error handlers |
+| `__init__.py` | Blueprint registration hub — imports 10 sub-blueprints, registers with `/api/` prefix, global 400/404/500 error handlers |
 | `helpers.py` | `error_response(message, code, details)` for standardized JSON error format |
 | `jobs_api.py` | Job CRUD: POST/GET/PUT/DELETE, image upload, thumbnail generation, image reorder, inbox detection, OneDrive fallback |
 | `queue_api.py` | Queue control: `/start`, `/pause`, `/skip`, `/retry`, `/status` — real-time job progress via QueueManager |
@@ -20,6 +20,8 @@ REST API sub-modules organized by functional domain. Each module defines a Bluep
 | `settings_api.py` | Settings: read masked `.env`, write single setting via SettingsManager |
 | `system_api.py` | System operations: health check, restart, cache clear (taxonomy, rate limiter) |
 | `migration_api.py` | Legacy data: import listings, validate migration source |
+| `ledger_api.py` | Profit ledger: weekly summary, item rows, COGS fill-in — url_prefix=`/ledger` |
+| `today_api.py` | `/api/today` — DB-only Today panel feed (last autopilot cycle, discovery count) |
 
 ## For AI Agents
 

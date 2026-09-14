@@ -11,8 +11,8 @@ AI-powered eBay listing automation platform. Flask backend + React TypeScript PW
 |------|-------------|
 | `CLAUDE.md` | **Read first** — full architecture, patterns, gotchas, and commands |
 | `README.md` | User-facing features and architecture overview |
-| `USER_MANUAL.md` | Installation and usage instructions |
-| `WALKTHROUGH.md` | Step-by-step setup walkthrough |
+| `docs/USER_MANUAL.md` | Installation and usage instructions |
+| `docs/WALKTHROUGH.md` | Step-by-step setup walkthrough |
 | `manage.py` | CLI management commands (update_policies, fix_publish) |
 | `requirements.txt` | Python dependencies (Flask, SQLAlchemy, rembg, google-genai) |
 | `pytest.ini` | Test configuration |
@@ -47,8 +47,10 @@ AI-powered eBay listing automation platform. Flask backend + React TypeScript PW
 - `load_dotenv_manually()` walks parent dirs to find `.env` (supports git worktrees)
 - SQLite DB at `data/commander.db` — WAL mode, auto-created on first run
 
-### Hard Rules (no IDE hook enforces these here — discipline required)
-Claude Code enforces some of these with hooks; Antigravity/Gemini has no such rails, so they are rules:
+### Hard Rules (nothing enforces these — discipline required)
+No tool guards these. The only Claude Code hooks are SessionStart `git pull --ff-only` and
+SessionEnd `git push origin HEAD` — nothing blocks `.env` edits, `static/app/` edits, or skipped
+lint in either tool:
 1. **Never edit `.env` directly** — use SettingsManager / the Settings UI / `/api/settings`. `.env` writes are atomic (`.tmp` + `os.replace`) and GET-masked secrets (`••••`) must never be written back.
 2. **Never hand-edit `static/app/`** — it is build output. Change `frontend/src`, then `npm run build`, and commit the regenerated build with the source.
 3. **Never commit `data/commander.db` from a feature branch/worktree** — a local DB riding a branch clobbers master's (happened 2026-07-17).
@@ -67,7 +69,7 @@ Claude Code enforces some of these with hooks; Antigravity/Gemini has no such ra
 
 ### Testing Requirements
 ```bash
-"C:\Program Files\Python312\python.exe" -m pytest tests/unit -q   # ~829 unit tests (no external deps)
+"C:\Program Files\Python312\python.exe" -m pytest tests/unit -q   # unit tests (no external deps)
 pytest tests/integration/ -v         # Needs .env credentials + eBay sandbox — don't run casually
 cd frontend && npx vitest run        # ~50 frontend tests
 ```
@@ -113,8 +115,8 @@ cd frontend && npx vitest run        # ~50 frontend tests
 ### Database
 SQLite at `data/commander.db` — WAL mode, SQLAlchemy ORM
 - `jobs` — 8-char hex PK, status, AI data + overrides as JSON text columns
-- `templates` — Saved listing presets (name, data_json, use_count)
-- `orphaned_media` — Failed upload tracking for cleanup
 - `app_tokens` — eBay access token persistence
+- `sales` — sold-order snapshots for the profit ledger (order_id PK, frozen fees/ship/cogs)
+- `listing_actions` — autopilot audit + idempotency (offers, markdowns, relists)
 
 <!-- MANUAL: Any manually added notes below this line are preserved on regeneration -->

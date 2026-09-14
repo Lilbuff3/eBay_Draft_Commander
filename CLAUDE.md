@@ -16,6 +16,9 @@ C:\Users\adam\Projects\ebay-draft-commander\
 - Feature work: `git checkout -b feature/description` → develop → merge to master → push
 - Never leave unpushed commits — push at end of each session
 - Run `npm run build` in frontend/ before committing frontend changes
+- **`static/app/` is committed build output** — never hand-edit it. Change `frontend/src`, run `npm run build`, commit build + source together (26 built files are tracked; a hand-edit survives until the next build silently reverts it).
+- **Run `npx eslint` on changed frontend files yourself** — no hook does it (and `cd frontend && npx vitest run` for the frontend tests).
+- **Never commit `data/commander.db` from a branch or worktree** — it is gitignored; a local DB riding a branch clobbered master's on 2026-07-17.
 
 ## Commands
 
@@ -65,7 +68,7 @@ backend/                    Flask app factory
       ui.py                 Serves React SPA at /app/, redirects / to /app/
     core/
       constants.py          CONDITION_MAP, CONDITION_ID_MAP, rate limits, model names
-      database.py           SQLAlchemy models (JobModel, OrphanedMedia, AppToken, SaleModel, ListingActionModel)
+      database.py           SQLAlchemy models (JobModel, AppToken, SaleModel, ListingActionModel)
       settings_manager.py   .env read/write singleton
       rate_limiter.py       Token-bucket (gemini: GEMINI_RPM_LIMIT env, default 60; ebay: 5 burst)
       token_manager.py      Centralized eBay access token management (SQLite-backed)
@@ -113,8 +116,8 @@ backend/                    Flask app factory
         policies.py         Business policies API
         researcher.py       eBay market research
         analytics.py        Seller analytics API
-        adapters.py         TradingAPIAdapter, InventoryAPIAdapter field mappers
         marketing.py        Promoted Listings (Marketing API: ensure_campaign, promote_listing)
+        negotiation.py      Negotiation API (send_offer to watchers — autopilot offers)
 frontend/                   React 18 + Vite + TypeScript
   src/
     App.tsx                 Tab-based navigation via activeTab state, global layout
@@ -142,7 +145,7 @@ frontend/                   React 18 + Vite + TypeScript
 ## Key Patterns
 
 - **Tab-based navigation** — `activeTab` state in `useCommanderStore`, persisted to localStorage. No react-router.
-- **Code-split tab bodies** — `App.tsx` `React.lazy()`s every tab body except the landing `Dashboard` (eager), wrapped in one `<Suspense fallback={<PageLoader/>}>`. Keeps heavy deps (dnd-kit → PhotoEditor drawer, zxing → scanner) off cold load: eager JS ~659KB vs ~1175KB unsplit. **Don't statically import a tab body into eager code** (App shell, Dashboard, home widgets) — it defeats the lazy split. Shared bits like `CONDITION_OPTIONS` live in `lib/conditions.ts` so lazy pages don't import each other. `vite.config.ts` `manualChunks` splits only *provably-eager* framework vendors (react, framer-motion, socket.io) for cross-deploy caching — **never manualChunk an async-only dep** (e.g. zxing): naming it promotes it into the initial graph and un-lazies it.
+- **Code-split tab bodies** — `App.tsx` `React.lazy()`s every tab body except the landing `Dashboard` (eager), wrapped in one `<Suspense fallback={<PageLoader/>}>`. Keeps heavy deps (dnd-kit → `ImageGallery`, zxing → scanner) off cold load: eager JS ~659KB vs ~1175KB unsplit. **Don't statically import a tab body into eager code** (App shell, Dashboard, home widgets) — it defeats the lazy split. Shared bits like `CONDITION_OPTIONS` live in `lib/conditions.ts` so lazy pages don't import each other. `vite.config.ts` `manualChunks` splits only *provably-eager* framework vendors (react, framer-motion, socket.io) for cross-deploy caching — **never manualChunk an async-only dep** (e.g. zxing): naming it promotes it into the initial graph and un-lazies it.
 - **Zustand for state** — Single store (`useCommanderStore.ts`) manages jobs, queue status, settings, selected job, UI state. Accessed via selectors.
 - **Typed HTTP client** — `apiFetch<T>()` in `src/lib/api.ts` wraps fetch with generics and error handling.
 - **Socket.IO events**: `job_added`, `job_update`, `job_log` — emitted by QueueService, consumed via `useJobSync` hook.
@@ -186,9 +189,9 @@ frontend/                   React 18 + Vite + TypeScript
 SQLite at `data/commander.db`. ORM: SQLAlchemy. WAL mode enabled.
 
 - **`jobs`** table (JobModel) — id (8-char hex PK), folder_path, status, scheduled_time, AI data + user overrides stored as JSON text columns (ai_json, item_specifics_json, metadata_json, timing_json)
-- **`orphaned_media`** table — Tracks uploaded images from failed listings for cleanup
 - **`app_tokens`** table — eBay access token persistence
 - **`sales`** table (SaleModel) — local sold-order snapshots for the profit ledger: order_id PK, listing_id/job_id join keys, sale_total, sold_at, frozen fees_est/ship_est/cogs
+- **`listing_actions`** table (ListingActionModel) — autopilot audit + idempotency: one row per offer/markdown/relist, dry-run rows included
 
 SQLite pragmas: `journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=5000`
 
@@ -285,7 +288,7 @@ cd ~/.claude/skills/playwright-skill && node run.js /tmp/playwright-test-*.js
 - **`ebay_aspect_schema` not `ebay_required_aspects`** — The old key was replaced. `ai_data['ebay_aspect_schema']` is the full required+optional aspect list. Frontend `JobDetails` type uses `ebay_aspect_schema`. Old jobs may have stale `ebay_required_aspects` key.
 - **Claude Code hooks active** — `.claude/settings.json` runs `git pull --ff-only` on SessionStart and `git push origin HEAD` on SessionEnd. **Every session auto-pushes its commits** — don't leave a commit you didn't mean to publish. There is no hook guarding `.env`; that rule is policy, not enforcement — edit `.env` through SettingsManager/API, never directly.
 - **rembg dependency** — `requirements.txt` includes `rembg`. First run downloads ~170MB ONNX model. If image processing is slow or fails on a new machine, this is likely why.
-- **`AGENTS.md` per-directory docs** — 26 `AGENTS.md` files mirror the tree (root, `backend/`, each services/api/lib dir) with per-file tables. Useful for locating a file fast; **this CLAUDE.md wins on conflict** — the AGENTS.md set is generated and lags (e.g. it still says Gemini 2.0 Flash). Regenerating them is not automatic.
+- **`AGENTS.md` per-directory docs** — 26 `AGENTS.md` files mirror the tree with per-file tables; Antigravity/Gemini reads them natively (see `docs/ANTIGRAVITY.md`), so they are not dead weight. **This CLAUDE.md wins on conflict** — nothing regenerates them, and they had drifted to naming 28 files that no longer exist before `tests/unit/test_docs_drift.py` started failing on it. That test now guards both trees: a row naming a missing file fails; a file nobody documented does not (the tables are curated highlights, not inventories).
 - **Research data in descriptions** — `processor_service.py` interpolates web research specs into HTML description via `{research_specs_section}` placeholder. All research data is `html.escape()`'d to prevent XSS.
 - **Condition ID validation** — `taxonomy.py:validate_condition_for_category()` checks condition IDs against eBay category policies. Falls back through condition hierarchy if original ID is invalid for the category.
 - **Results logger** — `results_logger.py` appends JSONL to `data/listing_results.jsonl`. NOT a test framework — it's for tracking real listing outcomes over time to improve AI quality. Use `get_results(last_n=10)` for recent entries.

@@ -15,12 +15,10 @@ shadcn/Radix UI primitives with CVA (class-variance-authority) variant system. C
 | `label.tsx` | Form label with optional required indicator |
 | `card.tsx` | Card container with Header, Title, Description, Content, Action, Footer sub-components |
 | `dialog.tsx` | Modal dialog (Radix Dialog) with header/content/footer |
-| `textarea.tsx` | Multi-line input with auto-resize |
 | `select.tsx` | Dropdown with option groups and searchable filtering |
 | `tabs.tsx` | Tab navigation with content panels |
 | `badge.tsx` | Status indicators (success, warning, info, destructive) |
 | `scroll-area.tsx` | Custom scrollbar container |
-| `slider.tsx` | Range slider for numeric input |
 | `table.tsx` | Table structure components |
 | `sheet.tsx` | Side sheet/drawer (slides from edge) |
 

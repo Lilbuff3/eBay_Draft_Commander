@@ -9,17 +9,11 @@ Planning and design documentation for eBay Draft Commander features, architectur
 ## Key Files
 | File | Description |
 |------|-------------|
-| `plans/2026-03-28-profit-optimization-features.md` | 6 profit optimization features: smart shipping tiers, Media Mail detection, profit calculator UI, comp filtering, price labels, scheduling presets |
-| `plans/2026-03-21-wire-research-through-pipeline.md` | Web research integration: Gemini grounding, pricing comps, specs enrichment. 40+ new tests. |
-| `plans/2026-03-20-migration-api.md` | Migration API: sync legacy eBay listings locally via GetSellerList integration |
-| `plans/2026-03-19-pricing-and-specifics-accuracy.md` | Pricing engine improvements and aspect mapping validation for accuracy |
-| `plans/2026-02-25-mobile-ux-redesign.md` | Mobile UI refinements for responsive listing creation workflow |
 
 ## Subdirectories
 
 | Directory | Purpose |
 |-----------|---------|
-| `plans/` | Implementation plan markdown files (one per feature sprint) |
 
 ## For AI Agents
 

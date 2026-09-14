@@ -11,14 +11,14 @@ Foundation layer with zero internal dependencies. Provides database models, cons
 | File | Description |
 |------|-------------|
 | `constants.py` | CONDITION_MAP, CONDITION_ID_MAP, rate limits, default aspects, image extensions, fees, timeouts |
-| `database.py` | SQLAlchemy 2.0 ORM — JobModel, OrphanedMediaModel, AppTokenModel with WAL pragmas |
-| `models.py` | InternalListing dataclass — adapter for normalizing eBay API responses |
+| `database.py` | SQLAlchemy 2.0 ORM — JobModel, AppToken, SaleModel, ListingActionModel with WAL pragmas |
+| `selling_costs.py` | The one fee formula — `fees()`, `net()`, `ship_cost()`; every caller routes through it |
 | `exceptions.py` | DraftCommanderError base, eBayAPIError subtypes, NeedsReviewException for manual review routes |
 | `logger.py` | `get_logger(name)` factory — JSON/console handlers, Windows cp1252 emoji safety |
 | `paths.py` | `get_data_dir()`, `get_inbox_dir()`, `get_cache_dir()` — cross-platform path handling |
 | `settings_manager.py` | Singleton `.env` reader/writer with caching and auto-refresh on file changes |
 | `token_manager.py` | eBay OAuth token persistence, background refresh thread, 401 auto-refresh |
-| `rate_limiter.py` | Token-bucket rate limiting — Gemini 2 RPM, eBay 5 burst/2 sec refill |
+| `rate_limiter.py` | Token-bucket rate limiting — Gemini `GEMINI_RPM_LIMIT` (default 60), eBay 5 burst/2 sec refill |
 | `validator.py` | Input validation: `validate_price()`, `validate_title()`, `validate_isbn()`, `validate_condition()` |
 | `results_logger.py` | JSONL logger to `data/listing_results.jsonl` with `log_listing_result()` and `get_results()` |
 | `prompts.py` | AI prompt templates for Gemini vision, pricing, and specifics analysis |

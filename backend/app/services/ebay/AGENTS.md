@@ -20,7 +20,8 @@ eBay API integration modules wrapping production (Trading, Inventory, Browse, Ta
 | `policies.py` | Business Policies API (REST) — fulfillment, payment, return policy IDs. Shared helpers: `_get_headers()`, `_refresh_token_if_needed()`, `ebay_request()` wrapper |
 | `researcher.py` | Market research orchestrator — Browse API search + Gemini grounding, rarity detection (< 5 sold = rare) |
 | `analytics.py` | Seller Analytics API (REST) — active listings, revenue, category breakdown for dashboard |
-| `adapters.py` | Data mappers — `TradingAPIAdapter` (InternalListing → Trading XML), `InventoryAPIAdapter` (InternalListing → Inventory JSON), `CONDITION_ID_MAP` |
+| `marketing.py` | Promoted Listings (Marketing API) — `ensure_campaign`, `promote_listing`; failure-safe |
+| `negotiation.py` | Negotiation API — `send_offer` to watchers, drives autopilot offers |
 
 ## For AI Agents
 

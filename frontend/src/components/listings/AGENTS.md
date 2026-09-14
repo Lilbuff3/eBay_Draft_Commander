@@ -4,16 +4,13 @@
 # listings
 
 ## Purpose
-Active eBay listing management: bulk actions, individual editing, media upload, and review queue for pending listings.
+Active eBay listing management: the dead-stock inventory card and the review queue for paused listings. The old Inventory-API bulk edit/media path was removed — it never worked on Trading-API listings.
 
 ## Key Files
 
 | File | Description |
 |------|-------------|
-| `BulkActionBar.tsx` | Animated action bar (Framer Motion slide-in) — bulk price, bulk title (Find & Replace/Append/Prepend), end listings |
-| `EditListingDialog.tsx` | Modal with tabs: Details (title/price/qty), Media (upload), Description (HTML editing) |
-| `MediaManager.tsx` | Drag-and-drop media upload — images (JPG/PNG/WebP) and videos (MP4/MOV, max 150MB) |
-| `ListingRow.tsx` | Single listing row — title, price, thumbnail, SKU, quantity, selection checkbox |
+| `InventoryCard.tsx` | Dead/Stale/Warm card — 1-tap Drop price (ReviseFixedPriceItem), Promote, End |
 | `ReviewQueue.tsx` | Pending listings queue — batch approve/reject/edit, synced with Zustand store |
 
 ## For AI Agents
