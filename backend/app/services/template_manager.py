@@ -4,7 +4,7 @@ Listing Template Manager for eBay Draft Commander Pro.
 Renders the final eBay HTML description from templates/ebay_master.html.
 """
 from pathlib import Path
-from typing import List, Dict
+from typing import Any, Dict, List, Optional
 from backend.app.core.logger import get_logger
 
 logger = get_logger('template_manager')
@@ -13,52 +13,52 @@ logger = get_logger('template_manager')
 class TemplateManager:
     """Renders listing descriptions from the master HTML template."""
 
-    def render_description(self, title: str, description: str, images: List[str], aspects: Dict[str, List[str]], condition: str) -> str:
+    def render_description(self, title: str, description: str,
+                           images: Optional[List[str]] = None,
+                           aspects: Optional[Dict[str, Any]] = None,
+                           condition: str = "") -> str:
         """
-        Render the final HTML description using templates/ebay_master.html.
+        Render a clean, mobile-native description using semantic HTML.
+
+        No tables, no inline-styled container divs, no embedded image stack:
+        eBay already renders the photo gallery and the Item Specifics panel
+        itself, so repeating them here only produced a description the seller
+        could not edit in the native eBay mobile app.
+
+        images/aspects are accepted and ignored — kept in the signature so
+        callers (processor_service._render_listing_template) stay unchanged.
         """
         try:
-            # Locate the master template
-            template_path = Path(__file__).parent.parent.parent.parent / "templates" / "ebay_master.html"
-            if not template_path.exists():
-                return f"<h1>{title}</h1><p>{description}</p>" # Fallback
-                
-            with open(template_path, 'r', encoding='utf-8') as f:
-                html = f.read()
-                
-            # 1. Render Images (inline-styled, stacked for mobile)
-            img_html = ""
-            for img in images[:12]:  # Max 12
-                img_html += (
-                    f'<div style="text-align: center; margin-bottom: 12px;">'
-                    f'<img src="{img}" alt="{title}" style="max-width: 100%; height: auto; border: 1px solid #eee; border-radius: 6px;">'
-                    f'</div>'
-                )
+            desc_clean = (description or "").strip()
+            cond_clean = (condition or "").strip()
+            cond_html = f"<p><strong>Condition:</strong> {cond_clean}</p>" if cond_clean else ""
 
-            # 2. Render Aspects (inline-styled table — works on eBay mobile)
-            aspects_html = '<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">'
-            for k, v in aspects.items():
-                val_str = ", ".join(v) if isinstance(v, list) else str(v)
-                aspects_html += (
-                    f'<tr style="border-bottom: 1px solid #f0f0f0;">'
-                    f'<th style="text-align: left; padding: 10px 8px; width: 40%; color: #666; font-weight: 500; background: #fdfdfd;">{k}</th>'
-                    f'<td style="padding: 10px 8px; font-weight: 600;">{val_str}</td>'
-                    f'</tr>'
-                )
-            aspects_html += '</table>'
-            
-            # 3. Replace Token
-            html = html.replace('{{TITLE}}', title)
-            html = html.replace('{{DESCRIPTION}}', description)
-            html = html.replace('{{IMAGES}}', img_html)
-            html = html.replace('{{ASPECTS}}', aspects_html)
-            html = html.replace('{{CONDITION}}', condition)
-            
-            return html
-            
+            template_path = Path(__file__).parent.parent.parent.parent / "templates" / "ebay_master.html"
+            if template_path.exists():
+                with open(template_path, 'r', encoding='utf-8') as f:
+                    html = f.read()
+                # The template carries a bare {{CONDITION}}; cond_html supplies
+                # the whole <p> so an empty condition leaves no dangling label.
+                html = html.replace('{{TITLE}}', title or '')
+                html = html.replace('{{DESCRIPTION}}', desc_clean)
+                html = html.replace('{{IMAGES}}', '')
+                html = html.replace('{{ASPECTS}}', '')
+                html = html.replace('{{CONDITION}}', cond_html)
+                return html.strip()
+
+            # Fallback when the template file is missing.
+            parts = []
+            if title:
+                parts.append(f"<p><strong>{title}</strong></p>")
+            if desc_clean:
+                parts.append(desc_clean)
+            if cond_html:
+                parts.append(cond_html)
+            return "\n\n".join(parts)
+
         except Exception as e:
             logger.error(f"Template Render Error: {e}")
-            return f"<h1>{title}</h1><p>{description}</p>"
+            return f"<p><strong>{title}</strong></p>\n<p>{description}</p>"
 
 
 _instance = None
