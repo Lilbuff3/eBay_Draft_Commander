@@ -12,6 +12,10 @@ export interface Job {
     listing_id: string | null
     offer_id: string | null
     price: string | null
+    cogs?: number | null
+    net_profit?: number | null
+    net_margin_pct?: number | null
+    note?: string | null
     error_type: string | null
     error_message: string | null
     started_at: string | null
@@ -21,6 +25,7 @@ export interface Job {
     condition?: string | null
     scheduled_time?: string | null
     confidence_score?: number | null
+    item_specifics?: Record<string, string> | null
     ai_data?: Record<string, unknown> | null
     /** Projected server-side by /api/listings/pending — same shape as JobDetails. */
     pricing_data?: JobDetails['pricing_data'] | null
@@ -284,6 +289,7 @@ export interface ItemDraft {
     itemSpecifics: Record<string, string>;
     categoryId: string;
     categoryName: string;
+    cogs?: string;
 }
 
 export interface CreateListingResult {
@@ -380,12 +386,15 @@ export interface JobDetails {
     }
     profit_breakdown?: {
         listing_price: number
+        cogs?: number | null
         ebay_fee: number
         ebay_fee_rate: number
         payment_fee: number
         shipping_cost: number
         shipping_method: string
         take_home: number
+        net_profit?: number | null
+        net_margin_pct?: number | null
     }
     condition?: string | Record<string, unknown>
     condition_id?: number
@@ -418,7 +427,7 @@ export async function searchCategories(query: string): Promise<CategorySuggestio
 export async function uploadFiles(
     files: FileList | File[],
     onProgress?: (loaded: number, total: number) => void,
-    metadata?: { title?: string; condition?: string; category?: string; cogs?: number },
+    metadata?: { title?: string; condition?: string; category?: string; cogs?: number; note?: string },
     // silent: caller owns success/error feedback (mobile capture sheet shows its
     // own interstitial + retry toast — api-level toasts would double up)
     opts?: { silent?: boolean }
@@ -432,6 +441,7 @@ export async function uploadFiles(
     if (metadata?.condition) formData.append('condition', metadata.condition)
     if (metadata?.category) formData.append('category', metadata.category)
     if (metadata?.cogs !== undefined) formData.append('cogs', metadata.cogs.toString())
+    if (metadata?.note) formData.append('note', metadata.note)
 
     // Use XHR for upload progress tracking
     if (onProgress || metadata) {
