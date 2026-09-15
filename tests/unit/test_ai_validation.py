@@ -9,6 +9,11 @@ def analyzer():
     """Create AIAnalyzer instance without initializing real GenAI client"""
     with patch('google.genai.Client'):
         ai = AIAnalyzer()
+        # AIAnalyzer.__init__ leaves client None when no API key is configured,
+        # so without this the suite passes or fails depending on whether the
+        # developer happens to have GOOGLE_API_KEY in .env.
+        if ai.client is None:
+            ai.client = MagicMock()
         # Mock encode_image to avoid file system dependency
         ai.encode_image = MagicMock(return_value="dummy_base64")
         return ai

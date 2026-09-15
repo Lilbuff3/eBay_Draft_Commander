@@ -270,6 +270,18 @@ class TestApiAuth:
         resp = client.get('/api/settings')  # test client defaults to 127.0.0.1
         assert resp.status_code != 401
 
+    def test_ipv6_loopback_allowed_without_key(self, client):
+        resp = client.get('/api/settings', environ_base={'REMOTE_ADDR': '::1'})
+        assert resp.status_code != 401
+
+    def test_ipv4_mapped_ipv6_loopback_allowed_without_key(self, client):
+        # Flask on Windows reports a local caller as ::ffff:127.0.0.1, which is
+        # not in _LOOPBACK_ADDRS -- the case _is_loopback() exists to cover.
+        # Without this the desktop browser gets a 401 on its own machine.
+        resp = client.get('/api/settings',
+                          environ_base={'REMOTE_ADDR': '::ffff:127.0.0.1'})
+        assert resp.status_code != 401
+
     def test_remote_denied_without_key(self, client, monkeypatch):
         monkeypatch.setenv('API_ACCESS_TOKEN', 'test-token-123')
         resp = client.get('/api/settings', environ_base=self.REMOTE)
