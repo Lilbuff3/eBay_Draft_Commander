@@ -12,7 +12,7 @@ import { estimateNet } from '@/lib/fees'
 
 const genId = () => Math.random().toString(36).substring(7)
 
-type CaptureMetadata = { title: string; condition: string; category?: string; cogs?: number }
+type CaptureMetadata = { title: string; condition: string; category?: string; cogs?: number; note?: string }
 
 interface MobileCaptureSheetProps {
     isOpen: boolean
@@ -36,6 +36,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
     const [title, setTitle] = useState('')
     const [condition, setCondition] = useState<string>('')
     const [cogs, setCogs] = useState<string>('')
+    const [note, setNote] = useState<string>('')
     const [isUploading, setIsUploading] = useState(false)
     // The momentum loop: 'capture' is the form, 'success' is the interstitial
     // between items. sessionCount survives close/reopen on purpose — it's the
@@ -83,6 +84,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
             setTitle('')
             setCondition('')
             setCogs('')
+            setNote('')
             setIsUploading(false)
             setPhase('capture')
         }
@@ -134,6 +136,9 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
             if (!Number.isNaN(cogsVal) && cogsVal >= 0) {
                 metadataPayload.cogs = cogsVal
             }
+            if (note.trim()) {
+                metadataPayload.note = note.trim()
+            }
 
             const jobId = await onUpload(
                 photos.map(p => p.file),
@@ -154,6 +159,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
             setPhotos([])
             setTitle('')
             setCogs('')
+            setNote('')
             setIsUploading(false)
             setSessionCount(n => n + 1)
             setPhase('success')
@@ -429,6 +435,16 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                                         min="0"
                                     />
                                 </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-semibold text-stone-700">Seller Notes / AI Hints (Optional)</label>
+                                <Input
+                                    placeholder="e.g. limited edition, powers on, tape deck broken, no remote"
+                                    value={note}
+                                    onChange={(e) => setNote(e.target.value)}
+                                    className="bg-white h-12"
+                                />
                             </div>
                         </motion.div>
                     )}

@@ -376,24 +376,21 @@ class ProcessorService:
                 compatible = research.get('compatible_with', [])
                 if compatible:
                     compat_items = ''.join(
-                        f'<li style="padding:4px 0;">{html_escape(str(c))}</li>' for c in compatible[:8]
+                        f'<li>{html_escape(str(c))}</li>' for c in compatible[:8]
                     )
                     research_sections.append(
-                        '<div style="margin:15px 0; padding:12px; background:#f8f9fa; border-radius:5px;">'
-                        '<h3 style="margin:0 0 8px 0;">Compatible With</h3>'
-                        f'<ul style="margin:0; padding-left:20px;">{compat_items}</ul>'
-                        '</div>'
+                        f'<p><strong>Compatible With:</strong></p>\n<ul>{compat_items}</ul>'
                     )
 
                 # Research notes (contextual details from web research)
                 notes = research.get('notes', '')
                 if notes and len(notes) > 10:
                     research_sections.append(
-                        f'<p style="margin:10px 0; font-style:italic; color:#555;">{html_escape(str(notes))}</p>'
+                        f'<p style="font-style:italic; color:#555;">{html_escape(str(notes))}</p>'
                     )
 
                 if research_sections:
-                    html += '\n'.join(research_sections)
+                    html += '\n\n' + '\n\n'.join(research_sections)
 
             return {"html": html, "timing": time.time() - timing_start}
         except Exception as e:
@@ -618,13 +615,15 @@ class ProcessorService:
         job_obj.ai_data = ai_data
         research_market_price = ai_data.get('research', {}).get('market_price')
         availability = ai_data.get('research', {}).get('availability')
-        seller_note = job_obj.job_metadata.get('note', '') if job_obj.job_metadata else ''
+        seller_note = job_obj.note or (job_obj.job_metadata.get('note', '') if job_obj.job_metadata else '')
+        cogs_val = float(job_obj.job_metadata.get('cogs', 0.0)) if (job_obj.job_metadata and job_obj.job_metadata.get('cogs') is not None) else 0.0
         pricing_result = self.ai_agent.get_final_pricing(
             analysis['title'],
             condition,
             analysis['ai_suggested_price'],
             job_obj.user_price,
             shipping_cost=shipping_cost,
+            acquisition_cost=cogs_val,
             log_callback=log_callback,
             identification=ai_data.get('identification'),
             research_market_price=research_market_price,
@@ -632,6 +631,9 @@ class ProcessorService:
             seller_note=seller_note,
         )
         result["timing"]["pricing"] = pricing_result["timing"]
+        ai_data['cogs'] = cogs_val if cogs_val > 0 else None
+        ai_data['projected_profit'] = pricing_result.get('projected_profit')
+        job_obj.ai_data = ai_data
 
         # Price floor guard: weak pricing signals (e.g. eBay comp-scraper 403 -> no comps ->
         # AI estimate defaulting to 0) can yield an invalid/too-low price that eBay rejects
@@ -800,7 +802,7 @@ class ProcessorService:
         # submitting to eBay. Runs on job_obj (the guardrail's contract), so
         # stage the current title/specifics onto it, then read the (possibly
         # cleaned) values back for submission.
-        from backend.app.services.listing_guardrails import apply_pre_listing_guardrails
+        from backend.app.services.listing_guardrails import apply_pre_listing_guardrails, calculate_cassini_seo_score
         job_obj.title = analysis['title']
         job_obj.item_specifics = analysis['item_specifics']
         guardrail_result = apply_pre_listing_guardrails(
@@ -813,6 +815,12 @@ class ProcessorService:
         )
         analysis['title'] = job_obj.title
         analysis['item_specifics'] = job_obj.item_specifics
+
+        # Compute and persist Cassini SEO fill metrics
+        seo_metrics = calculate_cassini_seo_score(analysis['item_specifics'], ebay_aspect_schema)
+        ai_data = job_obj.ai_data or {}
+        ai_data['seo_metrics'] = seo_metrics
+        job_obj.ai_data = ai_data
 
         # 9. Rendering (include web research data for enriched descriptions).
         # MUST run after every pass that mutates title/item_specifics — the

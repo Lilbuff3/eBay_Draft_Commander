@@ -355,20 +355,31 @@ class TradingService:
             payment_policy_id = item_data.get('payment_policy_id')
             return_policy_id = item_data.get('return_policy_id')
             fulfillment_policy_id = item_data.get('fulfillment_policy_id')
+            payment_policy_name = item_data.get('payment_policy_name')
+            return_policy_name = item_data.get('return_policy_name')
+            fulfillment_policy_name = item_data.get('fulfillment_policy_name')
             
             seller_profiles = ""
             if payment_policy_id and return_policy_id and fulfillment_policy_id:
+                pay_name_tag = f"\n                            <PaymentProfileName>{xml_escape(str(payment_policy_name))}</PaymentProfileName>" if payment_policy_name else ""
+                ret_name_tag = f"\n                            <ReturnProfileName>{xml_escape(str(return_policy_name))}</ReturnProfileName>" if return_policy_name else ""
+                ship_name_tag = f"\n                            <ShippingProfileName>{xml_escape(str(fulfillment_policy_name))}</ShippingProfileName>" if fulfillment_policy_name else ""
+
                 seller_profiles = f"""<SellerProfiles>
                         <SellerPaymentProfile>
-                            <PaymentProfileID>{payment_policy_id}</PaymentProfileID>
+                            <PaymentProfileID>{payment_policy_id}</PaymentProfileID>{pay_name_tag}
                         </SellerPaymentProfile>
                         <SellerReturnProfile>
-                            <ReturnProfileID>{return_policy_id}</ReturnProfileID>
+                            <ReturnProfileID>{return_policy_id}</ReturnProfileID>{ret_name_tag}
                         </SellerReturnProfile>
                         <SellerShippingProfile>
-                            <ShippingProfileID>{fulfillment_policy_id}</ShippingProfileID>
+                            <ShippingProfileID>{fulfillment_policy_id}</ShippingProfileID>{ship_name_tag}
                         </SellerShippingProfile>
                     </SellerProfiles>"""
+
+            # When SellerProfiles is active, handling time is dictated by the Shipping Policy.
+            # Only include legacy DispatchTimeMax for non-profile accounts to prevent mobile app schema conflict.
+            dispatch_time_tag = "" if seller_profiles else "<DispatchTimeMax>3</DispatchTimeMax>"
 
             # Prepare Images
             picture_details = ""
@@ -418,7 +429,7 @@ class TradingService:
                     {tag('SKU', item_data.get('sku'))}
                     <Country>US</Country>
                     <Currency>USD</Currency>
-                    <DispatchTimeMax>3</DispatchTimeMax>
+                    {dispatch_time_tag}
                     <ListingDuration>GTC</ListingDuration>
                     <ListingType>FixedPriceItem</ListingType>
                     {best_offer_details}

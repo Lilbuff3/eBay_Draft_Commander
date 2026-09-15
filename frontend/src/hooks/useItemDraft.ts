@@ -17,7 +17,8 @@ const emptyDraft = (): ItemDraft => ({
     scheduledTime: '',
     itemSpecifics: {},
     categoryId: '',
-    categoryName: ''
+    categoryName: '',
+    cogs: ''
 })
 
 /** Format a Date as a local-wall-time string for <input type="datetime-local"> */
@@ -121,7 +122,8 @@ export function useItemDraft(selectedJob: Job | null): UseItemDraftResult {
                                 : String(details.condition))
                             : '',
                         categoryId: details.category_id || '',
-                        categoryName: details.category_name || ''
+                        categoryName: details.category_name || '',
+                        cogs: details.raw_metadata?.cogs !== undefined && details.raw_metadata?.cogs !== null ? String(details.raw_metadata.cogs) : ''
                     }
 
                     newDraft.scheduledTime = details.scheduled_time

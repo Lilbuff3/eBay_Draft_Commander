@@ -161,24 +161,22 @@ EXISTING SPECIFICS (already filled, do NOT overwrite unless empty):
 {existing_specifics}
 
 INSTRUCTIONS:
-1. Fill in aspects using SPECIFIC values for THIS item — not generic brand catalog info.
-2. For aspects with allowed values, you MUST pick from the allowed list (exact match).
-3. For free-text aspects, provide ONE specific value (not "Varies" or lists of options).
-4. If you genuinely cannot determine a value, omit it (do NOT guess randomly).
-5. Return ONLY a flat JSON object mapping aspect names to values.
-6. Aspect values must be strings, max 65 characters each.
-7. Do NOT include aspects you cannot determine.
+1. Maximize Cassini search visibility: Fill in 100% of REQUIRED aspects and as many RECOMMENDED aspects as possible (Brand, MPN, Model, Type, Color, Material, Size, Department, Features, Connectivity).
+2. For aspects with allowed values, you MUST pick from the allowed list (exact match and canonical casing, e.g. "Black", "100% Cotton").
+3. For free-text aspects, provide ONE specific, standardized value (never "Varies", "See description", or comma-separated lists).
+4. UNBRANDED / UNKNOWN ITEMS: If the item has no brand or tag, use "Unbranded" for Brand and "Does Not Apply" for MPN/UPC. Omit optional unknown aspects rather than inserting placeholder text.
+5. Return ONLY a flat JSON object mapping aspect names to string values (max 65 chars each).
 
 FIELD DEFINITIONS (common mistakes to avoid):
-- "Compatible Model": ONLY for parts/accessories — the device model it fits (e.g. "iPhone 14").
-  For clothing/apparel/general items, OMIT this field entirely.
-- "Compatible Brand": ONLY for parts/accessories — the brand of device it fits.
-  For clothing/apparel/general items, OMIT this field entirely.
-- "Style": The style of the item (e.g. "Beanie", "Fedora", "Baseball Cap").
-- "Department": Who it's for (e.g. "Men", "Women", "Unisex").
-- "Color": The PRIMARY color of THIS specific item (e.g. "Teal", not "Varies").
-- "Size": The EXACT size from the tag (e.g. "L/XL", not "Varies (XS, S, M...)").
-- "Material": The EXACT material from the tag (e.g. "100% Polyester Fleece", not "Varies").
+- "Brand": Exact manufacturer name (or "Unbranded" if generic/handmade).
+- "MPN" / "Model": Exact part/model number (or "Does Not Apply" if none).
+- "Compatible Model": ONLY for parts/accessories — the device model it fits (e.g. "iPhone 14"). For clothing/apparel/general items, OMIT this field entirely.
+- "Compatible Brand": ONLY for parts/accessories — the brand of device it fits. For clothing/apparel/general items, OMIT this field entirely.
+- "Style": The style of the item (e.g. "Beanie", "Fedora", "Baseball Cap", "Sweater").
+- "Department": Who it's for (e.g. "Men", "Women", "Unisex Adults", "Boys", "Girls").
+- "Color": The PRIMARY color of THIS specific item (e.g. "Black", "Navy Blue", "Teal").
+- "Size": The EXACT size from the tag (e.g. "M", "L", "10.5", "34x32").
+- "Material": The primary material (e.g. "100% Cotton", "Fleece", "Leather", "Stainless Steel").
 
 Return JSON:
 {{

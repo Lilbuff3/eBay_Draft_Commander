@@ -112,12 +112,13 @@ class ListingAIAgent:
             logger.error(f"AI Analysis failed: {e}")
             return {"success": False, "error": str(e)}
 
-    def get_final_pricing(self, title, condition, ai_suggested_price, user_price, shipping_cost=None, log_callback=None, identification=None, research_market_price=None, availability=None, seller_note=""):
+    def get_final_pricing(self, title, condition, ai_suggested_price, user_price, shipping_cost=None, acquisition_cost: float = 0.0, log_callback=None, identification=None, research_market_price=None, availability=None, seller_note=""):
         """Determine the final price using research engine and user overrides.
 
         When free shipping is active (shipping_cost > 0), the estimated
         shipping cost is added to the suggested price so the seller's margin
-        isn't eroded by shipping expenses.
+        isn't eroded by shipping expenses. When acquisition_cost (COGS) is provided,
+        margin protection ensures the price covers fees and minimum profit.
         """
         def _log(msg, level="info"):
             if log_callback: log_callback(msg, level)
@@ -143,6 +144,7 @@ class ListingAIAgent:
                 title,
                 condition=condition,
                 ai_suggested_price=ai_suggested_price,
+                acquisition_cost=acquisition_cost,
                 shipping_cost=resolved_shipping,
                 identification=identification,
                 research_market_price=research_market_price,

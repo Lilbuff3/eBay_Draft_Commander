@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { PlugZap, ScanLine, Settings as SettingsIcon, ShieldAlert } from 'lucide-react'
+import { PlugZap, ScanLine, Settings as SettingsIcon, ShieldAlert, ArrowRight } from 'lucide-react'
 import { motion, type Variants } from 'framer-motion'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { fetchJobs } from '@/lib/api'
 import { getStatusBucket } from '@/lib/status'
 import { useCommanderStore } from '@/store/useCommanderStore'
+import { useHaptics } from '@/hooks/useHaptics'
 import { UploadZone } from '@/components/UploadZone'
 import { ScoreboardStats } from './ScoreboardStats'
 import { OrderStats } from './OrderStats'
@@ -39,6 +40,7 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
     const isScanning = useCommanderStore(s => s.isScanning)
     const ebayStatus = useCommanderStore(s => s.ebayStatus)
     const isMobile = useIsMobile()
+    const { tap } = useHaptics()
 
     const needsReviewCount = jobs.filter(j => j.status === 'pending_review').length
 
@@ -98,58 +100,66 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
                         <button
                             onClick={handleScan}
                             disabled={isScanning}
-                            className="hidden sm:flex items-center gap-2 h-11 bg-persimmon-50 border border-persimmon-200 hover:bg-persimmon-100 transition-colors rounded-full px-4 disabled:opacity-50 cursor-pointer"
+                            aria-label="Scan inbox folders"
+                            className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-ink-800 text-xs font-bold transition duration-200 disabled:opacity-50"
                         >
-                            {isScanning ? (
-                                <div className="w-4 h-4 rounded-full border-2 border-persimmon-500 border-t-transparent animate-spin mr-1"></div>
-                            ) : (
-                                <ScanLine className="w-4 h-4 text-persimmon-600" />
-                            )}
-                            <span className="text-xs font-bold text-persimmon-600">
-                                {isScanning ? 'Scanning...' : 'Scan Inbox'}
-                            </span>
+                            <ScanLine size={16} className={isScanning ? "animate-spin text-persimmon-600" : ""} />
+                            <span>{isScanning ? "Scanning..." : "Scan Inbox"}</span>
                         </button>
-
-                        {/* Mobile Settings — also reachable from the More tab. */}
-                        <button
-                            onClick={() => setActiveTab('settings')}
-                            className="flex sm:hidden items-center justify-center w-11 h-11 bg-paper-card border border-stone-200 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer text-stone-600 hover:text-ink-800"
-                            aria-label="Settings"
-                        >
-                            <SettingsIcon className="w-5 h-5" />
-                        </button>
+                        
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-paper-card border border-stone-200 text-xs font-semibold">
+                            <PlugZap size={14} className={ebayStatus === 'connected' ? "text-sage-600" : "text-stone-400"} />
+                            <span className="text-ink-800">{ebayStatus === 'connected' ? "eBay Connected" : "eBay Disconnected"}</span>
+                        </div>
                     </div>
                 </motion.header>
 
-                {/* eBay token dead = every listing fails. Loud, phone-visible. */}
+                {/* Critical Action Banner (e.g. eBay Disconnected) */}
                 {ebayStatus === 'disconnected' && (
                     <motion.div variants={itemVariants}>
                         <button
                             onClick={() => setActiveTab('settings')}
-                            className="w-full flex items-center gap-3 rounded-2xl bg-red-50 border border-red-300 px-4 py-3 text-left hover:bg-red-100 transition-colors"
+                            className="w-full flex items-center justify-between rounded-2xl bg-amber-50 border border-amber-200 p-4 text-left shadow-xs hover:bg-amber-100/60 transition-colors"
                         >
-                            <PlugZap className="w-5 h-5 text-red-600 shrink-0" />
-                            <div className="flex-1 min-w-0">
-                                <div className="text-sm font-bold text-red-800">eBay disconnected</div>
-                                <div className="text-xs text-red-700">New listings will fail — tap to check the token in Settings</div>
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+                                    <SettingsIcon size={18} />
+                                </div>
+                                <div>
+                                    <div className="text-sm font-bold text-amber-900 leading-tight">Connect your eBay Account</div>
+                                    <div className="text-xs text-amber-700/80 mt-0.5">Authorization is required before drafts can be created on eBay.</div>
+                                </div>
                             </div>
                         </button>
                     </motion.div>
                 )}
 
-                {/* Price-flagged jobs waiting for a human — tap through to review */}
+                {/* 5-Second Review Momentum Callout — Tap to start 1-tap card review */}
                 {needsReviewCount > 0 && (
                     <motion.div variants={itemVariants}>
                         <button
-                            onClick={() => setActiveTab('review')}
-                            className="w-full flex items-center gap-3 rounded-2xl bg-clay-300/25 border border-clay-400 px-4 py-3 text-left hover:bg-clay-300/40 transition-colors"
+                            onClick={() => {
+                                tap()
+                                setActiveTab('review')
+                            }}
+                            className="w-full flex items-center justify-between gap-3 rounded-2xl bg-persimmon-50 border border-persimmon-200/80 p-4 text-left shadow-xs hover:bg-persimmon-100/70 transition-all active:scale-[0.99]"
                         >
-                            <ShieldAlert className="w-5 h-5 text-clay-600 shrink-0" />
-                            <div className="flex-1 min-w-0">
-                                <div className="text-sm font-bold text-ink-800">
-                                    {needsReviewCount} listing{needsReviewCount !== 1 ? 's' : ''} waiting for price review
+                            <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-10 h-10 rounded-xl bg-persimmon-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                                    <ShieldAlert size={20} />
                                 </div>
-                                <div className="text-xs text-ink-500">Approve or fix them before they go live</div>
+                                <div className="min-w-0">
+                                    <div className="text-sm font-bold text-ink-900 leading-tight">
+                                        {needsReviewCount} Draft{needsReviewCount !== 1 ? 's' : ''} Ready for Review
+                                    </div>
+                                    <div className="text-xs text-persimmon-800/80 font-medium truncate mt-0.5">
+                                        Tap to launch 5-second review deck
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="shrink-0 flex items-center gap-1 text-xs font-bold text-persimmon-700 bg-white/80 border border-persimmon-200 px-3 py-1.5 rounded-full shadow-2xs">
+                                <span>Review</span>
+                                <ArrowRight size={14} />
                             </div>
                         </button>
                     </motion.div>

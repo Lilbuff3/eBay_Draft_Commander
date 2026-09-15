@@ -62,6 +62,7 @@ class QueueJob:
     user_price: Optional[str] = None
     user_description: Optional[str] = None
     user_condition: Optional[str] = None
+    note: Optional[str] = None
 
     # Rich Data
     ai_data: Dict[str, Any] = field(default_factory=dict)

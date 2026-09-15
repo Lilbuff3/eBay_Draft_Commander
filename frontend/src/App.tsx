@@ -139,7 +139,7 @@ export default function App() {
       <Sidebar className="hidden md:block" />
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto pb-20 md:pb-0 relative">
+      <main className="flex-1 overflow-auto pb-28 md:pb-0 pb-safe relative">
         <ErrorBoundary>
           <AnimatePresence mode="wait" custom={direction}>
             <motion.div

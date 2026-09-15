@@ -266,6 +266,8 @@ class QueueManager:
             job.job_metadata.update(metadata)
             if 'condition' in metadata:
                 job.condition = metadata['condition']
+            if 'note' in metadata:
+                job.note = metadata['note']
         
         # Resolve thumbnail once at creation
         job.thumbnail_name = resolve_thumbnail(job.folder_path)
@@ -493,7 +495,8 @@ class QueueManager:
             job_metadata=job.job_metadata,
             thumbnail_name=job.thumbnail_name,
             confidence_score=job.confidence_score,
-            batch_id=job.batch_id
+            batch_id=job.batch_id,
+            note=job.note or (job.job_metadata.get('note') if job.job_metadata else None),
         )
 
     def _db_to_queue_job(self, db_j) -> QueueJob:
@@ -513,6 +516,7 @@ class QueueManager:
             user_price=db_j.user_price,
             user_description=db_j.user_description,
             user_condition=db_j.user_condition,
+            note=getattr(db_j, 'note', None),
             ai_data=db_j.ai_data or {},
             item_specifics=db_j.item_specifics or {},
             error_type=db_j.error_type,
