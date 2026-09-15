@@ -35,9 +35,9 @@ eBay Draft Commander is a full-stack application that automates eBay listing cre
 - **PWA:** vite-plugin-pwa with Workbox
 - **Notifications:** Sonner (toast library)
 
-### Desktop (Optional)
-- **Electron:** Wraps the web app for native Windows/Mac distribution
-- **Build:** electron-builder
+### Packaging (Optional)
+- **PyInstaller:** `server.spec` bundles the Flask server as a console executable (`web_server`)
+- There is no Electron shell — the UI is the React PWA served at `/app/`
 
 ---
 
@@ -507,7 +507,7 @@ EBAY_MERCHANT_LOCATION=US  # Two-letter country code
 GOOGLE_API_KEY=your-gemini-key
 
 # Feature Flags
-EBAY_AUTO_PUBLISH=false  # Auto-publish listings
+AUTO_PUBLISH=false  # Auto-publish listings (NOT EBAY_AUTO_PUBLISH — guarded by tests/unit/test_config_consistency.py)
 CONFIDENCE_THRESHOLD=85  # Min AI confidence for auto-publish
 AUTO_PUBLISH_MIN_PRICE=15.00  # Min price for auto-publish
 
@@ -538,7 +538,14 @@ class JobModel(Base):
     completed_at = Column(DateTime)
     timing_json = Column(Text)  # JSON timing data
     metadata_json = Column(Text)  # Job metadata
+    ai_json = Column(Text)  # AI analysis + pricing (the bulk of a job)
+    item_specifics_json = Column(Text)  # eBay aspects
+    scheduled_time = Column(DateTime)  # Trading API ScheduleTime
+    # plus user_* override columns — read database.py, this excerpt is partial
 ```
+
+Three more models live alongside it: `AppToken` (app_tokens), `SaleModel` (sales,
+profit ledger) and `ListingActionModel` (listing_actions, autopilot audit).
 
 ---
 
@@ -557,24 +564,29 @@ class JobModel(Base):
 ### Job Operations
 - `GET /api/job/<id>/details` - Get job details with AI data
 - `POST /api/job/<id>/update` - Update job metadata
-- `DELETE /api/job/<id>` - Delete job
+- `POST /api/jobs/<id>/cancel` - End the eBay listing + remove the job
+- `POST /api/jobs/bulk-delete` - Remove job records (eBay untouched)
 - `POST /api/upload` - Upload photos (creates job)
 
 ### eBay Integration
 - `GET /api/ebay/status` - Check eBay auth status
-- `GET /api/ebay/auth/url` - Get OAuth URL
-- `POST /api/ebay/auth/callback` - OAuth callback handler
-- `GET /api/ebay/policies` - Get fulfillment/payment/return policies
-- `GET /api/ebay/inventory` - List active listings
-- `POST /api/ebay/inventory/<id>/update` - Update listing price/title
+- `GET /api/listings/active` - List active listings (Trading `GetSellerList`)
+- `POST /api/listings/<itemId>/price` - Revise price/qty (`ReviseFixedPriceItem`)
+- `POST /api/listings/<itemId>/end` - End a listing
+- `POST /api/listings/<itemId>/promote` - Promote (Marketing API)
+- `GET /api/policies/fulfillment|payment|return|location` - Business policies
+
+There is no OAuth callback endpoint — re-consent is manual (see CLAUDE.md Gotchas).
 
 ### Utilities
-- `GET /api/settings` - Get user settings
+- `GET /api/settings` - Get user settings (secrets masked)
 - `POST /api/settings` - Save settings
 - `POST /api/lookup/book` - ISBN lookup
-- `GET /api/templates` - List templates
-- `POST /api/templates` - Save template
-- `DELETE /api/templates/<id>` - Delete template
+- `GET /api/lookup/comps` - Sourcing comps + buy/pass verdict
+
+**This list is partial and hand-maintained.** `blueprints/api/` is the authoritative
+route list (~62 routes across 10 sub-modules); orders, ledger, today, migration,
+capture and review endpoints are documented in CLAUDE.md, not here.
 
 ---
 

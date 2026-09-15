@@ -13,9 +13,5 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 echo.
-echo [2/3] Opening User Manual...
-start ../USER_MANUAL.md
-
-echo.
-echo [3/3] Launching Production Environment...
+echo [2/2] Launching Production Environment...
 call Start_Production.bat

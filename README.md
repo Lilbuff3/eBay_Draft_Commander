@@ -1,16 +1,14 @@
 # eBay Draft Commander Pro
 
-A complete solution for automating eBay listing creation using AI-powered image analysis and the eBay Inventory API.
+A complete solution for automating eBay listing creation using AI-powered image analysis and the eBay Trading API.
 
 ## Features
-
-📘 **[Read the User Manual](docs/USER_MANUAL.md)** for installation and usage instructions.
 
 - 🤖 **AI Image Analysis** - Uses Google Gemini 3 (Fast & Accurate) to extract details
 - 📱 **Mobile PWA** - Installable on iOS/Android for native-like experience
 - 📥 **Bulk Inbox Scan** - Drop folders -> Scan -> Queue multiple items instantly
 - 🔑 **OAuth Authentication** - Secure eBay API access with user authorization
-- 📦 **Inventory API Integration** - Creates listings via the modern eBay REST API
+- 📦 **Trading API Integration** - Creates listings via `AddFixedPriceItem` (Inventory API manages existing ones)
 - 🖼️ **Image Upload** - Uploads photos via the Media API
 - 📋 **Category & Aspects** - Auto-detects categories and fills required item specifics
 - 🎨 **Modern Web Dashboard** - React 19 + Vite + Tailwind CSS interface
