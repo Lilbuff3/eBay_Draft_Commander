@@ -116,8 +116,9 @@ class TestDescriptionTitleSync:
         submitted_title = trading_api_mock.call_args.kwargs['title']
         submitted_html = trading_api_mock.call_args.kwargs['html_description']
 
-        # clean_title strips the dangling "(Alkaline," fragment.
-        assert submitted_title == "Duracell AA Batteries"
+        # clean_title strips the dangling "(Alkaline," fragment; the Cassini
+        # optimizer then appends the condition keyword for search matching.
+        assert submitted_title == "Duracell AA Batteries Used"
         # Exact-match the heading, not a substring: the stale title
         # ("...Batteries (Alkaline,") CONTAINS the cleaned one as a prefix, so
         # `submitted_title in html` passes even when the bug is present.
@@ -138,8 +139,9 @@ class TestDescriptionTitleSync:
         processor.create_listing(_make_job_obj())
 
         assert len(render_calls) == 1
-        # clean_title collapses the repeated leading word.
-        assert render_calls[0]['title'] == "Sencore LC102 Capacitor Analyzer"
+        # clean_title collapses the repeated leading word; the Cassini optimizer
+        # then appends the condition keyword.
+        assert render_calls[0]['title'] == "Sencore LC102 Capacitor Analyzer Used"
 
     def test_renderer_receives_normalized_aspects(self, processor, monkeypatch):
         """normalize_aspects maps a blocklisted brand to 'Unbranded'. The

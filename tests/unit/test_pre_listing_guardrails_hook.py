@@ -124,7 +124,7 @@ class TestPreListingGuardrailHook:
         result = processor.create_listing(job_obj)
 
         assert result['success'] is True
-        assert result['title'] == "Duracell AA Batteries"
+        assert result['title'] == "Duracell AA Batteries Used"
         submitted_specifics = trading_api_mock.call_args.kwargs['item_specifics']
         assert submitted_specifics['Brand'] == 'Unbranded'
 
