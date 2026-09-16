@@ -55,6 +55,7 @@ class LedgerService:
         """Upsert order snapshots. Freezes fees/ship at first sight; backfills
         cogs from the matched job only while the row's cogs is still NULL
         (a value set via the Profit tab must never be clobbered by a resweep).
+        Orders with no matching job are pre-app owned stock and get cogs 0.
         Returns number of rows inserted or updated."""
         from backend.app.core.database import SaleModel
         if not orders:
@@ -82,7 +83,10 @@ class LedgerService:
                 if not order_id or not total:
                     continue
                 job = by_listing.get(str(order.get('legacyItemId') or ''))
-                job_cogs = (job.job_metadata or {}).get('cogs') if job else None
+                # No local job means the listing predates Draft Commander: owned
+                # stock, not purchased inventory, so its cost really is zero. A
+                # job that exists but carries no cogs stays None (still unknown).
+                job_cogs = (job.job_metadata or {}).get('cogs') if job else 0.0
 
                 row = session.get(SaleModel, order_id)
                 if row is None:
@@ -106,6 +110,13 @@ class LedgerService:
                     row.cogs = job_cogs
                     if job and not row.job_id:
                         row.job_id = job.id
+                    touched += 1
+                elif job is not None and row.job_id is None and job_cogs is not None:
+                    # Row was defaulted to 0 as pre-app stock, but a job turned up
+                    # for it after all (a relist rewrites listing_id). The job's
+                    # real cost wins over the default.
+                    row.cogs = job_cogs
+                    row.job_id = job.id
                     touched += 1
             session.commit()
         except Exception:

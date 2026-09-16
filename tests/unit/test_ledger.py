@@ -134,10 +134,37 @@ class TestRecordSales:
         finally:
             session.close()
 
+    def test_orphan_sale_defaults_to_zero_cogs(self, tmp_path):
+        # No job means the listing predates the app: owned stock, cost 0, so the
+        # Profit tab reports a real net instead of nagging forever.
+        svc = self._svc(tmp_path)
+        svc.record_sales([ORDER], FakeQM([]))
+        session = svc.SessionFactory()
+        try:
+            row = session.query(SaleModel).one()
+            assert row.cogs == 0.0
+            assert row.job_id is None
+        finally:
+            session.close()
+
+    def test_job_found_later_overrides_the_zero_default(self, tmp_path):
+        # A relist rewrites job.listing_id, so a sale can be swept before its job
+        # matches. The job's real cost must win over the pre-app default.
+        svc = self._svc(tmp_path)
+        svc.record_sales([ORDER], FakeQM([]))
+        svc.record_sales([ORDER], FakeQM([FakeJob('a1b2c3d4', '256789012345', cogs=7.25)]))
+        session = svc.SessionFactory()
+        try:
+            row = session.query(SaleModel).one()
+            assert row.cogs == 7.25
+            assert row.job_id == 'a1b2c3d4'
+        finally:
+            session.close()
+
     def test_resweep_backfills_cogs_but_never_overwrites(self, tmp_path):
         svc = self._svc(tmp_path)
-        # first sweep: no job match -> cogs NULL
-        svc.record_sales([ORDER], FakeQM([]))
+        # a job match with no cogs recorded -> cogs stays NULL (genuinely unknown)
+        svc.record_sales([ORDER], FakeQM([FakeJob('a1b2c3d4', '256789012345')]))
         # user later fills COGS on the job; resweep backfills
         svc.record_sales([ORDER], FakeQM([FakeJob('a1b2c3d4', '256789012345', cogs=3.50)]))
         session = svc.SessionFactory()
