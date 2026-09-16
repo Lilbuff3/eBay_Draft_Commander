@@ -425,7 +425,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                             <div className="mx-4 sm:mx-6 mb-2 rounded-2xl bg-paper-card border border-persimmon-200 px-3 py-2 flex items-center gap-2 flex-wrap shrink-0">
                                 <button
                                     onClick={() => setSelectedIds(allShownSelected ? new Set() : new Set(selectable.map(e => e.l.listingId!)))}
-                                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-600 hover:text-ink-800"
+                                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-600 hover:text-ink-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2 rounded"
                                 >
                                     {allShownSelected ? <CheckSquare size={15} className="text-persimmon-600" /> : <Square size={15} />}
                                     All shown ({selectable.length})
@@ -487,10 +487,11 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                                                 key={key}
                                                 role="checkbox"
                                                 aria-checked={isSelected}
+                                                aria-label={`Select ${e.l.title || 'listing'}`}
                                                 tabIndex={0}
                                                 onClick={() => e.l.listingId && toggleSelected(e.l.listingId)}
                                                 onKeyDown={ev => { if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); e.l.listingId && toggleSelected(e.l.listingId) } }}
-                                                className={cn('relative rounded-2xl cursor-pointer transition',
+                                                className={cn('relative rounded-2xl cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2',
                                                     isSelected && 'ring-2 ring-persimmon-500')}
                                             >
                                                 {/* Card is display-only while selecting */}
