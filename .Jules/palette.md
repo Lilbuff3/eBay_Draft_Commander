@@ -1,3 +1,0 @@
-## 2026-09-14 - Custom Checkbox and Button Accessibility in Active Listings
-**Learning:** Custom 'div' elements acting as checkboxes (`role="checkbox"`) for bulk actions require explicit `aria-label` attributes to ensure screen readers can announce the context (e.g., the title of the item being selected) and `focus-visible` styling so keyboard users can see what element is currently focused.
-**Action:** When implementing custom interactive elements for bulk operations, ensure they always include an appropriate `aria-label` and visible focus styles (like `focus-visible:outline-none focus-visible:ring-2`).
