@@ -1,0 +1,3 @@
+## 2024-05-19 - Accessible Component Primitives
+**Learning:** React elements serving as interactive actions that do not trigger form submission must explicitly declare `type="button"`, otherwise they might unexpectedly act as submit buttons in a form context. Custom generic elements (`button` or `div` acting as buttons) require explicit focus indicators via classes like `focus-visible` to satisfy a11y keyboard operability standards without conflicting with native mouse interactions.
+**Action:** Always add `type="button"` and `focus-visible:outline-none focus-visible:ring-2` styling logic when rendering custom buttons to guarantee semantic and visual accessibility.
