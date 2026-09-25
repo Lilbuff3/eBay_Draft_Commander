@@ -68,7 +68,7 @@ export function MobileNavBar() {
                 onClick={() => go(tab.id)}
                 aria-label={badge > 0 ? `${tab.label}, ${badge} waiting` : tab.label}
                 aria-current={isActive ? 'page' : undefined}
-                className="flex flex-col items-center justify-center gap-1 flex-1 min-w-0 h-full min-h-[44px] transition-transform active:scale-95 focus-visible:outline-none"
+                className="flex flex-col items-center justify-center gap-1 flex-1 min-w-0 h-full min-h-[44px] transition-transform active:scale-95 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500/50"
             >
                 <span className="relative">
                     <tab.icon
@@ -108,7 +108,7 @@ export function MobileNavBar() {
                             aria-label="More"
                             aria-haspopup="dialog"
                             aria-current={moreActive ? 'page' : undefined}
-                            className="flex flex-col items-center justify-center gap-1 flex-1 min-w-0 h-full min-h-[44px] transition-transform active:scale-95 focus-visible:outline-none"
+                            className="flex flex-col items-center justify-center gap-1 flex-1 min-w-0 h-full min-h-[44px] transition-transform active:scale-95 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500/50"
                         >
                             <MoreHorizontal
                                 size={22}
