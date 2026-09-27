@@ -60,8 +60,16 @@ function SortableThumbnail({ img, index, selectedIndex, onSelect }: { img: Galle
                     onSelect()
                 }
             }}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSelect();
+                }
+            }}
+            aria-label={`Select image ${img.name}`}
             className={cn(
-                "relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all touch-none",
+                "relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all touch-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-1",
+
                 index === selectedIndex
                     ? "border-persimmon-500 ring-1 ring-persimmon-500/30"
                     : "border-transparent hover:border-stone-300 opacity-70 hover:opacity-100",
@@ -165,7 +173,7 @@ export function ImageGallery({ images, onReorder, jobId, className }: ImageGalle
                         {safeSelectedIndex > 0 && (
                             <button
                                 onClick={(e) => { e.stopPropagation(); goPrev() }}
-                                className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-1.5 rounded-full opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                                className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-1.5 rounded-full opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-all focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500"
                                 aria-label="Previous image"
                             >
                                 <ChevronLeft size={18} />
@@ -174,7 +182,7 @@ export function ImageGallery({ images, onReorder, jobId, className }: ImageGalle
                         {safeSelectedIndex < images.length - 1 && (
                             <button
                                 onClick={(e) => { e.stopPropagation(); goNext() }}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-1.5 rounded-full opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-1.5 rounded-full opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-all focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500"
                                 aria-label="Next image"
                             >
                                 <ChevronRight size={18} />
