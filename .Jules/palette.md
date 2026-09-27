@@ -1,0 +1,3 @@
+## 2024-05-24 - Accessibility improvements for ImageGallery and UploadZone
+**Learning:** Found multiple instances where icon-only buttons lacked accessible names (`aria-label` or `title`) and keyboard focus visible styles, especially in dynamic, drag-and-drop, and overlay components (`ImageGallery`, `UploadZone`, `MobileNavBar`). Also noticed some custom elements behaving like buttons lacked keyboard events (`onKeyDown` for Enter/Space) and ARIA labels.
+**Action:** Consistently added `aria-label`, `title`, and `focus-visible` ring styling to `button`s and clickable `div`s. Ensuring any custom clickable element has `onKeyDown` handlers for standard accessibility conventions.
