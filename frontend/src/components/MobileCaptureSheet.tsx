@@ -201,8 +201,9 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                         <h2 className="text-xl font-bold tracking-tight text-stone-800">New Listing</h2>
                         {captureCategory && onChangeCategory && phase === 'capture' && (
                             <button
+                                type="button"
                                 onClick={() => { tap(); onChangeCategory() }}
-                                className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-persimmon-600 active:text-persimmon-700"
+                                className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-persimmon-600 active:text-persimmon-700 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500"
                             >
                                 <captureCategory.icon size={12} />
                                 {captureCategory.label}
@@ -217,11 +218,12 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                             </span>
                         )}
                         <button
+                            type="button"
                             onClick={onClose}
                             disabled={isUploading}
                             title="Close"
                             aria-label="Close"
-                            className="w-11 h-11 grid place-items-center rounded-full hover:bg-stone-100 disabled:opacity-50"
+                            className="w-11 h-11 grid place-items-center rounded-full hover:bg-stone-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500"
                         >
                             <X size={24} className="text-stone-500" />
                         </button>
@@ -310,10 +312,10 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                             </h3>
                             {photos.length > 0 && (
                                 <div className="flex items-center gap-1">
-                                    <button onClick={handleTakePhoto} className="inline-flex items-center gap-1.5 text-sm font-medium text-persimmon-600 px-3 min-h-[44px] rounded-lg hover:bg-persimmon-50">
+                                    <button type="button" onClick={handleTakePhoto} className="inline-flex items-center gap-1.5 text-sm font-medium text-persimmon-600 px-3 min-h-[44px] rounded-lg hover:bg-persimmon-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500">
                                         <Camera size={16} /> Camera
                                     </button>
-                                    <button onClick={handlePickFromGallery} className="inline-flex items-center gap-1.5 text-sm font-medium text-persimmon-600 px-3 min-h-[44px] rounded-lg hover:bg-persimmon-50">
+                                    <button type="button" onClick={handlePickFromGallery} className="inline-flex items-center gap-1.5 text-sm font-medium text-persimmon-600 px-3 min-h-[44px] rounded-lg hover:bg-persimmon-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500">
                                         <Images size={16} /> Gallery
                                     </button>
                                 </div>
@@ -338,7 +340,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                                             title="Delete photo"
                                             aria-label="Delete photo"
                                             onClick={() => handleDelete(photo.id, photo.url)}
-                                            className="absolute top-1 right-1 p-1.5 rounded-full bg-black/50 text-white backdrop-blur-sm active:scale-90 transition-transform"
+                                            className="absolute top-1 right-1 p-1.5 rounded-full bg-black/50 text-white backdrop-blur-sm active:scale-90 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-200"
                                         >
                                             <Trash2 size={16} />
                                         </button>
@@ -351,15 +353,17 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                                    multi-selects — capture inputs can't). */
                                 <div className="col-span-3 grid grid-cols-2 gap-3">
                                     <button
+                                        type="button"
                                         onClick={handleTakePhoto}
-                                        className="aspect-[3/2] rounded-xl border-2 border-dashed border-persimmon-300 bg-persimmon-50 flex flex-col items-center justify-center gap-1.5 text-persimmon-700 active:bg-persimmon-100 transition-colors"
+                                        className="aspect-[3/2] rounded-xl border-2 border-dashed border-persimmon-300 bg-persimmon-50 flex flex-col items-center justify-center gap-1.5 text-persimmon-700 active:bg-persimmon-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2"
                                     >
                                         <Camera size={26} />
                                         <span className="font-medium text-sm">Take photos</span>
                                     </button>
                                     <button
+                                        type="button"
                                         onClick={handlePickFromGallery}
-                                        className="aspect-[3/2] rounded-xl border-2 border-dashed border-stone-300 bg-stone-100 flex flex-col items-center justify-center gap-1.5 text-stone-600 active:bg-stone-200 transition-colors"
+                                        className="aspect-[3/2] rounded-xl border-2 border-dashed border-stone-300 bg-stone-100 flex flex-col items-center justify-center gap-1.5 text-stone-600 active:bg-stone-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2"
                                     >
                                         <Images size={26} />
                                         <span className="font-medium text-sm">From gallery</span>
@@ -367,9 +371,10 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                                 </div>
                             ) : (
                                 <button
+                                    type="button"
                                     onClick={handleTakePhoto}
                                     aria-label="Take another photo"
-                                    className="aspect-square rounded-xl border-2 border-dashed border-stone-300 bg-stone-100 flex flex-col items-center justify-center gap-1 text-stone-500 active:bg-stone-200 active:border-stone-400 transition-colors"
+                                    className="aspect-square rounded-xl border-2 border-dashed border-stone-300 bg-stone-100 flex flex-col items-center justify-center gap-1 text-stone-500 active:bg-stone-200 active:border-stone-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2"
                                 >
                                     <Camera size={24} />
                                 </button>
@@ -397,13 +402,14 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                                 <div className="flex flex-wrap gap-2">
                                     {conditions.map((cond) => (
                                         <button
+                                            type="button"
                                             key={cond.value}
                                             onClick={() => {
                                                 tap()
                                                 setCondition(cond.value === condition ? '' : cond.value)
                                             }}
                                             className={cn(
-                                                "px-4 py-2 rounded-full text-sm font-medium border transition-colors",
+                                                "px-4 py-2 rounded-full text-sm font-medium border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-1",
                                                 condition === cond.value
                                                     ? "bg-persimmon-600 text-white border-persimmon-500"
                                                     : "bg-white text-stone-600 border-stone-200 hover:border-stone-300"
