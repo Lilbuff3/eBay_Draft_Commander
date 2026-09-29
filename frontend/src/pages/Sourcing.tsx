@@ -375,6 +375,7 @@ export function Sourcing() {
                 <div className="flex gap-2">
                     <Input
                         value={manualCode}
+                        aria-label="Manual barcode entry"
                         onChange={e => setManualCode(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') checkManual() }}
                         placeholder="Type or wedge-scan a barcode…"
@@ -429,6 +430,7 @@ export function Sourcing() {
                                                 <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-xs text-stone-500">$</span>
                                                 <Input
                                                     className="h-7 pl-4 text-xs"
+                                                    aria-label="Amount paid"
                                                     value={row.paid || ''}
                                                     onChange={e => updateRow(row.id, { paid: e.target.value })}
                                                     placeholder="paid"

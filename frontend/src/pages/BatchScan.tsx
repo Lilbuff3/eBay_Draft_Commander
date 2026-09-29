@@ -190,6 +190,7 @@ function BatchItemCard({
                             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-stone-500">$</span>
                             <Input
                                 className="h-8 pl-5 text-sm bg-stone-50 border-stone-200 text-ink-800 focus:ring-persimmon-500"
+                                aria-label="Item price"
                                 value={item.price}
                                 onChange={(e) => onUpdatePrice(e.target.value)}
                                 placeholder="0.00"
@@ -546,6 +547,7 @@ export function BatchScan() {
                                             <span className="absolute left-2 top-1.5 text-xs text-stone-500">$</span>
                                             <Input
                                                 className="h-8 pl-5"
+                                                aria-label="Draft price"
                                                 value={item.price}
                                                 onChange={(e) => dispatch({ type: 'UPDATE_ITEM', payload: { id: item.id, data: { price: e.target.value } } })}
                                             />

@@ -1,0 +1,3 @@
+## 2024-06-25 - Custom Input Component Missing A11y Attributes
+**Learning:** The custom `Input` component (wrapping native `<input>`) lacks a default way to enforce or implicitly wire up accessibility. Since it's often used standalone (without a paired `<label htmlFor="...">`), developers frequently pass `placeholder` but forget `aria-label` or `id`, rendering it inaccessible to screen readers.
+**Action:** When using or reviewing the `Input` UI component without a visible associated `<label>`, explicitly mandate an `aria-label` attribute. Consider running a regex check like `<Input((?!aria-label)[^>])*>` during audits.
