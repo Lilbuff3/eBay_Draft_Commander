@@ -377,6 +377,7 @@ export function ItemDetailDrawer({
                                                     <Input
                                                         autoFocus
                                                         placeholder="Search categories..."
+                                                        aria-label="Search categories"
                                                         value={categoryQuery}
                                                         onChange={(e) => handleCategorySearch(e.target.value)}
                                                         onBlur={() => setTimeout(() => setShowCategorySearch(false), 200)}
@@ -486,6 +487,7 @@ export function ItemDetailDrawer({
                                                         ) : (
                                                             <Input
                                                                 value={value || ''}
+                                                                aria-label={`Item specific: ${key}`}
                                                                 onChange={(e) => {
                                                                     const newSpecs = { ...draft.itemSpecifics, [key]: e.target.value };
                                                                     updateDraft({ itemSpecifics: newSpecs });
@@ -527,11 +529,11 @@ export function ItemDetailDrawer({
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1 block">Title</label>
-                                    <Input value={job.name || ''} readOnly className="bg-stone-50" />
+                                    <Input value={job.name || ''} aria-label="Processing job title" readOnly className="bg-stone-50" />
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1 block">Price</label>
-                                    <Input inputMode="decimal" value={draft.price} onChange={(e) => updateDraft({ price: e.target.value })} className="bg-stone-50" />
+                                    <Input inputMode="decimal" aria-label="Processing job price" value={draft.price} onChange={(e) => updateDraft({ price: e.target.value })} className="bg-stone-50" />
                                 </div>
                             </div>
                         )}

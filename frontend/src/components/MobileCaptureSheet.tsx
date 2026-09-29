@@ -384,6 +384,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                                 <label className="text-sm font-semibold text-stone-700">Item Name (Optional)</label>
                                 <Input
                                     placeholder="Leave blank for AI to suggest"
+                                    aria-label="Item Name"
                                     value={title}
                                     onChange={(e) => setTitle(e.target.value)}
                                     className="bg-white h-12"
@@ -422,6 +423,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                                     <Input
                                         type="number"
                                         placeholder="0.00"
+                                        aria-label="Cost of Goods"
                                         value={cogs}
                                         onChange={(e) => setCogs(e.target.value)}
                                         className="bg-white h-12 pl-8 font-medium"

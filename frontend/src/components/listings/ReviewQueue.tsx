@@ -237,6 +237,7 @@ export function ReviewQueue() {
                                                 {editingId === listing.id ? (
                                                     <Input
                                                         value={editValues.title}
+                                                        aria-label="Edit listing title"
                                                         onChange={e => setEditValues(prev => ({ ...prev, title: e.target.value }))}
                                                         autoFocus
                                                     />
@@ -275,6 +276,7 @@ export function ReviewQueue() {
                                                     <Input
                                                         className="w-24"
                                                         inputMode="decimal"
+                                                        aria-label="Edit listing price"
                                                         value={editValues.price}
                                                         onChange={e => setEditValues(prev => ({ ...prev, price: e.target.value }))}
                                                         placeholder="0.00"

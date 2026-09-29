@@ -51,6 +51,7 @@ export function ApiKeyDialog() {
                         type="password"
                         autoComplete="off"
                         placeholder="API access token"
+                        aria-label="API access token"
                         value={value}
                         onChange={e => setValue(e.target.value)}
                     />

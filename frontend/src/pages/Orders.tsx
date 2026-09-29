@@ -110,7 +110,7 @@ export function Orders() {
 
             {/* Search */}
             <div className="px-4 sm:px-6 pb-3 shrink-0">
-                <Input placeholder="Search by item, buyer, or order ID…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                <Input placeholder="Search by item, buyer, or order ID…" aria-label="Search orders" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
             </div>
 
             {/* Cards */}
