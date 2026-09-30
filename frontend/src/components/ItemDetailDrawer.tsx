@@ -11,6 +11,8 @@ import { ShippingSelector } from '@/components/ShippingSelector'
 import { LogViewer, type LogEntry } from '@/components/LogViewer'
 import type { Job, JobDetails, ItemDraft, CategorySuggestion } from '@/lib/api'
 import { fetchWithKey, searchCategories, fetchCategoryAspects } from '@/lib/api'
+import { useCommanderStore } from '@/store/useCommanderStore'
+import { useItemDraft } from '@/hooks/useItemDraft'
 import { ItemDescriptionCard } from './item-detail/ItemDescriptionCard'
 import { ItemScheduleField } from './item-detail/ItemScheduleField'
 import { PriceExplainer } from './item-detail/PriceExplainer'
@@ -35,40 +37,44 @@ const CONDITION_OPTIONS = [
 
 
 interface ItemDetailDrawerProps {
-    open: boolean
-    onClose: () => void
-    job: Job | null
-    jobDetails: JobDetails | null
-    isLoadingDetails: boolean
-    images: Array<{ name: string; url: string }>
-    onReorderImages: (images: Array<{ name: string; url: string }>) => void
+    open?: boolean
+    onClose?: () => void
+    job?: Job | null
+    jobDetails?: JobDetails | null
+    isLoadingDetails?: boolean
+    images?: Array<{ name: string; url: string }>
+    onReorderImages?: (images: Array<{ name: string; url: string }>) => void
     // Editable fields
-    draft: ItemDraft
-    updateDraft: (updates: Partial<ItemDraft>) => void
+    draft?: ItemDraft
+    updateDraft?: (updates: Partial<ItemDraft>) => void
     // Actions
-    isCreating: boolean
-    onCreateListing: () => void
-    createResult: { success: boolean; message: string } | null
+    isCreating?: boolean
+    onCreateListing?: () => void
+    createResult?: { success: boolean; message: string } | null
     // Logs
-    logs: LogEntry[]
+    logs?: LogEntry[]
 }
 
-export function ItemDetailDrawer({
-    open,
-    onClose,
-    job,
-    jobDetails,
-    isLoadingDetails,
-    images,
-    onReorderImages,
-    // Editable fields
-    draft,
-    updateDraft,
-    isCreating,
-    onCreateListing,
-    createResult,
-    logs,
-}: ItemDetailDrawerProps) {
+export function ItemDetailDrawer(props: ItemDetailDrawerProps = {}) {
+    const storeSelectedJob = useCommanderStore(state => state.selectedJob)
+    const setSelectedJob = useCommanderStore(state => state.setSelectedJob)
+    const jobLogs = useCommanderStore(state => state.jobLogs)
+
+    const job = props.job !== undefined ? props.job : storeSelectedJob
+    const open = props.open !== undefined ? props.open : !!job
+    const onClose = props.onClose ?? (() => setSelectedJob(null))
+    const logs = props.logs ?? (job ? (jobLogs[job.id] || []) : [])
+
+    const itemDraftHook = useItemDraft(job)
+    const draft = props.draft ?? itemDraftHook.draft
+    const updateDraft = props.updateDraft ?? itemDraftHook.updateDraft
+    const jobDetails = props.jobDetails !== undefined ? props.jobDetails : itemDraftHook.jobDetails
+    const isLoadingDetails = props.isLoadingDetails !== undefined ? props.isLoadingDetails : itemDraftHook.isLoadingDetails
+    const images = props.images ?? itemDraftHook.jobImages
+    const onReorderImages = props.onReorderImages ?? itemDraftHook.setJobImages
+    const isCreating = props.isCreating !== undefined ? props.isCreating : itemDraftHook.isCreating
+    const onCreateListing = props.onCreateListing ?? itemDraftHook.submitListing
+    const createResult = props.createResult !== undefined ? props.createResult : itemDraftHook.createResult
     const [showLogs, setShowLogs] = useState(false)
     const [showCategorySearch, setShowCategorySearch] = useState(false)
     const [categoryQuery, setCategoryQuery] = useState('')

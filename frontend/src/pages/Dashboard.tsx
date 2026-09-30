@@ -6,30 +6,16 @@ import { useCommanderStore } from '@/store/useCommanderStore'
 import { useQueryClient } from '@tanstack/react-query'
 import { BatchSummaryDialog } from '@/components/BatchSummaryDialog'
 import { DashboardHome } from '@/home/DashboardHome'
-import { useItemDraft } from '@/hooks/useItemDraft'
 
 export function Dashboard() {
     const queryClient = useQueryClient()
 
     // Store State
     const setActiveTab = useCommanderStore(state => state.setActiveTab)
-    const selectedJob = useCommanderStore(state => state.selectedJob)
-    const setSelectedJob = useCommanderStore(state => state.setSelectedJob)
     const lastUploadedJobId = useCommanderStore(state => state.lastUploadedJobId)
     const setLastUploadedJobId = useCommanderStore(state => state.setLastUploadedJobId)
-    const jobLogs = useCommanderStore(state => state.jobLogs)
     const batchSummary = useCommanderStore(state => state.batchSummary)
     const setBatchSummary = useCommanderStore(state => state.setBatchSummary)
-
-    // Everything about the selected job's listing draft lives in the hook:
-    // details/images fetching, user-edit-protected merge, submission.
-    const {
-        draft, updateDraft,
-        jobDetails, isLoadingDetails,
-        jobImages, setJobImages,
-        isCreating, createResult,
-        submitListing,
-    } = useItemDraft(selectedJob)
 
     // Mobile upload landed: refresh the jobs list and get out of the way. The
     // capture sheet's success interstitial ("Item #N on its way → Snap next
@@ -84,21 +70,7 @@ export function Dashboard() {
             </div>
 
             {/* Detail Drawer */}
-            <ItemDetailDrawer
-                open={!!selectedJob}
-                onClose={() => setSelectedJob(null)}
-                job={selectedJob}
-                jobDetails={jobDetails}
-                isLoadingDetails={isLoadingDetails}
-                images={jobImages}
-                onReorderImages={setJobImages}
-                draft={draft}
-                updateDraft={updateDraft}
-                isCreating={isCreating}
-                onCreateListing={submitListing}
-                createResult={createResult}
-                logs={selectedJob ? (jobLogs[selectedJob.id] || []) : []}
-            />
+            <ItemDetailDrawer />
 
             {/* Batch Summary */}
             <BatchSummaryDialog
