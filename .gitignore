@@ -78,7 +78,7 @@ frontend/dist/
 thumbs.db
 
 # Backups
-*.bak
+*.bak*
 *.bak2
 *_backup*
 
