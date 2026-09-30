@@ -138,11 +138,11 @@ def ebay_price_research(query: str, limit: int = 10) -> str:
         limit: Max comparable items to return (default 10, max 30)
     """
     try:
-        from backend.app.services.ebay.researcher import eBayResearcher
+        from backend.app.services.ebay.browse import eBayBrowseAPI
 
         limit = min(max(1, limit), 30)
-        researcher = eBayResearcher(use_api=True, use_ai=False)
-        result = researcher.search_sold(query, limit=limit, use_ai_fallback=False)
+        browse_api = eBayBrowseAPI()
+        result = browse_api.search_items(query, limit=limit)
 
         if not result or result.get("source") == "error":
             return json.dumps({"message": f"No pricing data found for '{query}'"})

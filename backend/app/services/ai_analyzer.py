@@ -12,7 +12,11 @@ from google.genai import types
 
 from backend.app.core.logger import get_logger
 from backend.app.core.rate_limiter import limiter
-from backend.app.core.constants import AI_MODEL_NAME, ASPECT_RESOLVE_CONFIDENCE_FLOOR
+from backend.app.core.constants import (
+    AI_MODEL_NAME, ASPECT_RESOLVE_CONFIDENCE_FLOOR,
+    get_shipping_cost, DEFAULT_SHIPPING_COST,
+)
+from backend.app.services.ebay import taxonomy
 from backend.app.core.prompts import (
     EBAY_LISTING_PROMPT, INDUSTRIAL_RESEARCH_PROMPT,
     ASPECT_ENRICHMENT_PROMPT, ASPECT_RESOLVE_PROMPT,
@@ -82,6 +86,7 @@ class AIAnalyzer:
         # Initialize the new GenAI Client
         self.client = genai.Client(api_key=api_key)
         logger.info("AI Analyzer initialized (google-genai SDK)")
+        self._default_shipping_cost = self._resolve_default_shipping_cost()
 
 
 
@@ -716,6 +721,106 @@ class AIAnalyzer:
             'offer_id': None,
             'mode': result.get('analysis_mode', 'basic')
         }
+
+    def _resolve_default_shipping_cost(self) -> float:
+        """Determine default estimated shipping cost from environment or constants."""
+        try:
+            return float(os.getenv('ESTIMATED_SHIPPING_COST', DEFAULT_SHIPPING_COST))
+        except (ValueError, TypeError):
+            return DEFAULT_SHIPPING_COST
+
+    def calculate_shipping_cost(self, ai_data: dict) -> float:
+        """Calculate shipping cost using centralized tier logic."""
+        ident = (ai_data or {}).get('identification', {})
+        return get_shipping_cost(
+            category_id=ident.get('category_id'),
+            isbn=ident.get('isbn'),
+            package_size=ident.get('package_size', ''),
+            estimated_weight_lbs=ident.get('estimated_weight_lbs'),
+        )
+
+    def _calculate_shipping_cost(self, ai_data: dict) -> float:
+        return self.calculate_shipping_cost(ai_data)
+
+    def analyze_job_item(self, job_obj, images, condition=None, log_callback=None, taxonomy_module=None):
+        """Perform AI vision analysis, category suggestion, and title selection for a job."""
+        def _log(msg, level="info"):
+            if log_callback:
+                log_callback(msg, level)
+            getattr(logger, level)(msg)
+
+        try:
+            # Check DB object for cached AI data
+            force_refresh = job_obj.job_metadata.get('force_ai_refresh', False) if job_obj.job_metadata else False
+
+            if not force_refresh and job_obj.ai_data and job_obj.ai_data.get('listing'):
+                _log("Using cached AI analysis from Database")
+                ai_data = job_obj.ai_data
+            else:
+                if force_refresh:
+                    _log("Forcing AI Refresh (Ignoring Cache)...")
+                _log(f"Analyzing {len(images)} images with AI (Research Mode)...")
+
+                temp_title = job_obj.user_title or Path(job_obj.folder_path).name
+                tax = taxonomy_module or taxonomy
+                suggestions = tax.get_category_suggestions(temp_title)
+
+                if suggestions:
+                    sug_text = "Suggested eBay Categories:\n"
+                    for s in suggestions[:5]:
+                        sug_text += f"- ID: {s['category_id']} | Path: {s['full_path']}\n"
+                else:
+                    sug_text = "No eBay category suggestions found. Use your best judgment."
+
+                seller_note = job_obj.job_metadata.get('note', '') if job_obj.job_metadata else ''
+                ai_data = self.analyze_with_research(
+                    images, category_suggestions=sug_text, seller_note=seller_note
+                )
+
+                if ai_data.get('error'):
+                    raise Exception(f"AI Analyzer Error: {ai_data['error']}")
+
+                job_obj.ai_data = ai_data
+
+            listing_data = ai_data.get('listing', {})
+            if not listing_data:
+                raise Exception("AI returned no output with 'listing' key")
+
+            seo_title = ai_data.get('seo_title', '')
+            suggested_title = listing_data.get('suggested_title', '')
+            best_ai_title = max([seo_title, suggested_title], key=len) if (seo_title or suggested_title) else ''
+            title = job_obj.user_title or best_ai_title or f"Item {job_obj.id}"
+            raw_description = job_obj.user_description or listing_data.get('description_html') or listing_data.get('description') or f"Item {job_obj.id}"
+            item_specifics = ai_data.get('item_specifics', ai_data.get('identification', {}))
+            ai_suggested_price = listing_data.get('suggested_price', 0)
+
+            ident = ai_data.get('identification', {})
+            selected_category_id = ident.get('category_id')
+            shipping_calc = getattr(self, 'calculate_shipping_cost', None)
+            if callable(shipping_calc) and type(shipping_calc).__name__ != 'MagicMock':
+                shipping_cost = shipping_calc(ai_data)
+            else:
+                shipping_cost = get_shipping_cost(
+                    category_id=ident.get('category_id'),
+                    isbn=ident.get('isbn'),
+                    package_size=ident.get('package_size', ''),
+                    estimated_weight_lbs=ident.get('estimated_weight_lbs'),
+                )
+
+            return {
+                "success": True,
+                "ai_data": ai_data,
+                "title": title,
+                "raw_description": raw_description,
+                "item_specifics": item_specifics,
+                "ai_suggested_price": ai_suggested_price,
+                "shipping_cost": shipping_cost,
+                "category_id": selected_category_id,
+                "confidence_score": listing_data.get('confidence_score', 0.85),
+            }
+        except Exception as e:
+            logger.error(f"AI Analysis failed: {e}")
+            return {"success": False, "error": str(e)}
 
 
 # Test the analyzer

@@ -121,36 +121,30 @@ class PricingEngine:
         if not self.app_id:
             return []
 
-        # Use eBayResearcher (Browse API) with condition filtering
+        # Use eBay Browse API directly with condition filtering
         try:
-            from backend.app.services.ebay.researcher import eBayResearcher
-            researcher = eBayResearcher(use_api=True, use_ai=False) # AI fallback handled by caller if needed
+            from backend.app.services.ebay.browse import eBayBrowseAPI
+            browse_api = eBayBrowseAPI()
+            results = browse_api.search_items(keywords, limit=limit, condition=condition)
 
-            # The researcher returns {'items': [SoldItem...], ...}
-            # We need to adapt it to the dict format expected by this class
-            results = researcher.search_sold(keywords, limit=limit, condition=condition)
-            
             sold_items = []
             if results and 'items' in results:
                 for item in results['items']:
                     sold_items.append({
                         "title": item['title'],
                         "price": item['price'],
-                        "currency": "USD", # Researcher normalizes to float, assuming USD for now
+                        "currency": "USD",
                         "condition": item['condition'],
-                        "end_date": item['date'],
+                        "end_date": item.get('soldDate', item.get('date', '')),
                         "url": item['url'],
                         # Thumbnail for the "why this price" comp cards
-                        "image_url": item.get('imageUrl', '')
+                        "image_url": item.get('imageUrl', item.get('image_url', ''))
                     })
-            
+
             return sold_items
 
-        except ImportError:
-            logger.error("[FAIL] Could not import eBayResearcher")
-            return []
         except Exception as e:
-            logger.error(f"[FAIL] Pricing engine error (using Researcher): {e}")
+            logger.error(f"[FAIL] Pricing engine error (using Browse API): {e}")
             return []
     
     MIN_TITLE_SIMILARITY = 0.40  # Min distinctive-token overlap ratio (raised from 0.30)
@@ -1003,6 +997,82 @@ class PricingEngine:
             "research_link": research_link,
             "error": "Price discovery failed"
         }
+
+    def get_final_pricing(
+        self,
+        title: str,
+        condition: Optional[str] = None,
+        ai_suggested_price: Optional[Union[float, str]] = None,
+        user_price: Optional[Union[float, str]] = None,
+        shipping_cost: Optional[float] = None,
+        log_callback=None,
+        identification: Optional[Dict] = None,
+        research_market_price: Optional[float] = None,
+        availability: Optional[str] = None,
+        seller_note: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Calculates final pricing for listing creation, handling user overrides,
+        free shipping markup, comps calculation, and timings. Passes all pricing
+        engine fields through without projection loss.
+        """
+        def _log(msg, level="info"):
+            if log_callback:
+                log_callback(msg, level)
+            getattr(logger, level)(msg)
+
+        if user_price:
+            _log(f"Using User Override Price: {user_price}")
+            return {
+                "price": str(user_price),
+                "timing": 0,
+                "comps": [],
+                "reasoning": "User override",
+                "source": "user_override",
+                "confidence": "user",
+                "confidence_reason": "User-set price",
+            }
+
+        import time
+        pricing_start = time.time()
+        try:
+            default_ship = float(os.getenv('ESTIMATED_SHIPPING_COST', '6.50'))
+            resolved_shipping = shipping_cost if shipping_cost is not None else default_ship
+
+            if resolved_shipping > 0:
+                _log(f"Free shipping mode: adding ${resolved_shipping:.2f} shipping buffer to price")
+
+            _log("Researching pricing & comps...")
+            price_result = self.get_price_with_comps(
+                title,
+                condition=condition,
+                ai_suggested_price=ai_suggested_price,
+                shipping_cost=resolved_shipping,
+                identification=identification,
+                research_market_price=research_market_price,
+                availability=availability,
+                seller_note=seller_note,
+            )
+            final_price = str(price_result['suggested_price']) if price_result.get('suggested_price') else "0.00"
+            _log(f"Suggested Price: ${final_price}")
+
+            # Deep pass-through: preserve all fields from get_price_with_comps
+            result = dict(price_result)
+            result["price"] = final_price
+            result["timing"] = time.time() - pricing_start
+            result.pop("suggested_price", None)
+            return result
+        except Exception as e:
+            _log(f"Pricing Logic Failed: {e}", level='error')
+            return {
+                "price": "0.00",
+                "warning": "Price logic failed. Manual input required.",
+                "timing": time.time() - pricing_start,
+                "comps": [],
+                "reasoning": "",
+                "source": "",
+                "confidence": "low",
+                "confidence_reason": "Pricing failed — manual price needed",
+            }
 
 
 # Test the pricing engine

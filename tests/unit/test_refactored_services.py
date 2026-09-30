@@ -9,7 +9,6 @@ import json
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from backend.app.services.ai_analyzer import AIAnalyzer
-from backend.app.services.ebay.researcher import eBayResearcher, SoldItem
 from backend.app.services.ebay.browse import eBayBrowseAPI, MarketItem
 from backend.app.core.constants import AI_MODEL_NAME
 
@@ -96,26 +95,6 @@ class TesteBayServices(unittest.TestCase):
         self.assertEqual(data['imageUrl'], "http://image.url")
         self.assertEqual(data['soldDate'], "Active")
         self.assertEqual(data['date'], "Active")
-
-    def test_researcher_scraping_parsing(self):
-        # Verify Researcher parsing logic via _item_to_dict compatibility
-        researcher = eBayResearcher()
-        
-        # Use SoldItem for researcher._item_to_dict
-        sold_item = SoldItem(
-            title="Scraped Item",
-            price=45.0,
-            shipping=5.0,
-            date="Nov 12",
-            condition="Used",
-            url="http://item.url",
-            image_url="http://scraped.image"
-        )
-        
-        data = researcher._item_to_dict(sold_item)
-        self.assertEqual(data['imageUrl'], "http://scraped.image")
-        self.assertEqual(data['soldDate'], "Nov 12")
-        self.assertEqual(data['shipping'], 5.0)
 
 if __name__ == '__main__':
     unittest.main()

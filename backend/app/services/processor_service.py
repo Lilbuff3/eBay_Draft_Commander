@@ -16,6 +16,8 @@ from backend.app.core.validator import validate_price, validate_title, validate_
 from backend.app.services.ebay_service import eBayService
 from backend.app.services.template_manager import get_template_manager
 from backend.app.services.image_processor import ImageProcessor
+from backend.app.services.ai_analyzer import AIAnalyzer
+from backend.app.services.pricing_engine import PricingEngine
 from backend.app.services.listing_ai_agent import ListingAIAgent
 from backend.app.services.category_mapper import CategoryMapper
 from backend.app.core.exceptions import NeedsReviewException
@@ -96,7 +98,9 @@ class ProcessorService:
         self.template_manager = get_template_manager()
         self.category_mapper = CategoryMapper()
         self.image_processor = ImageProcessor(self.ebay_service)
-        self.ai_agent = ListingAIAgent()
+        self.ai_analyzer = AIAnalyzer()
+        self.pricing_engine = PricingEngine()
+        self.ai_agent = ListingAIAgent(self.ai_analyzer, self.pricing_engine)
         
     # Map AI condition states to our internal condition enum values
     AI_CONDITION_MAP = {
