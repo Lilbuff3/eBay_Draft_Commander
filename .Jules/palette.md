@@ -1,0 +1,3 @@
+## 2023-10-24 - Accessibility improvements for UploadZone dismiss buttons
+**Learning:** Dismiss buttons for toast/status messages without text content or `title` attributes are confusing for screen readers and mouse users. Furthermore, omitting `type="button"` on interactive UI elements within potential forms causes unintended submissions, and lacking visible focus states hampers keyboard navigability.
+**Action:** Always add `type="button"`, descriptive `aria-label`, informative `title` attributes, and `focus-visible` ring styling to icon-only interactive dismiss buttons (e.g., `<X>` icons) in custom React components to ensure robust accessibility.
