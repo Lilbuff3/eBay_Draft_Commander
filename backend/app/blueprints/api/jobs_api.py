@@ -5,6 +5,7 @@ import time
 import uuid
 from werkzeug.utils import secure_filename
 from backend.app.blueprints.api.helpers import error_response, build_pricing_data
+from backend.app.services.item_media import ItemMedia
 from backend.app.services.image_service import ImageService
 from backend.app.services.ebay_service import eBayService
 from backend.app.core import selling_costs
@@ -15,7 +16,7 @@ from backend.app.services.queue_job import resolve_thumbnail
 
 jobs_bp = Blueprint('jobs', __name__)
 logger = get_logger('api.jobs')
-image_service = ImageService()
+image_service = ItemMedia()
 
 
 COGS_MAX = 99999
