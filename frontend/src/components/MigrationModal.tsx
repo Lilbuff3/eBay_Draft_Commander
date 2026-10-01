@@ -173,7 +173,8 @@ export function MigrationModal({ onClose, onSuccess }: MigrationModalProps) {
                                                 checked={selectedIds.has(item.listingId)}
                                                 onChange={() => toggleSelect(item.listingId)}
                                                 disabled={item.inInventory}
-                                                className="w-4 h-4 rounded border-stone-300 text-blue-600 focus:ring-blue-500"
+                                                aria-label={`Select ${item.title}`}
+                                                className="w-4 h-4 rounded border-stone-300 text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
                                             />
 
                                             <div className="w-12 h-12 rounded bg-stone-100 overflow-hidden shrink-0 border border-stone-200">
