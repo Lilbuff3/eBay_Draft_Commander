@@ -306,7 +306,8 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                             {(['active', 'sold'] as const).map(tab => (
                                 <button
                                     key={tab}
-                                    className={`px-4 min-h-[44px] text-sm font-semibold rounded-lg transition capitalize ${filterStatus === tab ? 'bg-stone-100 text-persimmon-600 shadow-sm' : 'text-stone-500 hover:text-ink-800'}`}
+                                    type="button"
+                                    className={`px-4 min-h-[44px] text-sm font-semibold rounded-lg transition capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2 ${filterStatus === tab ? 'bg-stone-100 text-persimmon-600 shadow-sm' : 'text-stone-500 hover:text-ink-800'}`}
                                     onClick={() => setFilterStatus(tab)}
                                 >
                                     {tab}
@@ -385,8 +386,9 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                     {/* Capital banner */}
                     {deadCapital > 0 && (
                         <button
+                            type="button"
                             onClick={() => setStaleFilter(staleFilter === 'dead' ? 'all' : 'dead')}
-                            className="mx-4 sm:mx-6 mt-3 text-left rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 transition hover:bg-rose-100"
+                            className="mx-4 sm:mx-6 mt-3 text-left rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 transition hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2"
                         >
                             <div className="font-display font-bold text-[20px] tracking-[-0.03em] text-rose-700">
                                 ${Math.round(deadCapital).toLocaleString()} tied up
@@ -402,8 +404,9 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                         {chips.map(c => (
                             <button
                                 key={c.key}
+                                type="button"
                                 onClick={() => setStaleFilter(c.key)}
-                                className={`px-4 min-h-[44px] rounded-full text-[13px] font-semibold transition-all ${staleFilter === c.key ? 'bg-persimmon-600 text-white shadow-sm' : 'bg-paper-card border border-stone-200 text-stone-500 hover:text-ink-800 hover:bg-stone-100'}`}
+                                className={`px-4 min-h-[44px] rounded-full text-[13px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2 ${staleFilter === c.key ? 'bg-persimmon-600 text-white shadow-sm' : 'bg-paper-card border border-stone-200 text-stone-500 hover:text-ink-800 hover:bg-stone-100'}`}
                             >
                                 {c.label} {c.n}
                             </button>
@@ -424,6 +427,7 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                         return (
                             <div className="mx-4 sm:mx-6 mb-2 rounded-2xl bg-paper-card border border-persimmon-200 px-3 py-2 flex items-center gap-2 flex-wrap shrink-0">
                                 <button
+                                    type="button"
                                     onClick={() => setSelectedIds(allShownSelected ? new Set() : new Set(selectable.map(e => e.l.listingId!)))}
                                     className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-600 hover:text-ink-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2 rounded"
                                 >
@@ -434,16 +438,18 @@ export function ActiveListings({ onClose }: ActiveListingsProps) {
                                     {selected.length} selected · ${Math.round(selectedValue).toLocaleString()}
                                 </span>
                                 <button
+                                    type="button"
                                     disabled={selected.length === 0 || bulkRunning}
                                     onClick={() => runBulk('drop10', selected.map(e => e.l))}
-                                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold bg-persimmon-50 text-persimmon-700 border border-persimmon-200 hover:bg-persimmon-100 disabled:opacity-50 transition"
+                                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold bg-persimmon-50 text-persimmon-700 border border-persimmon-200 hover:bg-persimmon-100 disabled:opacity-50 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2"
                                 >
                                     <TrendingDown size={13} /> Drop 10%
                                 </button>
                                 <button
+                                    type="button"
                                     disabled={selected.length === 0 || bulkRunning}
                                     onClick={() => runBulk('end', selected.map(e => e.l))}
-                                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 transition"
+                                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2"
                                 >
                                     <XCircle size={13} /> End
                                 </button>
