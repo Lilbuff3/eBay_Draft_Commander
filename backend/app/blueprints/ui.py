@@ -90,3 +90,15 @@ def serve_offline():
     app_dir = Path(current_app.static_folder) / 'app'
     return send_from_directory(app_dir, 'offline.html')
 
+# --- APK Download for Android ---
+@ui_bp.route('/download')
+@ui_bp.route('/download/apk')
+def download_apk():
+    app_dir = Path(current_app.static_folder) / 'app'
+    return send_from_directory(
+        app_dir,
+        'draft-commander.apk',
+        as_attachment=True,
+        mimetype='application/vnd.android.package-archive'
+    )
+

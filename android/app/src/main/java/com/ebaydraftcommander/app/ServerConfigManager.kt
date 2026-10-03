@@ -24,7 +24,7 @@ class ServerConfigManager(context: Context) {
         private const val KEY_API_KEY = "api_key"
 
         const val DEFAULT_TAILSCALE_URL = "https://tuf-2.taile466a6.ts.net/app/"
-        const val DEFAULT_LAN_URL = "http://192.168.1.142:5000/app/"
+        const val DEFAULT_LAN_URL = "http://10.0.0.51:5000/app/"
         const val DEFAULT_EMULATOR_URL = "http://10.0.2.2:5000/app/"
     }
 
