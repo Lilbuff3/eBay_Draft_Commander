@@ -84,7 +84,7 @@ export function Orders() {
             {counts.overdue + counts.urgent > 0 && (
                 <button
                     onClick={() => setFilter(filter === 'overdue' ? 'all' : 'overdue')}
-                    className="mx-4 sm:mx-6 mt-3 text-left rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 transition hover:bg-rose-100"
+                    className="mx-4 sm:mx-6 mt-3 text-left rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 transition hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2"
                 >
                     <div className="font-display font-bold text-[20px] tracking-[-0.03em] text-rose-700">
                         {counts.overdue + counts.urgent} {counts.overdue + counts.urgent === 1 ? 'order needs' : 'orders need'} shipping
@@ -101,7 +101,7 @@ export function Orders() {
                     <button
                         key={c.key}
                         onClick={() => setFilter(c.key)}
-                        className={`px-4 min-h-[44px] rounded-full text-[13px] font-semibold transition-all ${filter === c.key ? 'bg-persimmon-600 text-white shadow-sm' : 'bg-paper-card border border-stone-200 text-stone-500 hover:text-ink-800 hover:bg-stone-100'}`}
+                        className={`px-4 min-h-[44px] rounded-full text-[13px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2 ${filter === c.key ? 'bg-persimmon-600 text-white shadow-sm' : 'bg-paper-card border border-stone-200 text-stone-500 hover:text-ink-800 hover:bg-stone-100'}`}
                     >
                         {c.label} {c.n}
                     </button>

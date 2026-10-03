@@ -80,7 +80,7 @@ export function ShippingSelector({ value, onChange, className = '' }: ShippingSe
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className="w-full flex items-center justify-between gap-2 p-3 bg-stone-50 rounded-lg border border-stone-200 hover:border-stone-300 transition-colors text-left"
+                className="w-full flex items-center justify-between gap-2 p-3 bg-stone-50 rounded-lg border border-stone-200 hover:border-stone-300 transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:border-transparent"
             >
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                     <Truck size={16} className="text-stone-500 flex-shrink-0" />
@@ -116,7 +116,7 @@ export function ShippingSelector({ value, onChange, className = '' }: ShippingSe
                             <button
                                 key={policy.id}
                                 onClick={() => handleSelect(policy.id)}
-                                className={`w-full flex items-center gap-3 p-3 text-left hover:bg-stone-50 transition-colors ${policy.id === selected ? 'bg-blue-50' : ''
+                                className={`w-full flex items-center gap-3 p-3 text-left hover:bg-stone-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:bg-stone-50 ${policy.id === selected ? 'bg-blue-50' : ''
                                     }`}
                             >
                                 <div className="flex-1 min-w-0">

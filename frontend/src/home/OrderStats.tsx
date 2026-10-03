@@ -32,7 +32,7 @@ export function OrderStats() {
     return (
         <button
             onClick={() => setActiveTab('orders')}
-            className={`w-full text-left rounded-3xl border px-4 py-4 flex items-center gap-3 transition shadow-sm hover:shadow-md ${
+            className={`w-full text-left rounded-3xl border px-4 py-4 flex items-center gap-3 transition shadow-sm hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2 ${
                 hot
                     ? 'border-red-300 bg-red-50 hover:bg-red-100'
                     : 'border-stone-200 bg-paper-card hover:bg-stone-50'

@@ -98,7 +98,7 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
                         <button
                             onClick={handleScan}
                             disabled={isScanning}
-                            className="hidden sm:flex items-center gap-2 h-11 bg-persimmon-50 border border-persimmon-200 hover:bg-persimmon-100 transition-colors rounded-full px-4 disabled:opacity-50 cursor-pointer"
+                            className="hidden sm:flex items-center gap-2 h-11 bg-persimmon-50 border border-persimmon-200 hover:bg-persimmon-100 transition-colors rounded-full px-4 disabled:opacity-50 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2"
                         >
                             {isScanning ? (
                                 <div className="w-4 h-4 rounded-full border-2 border-persimmon-500 border-t-transparent animate-spin mr-1"></div>
@@ -113,7 +113,7 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
                         {/* Mobile Settings — also reachable from the More tab. */}
                         <button
                             onClick={() => setActiveTab('settings')}
-                            className="flex sm:hidden items-center justify-center w-11 h-11 bg-paper-card border border-stone-200 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer text-stone-600 hover:text-ink-800"
+                            className="flex sm:hidden items-center justify-center w-11 h-11 bg-paper-card border border-stone-200 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer text-stone-600 hover:text-ink-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2"
                             aria-label="Settings"
                         >
                             <SettingsIcon className="w-5 h-5" />
@@ -126,7 +126,7 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
                     <motion.div variants={itemVariants}>
                         <button
                             onClick={() => setActiveTab('settings')}
-                            className="w-full flex items-center gap-3 rounded-2xl bg-red-50 border border-red-300 px-4 py-3 text-left hover:bg-red-100 transition-colors"
+                            className="w-full flex items-center gap-3 rounded-2xl bg-red-50 border border-red-300 px-4 py-3 text-left hover:bg-red-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
                         >
                             <PlugZap className="w-5 h-5 text-red-600 shrink-0" />
                             <div className="flex-1 min-w-0">
@@ -142,7 +142,7 @@ export function DashboardHome({ userName = 'there' }: { userName?: string }) {
                     <motion.div variants={itemVariants}>
                         <button
                             onClick={() => setActiveTab('review')}
-                            className="w-full flex items-center gap-3 rounded-2xl bg-clay-300/25 border border-clay-400 px-4 py-3 text-left hover:bg-clay-300/40 transition-colors"
+                            className="w-full flex items-center gap-3 rounded-2xl bg-clay-300/25 border border-clay-400 px-4 py-3 text-left hover:bg-clay-300/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay-500 focus-visible:ring-offset-2"
                         >
                             <ShieldAlert className="w-5 h-5 text-clay-600 shrink-0" />
                             <div className="flex-1 min-w-0">
