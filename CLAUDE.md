@@ -36,6 +36,10 @@ npm run test                              # Vitest
 # Full stack dev
 # Terminal 1: python backend/wsgi.py
 # Terminal 2: cd frontend && npm run dev
+
+# Android
+powershell .\scripts\build-android.ps1        # Build debug APK
+powershell .\scripts\build-android.ps1 -Install -Run # Build & install to device/emulator
 ```
 
 ## Architecture

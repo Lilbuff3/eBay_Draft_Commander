@@ -59,6 +59,16 @@ data/inbox/
 posted/
 logs/
 *.png
+!frontend/public/**/*.png
+!android/**/res/**/*.png
+
+# Android
+.gradle/
+android/.gradle/
+android/local.properties
+android/*/build/
+android/build/
+*.apk
 
 # Additional Debug & Test Outputs
 *_output.txt

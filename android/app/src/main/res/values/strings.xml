@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">Draft Commander</string>
+    <string name="server_settings">Server Settings</string>
+    <string name="server_url">Server URL</string>
+    <string name="tailscale_mode">Tailscale HTTPS (Default)</string>
+    <string name="lan_mode">Local Network LAN</string>
+    <string name="custom_mode">Custom Address</string>
+    <string name="api_key">API Access Token</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="retry">Retry Connection</string>
+    <string name="connection_error_title">Connection Error</string>
+    <string name="connection_error_msg">Unable to reach the eBay Draft Commander server. Check your connection or verify Tailscale is connected.</string>
+    <string name="switch_server">Change Server</string>
+    <string name="test_connection">Test Connection</string>
+    <string name="connection_ok">Connected successfully!</string>
+    <string name="connection_failed">Could not connect to server.</string>
+</resources>
