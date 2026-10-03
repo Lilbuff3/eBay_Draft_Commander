@@ -44,11 +44,14 @@ class CommanderWebViewClient(
 
         // Inject helper flags into page context
         val apiKey = serverConfigManager.apiKey
+        val escapedKey = apiKey.replace("\\", "\\\\").replace("'", "\\'").replace("\r", "").replace("\n", "")
         val jsInject = buildString {
             append("window.isAndroidWrapper = true;")
             if (apiKey.isNotBlank()) {
                 // Ensure API key is persisted in localStorage so apiFetch picks it up immediately
-                append("try { localStorage.setItem('dc-api-key', '${apiKey.replace("'", "\\'")}'); } catch(e){}")
+                append("try { localStorage.setItem('dc-api-key', '$escapedKey'); } catch(e){}")
+            } else {
+                append("try { localStorage.removeItem('dc-api-key'); } catch(e){}")
             }
         }
         view?.evaluateJavascript(jsInject, null)
@@ -56,11 +59,11 @@ class CommanderWebViewClient(
 
     override fun onPageFinished(view: WebView?, url: String?) {
         super.onPageFinished(view, url)
-        if (shouldClearHistoryOnLoad) {
-            shouldClearHistoryOnLoad = false
-            view?.clearHistory()
-        }
         if (!hasError) {
+            if (shouldClearHistoryOnLoad) {
+                shouldClearHistoryOnLoad = false
+                view?.clearHistory()
+            }
             activity.hideError()
         }
     }

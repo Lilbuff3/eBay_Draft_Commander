@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Download, X, Share, PlusSquare } from 'lucide-react'
+import { isAppInstalled } from '@/lib/pwa'
 
 interface BeforeInstallPromptEvent extends Event {
     prompt: () => Promise<void>
@@ -9,9 +10,7 @@ interface BeforeInstallPromptEvent extends Event {
 
 export function InstallPrompt() {
     const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
-    const [isInstalled, setIsInstalled] = useState(() => {
-        return window.matchMedia('(display-mode: standalone)').matches
-    })
+    const [isInstalled, setIsInstalled] = useState(() => isAppInstalled())
     const [dismissed, setDismissed] = useState(false)
     const [isIOS] = useState(() => {
         const userAgent = window.navigator.userAgent.toLowerCase()
@@ -55,7 +54,7 @@ export function InstallPrompt() {
         setDismissed(true)
     }
 
-    const isAndroidWrapper = typeof window !== 'undefined' && Boolean(window.isAndroidWrapper)
+    const isAndroidWrapper = typeof window !== 'undefined' && Boolean(window.isAndroidWrapper || window.AndroidBridge)
 
     // Don't show if installed, dismissed, or inside Android wrapper
     if (isInstalled || dismissed || isAndroidWrapper) {

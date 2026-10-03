@@ -24,7 +24,8 @@ class NativeBridge(
 
     @JavascriptInterface
     fun vibrate(durationMs: Long) {
-        val ms = if (durationMs in 1..2000) durationMs else 50
+        if (durationMs <= 0) return
+        val ms = durationMs.coerceAtMost(2000L)
         vibrator?.let { v ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 v.vibrate(VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE))

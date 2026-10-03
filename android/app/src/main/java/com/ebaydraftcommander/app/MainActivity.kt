@@ -98,19 +98,21 @@ class MainActivity : AppCompatActivity() {
                 // Check for camera output
                 if (currentPhotoFile?.exists() == true && (currentPhotoFile?.length() ?: 0L) > 0L) {
                     cameraImageUri?.let { results.add(it) }
-                } else if (currentPhotoFile?.exists() == true && currentPhotoFile?.length() == 0L) {
-                    currentPhotoFile?.delete()
-                }
+                } else {
+                    if (currentPhotoFile?.exists() == true && currentPhotoFile?.length() == 0L) {
+                        currentPhotoFile?.delete()
+                    }
 
-                // Check for file chooser output
-                if (data != null) {
-                    val clipData: ClipData? = data.clipData
-                    if (clipData != null) {
-                        for (i in 0 until clipData.itemCount) {
-                            results.add(clipData.getItemAt(i).uri)
+                    // Check for file chooser output
+                    if (data != null) {
+                        val clipData: ClipData? = data.clipData
+                        if (clipData != null) {
+                            for (i in 0 until clipData.itemCount) {
+                                results.add(clipData.getItemAt(i).uri)
+                            }
+                        } else if (data.data != null) {
+                            data.data?.let { results.add(it) }
                         }
-                    } else if (data.data != null) {
-                        data.data?.let { results.add(it) }
                     }
                 }
 
@@ -147,6 +149,21 @@ class MainActivity : AppCompatActivity() {
     private fun initBackNavigation() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
+                if (binding.errorLayout.visibility == View.VISIBLE) {
+                    val currentTime = System.currentTimeMillis()
+                    if (currentTime - backPressedTime < 2000) {
+                        finish()
+                    } else {
+                        backPressedTime = currentTime
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Press back again to exit",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                    return
+                }
+
                 if (binding.webView.canGoBack()) {
                     binding.webView.goBack()
                 } else {
@@ -269,6 +286,12 @@ class MainActivity : AppCompatActivity() {
         filePathCallback?.onReceiveValue(null)
         filePathCallback = callback
 
+        if (currentPhotoFile?.exists() == true && currentPhotoFile?.length() == 0L) {
+            currentPhotoFile?.delete()
+        }
+        currentPhotoFile = null
+        cameraImageUri = null
+
         val isCapture = params.isCaptureEnabled
         val mimeTypes = params.acceptTypes
 
@@ -342,7 +365,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         val chooserIntent = Intent.createChooser(galleryIntent, "Select Photos or Camera")
-        chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(cameraIntent))
+        if (photoFile != null) {
+            chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(cameraIntent))
+        }
 
         fileChooserLauncher.launch(chooserIntent)
     }

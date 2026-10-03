@@ -71,7 +71,11 @@ class ServerConfigManager(context: Context) {
         while (base.endsWith("/")) {
             base = base.dropLast(1)
         }
-        if (base.endsWith("/app", ignoreCase = true)) {
+        if (base.endsWith("/api/system/health", ignoreCase = true)) {
+            base = base.substring(0, base.length - 18)
+        } else if (base.endsWith("/api", ignoreCase = true)) {
+            base = base.substring(0, base.length - 4)
+        } else if (base.endsWith("/app", ignoreCase = true)) {
             base = base.substring(0, base.length - 4)
         }
         while (base.endsWith("/")) {
@@ -87,10 +91,14 @@ class ServerConfigManager(context: Context) {
         overrideUrl: String? = null,
         overrideApiKey: String? = null
     ): Pair<Boolean, String> = withContext(Dispatchers.IO) {
+        if (overrideUrl != null && overrideUrl.trim().isBlank()) {
+            return@withContext Pair(false, "Server URL cannot be empty")
+        }
+        var conn: HttpURLConnection? = null
         try {
             val target = URL(resolveHealthCheckUrl(overrideUrl))
             val key = overrideApiKey ?: apiKey
-            val conn = (target.openConnection() as HttpURLConnection).apply {
+            conn = (target.openConnection() as HttpURLConnection).apply {
                 connectTimeout = 5000
                 readTimeout = 5000
                 requestMethod = "GET"
@@ -101,11 +109,17 @@ class ServerConfigManager(context: Context) {
             val code = conn.responseCode
             if (code in 200..299) {
                 Pair(true, "OK (HTTP $code)")
+            } else if (code == 401 || code == 403) {
+                Pair(false, "HTTP $code (Unauthorized: check API Key)")
             } else {
                 Pair(false, "Server returned HTTP $code")
             }
         } catch (e: Exception) {
             Pair(false, e.localizedMessage ?: "Connection failed")
+        } finally {
+            try {
+                conn?.disconnect()
+            } catch (_: Exception) {}
         }
     }
 }
