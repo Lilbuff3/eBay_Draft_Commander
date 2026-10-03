@@ -68,10 +68,13 @@ export function usePWAInstall() {
 
 // Check if app is installed
 export function isAppInstalled(): boolean {
+    if (typeof window !== 'undefined' && Boolean(window.isAndroidWrapper || window.AndroidBridge)) {
+        return true;
+    }
     // Check if running in standalone mode (installed PWA)
-    return window.matchMedia('(display-mode: standalone)').matches ||
-        (window.navigator as Navigator & { standalone?: boolean }).standalone ||
-        document.referrer.includes('android-app://');
+    return Boolean(window.matchMedia?.('(display-mode: standalone)')?.matches ||
+        (window.navigator as Navigator & { standalone?: boolean })?.standalone ||
+        document.referrer.includes('android-app://'));
 }
 
 // Check if running on mobile

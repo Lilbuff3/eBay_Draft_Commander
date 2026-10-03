@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -15,6 +16,7 @@ import android.view.WindowManager
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
+import android.webkit.WebView
 import android.widget.RadioButton
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
@@ -38,9 +40,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var serverConfigManager: ServerConfigManager
     private lateinit var nativeBridge: NativeBridge
+    private lateinit var webViewClient: CommanderWebViewClient
 
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private var cameraImageUri: Uri? = null
+    private var currentPhotoFile: File? = null
 
     private var cameraPermissionCallback: ((Boolean) -> Unit)? = null
     private var backPressedTime = 0L
@@ -92,11 +96,10 @@ class MainActivity : AppCompatActivity() {
                 val results = mutableListOf<Uri>()
 
                 // Check for camera output
-                cameraImageUri?.let { uri ->
-                    val file = File(uri.path ?: "")
-                    if (file.exists() && file.length() > 0) {
-                        results.add(uri)
-                    }
+                if (currentPhotoFile?.exists() == true && (currentPhotoFile?.length() ?: 0L) > 0L) {
+                    cameraImageUri?.let { results.add(it) }
+                } else if (currentPhotoFile?.exists() == true && currentPhotoFile?.length() == 0L) {
+                    currentPhotoFile?.delete()
                 }
 
                 // Check for file chooser output
@@ -113,9 +116,13 @@ class MainActivity : AppCompatActivity() {
 
                 callback.onReceiveValue(if (results.isNotEmpty()) results.toTypedArray() else null)
             } else {
+                if (currentPhotoFile?.exists() == true && currentPhotoFile?.length() == 0L) {
+                    currentPhotoFile?.delete()
+                }
                 callback.onReceiveValue(null)
             }
             cameraImageUri = null
+            currentPhotoFile = null
         }
 
         cameraCaptureLauncher = registerForActivityResult(
@@ -124,12 +131,16 @@ class MainActivity : AppCompatActivity() {
             val callback = filePathCallback ?: return@registerForActivityResult
             filePathCallback = null
 
-            if (success && cameraImageUri != null) {
+            if (success && cameraImageUri != null && currentPhotoFile?.exists() == true && (currentPhotoFile?.length() ?: 0L) > 0L) {
                 callback.onReceiveValue(arrayOf(cameraImageUri!!))
             } else {
+                if (currentPhotoFile?.exists() == true && currentPhotoFile?.length() == 0L) {
+                    currentPhotoFile?.delete()
+                }
                 callback.onReceiveValue(null)
             }
             cameraImageUri = null
+            currentPhotoFile = null
         }
     }
 
@@ -164,6 +175,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnRetry.setOnClickListener {
             binding.errorLayout.visibility = View.GONE
             binding.webView.visibility = View.VISIBLE
+            webViewClient.shouldClearHistoryOnLoad = true
             loadApp()
         }
 
@@ -174,6 +186,10 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun initWebView() {
+        if (0 != (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE)) {
+            WebView.setWebContentsDebuggingEnabled(true)
+        }
+
         with(binding.webView.settings) {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -194,8 +210,9 @@ class MainActivity : AppCompatActivity() {
             userAgentString = "$userAgentString eBayDraftCommander-Android/1.0"
         }
 
+        webViewClient = CommanderWebViewClient(this, serverConfigManager)
         binding.webView.addJavascriptInterface(nativeBridge, "AndroidBridge")
-        binding.webView.webViewClient = CommanderWebViewClient(this, serverConfigManager)
+        binding.webView.webViewClient = webViewClient
         binding.webView.webChromeClient = CommanderWebChromeClient(this)
 
         // Disable swipe refresh when scrolled down
@@ -268,6 +285,26 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun launchCameraOnly() {
+        val cameraPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+        if (cameraPermission != PackageManager.PERMISSION_GRANTED) {
+            requestCameraPermission { granted ->
+                if (granted) {
+                    executeCameraCapture()
+                } else {
+                    Toast.makeText(this, "Camera permission is required to capture photos", Toast.LENGTH_SHORT).show()
+                    filePathCallback?.onReceiveValue(null)
+                    filePathCallback = null
+                    cameraImageUri = null
+                    currentPhotoFile = null
+                }
+            }
+            return
+        }
+
+        executeCameraCapture()
+    }
+
+    private fun executeCameraCapture() {
         val photoFile = createImageFile()
         if (photoFile != null) {
             cameraImageUri = FileProvider.getUriForFile(
@@ -279,6 +316,8 @@ class MainActivity : AppCompatActivity() {
         } else {
             filePathCallback?.onReceiveValue(null)
             filePathCallback = null
+            cameraImageUri = null
+            currentPhotoFile = null
         }
     }
 
@@ -312,8 +351,11 @@ class MainActivity : AppCompatActivity() {
         return try {
             val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
             val storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: cacheDir
-            File.createTempFile("DC_${timeStamp}_", ".jpg", storageDir)
+            val file = File.createTempFile("DC_${timeStamp}_", ".jpg", storageDir)
+            currentPhotoFile = file
+            file
         } catch (_: Exception) {
+            currentPhotoFile = null
             null
         }
     }
@@ -392,8 +434,15 @@ class MainActivity : AppCompatActivity() {
             dialogBinding.textHealthResult.text = "Testing connection..."
             dialogBinding.textHealthResult.setTextColor(ContextCompat.getColor(this, R.color.brand_text_muted))
 
+            val pendingUrl = when {
+                dialogBinding.radioTailscale.isChecked -> ServerConfigManager.DEFAULT_TAILSCALE_URL
+                dialogBinding.radioLan.isChecked -> ServerConfigManager.DEFAULT_LAN_URL
+                else -> dialogBinding.editServerUrl.text.toString().trim()
+            }
+            val pendingApiKey = dialogBinding.editApiKey.text.toString().trim()
+
             lifecycleScope.launch {
-                val (ok, msg) = serverConfigManager.testConnection()
+                val (ok, msg) = serverConfigManager.testConnection(pendingUrl, pendingApiKey)
                 if (ok) {
                     dialogBinding.textHealthResult.text = "✓ " + getString(R.string.connection_ok)
                     dialogBinding.textHealthResult.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.brand_primary))
@@ -420,6 +469,7 @@ class MainActivity : AppCompatActivity() {
 
                 Toast.makeText(this, "Server settings saved", Toast.LENGTH_SHORT).show()
                 hideError()
+                webViewClient.shouldClearHistoryOnLoad = true
                 loadApp()
             }
             .setNegativeButton(R.string.cancel, null)

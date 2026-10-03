@@ -55,8 +55,10 @@ export function InstallPrompt() {
         setDismissed(true)
     }
 
-    // Don't show if installed or dismissed
-    if (isInstalled || dismissed) {
+    const isAndroidWrapper = typeof window !== 'undefined' && Boolean(window.isAndroidWrapper)
+
+    // Don't show if installed, dismissed, or inside Android wrapper
+    if (isInstalled || dismissed || isAndroidWrapper) {
         return null
     }
 

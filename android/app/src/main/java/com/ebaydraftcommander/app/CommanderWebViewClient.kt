@@ -13,6 +13,7 @@ class CommanderWebViewClient(
     private val serverConfigManager: ServerConfigManager
 ) : WebViewClient() {
 
+    var shouldClearHistoryOnLoad: Boolean = false
     private var hasError = false
 
     override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
@@ -47,7 +48,7 @@ class CommanderWebViewClient(
             append("window.isAndroidWrapper = true;")
             if (apiKey.isNotBlank()) {
                 // Ensure API key is persisted in localStorage so apiFetch picks it up immediately
-                append("try { if (!localStorage.getItem('dc-api-key')) { localStorage.setItem('dc-api-key', '${apiKey.replace("'", "\\'")}'); } } catch(e){}")
+                append("try { localStorage.setItem('dc-api-key', '${apiKey.replace("'", "\\'")}'); } catch(e){}")
             }
         }
         view?.evaluateJavascript(jsInject, null)
@@ -55,6 +56,10 @@ class CommanderWebViewClient(
 
     override fun onPageFinished(view: WebView?, url: String?) {
         super.onPageFinished(view, url)
+        if (shouldClearHistoryOnLoad) {
+            shouldClearHistoryOnLoad = false
+            view?.clearHistory()
+        }
         if (!hasError) {
             activity.hideError()
         }

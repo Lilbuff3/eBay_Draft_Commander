@@ -63,21 +63,39 @@ class ServerConfigManager(context: Context) {
             return if (raw.endsWith("/")) raw else "$raw/"
         }
 
-    val healthCheckUrl: String
-        get() {
-            val base = currentBaseUrl.removeSuffix("app/").removeSuffix("/")
-            return "$base/api/system/health"
+    fun resolveHealthCheckUrl(overrideUrl: String? = null): String {
+        var base = (overrideUrl?.trim()?.takeIf { it.isNotBlank() } ?: currentBaseUrl).trim()
+        if (!base.startsWith("http://", ignoreCase = true) && !base.startsWith("https://", ignoreCase = true)) {
+            base = "http://$base"
         }
+        while (base.endsWith("/")) {
+            base = base.dropLast(1)
+        }
+        if (base.endsWith("/app", ignoreCase = true)) {
+            base = base.substring(0, base.length - 4)
+        }
+        while (base.endsWith("/")) {
+            base = base.dropLast(1)
+        }
+        return "$base/api/system/health"
+    }
 
-    suspend fun testConnection(): Pair<Boolean, String> = withContext(Dispatchers.IO) {
+    val healthCheckUrl: String
+        get() = resolveHealthCheckUrl()
+
+    suspend fun testConnection(
+        overrideUrl: String? = null,
+        overrideApiKey: String? = null
+    ): Pair<Boolean, String> = withContext(Dispatchers.IO) {
         try {
-            val target = URL(healthCheckUrl)
+            val target = URL(resolveHealthCheckUrl(overrideUrl))
+            val key = overrideApiKey ?: apiKey
             val conn = (target.openConnection() as HttpURLConnection).apply {
                 connectTimeout = 5000
                 readTimeout = 5000
                 requestMethod = "GET"
-                if (apiKey.isNotBlank()) {
-                    setRequestProperty("X-API-Key", apiKey)
+                if (key.isNotBlank()) {
+                    setRequestProperty("X-API-Key", key)
                 }
             }
             val code = conn.responseCode

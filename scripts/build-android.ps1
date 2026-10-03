@@ -39,7 +39,7 @@ if (-not (Test-Path $Gradlew)) {
 }
 
 Write-Host "=============================================" -ForegroundColor Cyan
-Write-Host "  eBay Draft Commander — Android Build Tool  " -ForegroundColor Cyan
+Write-Host "  eBay Draft Commander - Android Build Tool  " -ForegroundColor Cyan
 Write-Host "=============================================" -ForegroundColor Cyan
 
 $Task = if ($Release) { "assembleRelease" } else { "assembleDebug" }
@@ -77,11 +77,19 @@ Write-Host "`n[2/3] Build succeeded!" -ForegroundColor Green
 Write-Host "  APK:  $ApkPath" -ForegroundColor White
 Write-Host "  Size: $ApkSizeMb MB" -ForegroundColor White
 
+# Copy built APK to static/app/draft-commander.apk for direct server download
+$StaticAppDir = Join-Path $RepoRoot "static\app"
+if (Test-Path $StaticAppDir) {
+    $StaticApkPath = Join-Path $StaticAppDir "draft-commander.apk"
+    Copy-Item -Path $ApkPath -Destination $StaticApkPath -Force
+    Write-Host "  Copied to: $StaticApkPath" -ForegroundColor Green
+}
+
 if ($Install -or $Run) {
     Write-Host "`n[3/3] Checking ADB devices..." -ForegroundColor Yellow
     $AdbDevicesOutput = adb devices
     $Devices = @()
-    $AdbDevicesOutput -split "`r?`n" | ForEach-Object {
+    $AdbDevicesOutput -split '\r?\n' | ForEach-Object {
         $line = $_.Trim()
         if ($line -and -not ($line -match "^List of devices") -and ($line -match "\s+device$")) {
             $Devices += ($line -split "\s+")[0]

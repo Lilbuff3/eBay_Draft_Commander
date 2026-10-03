@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import {
     Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { Loader2, Save, RefreshCw, Zap } from 'lucide-react'
+import { Loader2, Save, RefreshCw, Zap, Smartphone } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { InstallCard } from '@/components/InstallCard'
 
@@ -19,6 +19,7 @@ interface EbayStatusDetail {
 }
 
 export function Settings() {
+    const isAndroidApp = typeof window !== 'undefined' && Boolean(window.isAndroidWrapper || window.AndroidBridge)
     const [settings, setSettings] = useState<Record<string, string>>({})
     const [ebayStatus, setEbayStatusDetail] = useState<EbayStatusDetail>({ status: 'checking', message: 'Checking eBay connection…' })
 
@@ -145,6 +146,31 @@ export function Settings() {
                 </div>
 
                 <InstallCard />
+
+                {isAndroidApp && (
+                    <Card className="border-blue-200 bg-blue-50/50 shadow-sm rounded-2xl">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-ink-800 font-bold font-display flex items-center gap-2">
+                                <Smartphone className="h-5 w-5 text-blue-600" />
+                                Android Native App Settings
+                            </CardTitle>
+                            <CardDescription className="text-stone-600">
+                                Configure connection host, network mode (Tailscale / LAN / Custom), and API access token.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => window.AndroidBridge?.openServerSettings()}
+                                className="border-blue-300 text-blue-700 hover:bg-blue-100/60"
+                            >
+                                <Smartphone className="mr-2 h-4 w-4" />
+                                Configure Native Server Settings
+                            </Button>
+                        </CardContent>
+                    </Card>
+                )}
 
                 <Tabs defaultValue="ebay-policies" className="w-full">
                     <TabsList className="w-full h-auto bg-stone-50 p-1 rounded-xl border border-stone-200 flex overflow-x-auto">
@@ -580,6 +606,17 @@ export function Settings() {
                                         {restarting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                                         Reboot Backend Server
                                     </Button>
+                                    {isAndroidApp && (
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() => window.AndroidBridge?.openServerSettings()}
+                                            className="w-full sm:w-auto border-rose-300 text-rose-800 hover:bg-rose-100/50"
+                                        >
+                                            <Smartphone className="mr-2 h-4 w-4" />
+                                            Open Android Server Settings
+                                        </Button>
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>
