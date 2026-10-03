@@ -412,7 +412,7 @@ export function ItemDetailDrawer(props: ItemDetailDrawerProps = {}) {
                                         ) : (
                                             <button
                                                 onClick={() => setShowCategorySearch(true)}
-                                                className="w-full text-left bg-stone-50 rounded-lg px-3 py-2 text-sm text-stone-600 border border-stone-200 hover:border-blue-300 hover:bg-blue-50/30 transition-colors"
+                                                className="w-full text-left bg-stone-50 rounded-lg px-3 py-2 text-sm text-stone-600 border border-stone-200 hover:border-blue-300 hover:bg-blue-50/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                                             >
                                                 {draft.categoryName || draft.categoryId || jobDetails.category_name || jobDetails.category_id || 'Click to search...'}
                                             </button>
@@ -547,7 +547,7 @@ export function ItemDetailDrawer(props: ItemDetailDrawerProps = {}) {
                             <div className="pb-2">
                                 <button
                                     onClick={() => setShowLogs(!showLogs)}
-                                    className="flex items-center gap-2 text-xs font-bold text-stone-400 uppercase tracking-wider hover:text-stone-600 transition-colors w-full"
+                                    className="flex items-center gap-2 text-xs font-bold text-stone-400 uppercase tracking-wider hover:text-stone-600 transition-colors w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 rounded-sm"
                                 >
                                     {showLogs ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                                     Activity Log ({logs.length} events)
@@ -569,7 +569,7 @@ export function ItemDetailDrawer(props: ItemDetailDrawerProps = {}) {
                             <button
                                 onClick={loadPreview}
                                 disabled={isGeneratingPreview}
-                                className="text-xs font-bold text-blue-600 hover:text-blue-700 disabled:text-stone-400 flex items-center gap-1"
+                                className="text-xs font-bold text-blue-600 hover:text-blue-700 disabled:text-stone-400 flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-sm"
                             >
                                 {isGeneratingPreview ? (
                                     <>
@@ -609,7 +609,7 @@ export function ItemDetailDrawer(props: ItemDetailDrawerProps = {}) {
                                 <button
                                     onClick={onCreateListing}
                                     disabled={isCreating}
-                                    className={`w-full py-3 px-4 rounded-xl font-semibold text-white transition ${isCreating
+                                    className={`w-full py-3 px-4 rounded-xl font-semibold text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2 ${isCreating
                                         ? 'bg-stone-400 cursor-wait'
                                         : 'bg-persimmon-600 hover:bg-persimmon-700 shadow-lg shadow-persimmon-500/25'
                                         }`}
