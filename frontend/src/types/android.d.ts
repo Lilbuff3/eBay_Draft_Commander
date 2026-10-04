@@ -5,6 +5,8 @@ export interface AndroidBridge {
     getAppVersion(): string
     getServerMode(): string
     openServerSettings(): void
+    setApiKey?(key: string): void
+    getApiKey?(): string
 }
 
 declare global {

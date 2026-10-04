@@ -66,4 +66,14 @@ class NativeBridge(
             activity.showServerConfigDialog()
         }
     }
+
+    @JavascriptInterface
+    fun setApiKey(key: String) {
+        serverConfigManager.apiKey = key.trim()
+    }
+
+    @JavascriptInterface
+    fun getApiKey(): String {
+        return serverConfigManager.apiKey
+    }
 }

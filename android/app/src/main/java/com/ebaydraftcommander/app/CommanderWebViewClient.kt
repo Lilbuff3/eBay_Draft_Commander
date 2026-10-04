@@ -50,8 +50,6 @@ class CommanderWebViewClient(
             if (apiKey.isNotBlank()) {
                 // Ensure API key is persisted in localStorage so apiFetch picks it up immediately
                 append("try { localStorage.setItem('dc-api-key', '$escapedKey'); } catch(e){}")
-            } else {
-                append("try { localStorage.removeItem('dc-api-key'); } catch(e){}")
             }
         }
         view?.evaluateJavascript(jsInject, null)

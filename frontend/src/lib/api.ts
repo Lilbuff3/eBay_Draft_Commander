@@ -54,7 +54,16 @@ const API_KEY_STORAGE = 'dc-api-key'
 
 function getApiKey(): string | null {
     try {
-        return localStorage.getItem(API_KEY_STORAGE)
+        const stored = localStorage.getItem(API_KEY_STORAGE)
+        if (stored) return stored
+        if (typeof window !== 'undefined' && window.AndroidBridge?.getApiKey) {
+            const bridgeKey = window.AndroidBridge.getApiKey()
+            if (bridgeKey) {
+                localStorage.setItem(API_KEY_STORAGE, bridgeKey)
+                return bridgeKey
+            }
+        }
+        return null
     } catch {
         return null
     }
@@ -63,6 +72,9 @@ function getApiKey(): string | null {
 function storeApiKey(key: string) {
     try {
         localStorage.setItem(API_KEY_STORAGE, key)
+        if (typeof window !== 'undefined' && window.AndroidBridge?.setApiKey) {
+            window.AndroidBridge.setApiKey(key)
+        }
     } catch {
         // Private browsing — key just won't persist across reloads
     }
