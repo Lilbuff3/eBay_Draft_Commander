@@ -8,8 +8,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 enum class ServerMode {
-    TAILSCALE,
     LAN,
+    TAILSCALE,
     CUSTOM
 }
 
@@ -26,15 +26,44 @@ class ServerConfigManager(context: Context) {
         const val DEFAULT_TAILSCALE_URL = "https://tuf-2.taile466a6.ts.net/app/"
         const val DEFAULT_LAN_URL = "http://10.0.0.51:5000/app/"
         const val DEFAULT_EMULATOR_URL = "http://10.0.2.2:5000/app/"
+        const val DEFAULT_API_KEY = "ontqp4YTQaejSUvViTdxaXkDRbmAmNyt"
+
+        fun normalizeAppUrl(input: String): String {
+            var raw = input.trim()
+            if (raw.isBlank()) return DEFAULT_LAN_URL
+            if (!raw.startsWith("http://", ignoreCase = true) && !raw.startsWith("https://", ignoreCase = true)) {
+                raw = "http://$raw"
+            }
+            while (raw.endsWith("/") || raw.endsWith(".")) {
+                raw = raw.dropLast(1)
+            }
+            if (raw.endsWith("/download/apk", ignoreCase = true)) {
+                raw = raw.substring(0, raw.length - 13)
+            } else if (raw.endsWith("/download.apk", ignoreCase = true)) {
+                raw = raw.substring(0, raw.length - 13)
+            } else if (raw.endsWith("/download", ignoreCase = true)) {
+                raw = raw.substring(0, raw.length - 9)
+            } else if (raw.endsWith("/api/system/health", ignoreCase = true)) {
+                raw = raw.substring(0, raw.length - 18)
+            } else if (raw.endsWith("/api", ignoreCase = true)) {
+                raw = raw.substring(0, raw.length - 4)
+            } else if (raw.endsWith("/app", ignoreCase = true)) {
+                raw = raw.substring(0, raw.length - 4)
+            }
+            while (raw.endsWith("/") || raw.endsWith(".")) {
+                raw = raw.dropLast(1)
+            }
+            return "$raw/app/"
+        }
     }
 
     var serverMode: ServerMode
         get() {
-            val modeStr = prefs.getString(KEY_MODE, ServerMode.TAILSCALE.name) ?: ServerMode.TAILSCALE.name
+            val modeStr = prefs.getString(KEY_MODE, ServerMode.LAN.name) ?: ServerMode.LAN.name
             return try {
                 ServerMode.valueOf(modeStr)
             } catch (_: Exception) {
-                ServerMode.TAILSCALE
+                ServerMode.LAN
             }
         }
         set(value) {
@@ -48,7 +77,10 @@ class ServerConfigManager(context: Context) {
         }
 
     var apiKey: String
-        get() = prefs.getString(KEY_API_KEY, "") ?: ""
+        get() {
+            val key = prefs.getString(KEY_API_KEY, "") ?: ""
+            return if (key.isNotBlank()) key else DEFAULT_API_KEY
+        }
         set(value) {
             prefs.edit().putString(KEY_API_KEY, value.trim()).apply()
         }
@@ -56,32 +88,21 @@ class ServerConfigManager(context: Context) {
     val currentBaseUrl: String
         get() {
             val raw = when (serverMode) {
-                ServerMode.TAILSCALE -> DEFAULT_TAILSCALE_URL
                 ServerMode.LAN -> DEFAULT_LAN_URL
-                ServerMode.CUSTOM -> if (customUrl.isNotBlank()) customUrl else DEFAULT_TAILSCALE_URL
+                ServerMode.TAILSCALE -> DEFAULT_TAILSCALE_URL
+                ServerMode.CUSTOM -> if (customUrl.isNotBlank()) customUrl else DEFAULT_LAN_URL
             }
-            return if (raw.endsWith("/")) raw else "$raw/"
+            return normalizeAppUrl(raw)
         }
 
     fun resolveHealthCheckUrl(overrideUrl: String? = null): String {
-        var base = (overrideUrl?.trim()?.takeIf { it.isNotBlank() } ?: currentBaseUrl).trim()
-        if (!base.startsWith("http://", ignoreCase = true) && !base.startsWith("https://", ignoreCase = true)) {
-            base = "http://$base"
+        val appUrl = normalizeAppUrl(overrideUrl?.takeIf { it.isNotBlank() } ?: currentBaseUrl)
+        val hostBase = if (appUrl.endsWith("/app/")) {
+            appUrl.substring(0, appUrl.length - 5)
+        } else {
+            appUrl.trimEnd('/')
         }
-        while (base.endsWith("/")) {
-            base = base.dropLast(1)
-        }
-        if (base.endsWith("/api/system/health", ignoreCase = true)) {
-            base = base.substring(0, base.length - 18)
-        } else if (base.endsWith("/api", ignoreCase = true)) {
-            base = base.substring(0, base.length - 4)
-        } else if (base.endsWith("/app", ignoreCase = true)) {
-            base = base.substring(0, base.length - 4)
-        }
-        while (base.endsWith("/")) {
-            base = base.dropLast(1)
-        }
-        return "$base/api/system/health"
+        return "$hostBase/api/system/health"
     }
 
     val healthCheckUrl: String
@@ -97,7 +118,7 @@ class ServerConfigManager(context: Context) {
         var conn: HttpURLConnection? = null
         try {
             val target = URL(resolveHealthCheckUrl(overrideUrl))
-            val key = overrideApiKey ?: apiKey
+            val key = overrideApiKey?.takeIf { it.isNotBlank() } ?: apiKey
             conn = (target.openConnection() as HttpURLConnection).apply {
                 connectTimeout = 5000
                 readTimeout = 5000

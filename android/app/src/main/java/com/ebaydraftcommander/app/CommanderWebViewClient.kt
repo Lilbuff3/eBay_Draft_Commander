@@ -78,4 +78,20 @@ class CommanderWebViewClient(
             activity.showError(desc)
         }
     }
+
+    override fun onReceivedHttpError(
+        view: WebView?,
+        request: WebResourceRequest?,
+        errorResponse: android.webkit.WebResourceResponse?
+    ) {
+        super.onReceivedHttpError(view, request, errorResponse)
+        if (request?.isForMainFrame == true) {
+            val code = errorResponse?.statusCode ?: 0
+            if (code >= 400) {
+                hasError = true
+                val phrase = errorResponse?.reasonPhrase ?: "HTTP $code"
+                activity.showError("Server returned HTTP $code ($phrase)")
+            }
+        }
+    }
 }

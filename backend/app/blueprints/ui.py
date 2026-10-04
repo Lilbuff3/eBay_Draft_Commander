@@ -9,8 +9,9 @@ def index():
     return redirect('/app/')
 
 @ui_bp.route('/app')
+@ui_bp.route('/app.')
 def app_root():
-    """Redirect /app to /app/ to ensure relative assets work"""
+    """Redirect /app and /app. to /app/ to ensure relative assets work"""
     return redirect('/app/')
 
 @ui_bp.route('/app/')
@@ -92,7 +93,11 @@ def serve_offline():
 
 # --- APK Download for Android ---
 @ui_bp.route('/download')
+@ui_bp.route('/download/')
+@ui_bp.route('/download.')
 @ui_bp.route('/download/apk')
+@ui_bp.route('/download.apk')
+@ui_bp.route('/apk')
 def download_apk():
     app_dir = Path(current_app.static_folder) / 'app'
     return send_from_directory(
