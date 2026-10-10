@@ -217,11 +217,12 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                             </span>
                         )}
                         <button
+                            type="button"
                             onClick={onClose}
                             disabled={isUploading}
                             title="Close"
                             aria-label="Close"
-                            className="w-11 h-11 grid place-items-center rounded-full hover:bg-stone-100 disabled:opacity-50"
+                            className="w-11 h-11 grid place-items-center rounded-full hover:bg-stone-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400"
                         >
                             <X size={24} className="text-stone-500" />
                         </button>
@@ -338,7 +339,7 @@ export function MobileCaptureSheet({ isOpen, onClose, initialFiles = [], categor
                                             title="Delete photo"
                                             aria-label="Delete photo"
                                             onClick={() => handleDelete(photo.id, photo.url)}
-                                            className="absolute top-1 right-1 p-1.5 rounded-full bg-black/50 text-white backdrop-blur-sm active:scale-90 transition-transform"
+                                            className="absolute top-1 right-1 p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white backdrop-blur-sm active:scale-90 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                                         >
                                             <Trash2 size={16} />
                                         </button>
