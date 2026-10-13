@@ -60,7 +60,7 @@ export function InventoryCard({ listing, busy, onDropPrice, onPromote, onEnd }: 
                         ${listing.price.toFixed(2)}
                     </div>
                     <a href={`https://www.ebay.com/itm/${listing.listingId}`} target="_blank" rel="noreferrer"
-                        className="inline-flex items-center gap-1 min-h-[44px] px-1.5 -mr-1.5 rounded-lg text-xs text-stone-500 hover:text-persimmon-600 hover:bg-stone-100">
+                        className="inline-flex items-center gap-1 min-h-[44px] px-1.5 -mr-1.5 rounded-lg text-xs text-stone-500 hover:text-persimmon-600 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-card">
                         view <ExternalLink size={12} />
                     </a>
                 </div>
@@ -73,7 +73,7 @@ export function InventoryCard({ listing, busy, onDropPrice, onPromote, onEnd }: 
                     disabled={anyBusy || listing.price <= 0}
                     className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 rounded-lg text-xs font-semibold
                                bg-persimmon-50 text-persimmon-700 border border-persimmon-200 hover:bg-persimmon-100
-                               disabled:opacity-50 transition"
+                               disabled:opacity-50 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-card"
                 >
                     {busy?.price ? <Loader2 size={13} className="animate-spin" /> : <TrendingDown size={13} />}
                     Drop price
@@ -82,7 +82,7 @@ export function InventoryCard({ listing, busy, onDropPrice, onPromote, onEnd }: 
                     onClick={() => onPromote(listing)}
                     disabled={anyBusy}
                     className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 rounded-lg text-xs font-semibold
-                               bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50 transition"
+                               bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-card"
                 >
                     {busy?.promote ? <Loader2 size={13} className="animate-spin" /> : <Megaphone size={13} />}
                     Promote
@@ -91,7 +91,7 @@ export function InventoryCard({ listing, busy, onDropPrice, onPromote, onEnd }: 
                     onClick={() => onEnd(listing)}
                     disabled={anyBusy}
                     className="inline-flex items-center justify-center gap-1.5 h-11 px-4 rounded-lg text-xs font-semibold
-                               bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 transition"
+                               bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-card"
                 >
                     {busy?.end ? <Loader2 size={13} className="animate-spin" /> : <XCircle size={13} />}
                     End
@@ -109,7 +109,7 @@ export function InventoryCard({ listing, busy, onDropPrice, onPromote, onEnd }: 
                                 onClick={() => { setShowDrops(false); onDropPrice(listing, next) }}
                                 disabled={anyBusy}
                                 className="flex-1 h-11 rounded-lg text-xs font-semibold bg-stone-50/50 border border-stone-200
-                                           text-persimmon-700 hover:bg-paper-card disabled:opacity-50 transition"
+                                           text-persimmon-700 hover:bg-paper-card disabled:opacity-50 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-card"
                             >
                                 −{pct}% → ${next.toFixed(2)}
                             </button>
