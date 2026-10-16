@@ -1,0 +1,3 @@
+## 2024-10-16 - Accessible Sortable Image Thumbnails
+**Learning:** Sortable items in `@dnd-kit` components built using `<button>` elements (like those in `ImageGallery`) lack default screen-reader state and focus visibility. Adding `focus-visible` classes is straightforward, but for screen-reader users, it's crucial to map the internal selection state (`selectedIndex`) to `aria-pressed` and provide a descriptive `aria-label` since the visual selection border is not announced.
+**Action:** Always pair `focus-visible` styling with `aria-label` and `aria-pressed={isSelected}` when implementing custom selectable/sortable thumbnail grids.
