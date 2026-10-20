@@ -22,7 +22,7 @@ export function WorkspaceCard({ job, onSelect }: { job: Job; onSelect: (job: Job
             whileHover={{ scale: 1.02, y: -2 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => onSelect(job)}
-            className="group text-left bg-paper-card border border-stone-200 shadow-sm hover:shadow-md rounded-3xl p-3.5 flex gap-4 items-center transition-shadow w-full"
+            className="group text-left bg-paper-card border border-stone-200 shadow-sm hover:shadow-md rounded-3xl p-3.5 flex gap-4 items-center transition-shadow w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2"
         >
             {/* Thumbnail */}
             <div className="w-20 h-20 rounded-2xl bg-stone-100 overflow-hidden shrink-0 relative">
