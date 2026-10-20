@@ -75,7 +75,7 @@ export function InstallPrompt() {
                         <h3 className="text-ink-800 font-semibold text-sm">Install App</h3>
                         <button
                             onClick={handleDismiss}
-                            className="text-stone-500 hover:text-ink-800"
+                            className="text-stone-500 hover:text-ink-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2 rounded"
                             aria-label="Dismiss"
                         >
                             <X className="w-4 h-4" />
@@ -114,8 +114,16 @@ export function InstallPrompt() {
                         e.stopPropagation()
                         handleDismiss()
                     }}
-                    className="ml-1 p-0.5 hover:bg-blue-500 rounded-full cursor-pointer"
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            handleDismiss()
+                        }
+                    }}
+                    className="ml-1 p-0.5 hover:bg-blue-500 rounded-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                     role="button"
+                    tabIndex={0}
                     aria-label="Dismiss"
                 >
                     <X className="w-3 h-3" />
