@@ -71,7 +71,7 @@ export function InventoryCard({ listing, busy, onDropPrice, onPromote, onEnd }: 
                 <button
                     onClick={() => setShowDrops(v => !v)}
                     disabled={anyBusy || listing.price <= 0}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 rounded-lg text-xs font-semibold
+                    type="button" className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 rounded-lg text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2
                                bg-persimmon-50 text-persimmon-700 border border-persimmon-200 hover:bg-persimmon-100
                                disabled:opacity-50 transition"
                 >
@@ -81,7 +81,7 @@ export function InventoryCard({ listing, busy, onDropPrice, onPromote, onEnd }: 
                 <button
                     onClick={() => onPromote(listing)}
                     disabled={anyBusy}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 rounded-lg text-xs font-semibold
+                    type="button" className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 rounded-lg text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2
                                bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50 transition"
                 >
                     {busy?.promote ? <Loader2 size={13} className="animate-spin" /> : <Megaphone size={13} />}
@@ -90,7 +90,7 @@ export function InventoryCard({ listing, busy, onDropPrice, onPromote, onEnd }: 
                 <button
                     onClick={() => onEnd(listing)}
                     disabled={anyBusy}
-                    className="inline-flex items-center justify-center gap-1.5 h-11 px-4 rounded-lg text-xs font-semibold
+                    type="button" className="inline-flex items-center justify-center gap-1.5 h-11 px-4 rounded-lg text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2
                                bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 transition"
                 >
                     {busy?.end ? <Loader2 size={13} className="animate-spin" /> : <XCircle size={13} />}
@@ -108,7 +108,7 @@ export function InventoryCard({ listing, busy, onDropPrice, onPromote, onEnd }: 
                                 key={pct}
                                 onClick={() => { setShowDrops(false); onDropPrice(listing, next) }}
                                 disabled={anyBusy}
-                                className="flex-1 h-11 rounded-lg text-xs font-semibold bg-stone-50/50 border border-stone-200
+                                type="button" className="flex-1 h-11 rounded-lg text-xs font-semibold bg-stone-50/50 border border-stone-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2
                                            text-persimmon-700 hover:bg-paper-card disabled:opacity-50 transition"
                             >
                                 −{pct}% → ${next.toFixed(2)}

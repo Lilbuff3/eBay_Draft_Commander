@@ -63,7 +63,7 @@ export function ItemScheduleField({ scheduledTime, updateDraft }: ItemScheduleFi
                         key={preset.label}
                         type="button"
                         onClick={() => updateDraft({ scheduledTime: preset.value })}
-                        className="flex-1 px-2 py-1.5 text-xs leading-tight text-center rounded-md border border-stone-200 hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                        className="flex-1 px-2 py-1.5 text-xs leading-tight text-center rounded-md border border-stone-200 hover:border-blue-400 hover:bg-blue-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2"
                     >
                         <div className="font-semibold">{preset.label}</div>
                         <div className="text-stone-400">{preset.sublabel}</div>

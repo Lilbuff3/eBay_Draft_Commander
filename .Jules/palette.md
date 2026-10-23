@@ -1,0 +1,3 @@
+## 2024-10-23 - Interactive Element Focus Rings
+**Learning:** Generic `<button>` elements used across different components (InventoryCard actions, UploadZone dismiss buttons, Schedule presets) often lack visual focus indicators, creating a significant keyboard navigation accessibility gap.
+**Action:** Always ensure that interactive elements, especially generic `button`s without a pre-configured library like Radix UI, explicitly include `focus-visible` styling (e.g., `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-offset-2`) and `type="button"` to ensure visual accessibility for keyboard users and prevent unintended form submissions.
