@@ -1,0 +1,3 @@
+## 2026-10-27 - Sortable interactives and hover-hidden A11y
+**Learning:** Components wrapping DnD logic (like `@dnd-kit/sortable`) and using `<button>` as thumbnail containers frequently lack proper `aria-label` and `focus-visible` states. Furthermore, UI elements hidden until hover on desktop (`sm:opacity-0 sm:group-hover:opacity-100`) remain completely invisible to keyboard-only users navigating via Tab unless explicitly exposed.
+**Action:** Add explicit `focus-visible` rings to interactives within DnD components. For elements hidden behind hover states, ensure `sm:focus-visible:opacity-100` is added so they surface appropriately for keyboard navigators.
