@@ -180,7 +180,7 @@ export function ReviewQueue() {
                         <button
                             onClick={toggleSelectAll}
                             aria-label={selectedIds.length === pendingListings.length ? 'Deselect all' : 'Select all'}
-                            className="w-11 h-11 -ml-2.5 grid place-items-center rounded-lg hover:text-persimmon-600 hover:bg-stone-100 transition-colors"
+                            className="w-11 h-11 -ml-2.5 grid place-items-center rounded-lg hover:text-persimmon-600 hover:bg-stone-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500"
                         >
                             {selectedIds.length === pendingListings.length ? <CheckSquare size={18} className="text-persimmon-600" /> : <Square size={18} />}
                         </button>
@@ -206,11 +206,11 @@ export function ReviewQueue() {
                                     <div className="flex items-stretch">
                                         <button
                                             type="button"
-                                            className="px-4 flex items-center hover:bg-stone-100 transition-colors min-w-[44px]"
+                                            className="px-4 flex items-center hover:bg-stone-100 transition-colors min-w-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-persimmon-500 focus-visible:ring-inset"
                                             onClick={() => toggleSelect(listing.id)}
                                             role="checkbox"
                                             aria-checked={selectedIds.includes(listing.id) ? 'true' : 'false'}
-                                            aria-label={selectedIds.includes(listing.id) ? 'Deselect listing' : 'Select listing'}
+                                            aria-label={selectedIds.includes(listing.id) ? `Deselect ${listing.title || 'listing'}` : `Select ${listing.title || 'listing'}`}
                                         >
                                             {selectedIds.includes(listing.id) ?
                                                 <CheckSquare size={20} className="text-persimmon-600" /> :
