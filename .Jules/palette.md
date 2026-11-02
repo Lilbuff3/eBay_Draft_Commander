@@ -1,0 +1,3 @@
+## 2024-05-18 - Missing focus states and ARIA labels on ImageGallery
+**Learning:** Found that ImageGallery thumbnails in this application lack `aria-label`, `aria-pressed`, and clear `focus-visible` outlines, making keyboard navigation and screen reader usage extremely difficult. In addition, the next/prev buttons were styled as hidden (`sm:opacity-0`) on desktop but lacked the `.focus-visible:opacity-100` classes to appear when tabbed into by keyboard users.
+**Action:** Always add `sm:focus-visible:opacity-100` on elements hidden by hover, and ensure ARIA labels with `focus-visible` rings are provided on `@dnd-kit` sortable thumbnail buttons.
